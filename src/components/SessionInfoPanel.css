@@ -1,0 +1,281 @@
+.session-info-panel {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  padding: 24px;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.session-info-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #f0f0f0;
+  padding-bottom: 16px;
+}
+
+.session-info-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.close-btn {
+  background: #f5f5f5;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  color: #666;
+  transition: all 0.2s;
+}
+
+.close-btn:hover {
+  background: #e0e0e0;
+  color: #333;
+}
+
+.session-details > div {
+  margin-bottom: 24px;
+}
+
+.session-details h4 {
+  margin: 0 0 12px 0;
+  color: #444;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.session-details h5 {
+  margin: 0 0 8px 0;
+  color: #555;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* 세션 코드 섹션 */
+.session-code-display {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f8f9ff;
+  border: 2px solid #e3e7ff;
+  border-radius: 8px;
+}
+
+.session-code-display .code {
+  font-family: 'Courier New', monospace;
+  font-size: 24px;
+  font-weight: bold;
+  color: #4338ca;
+  letter-spacing: 2px;
+}
+
+.copy-btn {
+  background: #4338ca;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.copy-btn:hover {
+  background: #3730a3;
+}
+
+/* 상태 정보 */
+.status-info {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.status-info p {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f9fafb;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.label {
+  font-weight: 500;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.role.host {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.role:not(.host) {
+  color: #059669;
+  font-weight: 600;
+}
+
+.user-count {
+  color: #7c3aed;
+  font-weight: 600;
+}
+
+/* QR 코드 섹션 */
+.qr-code-container {
+  text-align: center;
+}
+
+.qr-code {
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px;
+  background: white;
+  max-width: 200px;
+}
+
+.qr-instruction {
+  margin: 12px 0 0 0;
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* 수동 접속 방법 */
+.connection-urls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.url-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.url-label {
+  font-weight: 500;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.url-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.url-display code {
+  flex: 1;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #374151;
+  background: none;
+  word-break: break-all;
+}
+
+.copy-btn-small {
+  background: #6b7280;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 10px;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.copy-btn-small:hover {
+  background: #4b5563;
+}
+
+/* 설명 섹션 */
+.instructions ol {
+  padding-left: 20px;
+  margin: 0;
+}
+
+.instructions li {
+  margin-bottom: 8px;
+  line-height: 1.5;
+  color: #374151;
+}
+
+.instructions strong {
+  color: #111827;
+}
+
+.tips {
+  margin-top: 16px;
+  padding: 16px;
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+}
+
+.tips ul {
+  margin: 8px 0 0 0;
+  padding-left: 20px;
+}
+
+.tips li {
+  margin-bottom: 6px;
+  color: #92400e;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* 반응형 */
+@media (max-width: 480px) {
+  .session-info-panel {
+    padding: 16px;
+    max-width: 95vw;
+  }
+
+  .session-code-display {
+    flex-direction: column;
+    text-align: center;
+    gap: 8px;
+  }
+
+  .session-code-display .code {
+    font-size: 20px;
+  }
+
+  .status-info {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .url-display {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .url-display code {
+    text-align: center;
+  }
+}

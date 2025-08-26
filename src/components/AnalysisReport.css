@@ -1,0 +1,101 @@
+/* src/components/AnalysisReport.css */
+
+.analysis-report-container {
+  padding: 2.5rem 3rem;
+  background-color: #fff;
+  height: 100%;
+  overflow-y: auto;
+  font-family: 'Pretendard', sans-serif;
+}
+
+.report-content {
+  font-size: 1rem;
+  line-height: 1.8;
+  color: #34495e;
+}
+
+.report-content h1 {
+  font-size: 2.2rem;
+  font-weight: 900;
+  color: #000;
+  text-align: center;
+  margin-bottom: 3rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 3px solid #00205b; /* 삼양KCI Jin-nam-sek */
+}
+
+.report-content h2 {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #00205b; /* 삼양KCI Jin-nam-sek */
+  margin-top: 3rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.report-content h3 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #1f3b6d;
+  margin-top: 2.5rem;
+  margin-bottom: 1.2rem;
+}
+
+.report-content h4 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #34495e;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+.report-content p {
+  white-space: pre-wrap; /* 자동 줄바꿈을 위해 */
+  word-wrap: break-word;
+  margin-bottom: 1rem;
+}
+
+.report-content ul,
+.report-content ol {
+  padding-left: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.report-content li {
+  margin-bottom: 0.5rem;
+  padding-left: 0.5rem;
+}
+
+.report-content strong {
+  font-weight: 700; /* 기존 600 -> 700으로 더 굵게 */
+  color: #00205b; /* 삼양KCI CI Jin-nam-sek */
+}
+
+.report-content hr {
+  border: 0;
+  height: 1px;
+  background-color: #dee2e6;
+  margin: 2.5rem 0;
+}
+
+.report-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 20px;
+}
+
+.report-actions button {
+  background-color: #00205b; /* Samyang KCI Jin-nam-sek */
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.3s;
+}
+
+.report-actions button:hover {
+  background-color: #003380;
+}

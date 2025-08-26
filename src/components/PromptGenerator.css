@@ -1,0 +1,1349 @@
+/* 🚨 임시 강제 수정 - 아코디언 문제 해결용 (업데이트) */
+
+/* 모든 텍스트 세로 방향 강제 차단 */
+.left-panel,
+.left-panel *,
+.step,
+.step *,
+.step-title,
+.step-header,
+.step-header *,
+.step-content,
+.step-content * {
+  writing-mode: horizontal-tb !important;
+  text-orientation: mixed !important;
+  direction: ltr !important;
+  transform: none !important;
+}
+
+/* 🎯 분석 모드 탭 스타일 */
+.analysis-mode-tabs {
+  display: flex !important;
+  gap: 0.5rem !important;
+  margin-bottom: 1rem !important;
+  padding: 0.5rem !important;
+  background-color: #f8f9fa !important;
+  border-radius: 8px !important;
+  border: 1px solid #e9ecef !important;
+}
+
+.mode-tab {
+  flex: 1 !important;
+  padding: 0.75rem 1rem !important;
+  border: none !important;
+  border-radius: 6px !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  background-color: transparent !important;
+  color: #6c757d !important;
+}
+
+.mode-tab:hover {
+  background-color: #e9ecef !important;
+  color: #495057 !important;
+}
+
+.mode-tab.active {
+  background-color: #007bff !important;
+  color: white !important;
+  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2) !important;
+}
+
+/* 🎯 워크플로우 정보 박스 */
+.workflow-info {
+  background-color: #e3f2fd !important;
+  border: 1px solid #bbdefb !important;
+  border-radius: 6px !important;
+  padding: 1rem !important;
+  margin: 1rem 0 !important;
+}
+
+.workflow-info h4 {
+  color: #1565c0 !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  margin: 0 0 0.5rem 0 !important;
+}
+
+.workflow-info p {
+  color: #1976d2 !important;
+  font-size: 0.85rem !important;
+  margin: 0 !important;
+  line-height: 1.4 !important;
+}
+
+.workflow-info ul {
+  margin: 0.5rem 0 0 0 !important;
+  padding-left: 1.2rem !important;
+}
+
+.workflow-info li {
+  color: #1976d2 !important;
+  font-size: 0.85rem !important;
+  margin: 0.2rem 0 !important;
+  line-height: 1.3 !important;
+}
+
+/* 🎯 단계별 안내 스타일 */
+.step-instructions {
+  background-color: #f8f9fa !important;
+  border: 1px solid #dee2e6 !important;
+  border-radius: 6px !important;
+  padding: 1rem !important;
+  margin: 1rem 0 !important;
+}
+
+.step-instructions h4 {
+  color: #495057 !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  margin: 0 0 0.5rem 0 !important;
+}
+
+.step-instructions ol {
+  margin: 0 !important;
+  padding-left: 1.2rem !important;
+}
+
+.step-instructions li {
+  color: #6c757d !important;
+  font-size: 0.85rem !important;
+  margin: 0.3rem 0 !important;
+  line-height: 1.4 !important;
+}
+
+/* 🎯 워크플로우 완료 스타일 */
+.workflow-complete {
+  text-align: center !important;
+  padding: 1rem !important;
+}
+
+.workflow-complete h4 {
+  color: #28a745 !important;
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+  margin: 0 0 1rem 0 !important;
+}
+
+.completion-summary {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.75rem !important;
+  margin: 1rem 0 !important;
+}
+
+.stage-summary {
+  background-color: #d4edda !important;
+  border: 1px solid #c3e6cb !important;
+  border-radius: 6px !important;
+  padding: 0.75rem !important;
+  text-align: left !important;
+}
+
+.stage-summary h5 {
+  color: #155724 !important;
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+  margin: 0 0 0.3rem 0 !important;
+}
+
+.stage-summary p {
+  color: #155724 !important;
+  font-size: 0.8rem !important;
+  margin: 0 !important;
+  line-height: 1.3 !important;
+}
+
+.next-steps {
+  background-color: #fff3cd !important;
+  border: 1px solid #ffeaa7 !important;
+  border-radius: 6px !important;
+  padding: 1rem !important;
+  margin-top: 1rem !important;
+  text-align: left !important;
+}
+
+.next-steps h4 {
+  color: #856404 !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  margin: 0 0 0.5rem 0 !important;
+}
+
+.next-steps ul {
+  margin: 0 !important;
+  padding-left: 1.2rem !important;
+}
+
+.next-steps li {
+  color: #856404 !important;
+  font-size: 0.85rem !important;
+  margin: 0.3rem 0 !important;
+  line-height: 1.4 !important;
+}
+
+/* 🚨 임시 강제 수정 - 아코디언 문제 해결용 */
+/* 🎯 아코디언 올바른 세로 레이아웃 */
+.left-panel .step-item {
+  display: flex !important;
+  flex-direction: column !important; /* 세로 방향으로 펼치기 */
+  width: 100% !important;
+  margin-bottom: 1rem !important;
+}
+
+.left-panel .step-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  min-height: 60px !important;
+  gap: 1rem !important;
+  padding: 0.8rem 1rem !important;
+  cursor: pointer !important;
+  border-left: 5px solid #007bff !important;
+  border-radius: 8px 8px 0 0 !important;
+  width: 100% !important;
+  background-color: #f8f9fa !important;
+}
+
+.left-panel .step-title {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  writing-mode: horizontal-tb !important;
+  text-orientation: mixed !important;
+  direction: ltr !important;
+  transform: none !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+  color: #2c3e50 !important;
+  gap: 0.75rem !important;
+  white-space: normal !important;
+  word-wrap: break-word !important;
+  word-break: keep-all !important;
+  line-height: 1.4 !important;
+  overflow-wrap: break-word !important;
+}
+
+/* 아코디언 내용 - 세로로 펼쳐지기 */
+.left-panel .step-content {
+  display: block !important; /* 세로로 배치 */
+  width: 100% !important;
+  padding: 1rem !important;
+  background-color: #ffffff !important;
+  border: 1px solid #e9ecef !important;
+  border-top: none !important;
+  border-radius: 0 0 8px 8px !important;
+  margin-top: 0 !important;
+  overflow-y: auto !important;
+  max-height: 400px !important; /* 너무 길어지지 않도록 제한 */
+}
+
+.left-panel .step-icon,
+.left-panel .step-toggle {
+  flex-shrink: 0 !important;
+  width: 24px !important;
+  height: 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.prompt-generator {
+  padding: 1rem;
+  background-color: #f7f9fc;
+  height: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+
+  /* 텍스트 렌더링 개선 */
+  font-family: inherit;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+
+  /* 레이아웃 안정성 */
+  min-height: 0;
+  flex: 1;
+}
+
+.step-item {
+  background-color: #fff;
+  border-radius: 8px;
+  border: 1px solid #e0e6ed;
+  transition: all 0.3s ease-in-out;
+}
+
+.step-item.completed .step-header {
+  border-left: 5px solid #28a745; /* 완료 시 녹색 */
+}
+
+.step-item.open {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.step-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.8rem 1rem;
+  cursor: pointer;
+  border-left: 5px solid #007bff; /* 기본 파란색 */
+  border-radius: 8px 8px 0 0;
+
+  /* 레이아웃 안정성 개선 */
+  min-height: 60px;
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.step-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #2c3e50;
+
+  /* flex 레이아웃 개선 - 텍스트 영역 확보 */
+  flex: 1;
+  min-width: 0;
+
+  /* 텍스트 레이아웃 개선 */
+  white-space: normal;
+  word-wrap: break-word;
+  word-break: keep-all;
+  line-height: 1.4;
+  overflow-wrap: break-word;
+}
+
+.step-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #007bff;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+}
+
+.step-item.completed .step-icon {
+  color: #28a745;
+}
+
+.step-toggle {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #7f8c8d;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.step-content {
+  padding: 1rem;
+  border-top: 1px solid #e0e6ed;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+
+  /* 텍스트 레이아웃 개선 */
+  word-wrap: break-word;
+  word-break: keep-all;
+  white-space: normal;
+  line-height: 1.6;
+
+  /* 레이아웃 안정성 */
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.step-content p {
+  font-size: 0.9rem;
+  color: #555;
+  margin: 0.5rem 0 0.2rem 0;
+  line-height: 1.6;
+
+  /* 텍스트 레이아웃 개선 */
+  word-wrap: break-word;
+  word-break: keep-all;
+  white-space: normal;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+.step-content h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2c3e50;
+  margin: 0.5rem 0;
+
+  /* 텍스트 레이아웃 개선 */
+  word-wrap: break-word;
+  word-break: keep-all;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+.step-content ol,
+.step-content ul {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.step-content li {
+  margin: 0.3rem 0;
+  font-size: 0.9rem;
+  color: #555;
+  line-height: 1.4;
+
+  /* 텍스트 레이아웃 개선 */
+  word-wrap: break-word;
+  word-break: keep-all;
+  white-space: normal;
+}
+
+.step-content textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #dcdfe4;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+  resize: vertical;
+  background-color: #fff;
+  min-height: 120px;
+}
+
+.step-content .button-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.step-content button {
+  flex-grow: 1;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 5px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  background-color: #007bff;
+  color: white;
+}
+
+.step-content button:hover {
+  background-color: #0056b3;
+  transform: translateY(-1px);
+}
+
+.step-content button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.step-content button.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.step-content button.btn-secondary:hover {
+  background-color: #545b62;
+}
+
+/* 0단계 전용 스타일 */
+.llm-links {
+  margin: 1rem 0;
+}
+
+.llm-links h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.llm-links .button-group {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-llm {
+  flex: 1;
+  min-width: 80px;
+  padding: 0.6rem 1rem;
+  border: 2px solid #007bff;
+  border-radius: 5px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  background-color: white;
+  color: #007bff;
+  text-decoration: none;
+}
+
+.btn-llm:hover {
+  background-color: #007bff;
+  color: white;
+  transform: translateY(-1px);
+}
+
+.workshop-instructions {
+  margin: 1rem 0;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 5px;
+  border-left: 4px solid #007bff;
+
+  /* 텍스트 레이아웃 개선 */
+  word-wrap: break-word;
+  word-break: keep-all;
+  white-space: normal;
+  line-height: 1.5;
+}
+
+.workshop-instructions h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2c3e50;
+
+  /* 텍스트 레이아웃 개선 */
+  word-wrap: break-word;
+  word-break: keep-all;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+.workshop-instructions ol {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.workshop-instructions li {
+  margin: 0.3rem 0;
+  font-size: 0.9rem;
+  color: #555;
+  line-height: 1.4;
+
+  /* 텍스트 레이아웃 개선 */
+  word-wrap: break-word;
+  word-break: keep-all;
+  white-space: normal;
+}
+
+.btn-primary {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 5px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.btn-primary:hover {
+  background-color: #0056b3;
+  transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 아코디언 내용 세부 스타일링 */
+.left-panel .step-content h4 {
+  color: #2c3e50 !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  margin-bottom: 0.5rem !important;
+  margin-top: 1rem !important;
+}
+
+.left-panel .step-content h4:first-child {
+  margin-top: 0 !important;
+}
+
+.left-panel .step-content p {
+  color: #495057 !important;
+  font-size: 0.9rem !important;
+  line-height: 1.5 !important;
+  margin-bottom: 1rem !important;
+}
+
+.left-panel .step-content ol {
+  padding-left: 1.2rem !important;
+  margin-bottom: 1rem !important;
+}
+
+.left-panel .step-content li {
+  color: #495057 !important;
+  font-size: 0.9rem !important;
+  line-height: 1.4 !important;
+  margin-bottom: 0.3rem !important;
+}
+
+.left-panel .button-group {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.5rem !important;
+  margin-top: 1rem !important;
+}
+
+.left-panel .btn-llm,
+.left-panel .btn-primary,
+.left-panel button {
+  width: 100% !important;
+  padding: 0.6rem 1rem !important;
+  border: none !important;
+  border-radius: 6px !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: background-color 0.2s ease !important;
+}
+
+.left-panel .btn-llm {
+  background-color: #007bff !important;
+  color: white !important;
+}
+
+.left-panel .btn-llm:hover {
+  background-color: #0056b3 !important;
+}
+
+.left-panel .btn-primary {
+  background-color: #28a745 !important;
+  color: white !important;
+}
+
+.left-panel .btn-primary:hover {
+  background-color: #1e7e34 !important;
+}
+
+.left-panel textarea {
+  width: 100% !important;
+  padding: 0.8rem !important;
+  border: 1px solid #ddd !important;
+  border-radius: 6px !important;
+  font-size: 0.85rem !important;
+  line-height: 1.4 !important;
+  resize: vertical !important;
+  margin-bottom: 1rem !important;
+}
+
+/* 반응형 개선 */
+@media (max-width: 768px) {
+  .llm-links .button-group {
+    flex-direction: column;
+  }
+
+  .btn-llm {
+    flex: none;
+    width: 100%;
+  }
+
+  .workshop-instructions {
+    padding: 0.75rem;
+  }
+
+  .workshop-instructions ol {
+    padding-left: 1.2rem;
+  }
+}
+
+/* ⚡ Claude 이중 역할 모드 스타일 */
+.claude-chain-mode {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1.5rem !important;
+  padding: 1rem !important;
+  background-color: #fff !important;
+  border-radius: 8px !important;
+  border: 1px solid #e9ecef !important;
+}
+
+.chain-intro {
+  text-align: center !important;
+  padding: 1rem !important;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  border-radius: 8px !important;
+  color: white !important;
+}
+
+.chain-intro h3 {
+  font-size: 1.3rem !important;
+  font-weight: 700 !important;
+  margin: 0 0 0.5rem 0 !important;
+}
+
+.chain-intro p {
+  font-size: 0.95rem !important;
+  margin: 0 !important;
+  opacity: 0.9 !important;
+}
+
+.chain-input-section {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.5rem !important;
+}
+
+.chain-input-section h4 {
+  color: #2c3e50 !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  margin: 0 !important;
+}
+
+.chain-input-section textarea {
+  width: 100% !important;
+  padding: 1rem !important;
+  border: 2px solid #e9ecef !important;
+  border-radius: 8px !important;
+  font-size: 0.9rem !important;
+  line-height: 1.5 !important;
+  resize: vertical !important;
+  font-family: inherit !important;
+  box-sizing: border-box !important;
+}
+
+.chain-input-section textarea:focus {
+  outline: none !important;
+  border-color: #007bff !important;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25) !important;
+}
+
+.chain-input-section textarea:disabled {
+  background-color: #f8f9fa !important;
+  color: #6c757d !important;
+  cursor: not-allowed !important;
+}
+
+/* 진행 상황 섹션 */
+.chain-progress-section {
+  background-color: #f8f9fa !important;
+  border: 1px solid #dee2e6 !important;
+  border-radius: 8px !important;
+  padding: 1rem !important;
+}
+
+.chain-progress-section h4 {
+  color: #495057 !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  margin: 0 0 1rem 0 !important;
+}
+
+.chain-progress-bar {
+  position: relative !important;
+  width: 100% !important;
+  height: 20px !important;
+  background-color: #e9ecef !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+  margin-bottom: 1rem !important;
+}
+
+.chain-progress-fill {
+  height: 100% !important;
+  background: linear-gradient(90deg, #007bff 0%, #0056b3 100%) !important;
+  border-radius: 10px !important;
+  transition: width 0.3s ease !important;
+}
+
+.chain-progress-text {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  color: white !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+}
+
+.chain-steps {
+  display: flex !important;
+  align-items: center !important;
+  gap: 1rem !important;
+  margin-bottom: 1rem !important;
+}
+
+.chain-step {
+  flex: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.5rem !important;
+  padding: 0.75rem !important;
+  border-radius: 8px !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+  transition: all 0.3s ease !important;
+  background-color: #e9ecef !important;
+  color: #6c757d !important;
+}
+
+.chain-step.active {
+  background-color: #007bff !important;
+  color: white !important;
+  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3) !important;
+}
+
+.chain-step.completed {
+  background-color: #28a745 !important;
+  color: white !important;
+}
+
+.chain-arrow {
+  font-size: 1.2rem !important;
+  color: #6c757d !important;
+  font-weight: bold !important;
+}
+
+.step-spinner {
+  animation: spin 1s linear infinite !important;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.step-check {
+  font-size: 1.1rem !important;
+  font-weight: bold !important;
+}
+
+.chain-error {
+  background-color: #f8d7da !important;
+  border: 1px solid #f5c6cb !important;
+  color: #721c24 !important;
+  padding: 0.75rem !important;
+  border-radius: 6px !important;
+  font-size: 0.9rem !important;
+}
+
+/* 컨트롤 섹션 */
+.chain-controls {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1rem !important;
+}
+
+.chain-start-controls {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1rem !important;
+}
+
+.chain-start-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  color: white !important;
+  border: none !important;
+  padding: 1rem 2rem !important;
+  border-radius: 8px !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+}
+
+.chain-start-btn:hover:not(:disabled) {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.chain-start-btn:disabled {
+  background: #6c757d !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.chain-features {
+  background-color: #e3f2fd !important;
+  border: 1px solid #bbdefb !important;
+  border-radius: 8px !important;
+  padding: 1rem !important;
+}
+
+.chain-features h5 {
+  color: #1565c0 !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  margin: 0 0 0.5rem 0 !important;
+}
+
+.chain-features ul {
+  margin: 0 !important;
+  padding-left: 1.2rem !important;
+}
+
+.chain-features li {
+  color: #1976d2 !important;
+  font-size: 0.85rem !important;
+  margin: 0.3rem 0 !important;
+  line-height: 1.4 !important;
+}
+
+.chain-active-controls {
+  display: flex !important;
+  justify-content: center !important;
+}
+
+.chain-stop-btn {
+  background-color: #dc3545 !important;
+  color: white !important;
+  border: none !important;
+  padding: 0.75rem 1.5rem !important;
+  border-radius: 6px !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: background-color 0.2s ease !important;
+}
+
+.chain-stop-btn:hover {
+  background-color: #c82333 !important;
+}
+
+.chain-reset-section {
+  display: flex !important;
+  justify-content: center !important;
+}
+
+.chain-reset-btn {
+  background-color: #6c757d !important;
+  color: white !important;
+  border: none !important;
+  padding: 0.5rem 1rem !important;
+  border-radius: 6px !important;
+  font-size: 0.85rem !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: background-color 0.2s ease !important;
+}
+
+.chain-reset-btn:hover {
+  background-color: #545b62 !important;
+}
+
+/* 결과 섹션 */
+.chain-result-section {
+  background-color: #d4edda !important;
+  border: 1px solid #c3e6cb !important;
+  border-radius: 8px !important;
+  padding: 1rem !important;
+}
+
+.chain-result-section h4 {
+  color: #155724 !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  margin: 0 0 1rem 0 !important;
+}
+
+.chain-result-box {
+  background-color: #fff !important;
+  border: 1px solid #c3e6cb !important;
+  border-radius: 6px !important;
+  padding: 1rem !important;
+  max-height: 300px !important;
+  overflow-y: auto !important;
+}
+
+.chain-result-box pre {
+  margin: 0 !important;
+  font-size: 0.85rem !important;
+  line-height: 1.4 !important;
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+  color: #495057 !important;
+}
+
+/* 🎯 실행 모드 선택기 스타일 */
+.execution-mode-selector {
+  background-color: #f8f9fa !important;
+  border: 1px solid #dee2e6 !important;
+  border-radius: 8px !important;
+  padding: 1rem !important;
+  margin: 1rem 0 !important;
+}
+
+.execution-mode-selector h4 {
+  color: #495057 !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  margin: 0 0 0.75rem 0 !important;
+}
+
+.mode-options {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.5rem !important;
+}
+
+.mode-options label {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  cursor: pointer !important;
+  padding: 0.5rem !important;
+  border-radius: 6px !important;
+  transition: background-color 0.2s ease !important;
+}
+
+.mode-options label:hover {
+  background-color: #e9ecef !important;
+}
+
+.mode-options input[type='radio'] {
+  margin: 0 !important;
+  accent-color: #007bff !important;
+}
+
+.mode-options span {
+  color: #495057 !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
+}
+
+/* 버튼 그룹 스타일 개선 */
+.button-group {
+  display: flex !important;
+  gap: 0.5rem !important;
+  margin-top: 1rem !important;
+  align-items: center !important;
+}
+
+.button-group .btn-primary {
+  flex: 1 !important;
+  margin: 0 !important;
+}
+
+.button-group .btn-secondary {
+  flex: 1 !important;
+  background-color: #6c757d !important;
+  color: white !important;
+  border: none !important;
+  padding: 0.75rem 1rem !important;
+  border-radius: 5px !important;
+  font-size: 0.95rem !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease-in-out !important;
+  margin: 0 !important;
+}
+
+.button-group .btn-secondary:hover:not(:disabled) {
+  background-color: #545b62 !important;
+  transform: translateY(-1px) !important;
+}
+
+.button-group .btn-secondary:disabled {
+  background-color: #adb5bd !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+/* 🎯 자동 실행 패널 스타일 */
+.auto-execution-panel {
+  background-color: #e3f2fd !important;
+  border: 2px solid #2196f3 !important;
+  border-radius: 8px !important;
+  padding: 1rem !important;
+  margin: 1rem 0 !important;
+}
+
+.auto-execution-panel h4 {
+  color: #1565c0 !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  margin: 0 0 0.75rem 0 !important;
+}
+
+.auto-execution-panel p {
+  color: #1976d2 !important;
+  font-size: 0.9rem !important;
+  margin: 0 0 1rem 0 !important;
+  line-height: 1.4 !important;
+}
+
+.auto-execution-panel textarea {
+  width: 100% !important;
+  padding: 1rem !important;
+  border: 2px solid #bbdefb !important;
+  border-radius: 8px !important;
+  font-size: 0.9rem !important;
+  line-height: 1.5 !important;
+  resize: vertical !important;
+  font-family: inherit !important;
+  box-sizing: border-box !important;
+  background-color: white !important;
+  margin-bottom: 1rem !important;
+}
+
+.auto-execution-panel textarea:focus {
+  outline: none !important;
+  border-color: #2196f3 !important;
+  box-shadow: 0 0 0 0.2rem rgba(33, 150, 243, 0.25) !important;
+}
+
+/* 🎯 체인 진행률 표시 스타일 */
+.chain-progress {
+  margin-top: 1rem !important;
+  padding: 1rem !important;
+  background-color: white !important;
+  border: 1px solid #bbdefb !important;
+  border-radius: 8px !important;
+}
+
+.progress-bar {
+  position: relative !important;
+  width: 100% !important;
+  height: 24px !important;
+  background-color: #e9ecef !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.progress-fill {
+  height: 100% !important;
+  background: linear-gradient(90deg, #4caf50 0%, #2196f3 100%) !important;
+  border-radius: 12px !important;
+  transition: width 0.5s ease !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+.progress-text {
+  text-align: center !important;
+  color: #1565c0 !important;
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+  margin: 0 !important;
+}
+
+/* 🎯 연결 상태 표시 스타일 */
+.connection-status {
+  padding: 1rem !important;
+  border-radius: 8px !important;
+  margin: 1rem 0 !important;
+}
+
+.connection-status.success {
+  background-color: #d4edda !important;
+  border: 1px solid #c3e6cb !important;
+}
+
+.connection-status.warning {
+  background-color: #fff3cd !important;
+  border: 1px solid #ffeaa7 !important;
+}
+
+.connection-status p {
+  color: #155724 !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+  margin: 0 0 1rem 0 !important;
+}
+
+.connection-status.warning p {
+  color: #856404 !important;
+}
+
+.preview-box {
+  background-color: white !important;
+  border: 1px solid #c3e6cb !important;
+  border-radius: 6px !important;
+  padding: 1rem !important;
+  max-height: 200px !important;
+  overflow-y: auto !important;
+}
+
+.preview-box strong {
+  color: #155724 !important;
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+  display: block !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.preview-box pre {
+  margin: 0 !important;
+  font-size: 0.8rem !important;
+  line-height: 1.4 !important;
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+  color: #495057 !important;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace !important;
+}
+
+/* 🎯 연속 실행 옵션 스타일 */
+.chain-execution-option {
+  background-color: #fff8e1 !important;
+  border: 2px solid #ffcc02 !important;
+  border-radius: 8px !important;
+  padding: 1rem !important;
+  margin-top: 1rem !important;
+}
+
+.chain-execution-option h4 {
+  color: #e65100 !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  margin: 0 0 0.5rem 0 !important;
+}
+
+.chain-execution-option p {
+  color: #f57c00 !important;
+  font-size: 0.9rem !important;
+  margin: 0 0 1rem 0 !important;
+  line-height: 1.4 !important;
+}
+
+.btn-chain {
+  background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%) !important;
+  color: white !important;
+  border: none !important;
+  padding: 0.75rem 1.5rem !important;
+  border-radius: 8px !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  box-shadow: 0 3px 6px rgba(255, 152, 0, 0.3) !important;
+  width: 100% !important;
+}
+
+.btn-chain:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f57c00 0%, #e65100 100%) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 5px 10px rgba(255, 152, 0, 0.4) !important;
+}
+
+.btn-chain:disabled {
+  background: #bdbdbd !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* 🎯 자동 실행 버튼 개선 */
+.btn-primary {
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.btn-primary:disabled {
+  background-color: #6c757d !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+/* 🎯 실행 중 애니메이션 */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(0, 123, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 123, 255, 0);
+  }
+}
+
+.btn-primary:not(:disabled):active,
+.btn-chain:not(:disabled):active {
+  animation: pulse 1.5s infinite !important;
+}
+
+/* 반응형 개선 - 자동 실행 패널 */
+@media (max-width: 768px) {
+  .auto-execution-panel {
+    padding: 0.75rem !important;
+    margin: 0.75rem 0 !important;
+  }
+
+  .auto-execution-panel textarea {
+    padding: 0.75rem !important;
+    font-size: 0.85rem !important;
+  }
+
+  .chain-progress {
+    padding: 0.75rem !important;
+  }
+
+  .progress-bar {
+    height: 20px !important;
+  }
+
+  .preview-box {
+    max-height: 150px !important;
+    padding: 0.75rem !important;
+  }
+
+  .chain-execution-option {
+    padding: 0.75rem !important;
+  }
+
+  .btn-chain {
+    padding: 0.6rem 1rem !important;
+    font-size: 0.9rem !important;
+  }
+}
+
+/* 반응형 개선 - 실행 모드 선택기 */
+@media (max-width: 768px) {
+  .mode-options {
+    gap: 0.25rem !important;
+  }
+
+  .mode-options label {
+    padding: 0.4rem !important;
+  }
+
+  .mode-options span {
+    font-size: 0.85rem !important;
+  }
+
+  .button-group {
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+  }
+
+  .button-group .btn-primary,
+  .button-group .btn-secondary {
+    width: 100% !important;
+    flex: none !important;
+  }
+}

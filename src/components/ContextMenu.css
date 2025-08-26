@@ -1,0 +1,72 @@
+/* src/components/ContextMenu.css */
+.context-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10000;
+}
+
+.context-menu {
+  position: absolute;
+  background-color: white;
+  border: 1px solid #ccc;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  min-width: 180px;
+  padding: 6px 0;
+  z-index: 10001;
+  font-size: 0.95rem;
+}
+
+.context-menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.context-menu-item {
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.context-menu-item:hover {
+  background-color: #f0f2f5;
+}
+
+.context-menu-item.has-children {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.context-menu-item.has-children::after {
+  content: '▶';
+  font-size: 0.7em;
+  opacity: 0.6;
+}
+
+.sub-menu {
+  position: absolute;
+  top: -7px; /* 부모 li의 padding 상쇄 */
+  left: 100%;
+  background-color: white;
+  border: 1px solid #ccc;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  min-width: 180px;
+  padding: 6px 0;
+  z-index: 10002;
+}
+
+.context-menu-item.danger {
+  color: #c0392b;
+}
+
+.context-menu-item.danger:hover {
+  background-color: #fbeeee;
+  color: #a93226;
+}

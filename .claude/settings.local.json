@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run electron:dist:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run build:*)",
+      "Bash(rm:*)",
+      "Bash(npm run electron:build:*)",
+      "Bash(call run-multiuser-fixed.bat)",
+      "Bash(./run-multiuser-fixed.bat)",
+      "Bash(taskkill:*)",
+      "Bash(node server.js)",
+      "Bash(npm install:*)",
+      "Bash(cmd /c:*)",
+      "Bash(npm run dev:*)",
+      "Bash(curl:*)",
+      "Bash(call kill-ports.bat)",
+      "Bash(./kill-ports.bat)",
+      "Bash(python:*)",
+      "Bash(npm run lint)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run format:check:*)",
+      "Bash(grep:*)",
+      "Bash(npm run lint:*)",
+      "Bash(sed:*)",
+      "Bash(npx prettier:*)",
+      "Read(/D:\\yeonggyu-workspace/**)",
+      "Bash(xcopy:*)"
+    ],
+    "deny": [],
+    "ask": [],
+    "additionalDirectories": [
+      "D:\\"
+    ]
+  }
+}

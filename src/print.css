@@ -1,0 +1,107 @@
+/* src/print.css */
+
+@page {
+  size: A4;
+  margin: 2cm;
+}
+
+body {
+  background-color: #fff !important; /* 인쇄 시 배경을 강제로 흰색으로 */
+}
+
+/* 인쇄 시 불필요한 UI 요소들 숨기기 */
+.app-header,
+.left-panel,
+.view-tabs,
+.report-container .print-button-container {
+  display: none !important;
+}
+
+/* 인쇄 대상 영역을 전체 페이지로 확장 */
+.main-container,
+.right-panel,
+.view-content,
+.report-container {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  overflow: visible !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* 인쇄 환경에서도 삼양KCI CI 색상이 잘 보이도록 설정 */
+* {
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+/* 페이지 나뉨 방지 */
+.report-content h2,
+.report-content h3,
+.report-content h4 {
+  page-break-after: avoid;
+  page-break-inside: avoid;
+}
+
+.report-content ul,
+.report-content ol {
+  page-break-inside: avoid;
+}
+
+@media print {
+  /* 1. 인쇄하지 않을 모든 요소를 확실하게 숨깁니다. */
+  .no-print {
+    display: none !important;
+  }
+
+  /* 2. 화면 레이아웃(flexbox)을 인쇄용(block)으로 강제 변경합니다. */
+  body,
+  .app-container,
+  .app-body,
+  .main-content,
+  .view-content {
+    display: block !important;
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    position: static !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: none !important;
+  }
+
+  /* 3. 인쇄될 보고서 컨테이너의 스타일을 정리합니다. */
+  .analysis-report-container {
+    width: 100% !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* 4. 실제 컨텐츠에만 여백을 주어 인쇄 용지에 맞게 조정합니다. */
+  .report-content {
+    padding: 2cm 1.5cm !important;
+    font-size: 11pt; /* 인쇄에 적합한 폰트 크기 */
+    color: #000;
+  }
+
+  /* 5. 페이지 나누기 규칙을 설정하여 내용이 잘리지 않도록 합니다. */
+  h2,
+  h3,
+  h4 {
+    page-break-after: avoid;
+    page-break-inside: avoid;
+  }
+
+  ul,
+  ol,
+  p,
+  li {
+    page-break-before: avoid;
+    page-break-inside: avoid;
+  }
+}

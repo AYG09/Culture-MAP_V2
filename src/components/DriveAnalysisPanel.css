@@ -1,0 +1,1600 @@
+/* 성능 모니터링 스타일 */
+.visualization-info {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.note-count,
+.connection-count {
+  color: #495057;
+  font-weight: 500;
+}
+
+.render-time {
+  color: #28a745;
+  font-weight: 500;
+}
+
+.performance-warning {
+  color: #ffc107;
+  font-weight: 600;
+}
+
+/* 대용량 데이터 최적화 */
+.culture-map-board.large-dataset {
+  will-change: transform;
+}
+
+.culture-map-board.large-dataset .sticky-note {
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* 로딩 스피너 개선 */
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+} /* src/components/DriveAnalysisPanel.css */
+
+.drive-analysis-panel {
+  padding: 2rem;
+  max-width: min(1400px, 90vw);
+  margin: 0 auto;
+  background: #f8f9fa;
+  min-height: 100vh;
+}
+
+.panel-header {
+  text-align: center;
+  margin-bottom: 2rem;
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.panel-header h2 {
+  color: #2c3e50;
+  margin: 0 0 0.5rem 0;
+  font-size: 1.8rem;
+  font-weight: 600;
+}
+
+.panel-header p {
+  color: #7f8c8d;
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+/* 프로젝트 경고 */
+.no-project-warning {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #fff3cd;
+  border: 2px solid #ffeaa7;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.warning-icon {
+  font-size: 2rem;
+}
+
+.warning-content h3 {
+  color: #856404;
+  margin: 0 0 0.5rem 0;
+  font-size: 1.2rem;
+}
+
+.warning-content p {
+  color: #856404;
+  margin: 0;
+}
+
+/* 분석 단계 추적기 */
+.analysis-step-tracker {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.step-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.step-header h3 {
+  color: #2c3e50;
+  margin: 0 0 0.5rem 0;
+  font-size: 1.4rem;
+}
+
+.step-header p {
+  color: #7f8c8d;
+  margin: 0;
+  font-style: italic;
+}
+
+.steps-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 8px;
+  background: #f8f9fa;
+  border: 2px solid #e9ecef;
+  transition: all 0.3s ease;
+  min-width: 200px;
+}
+
+.step-item.active {
+  background: #e3f2fd;
+  border-color: #3498db;
+}
+
+.step-item.completed {
+  background: #d4edda;
+  border-color: #27ae60;
+}
+
+.step-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #dee2e6;
+  color: #6c757d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.step-item.active .step-icon {
+  background: #3498db;
+  color: white;
+}
+
+.step-item.completed .step-icon {
+  background: #27ae60;
+  color: white;
+}
+
+.step-info {
+  flex: 1;
+}
+
+.step-title {
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 0.25rem;
+}
+
+.step-desc {
+  font-size: 0.9rem;
+  color: #6c757d;
+  line-height: 1.4;
+}
+
+.step-divider {
+  width: 40px;
+  height: 2px;
+  background: #dee2e6;
+  flex-shrink: 0;
+}
+
+/* 선택된 파일 정보 */
+.selected-file-info {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.selected-file-info h4 {
+  color: #2c3e50;
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+}
+
+.file-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border-left: 4px solid #3498db;
+}
+
+.file-name {
+  font-weight: 500;
+  color: #2c3e50;
+}
+
+.file-type {
+  font-size: 0.8rem;
+  color: #7f8c8d;
+  background: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+/* 처리 상태 */
+.processing-status {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #e3f2fd;
+  border: 2px solid #3498db;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #e3f2fd;
+  border-top: 3px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.progress-text {
+  color: #2980b9;
+  font-weight: 500;
+}
+
+/* 에러 메시지 */
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #f8d7da;
+  border: 2px solid #f5c6cb;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.error-icon {
+  font-size: 1.5rem;
+}
+
+.error-text {
+  color: #721c24;
+  font-weight: 500;
+}
+
+/* 분석 시작 */
+.analysis-start {
+  background: white;
+  border-radius: 12px;
+  padding: 3rem;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.start-content h3 {
+  color: #2c3e50;
+  margin: 0 0 1rem 0;
+  font-size: 1.5rem;
+}
+
+.start-content p {
+  color: #7f8c8d;
+  margin: 0 0 2rem 0;
+  font-size: 1.1rem;
+  line-height: 1.6;
+}
+
+.start-btn {
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.start-btn:hover {
+  background: #2980b9;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+}
+
+/* 파일 선택기 컨테이너 */
+.file-selector-container {
+  background: white;
+  border-radius: 12px;
+  padding: 0;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+/* 분석 결과 */
+.analysis-results {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.results-header h3 {
+  color: #2c3e50;
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.confidence-score {
+  background: #d4edda;
+  color: #155724;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.confidence-score .score {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.results-grid {
+  display: grid;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.result-section {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1.5rem;
+  border-left: 4px solid #3498db;
+}
+
+.result-section.insights {
+  border-left-color: #f39c12;
+  background: #fef9e7;
+}
+
+.result-section h4 {
+  color: #2c3e50;
+  margin: 0 0 1rem 0;
+  font-size: 1.2rem;
+}
+
+.result-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.result-category {
+  background: white;
+  padding: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.result-category strong {
+  color: #2c3e50;
+  display: inline-block;
+  min-width: 120px;
+}
+
+.insight-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.insight-item {
+  background: white;
+  padding: 1rem;
+  border-radius: 6px;
+  border: 1px solid #f39c12;
+}
+
+.insight-item strong {
+  color: #e67e22;
+}
+
+/* 학술 참고문헌 */
+.academic-references {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1.5rem;
+  border-left: 4px solid #9b59b6;
+}
+
+.academic-references h4 {
+  color: #2c3e50;
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+}
+
+.academic-references ul {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.academic-references li {
+  color: #5d6d7e;
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
+}
+
+/* 새로운 분석 섹션 */
+.new-analysis-section {
+  text-align: center;
+  padding: 2rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.new-analysis-btn {
+  background: #27ae60;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.new-analysis-btn:hover {
+  background: #219a52;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);
+}
+
+/* Step 4 탭 스타일 */
+.step4-report-stage {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.step4-header {
+  margin-bottom: 2rem;
+}
+
+.step4-header h4 {
+  color: #2c3e50;
+  margin: 0 0 1rem 0;
+  font-size: 1.3rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.step4-tabs {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 2px solid #e9ecef;
+  padding-bottom: 0;
+}
+
+.tab-button {
+  background: none;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #6c757d;
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.tab-button:hover {
+  background: #f8f9fa;
+  color: #495057;
+}
+
+.tab-button.active {
+  background: #3498db;
+  color: white;
+  transform: translateY(2px);
+}
+
+.tab-button.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #3498db;
+}
+
+.step4-content {
+  padding: 2rem 0;
+}
+
+.step4-pending {
+  text-align: center;
+  padding: 3rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 2px dashed #dee2e6;
+}
+
+.step4-pending h4 {
+  color: #6c757d;
+  margin: 0 0 1rem 0;
+  font-size: 1.2rem;
+}
+
+.step4-pending p {
+  color: #6c757d;
+  margin: 0;
+  font-style: italic;
+}
+
+/* 보고서 탭 스타일 */
+.report-tab {
+  min-height: 400px;
+}
+
+.report-pending {
+  text-align: center;
+  padding: 3rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 2px dashed #dee2e6;
+}
+
+.report-pending h4 {
+  color: #6c757d;
+  margin: 0 0 1rem 0;
+  font-size: 1.2rem;
+}
+
+.report-pending p {
+  color: #6c757d;
+  margin: 1rem 0 0 0;
+  font-style: italic;
+}
+
+.report-content {
+  line-height: 1.6;
+  color: #2c3e50;
+}
+
+.report-content h1,
+.report-content h2,
+.report-content h3,
+.report-content h4 {
+  color: #2c3e50;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+.report-content p {
+  margin-bottom: 1rem;
+}
+
+.report-content ul,
+.report-content ol {
+  margin-bottom: 1rem;
+  padding-left: 2rem;
+}
+
+.report-content li {
+  margin-bottom: 0.5rem;
+}
+
+/* 시각화 탭 스타일 */
+.visualization-tab {
+  min-height: 400px;
+}
+
+.visualization-tab .visualization-info {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.visualization-tab .note-count,
+.visualization-tab .connection-count {
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.visualization-tab .connection-count {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.visualization-tab .render-time {
+  background: #e8f5e8;
+  color: #2e7d32;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.visualization-tab .performance-warning {
+  background: #fff3e0;
+  color: #f57c00;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.visualization-tab .culture-map-container {
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.visualization-tab .culture-map-board {
+  background: #fafafa;
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+  background-size: 20px 20px;
+  position: relative;
+  min-height: 600px;
+}
+
+/* 액션 버튼들 */
+.analysis-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.download-docx-btn,
+.new-analysis-btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.download-docx-btn {
+  background: #3498db;
+  color: white;
+}
+
+.download-docx-btn:hover {
+  background: #2980b9;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+}
+
+.download-docx-btn:disabled {
+  background: #bdc3c7;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.new-analysis-btn {
+  background: #27ae60;
+  color: white;
+}
+
+.new-analysis-btn:hover {
+  background: #219a52;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .step4-tabs {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .tab-button {
+    border-radius: 0;
+    text-align: center;
+  }
+
+  .tab-button.active {
+    transform: none;
+  }
+
+  .tab-button.active::after {
+    display: none;
+  }
+
+  .analysis-actions {
+    flex-direction: column;
+  }
+
+  .download-docx-btn,
+  .new-analysis-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* 시각화 단계 스타일 */
+.visualization-stage {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.visualization-stage h4 {
+  color: #2c3e50;
+  margin: 0 0 1rem 0;
+  font-size: 1.3rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.visualization-info {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.note-count,
+.connection-count {
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.connection-count {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.culture-map-container {
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.culture-map-board {
+  background: #fafafa;
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+  background-size: 20px 20px;
+  position: relative;
+  min-height: 600px;
+}
+
+.visualization-pending,
+.visualization-processing {
+  text-align: center;
+  padding: 3rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 2px dashed #dee2e6;
+}
+
+.visualization-pending h4,
+.visualization-processing h4 {
+  color: #6c757d;
+  margin: 0 0 1rem 0;
+  font-size: 1.2rem;
+}
+
+.visualization-pending p {
+  color: #6c757d;
+  margin: 0;
+  font-style: italic;
+}
+
+.visualization-processing .loading-spinner {
+  margin: 1rem auto 0;
+}
+
+/* 선택 영역 스타일 */
+.selection-box {
+  position: absolute;
+  border: 2px dashed #3498db;
+  background-color: rgba(52, 152, 219, 0.1);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 1024px) {
+  .steps-container {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .step-divider {
+    width: 2px;
+    height: 20px;
+    transform: rotate(90deg);
+  }
+
+  .step-item {
+    min-width: auto;
+    width: 100%;
+  }
+
+  .results-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 768px) {
+  .drive-analysis-panel {
+    padding: 1rem;
+  }
+
+  .panel-header {
+    padding: 1.5rem;
+  }
+
+  .panel-header h2 {
+    font-size: 1.5rem;
+  }
+
+  .analysis-step-tracker {
+    padding: 1.5rem;
+  }
+
+  .step-item {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
+  }
+
+  .step-info {
+    text-align: center;
+  }
+
+  .file-card {
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: center;
+  }
+
+  .analysis-results {
+    padding: 1.5rem;
+  }
+
+  .result-section {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .panel-header h2 {
+    font-size: 1.3rem;
+  }
+
+  .step-header h3 {
+    font-size: 1.2rem;
+  }
+
+  .start-content h3 {
+    font-size: 1.3rem;
+  }
+
+  .start-btn,
+  .new-analysis-btn {
+    width: 100%;
+    padding: 1rem;
+  }
+
+  .results-header h3 {
+    font-size: 1.3rem;
+  }
+
+  .result-category strong {
+    display: block;
+    margin-bottom: 0.25rem;
+    min-width: auto;
+  }
+}
+
+/* 분석 모드 선택기 스타일 */
+.analysis-mode-selector {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-bottom: 24px;
+  border: 1px solid #e5e7eb;
+}
+
+.mode-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  background: #f3f4f6;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.mode-tab {
+  flex: 1;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.mode-tab.active {
+  background: white;
+  color: #3b82f6;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.mode-tab:hover:not(.active) {
+  color: #374151;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.mode-description {
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.mode-description p {
+  margin: 0;
+}
+
+/* 프롬프트 생성 컨테이너 */
+.prompt-generator-container {
+  margin: 20px 0;
+}
+
+/* 수동 입력 컨테이너 */
+.manual-input-container {
+  margin: 20px 0;
+}
+
+/* 프롬프트 시각화 섹션 */
+.prompt-visualization-section {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 24px;
+  margin: 24px 0;
+  border: 1px solid #e5e7eb;
+}
+
+.visualization-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #f3f4f6;
+}
+
+.visualization-header h3 {
+  color: #2c3e50;
+  margin: 0;
+  font-size: 1.3rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clear-map-btn {
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.clear-map-btn:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+
+/* 모드 혜택 목록 */
+.mode-benefits {
+  margin-top: 12px;
+}
+
+.benefits-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.benefit {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 워크플로우 추적기 개선 */
+.workflow-tracker {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.workflow-tracker h3 {
+  color: #2c3e50;
+  margin: 0 0 1.5rem 0;
+  font-size: 1.4rem;
+  text-align: center;
+}
+
+.workflow-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #e9ecef;
+  border-radius: 4px;
+  margin-bottom: 2rem;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3498db, #2980b9);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.stages-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.stage-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: #f8f9fa;
+  border: 2px solid #e9ecef;
+  transition: all 0.3s ease;
+  min-width: 160px;
+  text-align: center;
+  position: relative;
+}
+
+.stage-item.completed {
+  background: #d4edda;
+  border-color: #27ae60;
+}
+
+.stage-item.current {
+  background: #e3f2fd;
+  border-color: #3498db;
+  transform: scale(1.05);
+}
+
+.stage-item.processing {
+  background: #fff3e0;
+  border-color: #f39c12;
+}
+
+.stage-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #dee2e6;
+  color: #6c757d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.stage-item.completed .stage-icon {
+  background: #27ae60;
+  color: white;
+}
+
+.stage-item.current .stage-icon {
+  background: #3498db;
+  color: white;
+}
+
+.stage-item.processing .stage-icon {
+  background: #f39c12;
+  color: white;
+}
+
+.stage-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.stage-title {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 0.9rem;
+}
+
+.stage-description {
+  font-size: 0.8rem;
+  color: #6c757d;
+  line-height: 1.3;
+}
+
+.stage-connector {
+  width: 40px;
+  height: 2px;
+  background: #dee2e6;
+  transition: background-color 0.3s ease;
+}
+
+.stage-connector.completed {
+  background: #27ae60;
+}
+
+.loading-spinner-small {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #f39c12;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* 워크플로우 혜택 목록 */
+.workflow-benefits {
+  text-align: left;
+  max-width: 600px;
+  margin: 0 auto 2rem auto;
+  padding: 0;
+  list-style: none;
+}
+
+.workflow-benefits li {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #e9ecef;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.workflow-benefits li:last-child {
+  border-bottom: none;
+}
+
+/* 진행 상황 그리드 */
+.stage-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.stage-status {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.stage-status.completed {
+  background: #d4edda;
+  border-color: #c3e6cb;
+}
+
+.stage-icon {
+  font-size: 1.25rem;
+}
+
+.stage-status div {
+  flex: 1;
+}
+
+.stage-status strong {
+  color: #2c3e50;
+  font-size: 0.9rem;
+}
+
+.stage-status p {
+  margin: 0.25rem 0 0 0;
+  color: #6c757d;
+  font-size: 0.8rem;
+}
+
+/* 다중 파일 배치 진행률 스타일 */
+.batch-progress {
+  background: #f8f9fa;
+  border: 2px solid #e9ecef;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.batch-overview {
+  margin-bottom: 1rem;
+}
+
+.batch-overview h4 {
+  color: #2c3e50;
+  margin: 0 0 0.75rem 0;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.batch-progress-bar {
+  position: relative;
+  width: 100%;
+  height: 12px;
+  background: #e9ecef;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+
+.batch-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3498db, #2980b9);
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}
+
+.batch-progress-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.memory-usage {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.9rem;
+  color: #6c757d;
+}
+
+.memory-bar {
+  flex: 1;
+  height: 6px;
+  background: #e9ecef;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.memory-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: all 0.3s ease;
+}
+
+.file-progress-list {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.file-progress-card {
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 1rem;
+  transition: all 0.2s ease;
+}
+
+.file-progress-card:hover {
+  border-color: #3498db;
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.15);
+}
+
+.file-progress-card.pending {
+  border-left: 4px solid #6c757d;
+}
+
+.file-progress-card.preprocessing,
+.file-progress-card.step0,
+.file-progress-card.step1,
+.file-progress-card.step2,
+.file-progress-card.step3,
+.file-progress-card.step4 {
+  border-left: 4px solid #3498db;
+  background: #f8fcff;
+}
+
+.file-progress-card.completed {
+  border-left: 4px solid #27ae60;
+  background: #f8fff9;
+}
+
+.file-progress-card.error {
+  border-left: 4px solid #e74c3c;
+  background: #fef8f8;
+}
+
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.file-type-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.file-name {
+  flex: 1;
+  font-weight: 500;
+  color: #2c3e50;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-status-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.file-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.file-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.file-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3498db, #2980b9);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.file-progress-card.completed .file-progress-fill {
+  background: linear-gradient(90deg, #27ae60, #229954);
+}
+
+.file-progress-card.error .file-progress-fill {
+  background: linear-gradient(90deg, #e74c3c, #c0392b);
+}
+
+.file-progress-text {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6c757d;
+  min-width: 35px;
+  text-align: right;
+}
+
+.file-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.error-message {
+  display: block;
+  color: #b91c1c;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+  word-break: break-word;
+}
+
+.retry-button {
+  background: #f59e0b;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.retry-button:hover {
+  background: #d97706;
+  transform: translateY(-1px);
+}
+
+.current-stage {
+  font-size: 0.8rem;
+  color: #6c757d;
+  font-style: italic;
+  margin-top: 0.25rem;
+}
+
+/* 반응형 개선 */
+@media (max-width: 768px) {
+  .analysis-mode-selector {
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .mode-tabs {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .mode-tab {
+    text-align: center;
+  }
+
+  .stages-container {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .stage-connector {
+    width: 2px;
+    height: 20px;
+    transform: rotate(90deg);
+  }
+
+  .stage-item {
+    min-width: auto;
+    width: 100%;
+    max-width: 300px;
+  }
+
+  .file-progress-list {
+    grid-template-columns: 1fr;
+  }
+
+  .batch-progress {
+    padding: 1rem;
+  }
+
+  .memory-usage {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+
+  .file-info {
+    flex-wrap: wrap;
+  }
+
+  .file-name {
+    min-width: 0;
+    flex-basis: 100%;
+  }
+}
