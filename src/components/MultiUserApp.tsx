@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import App from '../App';
 import SessionManager from './SessionManager';
 import FirebaseMultiUserService from '../services/FirebaseMultiUserService';
+import MobileBrowserWarning from './MobileBrowserWarning';
 import './IPAccessNotice.css';
 
 const MultiUserApp: React.FC = () => {
@@ -122,6 +123,9 @@ const MultiUserApp: React.FC = () => {
 
   return (
     <>
+      {/* 모바일 브라우저 제한 안내 */}
+      <MobileBrowserWarning />
+
       {/* IP 주소 접속 안내 메시지 */}
       {showIPAccessNotice && (
         <div className="ip-access-notice">
