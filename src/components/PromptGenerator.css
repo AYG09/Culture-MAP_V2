@@ -16,38 +16,27 @@
   transform: none !important;
 }
 
-/* 🎯 분석 모드 탭 스타일 */
-.analysis-mode-tabs {
-  display: flex !important;
-  gap: 0.5rem !important;
-  margin-bottom: 1rem !important;
-  padding: 0.5rem !important;
-  background-color: #f8f9fa !important;
-  border-radius: 8px !important;
-  border: 1px solid #e9ecef !important;
-}
-
-.mode-tab {
-  flex: 1 !important;
-  padding: 0.75rem 1rem !important;
-  border: none !important;
-  border-radius: 6px !important;
-  font-size: 0.9rem !important;
-  font-weight: 500 !important;
-  cursor: pointer !important;
-  transition: all 0.2s ease !important;
-  background-color: transparent !important;
-  color: #6c757d !important;
-}
-
-.mode-tab:hover {
-  background-color: #e9ecef !important;
-  color: #495057 !important;
-}
-
-.mode-tab.active {
-  background-color: #007bff !important;
+/* 🎯 워크샵 모드 헤더 스타일 */
+.workshop-mode-header {
+  text-align: center !important;
+  margin-bottom: 2rem !important;
+  padding: 1.5rem !important;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  border-radius: 12px !important;
   color: white !important;
+}
+
+.workshop-mode-header h2 {
+  margin: 0 0 0.5rem 0 !important;
+  font-size: 1.5rem !important;
+  font-weight: 600 !important;
+}
+
+.workshop-mode-header p {
+  margin: 0 !important;
+  opacity: 0.9 !important;
+  font-size: 0.95rem !important;
+}
   box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2) !important;
 }
 
@@ -1345,5 +1334,119 @@
   .button-group .btn-secondary {
     width: 100% !important;
     flex: none !important;
+  }
+}
+
+/* 🎯 새로운 간소화된 UI 스타일 */
+.analysis-textarea {
+  width: 100% !important;
+  padding: 1rem !important;
+  border: 2px solid #dee2e6 !important;
+  border-radius: 8px !important;
+  font-size: 0.9rem !important;
+  line-height: 1.5 !important;
+  resize: vertical !important;
+  font-family: inherit !important;
+  box-sizing: border-box !important;
+  background-color: white !important;
+  margin-bottom: 1rem !important;
+}
+
+.analysis-textarea:focus {
+  outline: none !important;
+  border-color: #007bff !important;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25) !important;
+}
+
+.theory-content {
+  padding: 1rem !important;
+}
+
+.theory-layers {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1rem !important;
+  margin-top: 1rem !important;
+}
+
+.layer {
+  padding: 1rem !important;
+  border-left: 4px solid #007bff !important;
+  background-color: #f8f9fa !important;
+  border-radius: 0 8px 8px 0 !important;
+}
+
+.layer strong {
+  display: block !important;
+  color: #007bff !important;
+  margin-bottom: 0.5rem !important;
+  font-size: 1rem !important;
+}
+
+.layer p {
+  margin: 0 !important;
+  color: #6c757d !important;
+  font-size: 0.9rem !important;
+  line-height: 1.4 !important;
+}
+
+.ai-tools-section {
+  padding: 1rem !important;
+}
+
+.ai-tools-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)) !important;
+  gap: 0.75rem !important;
+  margin-top: 1rem !important;
+}
+
+.btn-tool {
+  padding: 0.75rem 1rem !important;
+  border: 2px solid #dee2e6 !important;
+  border-radius: 8px !important;
+  background-color: white !important;
+  color: #495057 !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  text-decoration: none !important;
+}
+
+.btn-tool:hover {
+  border-color: #007bff !important;
+  color: #007bff !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.15) !important;
+}
+
+/* 반응형 개선 - 새 UI */
+@media (max-width: 768px) {
+  .workshop-mode-header {
+    padding: 1rem !important;
+    margin-bottom: 1.5rem !important;
+  }
+
+  .workshop-mode-header h2 {
+    font-size: 1.25rem !important;
+  }
+
+  .theory-layers {
+    gap: 0.75rem !important;
+  }
+
+  .layer {
+    padding: 0.75rem !important;
+  }
+
+  .ai-tools-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.5rem !important;
+  }
+
+  .btn-tool {
+    padding: 0.6rem 0.8rem !important;
+    font-size: 0.85rem !important;
   }
 }
