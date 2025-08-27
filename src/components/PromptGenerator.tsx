@@ -50,19 +50,22 @@ const PromptGenerator: React.FC<PromptGeneratorProps> = ({
   const [workshopPrompt, setWorkshopPrompt] = useState<string>('');
   const [step4a1Prompt, setStep4a1Prompt] = useState<string>('');
   const [step4a2Prompt, setStep4a2Prompt] = useState<string>('');
+  const [cultureMapReportPrompt, setCultureMapReportPrompt] = useState<string>('');
 
   useEffect(() => {
     // 모든 프롬프트 로드
     const loadPrompts = async () => {
       try {
-        const [workshop, step4a1, step4a2] = await Promise.all([
+        const [workshop, step4a1, step4a2, mapReport] = await Promise.all([
           promptLoader.getPrompt('workshop'),
           promptLoader.getPrompt('step4a1_culture_diagnosis'),
-          promptLoader.getPrompt('step4a2_theory_analysis')
+          promptLoader.getPrompt('step4a2_theory_analysis'),
+          promptLoader.getPrompt('culture_map_report')
         ]);
         setWorkshopPrompt(workshop);
         setStep4a1Prompt(step4a1);
         setStep4a2Prompt(step4a2);
+        setCultureMapReportPrompt(mapReport);
       } catch (error) {
         console.error('프롬프트 로딩 실패:', error);
       }
@@ -341,12 +344,45 @@ const PromptGenerator: React.FC<PromptGeneratorProps> = ({
           </button>
         </Step>
 
-        {/* 이론적 배경 */}
+        {/* 종합 분석 보고서 */}
         <Step
           stepNumber={4}
-          title="📖 이론적 배경"
+          title="📊 종합 분석 보고서"
           isOpen={openStep === 4}
           onToggle={() => setOpenStep(openStep === 4 ? -1 : 4)}
+          isCompleted={false}
+        >
+          <p>완성된 컬처맵 이미지를 첨부하여 <strong>종합 분석 보고서</strong>를 생성하세요.</p>
+          
+          <div className="analysis-features">
+            <h4>✨ 종합 보고서 내용</h4>
+            <ul>
+              <li><strong>조직문화 정의</strong>: 한 문장으로 문화 상태 정의</li>
+              <li><strong>이론적 근거</strong>: 세분화된 학술 모델 적용 (Denison, Schein 확장 등)</li>
+              <li><strong>핵심 레버리지</strong>: 개선/강화의 핵심 요인과 이론적 배경</li>
+              <li><strong>구체적 실행방안</strong>: 제도/활동/개인행동 아이디어</li>
+            </ul>
+          </div>
+
+          <div className="report-notice">
+            <h4>📷 사용 방법</h4>
+            <p>1. 프롬프트 복사 → 2. AI 도구에서 붙여넣기 → 3. <strong>컬처맵 이미지 첨부</strong> → 4. 종합 보고서 생성</p>
+          </div>
+
+          <button 
+            onClick={() => handleCopyPrompt(cultureMapReportPrompt, '종합 분석 보고서')} 
+            className="btn-primary"
+          >
+            📊 종합 분석 보고서 프롬프트 복사
+          </button>
+        </Step>
+
+        {/* 이론적 배경 */}
+        <Step
+          stepNumber={5}
+          title="📖 이론적 배경"
+          isOpen={openStep === 5}
+          onToggle={() => setOpenStep(openStep === 5 ? -1 : 5)}
           isCompleted={false}
         >
           <div className="theory-content">

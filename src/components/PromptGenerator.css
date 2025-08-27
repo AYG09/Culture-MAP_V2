@@ -1545,6 +1545,29 @@
   margin-bottom: 0 !important;
 }
 
+/* 보고서 안내 박스 */
+.report-notice {
+  background-color: #fff3cd !important;
+  border-left: 4px solid #ffc107 !important;
+  border-radius: 0 8px 8px 0 !important;
+  padding: 1rem !important;
+  margin: 1rem 0 !important;
+}
+
+.report-notice h4 {
+  color: #856404 !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  margin: 0 0 0.5rem 0 !important;
+}
+
+.report-notice p {
+  color: #856404 !important;
+  font-size: 0.85rem !important;
+  line-height: 1.4 !important;
+  margin: 0 !important;
+}
+
 /* 반응형 - AI 툴바 */
 @media (max-width: 768px) {
   .ai-tools-toolbar {
