@@ -184,7 +184,7 @@ const SessionManager: React.FC<SessionManagerProps> = ({ onSessionJoined }) => {
 
         <div className="session-info-text">
           <p>
-            💡 <strong>팁:</strong> 모든 참가자는 동일한 WiFi 네트워크에 연결되어 있어야 합니다.
+            💡 <strong>팁:</strong> 세션 코드를 공유하면 누구나 참가할 수 있습니다.
           </p>
           <p>🔄 실시간으로 스티키 노트, 분석 데이터, 프로젝트가 동기화됩니다.</p>
         </div>

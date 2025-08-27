@@ -214,7 +214,7 @@ const ConnectionGuideModal: React.FC<ConnectionGuideModalProps> = ({ sessionCode
                 <li>세션 코드를 알려주세요</li>
               </ol>
               <p>
-                <strong>주의:</strong> 모든 참가자는 동일한 WiFi 네트워크에 연결되어 있어야 합니다.
+                <strong>참고:</strong> 인터넷 연결만 있으면 어디서든 참가할 수 있습니다.
               </p>
             </div>
           </div>
