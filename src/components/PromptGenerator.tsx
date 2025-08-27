@@ -48,18 +48,26 @@ const PromptGenerator: React.FC<PromptGeneratorProps> = ({
   const [analysisInput, setAnalysisInput] = useState('');
   const [openStep, setOpenStep] = useState<number>(0);
   const [workshopPrompt, setWorkshopPrompt] = useState<string>('');
+  const [step4a1Prompt, setStep4a1Prompt] = useState<string>('');
+  const [step4a2Prompt, setStep4a2Prompt] = useState<string>('');
 
   useEffect(() => {
-    // 워크샵 프롬프트 로드
-    const loadWorkshopPrompt = async () => {
+    // 모든 프롬프트 로드
+    const loadPrompts = async () => {
       try {
-        const prompt = await promptLoader.getPrompt('workshop');
-        setWorkshopPrompt(prompt);
+        const [workshop, step4a1, step4a2] = await Promise.all([
+          promptLoader.getPrompt('workshop'),
+          promptLoader.getPrompt('step4a1_culture_diagnosis'),
+          promptLoader.getPrompt('step4a2_theory_analysis')
+        ]);
+        setWorkshopPrompt(workshop);
+        setStep4a1Prompt(step4a1);
+        setStep4a2Prompt(step4a2);
       } catch (error) {
-        console.error('워크샵 프롬프트 로딩 실패:', error);
+        console.error('프롬프트 로딩 실패:', error);
       }
     };
-    loadWorkshopPrompt();
+    loadPrompts();
   }, []);
 
   const handleCopyPrompt = async (text: string, label: string) => {
@@ -152,6 +160,77 @@ const PromptGenerator: React.FC<PromptGeneratorProps> = ({
         <p>포스트잇 기반 조직문화 분석 및 컬처맵 생성</p>
       </div>
 
+      {/* AI 도구 툴바 */}
+      <div className="ai-tools-toolbar">
+        <h3>🤖 AI 도구 모음</h3>
+        <div className="ai-tools-grid">
+          <button
+            onClick={() => window.open('https://chatgpt.com', '_blank')}
+            className="btn-tool"
+            title="ChatGPT - OpenAI의 대화형 AI"
+          >
+            <span className="tool-icon">🤖</span>
+            <span className="tool-name">ChatGPT</span>
+          </button>
+          <button
+            onClick={() => window.open('https://claude.ai', '_blank')}
+            className="btn-tool"
+            title="Claude - Anthropic의 고급 AI 어시스턴트"
+          >
+            <span className="tool-icon">🧠</span>
+            <span className="tool-name">Claude</span>
+          </button>
+          <button
+            onClick={() => window.open('https://gemini.google.com', '_blank')}
+            className="btn-tool"
+            title="Gemini - Google의 차세대 AI"
+          >
+            <span className="tool-icon">✨</span>
+            <span className="tool-name">Gemini</span>
+          </button>
+          <button
+            onClick={() => window.open('https://perplexity.ai', '_blank')}
+            className="btn-tool"
+            title="Perplexity - AI 기반 검색 엔진"
+          >
+            <span className="tool-icon">🔍</span>
+            <span className="tool-name">Perplexity</span>
+          </button>
+          <button
+            onClick={() => window.open('https://grok.x.ai', '_blank')}
+            className="btn-tool"
+            title="Grok - X의 실시간 정보 AI"
+          >
+            <span className="tool-icon">⚡</span>
+            <span className="tool-name">Grok</span>
+          </button>
+          <button
+            onClick={() => window.open('https://www.semanticscholar.org', '_blank')}
+            className="btn-tool"
+            title="Semantic Scholar - 학술 논문 검색"
+          >
+            <span className="tool-icon">📚</span>
+            <span className="tool-name">Scholar</span>
+          </button>
+          <button
+            onClick={() => window.open('https://consensus.app', '_blank')}
+            className="btn-tool"
+            title="Consensus - AI 기반 연구 논문 분석"
+          >
+            <span className="tool-icon">📊</span>
+            <span className="tool-name">Consensus</span>
+          </button>
+          <button
+            onClick={() => window.open('https://elicit.org', '_blank')}
+            className="btn-tool"
+            title="Elicit - 연구 논문 자동 요약"
+          >
+            <span className="tool-icon">🔬</span>
+            <span className="tool-name">Elicit</span>
+          </button>
+        </div>
+      </div>
+
       <div className="workshop-mode">
         <Step
           stepNumber={0}
@@ -206,12 +285,68 @@ const PromptGenerator: React.FC<PromptGeneratorProps> = ({
           </button>
         </Step>
 
-        {/* 이론적 배경 */}
+        {/* 심화 분석 1: 인과관계 분석 */}
         <Step
           stepNumber={2}
-          title="📚 이론적 배경"
+          title="🔍 인과관계 분석"
           isOpen={openStep === 2}
           onToggle={() => setOpenStep(openStep === 2 ? -1 : 2)}
+          isCompleted={false}
+        >
+          <p>생성된 컬처맵의 <strong>인과관계 구조</strong>를 심층 분석하여 조직문화 상태를 진단하세요.</p>
+          
+          <div className="analysis-features">
+            <h4>✨ 주요 분석 항목</h4>
+            <ul>
+              <li>조직문화 상태를 한 문장으로 정의</li>
+              <li>컬쳐맵 핵심 인과관계 Top 3 식별</li>
+              <li>악순환/선순환 메커니즘 분석</li>
+              <li>한국 조직문화 특성을 고려한 진단</li>
+            </ul>
+          </div>
+
+          <button 
+            onClick={() => handleCopyPrompt(step4a1Prompt, '인과관계 분석')} 
+            className="btn-primary"
+          >
+            🔍 인과관계 분석 프롬프트 복사
+          </button>
+        </Step>
+
+        {/* 심화 분석 2: 이론적 근거 분석 */}
+        <Step
+          stepNumber={3}
+          title="📚 이론적 근거 분석"
+          isOpen={openStep === 3}
+          onToggle={() => setOpenStep(openStep === 3 ? -1 : 3)}
+          isCompleted={false}
+        >
+          <p>컬처맵의 <strong>모든 유형/무형 요인에 적용된 이론</strong>을 완전 분석하여 학술적 타당성을 검증하세요.</p>
+          
+          <div className="analysis-features">
+            <h4>✨ 주요 분석 항목</h4>
+            <ul>
+              <li>각 이론의 핵심 개념과 선정 근거</li>
+              <li>조직 현실과 이론의 연관성 분석</li>
+              <li>모든 이론 요소를 빠짐없이 해설</li>
+              <li>구체적 발언 근거와 함께 검증</li>
+            </ul>
+          </div>
+
+          <button 
+            onClick={() => handleCopyPrompt(step4a2Prompt, '이론적 근거 분석')} 
+            className="btn-primary"
+          >
+            📚 이론적 근거 분석 프롬프트 복사
+          </button>
+        </Step>
+
+        {/* 이론적 배경 */}
+        <Step
+          stepNumber={4}
+          title="📖 이론적 배경"
+          isOpen={openStep === 4}
+          onToggle={() => setOpenStep(openStep === 4 ? -1 : 4)}
           isCompleted={false}
         >
           <div className="theory-content">
@@ -233,39 +368,6 @@ const PromptGenerator: React.FC<PromptGeneratorProps> = ({
                 <strong>4층: 정체성 (Identity)</strong>
                 <p>무형적 요인: 신념, 가치관, 가정, 심리적 요인</p>
               </div>
-            </div>
-          </div>
-        </Step>
-
-        {/* AI 도구 모음 */}
-        <Step
-          stepNumber={3}
-          title="🔗 AI 도구 모음"
-          isOpen={openStep === 3}
-          onToggle={() => setOpenStep(openStep === 3 ? -1 : 3)}
-          isCompleted={false}
-        >
-          <div className="ai-tools-section">
-            <h4>추천 AI 도구</h4>
-            <div className="ai-tools-grid">
-              <button
-                onClick={() => window.open('https://chatgpt.com', '_blank')}
-                className="btn-tool"
-              >
-                🤖 ChatGPT
-              </button>
-              <button
-                onClick={() => window.open('https://claude.ai', '_blank')}
-                className="btn-tool"
-              >
-                🧠 Claude
-              </button>
-              <button
-                onClick={() => window.open('https://gemini.google.com', '_blank')}
-                className="btn-tool"
-              >
-                ✨ Gemini
-              </button>
             </div>
           </div>
         </Step>

@@ -1450,3 +1450,130 @@
     font-size: 0.85rem !important;
   }
 }
+
+/* 🎯 AI 도구 툴바 스타일 */
+.ai-tools-toolbar {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+  border: 2px solid #dee2e6 !important;
+  border-radius: 12px !important;
+  padding: 1.5rem !important;
+  margin-bottom: 2rem !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+}
+
+.ai-tools-toolbar h3 {
+  color: #495057 !important;
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+  margin: 0 0 1rem 0 !important;
+  text-align: center !important;
+}
+
+.ai-tools-toolbar .ai-tools-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)) !important;
+  gap: 0.75rem !important;
+}
+
+.ai-tools-toolbar .btn-tool {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  padding: 0.75rem 0.5rem !important;
+  border: 2px solid #dee2e6 !important;
+  border-radius: 8px !important;
+  background-color: white !important;
+  color: #495057 !important;
+  font-size: 0.8rem !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  text-decoration: none !important;
+  min-height: 70px !important;
+}
+
+.ai-tools-toolbar .btn-tool:hover {
+  border-color: #007bff !important;
+  color: #007bff !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.15) !important;
+  background-color: #f8f9ff !important;
+}
+
+.tool-icon {
+  font-size: 1.2rem !important;
+  line-height: 1 !important;
+}
+
+.tool-name {
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  text-align: center !important;
+}
+
+/* 분석 기능 박스 */
+.analysis-features {
+  background-color: #f8f9fa !important;
+  border-left: 4px solid #28a745 !important;
+  border-radius: 0 8px 8px 0 !important;
+  padding: 1rem !important;
+  margin: 1rem 0 !important;
+}
+
+.analysis-features h4 {
+  color: #155724 !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  margin: 0 0 0.75rem 0 !important;
+}
+
+.analysis-features ul {
+  margin: 0 !important;
+  padding-left: 1.2rem !important;
+}
+
+.analysis-features li {
+  color: #495057 !important;
+  font-size: 0.85rem !important;
+  line-height: 1.4 !important;
+  margin-bottom: 0.4rem !important;
+}
+
+.analysis-features li:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* 반응형 - AI 툴바 */
+@media (max-width: 768px) {
+  .ai-tools-toolbar {
+    padding: 1rem !important;
+    margin-bottom: 1.5rem !important;
+  }
+
+  .ai-tools-toolbar .ai-tools-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 0.5rem !important;
+  }
+
+  .ai-tools-toolbar .btn-tool {
+    padding: 0.5rem 0.25rem !important;
+    min-height: 60px !important;
+  }
+
+  .tool-icon {
+    font-size: 1rem !important;
+  }
+
+  .tool-name {
+    font-size: 0.7rem !important;
+  }
+
+  .analysis-features {
+    padding: 0.75rem !important;
+  }
+
+  .analysis-features li {
+    font-size: 0.8rem !important;
+  }
+}
