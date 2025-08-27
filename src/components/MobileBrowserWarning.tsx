@@ -9,14 +9,22 @@ const MobileBrowserWarning: React.FC = () => {
     // 모바일 앱 내 브라우저(WebView) 감지
     const detectInAppBrowser = () => {
       const userAgent = navigator.userAgent.toLowerCase();
+      console.log('🔍 User Agent:', navigator.userAgent); // 디버깅용
+      
       const isInAppBrowser = 
         userAgent.includes('kakao') ||         // 카카오톡
+        userAgent.includes('kakaotalk') ||     // 카카오톡 (다른 표기)
         userAgent.includes('instagram') ||     // 인스타그램
         userAgent.includes('fban') ||          // 페이스북
         userAgent.includes('fbav') ||          // 페이스북 앱
         userAgent.includes('messenger') ||     // 메신저
         userAgent.includes('line') ||          // 라인
-        userAgent.includes('wv');              // WebView
+        userAgent.includes('micromessenger') || // 위챗
+        userAgent.includes('wv') ||            // WebView
+        // 추가 패턴들
+        (userAgent.includes('mobile') && userAgent.includes('safari') && !userAgent.includes('crios') && !userAgent.includes('fxios'));
+
+      console.log('🚨 In-app browser detected:', isInAppBrowser); // 디버깅용
 
       if (isInAppBrowser) {
         setCurrentUrl(window.location.href);
