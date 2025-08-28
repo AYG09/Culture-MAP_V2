@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { NoteData, ConnectionData, PerceptionIntensity } from '../types/culture';
+import type { NoteData, ConnectionData, PerceptionIntensity, NoteType } from '../types/culture';
 
 const layerNameToIndex: { [key: string]: number } = {
   결과: 0,
@@ -113,10 +113,10 @@ export const parseAIOutput = (
       const newNote: NoteData = {
         id: uuidv4(),
         text: trimmedContent,
-        position: { x: 0, y: 0 }, // 임시 위치
+        position: { x: 0, y: 0 }, // 임시 위치 - 아래에서 계산됨
         width: 200,
         height: 120,
-        type: normalizedType as unknown, // 타입 단언
+        type: normalizedType as NoteType, // 타입 단언
         sentiment: sentimentValue,
         perceptionIntensity: perceptionIntensity, // 인식 강도 필드 추가
         basis: basis, // 이론적 근거 필드 추가
@@ -131,7 +131,43 @@ export const parseAIOutput = (
   console.log(`🔍 최종 결과 - 생성된 노트 수: ${notes.length}`);
   console.log(`🔍 최종 결과 - 연결선 대기 수: ${pendingConnections.length}`);
 
-  // 2차: 층위별로 위치 계산 -> layout.ts로 이동됨
+  // 2차: 층위별로 위치 계산 🔧 FIX: 여기서 실제 위치 계산
+  const layerTops: { [key: string]: number } = {
+    결과: 150,
+    행동: 150 + 150 + 150,
+    유형_레버: 150 + 2 * (150 + 150),
+    무형_레버: 150 + 3 * (150 + 150),
+  };
+
+  const nodesByLayer: { [key: string]: NoteData[] } = {
+    결과: [],
+    행동: [],
+    유형_레버: [],
+    무형_레버: [],
+  };
+
+  // 층위별로 노트 분류
+  notes.forEach(note => {
+    const layerType = note.type as keyof typeof nodesByLayer;
+    if (layerType in nodesByLayer) {
+      nodesByLayer[layerType].push(note);
+    } else {
+      nodesByLayer['행동'].push(note); // 기본값
+    }
+  });
+
+  // 각 층위별로 위치 계산
+  Object.keys(nodesByLayer).forEach(layer => {
+    const layerNodes = nodesByLayer[layer];
+    const startX = 100;
+    
+    layerNodes.forEach((node, index) => {
+      node.position = {
+        x: startX + index * (250 + 100), // 250px 간격 + 100px 패딩
+        y: layerTops[layer] || layerTops['행동'],
+      };
+    });
+  });
 
   // 3차: 모든 연결선을 생성합니다.
   pendingConnections.forEach(line => {
