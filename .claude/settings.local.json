@@ -25,7 +25,8 @@
       "Bash(sed:*)",
       "Bash(npx prettier:*)",
       "Read(/D:\\yeonggyu-workspace/**)",
-      "Bash(xcopy:*)"
+      "Bash(xcopy:*)",
+      "Bash(git merge:*)"
     ],
     "deny": [],
     "ask": [],
