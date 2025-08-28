@@ -207,6 +207,44 @@ class FirebaseMultiUserService {
         this.emit('layer-state-updated', layerState);
       }
     });
+
+    // 편집 상태 변경 감지 추가
+    const editingRef = ref(database, `sessions/${sessionCode}/editing`);
+    this.firebaseRefs.editing = editingRef;
+
+    // 이전 편집 상태를 추적하여 시작/중지 이벤트 구분
+    let previousEditingData: { [key: string]: any } = {};
+
+    onValue(editingRef, snapshot => {
+      const currentEditingData = snapshot.exists() ? snapshot.val() : {};
+      
+      // 새로 시작된 편집 감지
+      Object.entries(currentEditingData).forEach(([itemId, editInfo]: [string, any]) => {
+        if (!previousEditingData[itemId] && editInfo.userId !== this.userId) {
+          console.log('🔥 Firebase editing started:', { itemId, editInfo });
+          this.emit('editing-started', {
+            itemId,
+            itemType: editInfo.itemType,
+            userId: editInfo.userId,
+          });
+        }
+      });
+
+      // 중지된 편집 감지
+      Object.entries(previousEditingData).forEach(([itemId, editInfo]: [string, any]) => {
+        if (!currentEditingData[itemId] && editInfo.userId !== this.userId) {
+          console.log('🔥 Firebase editing stopped:', { itemId, editInfo });
+          this.emit('editing-stopped', {
+            itemId,
+            itemType: editInfo.itemType,
+            userId: editInfo.userId,
+          });
+        }
+      });
+
+      // 이전 상태 업데이트
+      previousEditingData = { ...currentEditingData };
+    });
   }
 
   // 세션 유효성 검사

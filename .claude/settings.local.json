@@ -33,7 +33,13 @@
       "Bash(npx vercel:*)",
       "Bash(git log:*)",
       "Bash(git config:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(git pull:*)",
+      "Bash(git remote set-url:*)",
+      "WebFetch(domain:vercel.com)",
+      "Bash(git checkout:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": [],
