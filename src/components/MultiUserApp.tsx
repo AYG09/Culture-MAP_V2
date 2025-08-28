@@ -54,10 +54,10 @@ const MultiUserApp: React.FC = () => {
     const checkConnectionStatus = () => {
       setIsConnected(FirebaseMultiUserService.isConnected());
     };
-    
+
     // 주기적으로 연결 상태 확인
     const statusInterval = setInterval(checkConnectionStatus, 1000);
-    
+
     // 초기 연결 상태 설정
     checkConnectionStatus();
 

@@ -12,6 +12,7 @@ interface EnhancedStickyNoteProps {
   onUpdate: (noteId: string, updates: Partial<NoteData>) => void;
   onContextMenu: (e: MouseEvent, noteId: string) => void;
   onClick: (noteId: string) => void;
+  onStartEdit?: (noteId: string) => void;
   onEditComplete?: (noteId: string) => void;
 
   isSelected: boolean;
@@ -64,6 +65,7 @@ export const EnhancedStickyNote: React.FC<EnhancedStickyNoteProps> = ({
   onUpdate,
   onContextMenu,
   onClick,
+  onStartEdit,
   onEditComplete,
   isSelected,
   isEditing,
@@ -147,6 +149,28 @@ export const EnhancedStickyNote: React.FC<EnhancedStickyNoteProps> = ({
     [note.id, onClick]
   );
 
+  const handleDoubleClick = useCallback(
+    (e: MouseEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isEditing || isDragging) {
+        console.log(
+          `🚫 [EnhancedStickyNote ${note.id}] Double-click blocked - editing:${isEditing}, dragging:${isDragging}`
+        );
+        return;
+      }
+      console.log(
+        `✏️ [EnhancedStickyNote ${note.id}] Double-click detected - requesting edit mode`
+      );
+      // 편집 모드 시작 요청
+      if (onStartEdit) {
+        console.log(`📝 [EnhancedStickyNote ${note.id}] Calling onStartEdit`);
+        onStartEdit(note.id);
+      }
+    },
+    [note.id, onStartEdit, isEditing, isDragging]
+  );
+
   const sentimentBorderStyle = getSentimentBorderStyle();
 
   // 편집 모드 변경 모니터링
@@ -175,7 +199,7 @@ export const EnhancedStickyNote: React.FC<EnhancedStickyNoteProps> = ({
     } else {
       console.log(`⏸️ [EnhancedStickyNote ${note.id}] Exiting edit mode`);
     }
-  }, [isEditing, note.id, note.text, editContent]);
+  }, [isEditing, note.id, note.text]); // editContent 제거하여 무한 루프 방지
 
   // 편집 중에는 실시간 동기화 비활성화 - 수동 저장만 사용
   // useEffect(() => {
@@ -232,6 +256,7 @@ export const EnhancedStickyNote: React.FC<EnhancedStickyNoteProps> = ({
       style={noteStyle}
       onMouseDown={handleMouseDown}
       onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
       onContextMenu={e => onContextMenu(e, note.id)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -256,6 +281,7 @@ export const EnhancedStickyNote: React.FC<EnhancedStickyNoteProps> = ({
                   oldValue: editContent,
                   newValue: e.target.value,
                 });
+                // 편집 중에는 로컬 상태만 업데이트 (외부 업데이트 방지)
                 setEditContent(e.target.value);
               }}
               onFocus={() => console.log(`🎯 [EnhancedStickyNote ${note.id}] textarea focused`)}

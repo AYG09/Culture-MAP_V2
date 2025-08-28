@@ -39,7 +39,10 @@ const normalizeType = (type: string): string => {
 export const parseAIOutput = (
   text: string
 ): { notes: NoteData[]; connections: ConnectionData[] } => {
+  console.log('🔍 parseAIOutput 입력 텍스트:', text);
   const lines = text.split('\n').filter(line => line.trim() !== '');
+  console.log('🔍 파싱할 라인 수:', lines.length);
+  console.log('🔍 각 라인:', lines);
 
   const notes: NoteData[] = [];
   const connections: ConnectionData[] = [];
@@ -51,13 +54,17 @@ export const parseAIOutput = (
     /^\[(?<type>[^\]]+)\]\s*\((?<sentiment>[^)]+)\)\s*(?<content>.*?)\s*(?:\((?<metadata>(?:저자|이론|연도):.*?)\))?$/i;
 
   // 1차: 모든 노드를 생성 (위치 계산은 나중에)
-  lines.forEach(line => {
+  lines.forEach((line, index) => {
+    console.log(`🔍 라인 ${index + 1}: "${line}"`);
+
     if (line.startsWith('[연결]') || line.startsWith('[간접연결]')) {
+      console.log(`🔍 연결선으로 분류: ${line}`);
       pendingConnections.push(line);
       return;
     }
 
     const nodeMatch = line.match(nodeRegex);
+    console.log(`🔍 정규식 매치 결과:`, nodeMatch);
 
     if (nodeMatch?.groups) {
       const { type, sentiment, content, metadata } = nodeMatch.groups;
@@ -88,8 +95,13 @@ export const parseAIOutput = (
       }
 
       if (layerIndex === undefined || !trimmedContent) {
+        console.log(
+          `🔍 노드 생성 실패 - layerIndex: ${layerIndex}, trimmedContent: "${trimmedContent}"`
+        );
         return;
       }
+
+      console.log(`🔍 노드 생성 성공 - 타입: ${normalizedType}, 내용: ${trimmedContent}`);
 
       let sentimentValue: 'positive' | 'negative' | 'neutral' = 'neutral';
       if (sentiment?.includes('긍정')) {
@@ -115,6 +127,9 @@ export const parseAIOutput = (
       noteContentToIdMap.set(trimmedContent, newNote.id);
     }
   });
+
+  console.log(`🔍 최종 결과 - 생성된 노트 수: ${notes.length}`);
+  console.log(`🔍 최종 결과 - 연결선 대기 수: ${pendingConnections.length}`);
 
   // 2차: 층위별로 위치 계산 -> layout.ts로 이동됨
 

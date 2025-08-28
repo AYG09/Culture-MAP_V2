@@ -1,13 +1,13 @@
 import { database } from '../lib/firebase';
-import { 
-  ref, 
-  push, 
-  set, 
-  onValue, 
-  off, 
+import {
+  ref,
+  push,
+  set,
+  onValue,
+  off,
   remove,
   serverTimestamp,
-  onDisconnect
+  onDisconnect,
 } from 'firebase/database';
 import type { DatabaseReference } from 'firebase/database';
 
@@ -83,7 +83,7 @@ class FirebaseMultiUserService {
     try {
       const sessionCode = this.generateSessionCode();
       const sessionRef = ref(database, `sessions/${sessionCode}`);
-      
+
       // 세션 메타데이터 설정
       await set(sessionRef, {
         code: sessionCode,
@@ -94,13 +94,13 @@ class FirebaseMultiUserService {
             userId: this.userId,
             joinedAt: serverTimestamp(),
             isHost: true,
-            isOnline: true
-          }
+            isOnline: true,
+          },
         },
         userCount: 1,
         notes: {},
         connections: {},
-        layerState: {}
+        layerState: {},
       });
 
       console.log('🔥 Firebase session created:', sessionCode);
@@ -129,7 +129,7 @@ class FirebaseMultiUserService {
         userId: this.userId,
         joinedAt: serverTimestamp(),
         isHost: isHost,
-        isOnline: true
+        isOnline: true,
       });
 
       // 연결 해제 시 자동으로 offline 처리
@@ -137,7 +137,7 @@ class FirebaseMultiUserService {
         userId: this.userId,
         isHost: isHost,
         isOnline: false,
-        leftAt: serverTimestamp()
+        leftAt: serverTimestamp(),
       });
 
       // 실시간 데이터 리스너 설정
@@ -154,17 +154,17 @@ class FirebaseMultiUserService {
     // 사용자 수 변경 감지
     const userCountRef = ref(database, `sessions/${sessionCode}/users`);
     this.firebaseRefs.userCount = userCountRef;
-    
-    onValue(userCountRef, (snapshot) => {
+
+    onValue(userCountRef, snapshot => {
       if (snapshot.exists()) {
         const users = snapshot.val();
         const onlineUsers = Object.values(users).filter((user: unknown) => user.isOnline);
         const userCount = onlineUsers.length;
-        
+
         if (this.currentSession) {
           this.currentSession.connectedUsers = userCount;
         }
-        
+
         this.emit('user-joined', { userCount });
       }
     });
@@ -172,8 +172,8 @@ class FirebaseMultiUserService {
     // 스티키 노트 변경 감지
     const notesRef = ref(database, `sessions/${sessionCode}/notes`);
     this.firebaseRefs.notes = notesRef;
-    
-    onValue(notesRef, (snapshot) => {
+
+    onValue(notesRef, snapshot => {
       if (snapshot.exists()) {
         const notes = snapshot.val();
         Object.values(notes).forEach((note: StickyNoteUpdate) => {
@@ -187,8 +187,8 @@ class FirebaseMultiUserService {
     // 연결선 변경 감지
     const connectionsRef = ref(database, `sessions/${sessionCode}/connections`);
     this.firebaseRefs.connections = connectionsRef;
-    
-    onValue(connectionsRef, (snapshot) => {
+
+    onValue(connectionsRef, snapshot => {
       if (snapshot.exists()) {
         const connections = snapshot.val();
         Object.values(connections).forEach((connection: unknown) => {
@@ -200,12 +200,50 @@ class FirebaseMultiUserService {
     // 층위 상태 변경 감지
     const layerStateRef = ref(database, `sessions/${sessionCode}/layerState`);
     this.firebaseRefs.layerState = layerStateRef;
-    
-    onValue(layerStateRef, (snapshot) => {
+
+    onValue(layerStateRef, snapshot => {
       if (snapshot.exists()) {
         const layerState = snapshot.val();
         this.emit('layer-state-updated', layerState);
       }
+    });
+
+    // 편집 상태 변경 감지 추가
+    const editingRef = ref(database, `sessions/${sessionCode}/editing`);
+    this.firebaseRefs.editing = editingRef;
+
+    // 이전 편집 상태를 추적하여 시작/중지 이벤트 구분
+    let previousEditingData: { [key: string]: any } = {};
+
+    onValue(editingRef, snapshot => {
+      const currentEditingData = snapshot.exists() ? snapshot.val() : {};
+      
+      // 새로 시작된 편집 감지
+      Object.entries(currentEditingData).forEach(([itemId, editInfo]: [string, any]) => {
+        if (!previousEditingData[itemId] && editInfo.userId !== this.userId) {
+          console.log('🔥 Firebase editing started:', { itemId, editInfo });
+          this.emit('editing-started', {
+            itemId,
+            itemType: editInfo.itemType,
+            userId: editInfo.userId,
+          });
+        }
+      });
+
+      // 중지된 편집 감지
+      Object.entries(previousEditingData).forEach(([itemId, editInfo]: [string, any]) => {
+        if (!currentEditingData[itemId] && editInfo.userId !== this.userId) {
+          console.log('🔥 Firebase editing stopped:', { itemId, editInfo });
+          this.emit('editing-stopped', {
+            itemId,
+            itemType: editInfo.itemType,
+            userId: editInfo.userId,
+          });
+        }
+      });
+
+      // 이전 상태 업데이트
+      previousEditingData = { ...currentEditingData };
     });
   }
 
@@ -213,11 +251,15 @@ class FirebaseMultiUserService {
   async validateSession(code: string): Promise<boolean> {
     try {
       const sessionRef = ref(database, `sessions/${code}`);
-      
-      return new Promise((resolve) => {
-        onValue(sessionRef, (snapshot) => {
-          resolve(snapshot.exists());
-        }, { onlyOnce: true });
+
+      return new Promise(resolve => {
+        onValue(
+          sessionRef,
+          snapshot => {
+            resolve(snapshot.exists());
+          },
+          { onlyOnce: true }
+        );
       });
     } catch (error) {
       console.error('Failed to validate Firebase session:', error);
@@ -228,7 +270,7 @@ class FirebaseMultiUserService {
   // 스티키 노트 업데이트
   updateStickyNote(note: StickyNoteUpdate) {
     if (!this.currentSession) {
-      console.error('❌ No active session - cannot update sticky note');
+      console.warn('⚠️ No active session - skipping Firebase sync for sticky note update');
       return;
     }
 
@@ -237,11 +279,11 @@ class FirebaseMultiUserService {
       const noteData = {
         ...note,
         author: this.userId,
-        timestamp: serverTimestamp()
+        timestamp: serverTimestamp(),
       };
 
       set(noteRef, noteData);
-      
+
       console.log('🔥 Firebase sticky note updated:', note.id);
     } catch (error) {
       console.error('❌ Failed to update Firebase sticky note:', error);
@@ -255,7 +297,7 @@ class FirebaseMultiUserService {
     try {
       const noteRef = ref(database, `sessions/${this.currentSession.code}/notes/${noteId}`);
       remove(noteRef);
-      
+
       this.emit('sticky-note-deleted', { noteId });
       console.log('🔥 Firebase sticky note deleted:', noteId);
     } catch (error) {
@@ -268,9 +310,12 @@ class FirebaseMultiUserService {
     if (!this.currentSession) return;
 
     try {
-      const connectionRef = ref(database, `sessions/${this.currentSession.code}/connections/${connection.id}`);
+      const connectionRef = ref(
+        database,
+        `sessions/${this.currentSession.code}/connections/${connection.id}`
+      );
       set(connectionRef, connection);
-      
+
       console.log('🔥 Firebase connection updated:', connection.id);
     } catch (error) {
       console.error('❌ Failed to update Firebase connection:', error);
@@ -282,9 +327,12 @@ class FirebaseMultiUserService {
     if (!this.currentSession) return;
 
     try {
-      const connectionRef = ref(database, `sessions/${this.currentSession.code}/connections/${connectionId}`);
+      const connectionRef = ref(
+        database,
+        `sessions/${this.currentSession.code}/connections/${connectionId}`
+      );
       remove(connectionRef);
-      
+
       this.emit('connection-deleted', { connectionId });
       console.log('🔥 Firebase connection deleted:', connectionId);
     } catch (error) {
@@ -299,7 +347,7 @@ class FirebaseMultiUserService {
     try {
       const projectRef = ref(database, `sessions/${this.currentSession.code}/projectData`);
       set(projectRef, projectData);
-      
+
       console.log('🔥 Firebase project data synced');
     } catch (error) {
       console.error('❌ Failed to sync Firebase project data:', error);
@@ -313,7 +361,7 @@ class FirebaseMultiUserService {
     try {
       const analysisRef = ref(database, `sessions/${this.currentSession.code}/analysisData`);
       set(analysisRef, analysisData);
-      
+
       console.log('🔥 Firebase analysis data updated');
     } catch (error) {
       console.error('❌ Failed to update Firebase analysis data:', error);
@@ -327,7 +375,7 @@ class FirebaseMultiUserService {
     try {
       const workshopRef = ref(database, `sessions/${this.currentSession.code}/workshopData`);
       set(workshopRef, workshopData);
-      
+
       console.log('🔥 Firebase workshop data updated');
     } catch (error) {
       console.error('❌ Failed to update Firebase workshop data:', error);
@@ -336,16 +384,19 @@ class FirebaseMultiUserService {
 
   // 편집 시작 알림
   startEditing(itemId: string, itemType: 'note' | 'connection') {
-    if (!this.currentSession) return;
+    if (!this.currentSession) {
+      console.log('⚠️ No session - editing locally only');
+      return;
+    }
 
     try {
       const editingRef = ref(database, `sessions/${this.currentSession.code}/editing/${itemId}`);
       set(editingRef, {
         userId: this.userId,
         itemType,
-        startedAt: serverTimestamp()
+        startedAt: serverTimestamp(),
       });
-      
+
       console.log('🔥 Firebase editing started:', itemId);
     } catch (error) {
       console.error('❌ Failed to start Firebase editing:', error);
@@ -354,12 +405,15 @@ class FirebaseMultiUserService {
 
   // 편집 완료 알림
   stopEditing(itemId: string, itemType: 'note' | 'connection') {
-    if (!this.currentSession) return;
+    if (!this.currentSession) {
+      console.log('⚠️ No session - edited locally only');
+      return;
+    }
 
     try {
       const editingRef = ref(database, `sessions/${this.currentSession.code}/editing/${itemId}`);
       remove(editingRef);
-      
+
       console.log('🔥 Firebase editing stopped:', itemId);
     } catch (error) {
       console.error('❌ Failed to stop Firebase editing:', error);
@@ -373,7 +427,7 @@ class FirebaseMultiUserService {
     try {
       const layerRef = ref(database, `sessions/${this.currentSession.code}/layerState`);
       set(layerRef, layerState);
-      
+
       console.log('🔥 Firebase layer state updated');
     } catch (error) {
       console.error('❌ Failed to update Firebase layer state:', error);
@@ -402,10 +456,10 @@ class FirebaseMultiUserService {
       Object.values(this.firebaseRefs).forEach(ref => {
         off(ref);
       });
-      
+
       this.firebaseRefs = {};
       this.currentSession = null;
-      
+
       console.log('🔥 Firebase disconnected');
     }
   }
