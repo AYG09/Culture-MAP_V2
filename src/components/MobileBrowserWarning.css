@@ -85,7 +85,8 @@
   flex-direction: column;
 }
 
-.copy-btn, .continue-btn {
+.copy-btn,
+.continue-btn {
   padding: 12px 20px;
   border: none;
   border-radius: 6px;
@@ -133,15 +134,15 @@
     padding: 20px;
     margin: 10px;
   }
-  
+
   .warning-icon {
     font-size: 36px;
   }
-  
+
   .mobile-browser-warning h2 {
     font-size: 20px;
   }
-  
+
   .solution-steps {
     padding: 15px;
   }

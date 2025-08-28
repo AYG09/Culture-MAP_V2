@@ -559,6 +559,13 @@ function App({ sessionInfo }: AppProps = {}) {
     // setEditingNoteId(null);
   }, []);
 
+  // 편집 시작 핸들러
+  const handleStartEdit = useCallback((noteId: string) => {
+    console.log(`🎯 [App] Start edit for note:`, noteId);
+    setEditingNoteId(noteId);
+    FirebaseMultiUserService.startEditing(noteId, 'note');
+  }, []);
+
   // 실제 편집 완료 핸들러
   const handleEditComplete = useCallback((noteId: string) => {
     console.log(`🔚 [App] Edit complete for note:`, noteId);
@@ -1178,69 +1185,113 @@ function App({ sessionInfo }: AppProps = {}) {
   );
 
   const handleRenderFromText = useCallback(
-    (text: string) => {
-      if (!text.trim()) {
-        handleClearAll();
+    (data: string | { notes: NoteData[]; connections: ConnectionData[] }) => {
+      // 타입 체크 및 처리
+      if (typeof data === 'string') {
+        console.log('🗺️ [App] 텍스트 파싱 시작');
+        if (!data.trim()) {
+          handleClearAll();
+          return;
+        }
+        try {
+          const { notes: parsedNotes, connections: parsedConnections } = parseAIOutput(data);
+          if (parsedNotes.length === 0) return;
+
+          setNotes(parsedNotes);
+          setConnections(parsedConnections);
+        } catch (error) {
+          console.error('분석 결과 파싱 오류:', error);
+          return;
+        }
+      } else if (data && typeof data === 'object' && 'notes' in data && 'connections' in data) {
+        console.log('🗺️ [App] 파싱된 데이터 직접 사용:', {
+          noteCount: data.notes.length,
+          connectionCount: data.connections.length,
+        });
+        if (data.notes.length === 0) {
+          console.warn('⚠️ [App] 노트가 없어서 컬쳐맵 생성 중단');
+          return;
+        }
+
+        setNotes(data.notes);
+        setConnections(data.connections);
+      } else {
+        console.error('🚨 [App] handleRenderFromText received invalid data:', {
+          type: typeof data,
+          isArray: Array.isArray(data),
+          hasNotes: data && 'notes' in data,
+          hasConnections: data && 'connections' in data,
+          data: data,
+        });
         return;
       }
-      try {
-        console.log('🗺️ [App] 컬쳐맵 생성 시작');
-        const { notes: parsedNotes, connections: parsedConnections } = parseAIOutput(text);
-        if (parsedNotes.length === 0) return;
 
-        const { nodes: layoutedNodes, connections: layoutedConnections } = getLayoutedElements(
-          parsedNotes,
-          parsedConnections
-        );
+      console.log('🗺️ [App] 컬쳐맵 레이아웃 생성 시작');
 
-        // 로컬 상태 업데이트
-        setNotes(layoutedNodes);
-        setConnections(layoutedConnections);
-        setActiveTab('map');
+      // 상태 업데이트 후 레이아웃 적용
+      setTimeout(() => {
+        // 상태가 업데이트된 후의 최신 값을 사용
+        setNotes(currentNotes => {
+          setConnections(currentConnections => {
+            console.log(
+              `🔍 레이아웃 생성 - 현재 노트: ${currentNotes.length}개, 연결선: ${currentConnections.length}개`
+            );
 
-        // 멀티유저 동기화: 모든 생성된 노트를 다른 사용자에게 전송
-        console.log(
-          `📤 [App] 생성된 노트 ${layoutedNodes.length}개, 연결선 ${layoutedConnections.length}개 동기화 시작`
-        );
+            const { nodes: layoutedNodes, connections: layoutedConnections } = getLayoutedElements(
+              currentNotes,
+              currentConnections
+            );
 
-        // 각 노트를 Firebase 서비스로 전송
-        layoutedNodes.forEach((node, index) => {
-          setTimeout(() => {
-            console.log(`📝 [App] 노트 동기화: ${node.id}`);
-            FirebaseMultiUserService.updateStickyNote({
-              id: node.id,
-              content: node.content || node.text || '',
-              x: node.position.x,
-              y: node.position.y,
-              layer: node.layerIndex || node.layer || 0,
-              color: node.sentiment || 'neutral',
-              type: node.type || 'sticky_note',
-              width: node.width || 200,
-              height: node.height || 120,
-              concept: node.concept,
-              source: node.source,
-              category: node.category,
-              metadata: node.metadata,
-              basis: node.basis, // 이론적 설명 추가
+            // 레이아웃이 적용된 노드로 업데이트
+            setNotes(layoutedNodes);
+            setConnections(layoutedConnections);
+            setActiveTab('map');
+
+            // 멀티유저 동기화: 모든 생성된 노트를 다른 사용자에게 전송
+            console.log(
+              `📤 [App] 생성된 노트 ${layoutedNodes.length}개, 연결선 ${layoutedConnections.length}개 동기화 시작`
+            );
+
+            // 각 노트를 Firebase 서비스로 전송
+            layoutedNodes.forEach((node, index) => {
+              setTimeout(() => {
+                console.log(`📝 [App] 노트 동기화: ${node.id}`);
+                FirebaseMultiUserService.updateStickyNote({
+                  id: node.id,
+                  content: node.content || node.text || '',
+                  x: node.position.x,
+                  y: node.position.y,
+                  layer: node.layerIndex || node.layer || 0,
+                  color: node.sentiment || 'neutral',
+                  type: node.type || 'sticky_note',
+                  width: node.width || 200,
+                  height: node.height || 120,
+                  concept: node.concept,
+                  source: node.source,
+                  category: node.category,
+                  metadata: node.metadata,
+                  basis: node.basis, // 이론적 설명 추가
+                });
+              }, index * 100); // 100ms 간격으로 전송하여 서버 부하 방지
             });
-          }, index * 100); // 100ms 간격으로 전송하여 서버 부하 방지
-        });
 
-        // 각 연결선을 Firebase 서비스로 전송
-        layoutedConnections.forEach((connection, index) => {
-          setTimeout(
-            () => {
-              console.log(`🔗 [App] 연결선 동기화: ${connection.id}`);
-              FirebaseMultiUserService.updateConnection(connection);
-            },
-            layoutedNodes.length * 100 + index * 50
-          ); // 노트 전송 후 연결선 전송
-        });
+            // 각 연결선을 Firebase 서비스로 전송
+            layoutedConnections.forEach((connection, index) => {
+              setTimeout(
+                () => {
+                  console.log(`🔗 [App] 연결선 동기화: ${connection.id}`);
+                  FirebaseMultiUserService.updateConnection(connection);
+                },
+                layoutedNodes.length * 100 + index * 50
+              ); // 노트 전송 후 연결선 전송
+            });
 
-        console.log('✅ [App] 컬쳐맵 멀티유저 동기화 완료');
-      } catch (error) {
-        console.error('Failed to parse or render map:', error);
-      }
+            console.log('✅ [App] 컬쳐맵 멀티유저 동기화 완료');
+            return currentConnections; // setConnections 반환값
+          });
+          return currentNotes; // setNotes 반환값
+        });
+      }, 100); // setTimeout 종료
     },
     [handleClearAll]
   );
@@ -1403,7 +1454,10 @@ function App({ sessionInfo }: AppProps = {}) {
             handleShowReport={handleShowReport}
             handleExportAsImage={handleExportAsImage}
             handleExportAsJson={handleExportAsJson}
-            onStartEditing={(noteId: string) => FirebaseMultiUserService.startEditing(noteId, 'note')}
+            onStartEditing={(noteId: string) =>
+              FirebaseMultiUserService.startEditing(noteId, 'note')
+            }
+            onStartEdit={handleStartEdit}
             onEditComplete={handleEditComplete}
             // 층위 시스템 함수 전달 (단순화)
             onLayerHeightChange={handleLayerHeightChange}

@@ -38,8 +38,6 @@
   font-size: 0.95rem !important;
   color: white !important;
 }
-  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2) !important;
-}
 
 /* 🎯 워크플로우 정보 박스 */
 .workflow-info {

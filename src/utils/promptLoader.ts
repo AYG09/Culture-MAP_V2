@@ -37,6 +37,8 @@ const STEP_FILE_MAP: Record<string, string | null> = {
   workshop: 'workshop.md',
   // 워크샵 분석 전용 프롬프트 파일 (교육용)
   workshop_analysis: 'workshop_analysis.md',
+  // 종합 분석 프롬프트 파일
+  comprehensive_analysis: 'comprehensive_analysis.md',
 };
 
 /**

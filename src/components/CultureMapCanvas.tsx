@@ -34,6 +34,7 @@ interface CultureMapCanvasProps {
   handleUpdateNote: (noteId: string, updates: Partial<NoteData>) => void;
   handleNoteContextMenu: (e: MouseEvent, noteId: string) => void;
   handleMouseDownOnLayerResizeHandle: (layerIndex: number, e: MouseEvent) => void;
+  onStartEdit?: (noteId: string) => void;
   onEditComplete?: (noteId: string) => void;
 }
 
@@ -62,6 +63,7 @@ export const CultureMapCanvas = ({
   handleUpdateNote,
   handleNoteContextMenu,
   handleMouseDownOnLayerResizeHandle,
+  onStartEdit,
   onEditComplete,
 }: CultureMapCanvasProps) => {
   const boardHeight =
@@ -117,6 +119,7 @@ export const CultureMapCanvas = ({
           onMouseDown={e => handleMouseDownOnNote(note.id, e)}
           onResizeStart={e => handleMouseDownOnResizeHandle(note.id, e)}
           onClick={handleNoteClick}
+          onStartEdit={onStartEdit}
           onUpdate={handleUpdateNote}
           onContextMenu={e => handleNoteContextMenu(e, note.id)}
           onEditComplete={onEditComplete}

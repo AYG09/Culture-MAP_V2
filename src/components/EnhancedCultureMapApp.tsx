@@ -18,6 +18,9 @@ import CultureMapCanvas from './CultureMapCanvas'; // 새로 추가
 // 타입 정의
 import type { ConnectionData, NoteData } from '../types/culture';
 import type { ReportElement } from '../types/report';
+
+// Firebase 서비스 정적 import 추가
+import FirebaseMultiUserService from '../services/FirebaseMultiUserService';
 import type { LayerSystemState, LayerVisualizationOptions, LayerIndex } from '../types/layerSystem';
 
 // 스타일
@@ -89,6 +92,7 @@ interface EnhancedCultureMapAppProps {
   setLayerState: React.Dispatch<React.SetStateAction<LayerSystemState>>;
 
   // 편집 완료 핸들러
+  onStartEdit?: (noteId: string) => void;
   onEditComplete?: (noteId: string) => void;
 
   // 계산된 값
@@ -156,6 +160,7 @@ export function EnhancedCultureMapApp({
   setLayerState,
 
   // 편집 완료 핸들러
+  onStartEdit,
   onEditComplete,
 
   // 계산된 값
@@ -182,18 +187,15 @@ export function EnhancedCultureMapApp({
               </button>
               <button
                 onClick={async () => {
-                  // Socket.IO 연결 상태 팝업으로 표시
-                  const { default: FirebaseMultiUserService } = await import(
-                    '../services/FirebaseMultiUserService'
-                  );
+                  // 동적 import를 정적 import로 변경하여 번들링 최적화
                   const session = FirebaseMultiUserService.getCurrentSession();
                   const isConnected = FirebaseMultiUserService.isConnected();
                   const userId = FirebaseMultiUserService.getCurrentUserId();
-                  
-                  const statusMessage = isConnected 
+
+                  const statusMessage = isConnected
                     ? `✅ 연결 상태: 정상\n👥 현재 접속자: ${session?.connectedUsers || 1}명\n🔗 세션 코드: ${session?.code || 'N/A'}\n👤 사용자 ID: ${userId?.substring(0, 8) || 'N/A'}...`
                     : `❌ 연결 상태: 끊어짐\n⚠️ 서버와의 연결이 끊어졌습니다.`;
-                  
+
                   alert(statusMessage);
                 }}
                 className={`connection-status-btn ${sessionInfo.isConnected ? 'connected' : 'disconnected'}`}
@@ -268,6 +270,7 @@ export function EnhancedCultureMapApp({
                   handleNoteClick={handleNoteClick}
                   handleUpdateNote={handleUpdateNote}
                   handleNoteContextMenu={handleNoteContextMenu}
+                  onStartEdit={onStartEdit}
                   onEditComplete={onEditComplete}
                 />
               </div>

@@ -25,7 +25,15 @@
       "Bash(sed:*)",
       "Bash(npx prettier:*)",
       "Read(/D:\\yeonggyu-workspace/**)",
-      "Bash(xcopy:*)"
+      "Bash(xcopy:*)",
+      "Bash(npm run format:*)",
+      "Bash(del /f \"src\\components\\PromptGeneratorOld.tsx\")",
+      "Bash(npm run:*)",
+      "Bash(vercel:*)",
+      "Bash(npx vercel:*)",
+      "Bash(git log:*)",
+      "Bash(git config:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": [],

@@ -12,7 +12,7 @@ const firebaseConfig = {
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 // Firebase 앱 초기화
@@ -30,6 +30,6 @@ if (import.meta.env.DEV) {
   console.log('🔥 Firebase initialized with config:', {
     projectId: firebaseConfig.projectId,
     databaseURL: firebaseConfig.databaseURL,
-    authDomain: firebaseConfig.authDomain
+    authDomain: firebaseConfig.authDomain,
   });
 }

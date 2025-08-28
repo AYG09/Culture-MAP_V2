@@ -25,9 +25,15 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
+    chunkSizeWarningLimit: 1000, // 경고 임계값을 1MB로 상향 조정
     rollupOptions: {
       output: {
-        manualChunks: undefined, // 청크 분할 비활성화로 단순화
+        manualChunks: {
+          // 큰 라이브러리들을 별도 청크로 분리하여 로딩 최적화
+          firebase: ['firebase/app', 'firebase/database', 'firebase/firestore', 'firebase/auth'],
+          vendor: ['react', 'react-dom'],
+          ui: ['uuid', 'dompurify']
+        },
       },
       external: [] // Firebase 모듈을 external로 처리하지 않도록 설정
     },
