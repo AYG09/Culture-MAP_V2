@@ -352,52 +352,6 @@ function App({ sessionInfo }: AppProps = {}) {
     }
   }, [notes, connections, selectedProject]);
 
-  // Electron 메뉴 이벤트 핸들러
-  useEffect(() => {
-    // Electron 환경에서만 실행
-    if (typeof window !== 'undefined' && window.location.protocol === 'file:') {
-      const handleMenuNewProject = () => {
-        console.log('📝 새 프로젝트 메뉴 선택됨');
-        setAppMode('culture_analysis');
-        setSelectedProject(null);
-      };
-
-      const handleMenuOpenProject = () => {
-        console.log('📁 프로젝트 열기 메뉴 선택됨');
-        setAppMode('culture_analysis');
-      };
-
-      const handleMenuSave = () => {
-        console.log('💾 저장 메뉴 선택됨');
-        if (appMode === 'culture_map' && (notes.length > 0 || connections.length > 0)) {
-          handleSaveProject();
-        } else if (selectedProject) {
-          alert(`프로젝트 "${selectedProject.name}"의 현재 상태가 자동 저장되었습니다.`);
-        } else {
-          alert('저장할 프로젝트가 없습니다. 먼저 프로젝트를 생성하거나 선택해주세요.');
-        }
-      };
-
-      // 이벤트 리스너 등록 (Electron의 ipcRenderer 방식)
-      const removeNewProjectListener = window.addEventListener?.(
-        'menu-new-project',
-        handleMenuNewProject
-      );
-      const removeOpenProjectListener = window.addEventListener?.(
-        'menu-open-project',
-        handleMenuOpenProject
-      );
-      const removeSaveListener = window.addEventListener?.('menu-save', handleMenuSave);
-
-      // 정리 함수
-      return () => {
-        if (removeNewProjectListener) removeNewProjectListener();
-        if (removeOpenProjectListener) removeOpenProjectListener();
-        if (removeSaveListener) removeSaveListener();
-      };
-    }
-  }, [appMode, notes, connections, selectedProject, handleSaveProject]);
-
   // =================================================================================
   // 층위 시스템 로직 (단순화 버전)
   // =================================================================================

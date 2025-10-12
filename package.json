@@ -1,46 +1,34 @@
 {
-  "name": "org_culture_analyzer_firebase",
+  "name": "org_culture_analyzer_web",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "main": "src/main.tsx",
-  "homepage": "./",
   "author": "안영규 with AI Agent",
-  "description": "조직문화 분석기 Firebase 버전 - 글로벌 웹서비스용 실시간 협업 도구",
+  "description": "조직문화 분석기 - Firebase 기반 웹서비스",
   "copyright": "© 2024 안영규 with AI Agent. All rights reserved.",
   "license": "PROPRIETARY",
   "scripts": {
     "dev": "vite --force",
-    "dev:firebase": "vite --force --mode firebase",
-    "build": "vite build --mode firebase",
-    "build:web": "vite build --mode firebase",
+    "build": "vite build",
+    "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,css,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,css,md}\"",
-    "preview": "vite preview",
-    "test:e2e": "npx playwright test",
-    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && NODE_ENV=development electron .\"",
-    "electron:build": "npm run build && electron-builder",
-    "electron:pack": "npm run build && electron-builder --dir",
-    "electron:dist": "npm run build && electron-builder --publish=never"
+    "test:e2e": "npx playwright test"
   },
   "dependencies": {
     "@types/qrcode": "^1.5.5",
     "@types/react-router-dom": "^5.3.3",
     "@types/uuid": "^10.0.0",
     "docx": "^8.5.0",
-    "express": "^4.21.2",
     "file-saver": "^2.0.5",
     "firebase": "^12.1.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.1",
     "qrcode": "^1.5.4",
-    "qrcode-terminal": "^0.12.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.7.0",
-    "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
@@ -50,9 +38,6 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
-    "concurrently": "^9.2.0",
-    "electron": "^37.2.6",
-    "electron-builder": "^26.0.12",
     "eslint": "^9.30.1",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
@@ -60,64 +45,6 @@
     "prettier": "^3.6.2",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.35.1",
-    "vite": "^7.0.4",
-    "wait-on": "^8.0.4"
-  },
-  "build": {
-    "appId": "com.yeonggyu.org-culture-analyzer",
-    "productName": "조직문화 분석기",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "electron/main.js",
-      "node_modules/**/*",
-      "package.json"
-    ],
-    "asarUnpack": [
-      "node_modules/sql.js/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "public",
-        "to": "public",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
-    "win": {
-      "target": {
-        "target": "nsis",
-        "arch": [
-          "x64"
-        ]
-      },
-      "signAndEditExecutable": false
-    },
-    "mac": {
-      "target": {
-        "target": "dmg",
-        "arch": [
-          "x64",
-          "arm64"
-        ]
-      }
-    },
-    "linux": {
-      "target": {
-        "target": "AppImage",
-        "arch": [
-          "x64"
-        ]
-      }
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
-    }
+    "vite": "^7.0.4"
   }
 }

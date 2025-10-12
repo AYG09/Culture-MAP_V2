@@ -54,28 +54,11 @@ class PromptLoader {
 
   /**
    * 환경에 따른 BASE_URL 결정
-   * Electron 환경에서는 상대 경로를 다르게 처리
+   * Firebase 웹서비스 전용
    */
   private getBaseUrl(): string {
-    // Electron 환경 감지 (file:// 프로토콜 또는 userAgent 확인)
-    if (typeof window !== 'undefined') {
-      const isElectron =
-        window.location.protocol === 'file:' ||
-        navigator.userAgent.toLowerCase().includes('electron');
-
-      if (isElectron) {
-        // Electron 빌드 구조에 맞는 올바른 경로 사용
-        this.log('info', 'Electron 환경 감지됨', {
-          protocol: window.location.protocol,
-          userAgent: navigator.userAgent,
-          baseUrl: './resources/public/prompts',
-        });
-        return './resources/public/prompts';
-      }
-    }
-
-    // 웹 환경에서는 기존 방식 유지
-    this.log('info', '웹 환경 감지됨', { baseUrl: '/prompts' });
+    // Firebase 웹서비스는 항상 /prompts 경로 사용
+    this.log('info', 'Firebase 웹서비스 환경', { baseUrl: '/prompts' });
     return '/prompts';
   }
 
