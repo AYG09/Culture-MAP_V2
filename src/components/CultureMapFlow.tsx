@@ -515,6 +515,15 @@ const CultureMapFlow = ({
   }, []);
 
   // ============================================================================
+  // 노드 더블클릭 → 편집 시작 (충돌 방지)
+  // ============================================================================
+  const handleNodeDoubleClick = useCallback((_event: React.MouseEvent, node: Node) => {
+    console.log('🖊️ [React Flow] 노드 편집 시작:', node.id);
+    // Firebase에 편집 시작 알림 (추후 구현 가능)
+    // TODO: editing-started 이벤트 발송
+  }, []);
+
+  // ============================================================================
   // 컨텍스트 메뉴 (우클릭)
   // ============================================================================
   const handlePaneContextMenu = useCallback((event: React.MouseEvent | MouseEvent) => {
@@ -552,8 +561,51 @@ const CultureMapFlow = ({
 
   // 컨텍스트 메뉴 액션
   const handleContextMenuAction = useCallback(
-    (action: string) => {
+    (action: string, position?: { x: number; y: number }) => {
       if (!contextMenu) return;
+
+      // 빈 캔버스 우클릭 → 노드 생성
+      if (contextMenu.type === 'pane' && position && action.startsWith('create_')) {
+        const nodeType = action.replace('create_', '');
+        const newNodeId = `node-${Date.now()}`;
+
+        const newNode: Node = {
+          id: newNodeId,
+          type: nodeType,
+          position: position,
+          data: {
+            content: '새 노트',
+            sentiment: 'neutral',
+            onUpdate: onNodeUpdate,
+          },
+        };
+
+        setNodes((nds) => [...nds, newNode]);
+
+        // Firebase 동기화
+        const layerMap: { [key: string]: number } = {
+          result: 1,
+          behavior: 2,
+          tangible_lever: 3,
+          intangible_lever: 4,
+        };
+
+        FirebaseMultiUserService.updateStickyNote({
+          id: newNodeId,
+          content: '새 노트',
+          x: position.x,
+          y: position.y,
+          layer: layerMap[nodeType] || 1,
+          color: 'neutral',
+          type: nodeType,
+          width: 200,
+          height: 120,
+        });
+
+        console.log('📌 [React Flow] 새 노드 생성:', newNodeId, nodeType);
+        closeContextMenu();
+        return;
+      }
 
       if (contextMenu.type === 'node' && contextMenu.targetId) {
         const node = nodes.find((n) => n.id === contextMenu.targetId);
@@ -608,7 +660,7 @@ const CultureMapFlow = ({
 
       closeContextMenu();
     },
-    [contextMenu, nodes, edges, setNodes, setEdges, closeContextMenu]
+    [contextMenu, nodes, edges, setNodes, setEdges, closeContextMenu, onNodeUpdate]
   );
 
   return (
@@ -623,6 +675,7 @@ const CultureMapFlow = ({
         onEdgesChange={handleEdgesChange}
         onConnect={onConnect}
         onNodeClick={handleNodeClick}
+        onNodeDoubleClick={handleNodeDoubleClick}
         onSelectionChange={handleSelectionChange}
         onPaneContextMenu={handlePaneContextMenu}
         onNodeContextMenu={handleNodeContextMenu}
@@ -724,8 +777,58 @@ const CultureMapFlow = ({
           }}
           onMouseLeave={closeContextMenu}
         >
+          {contextMenu.type === 'pane' && (
+            <>
+              <div className="context-menu-title">📌 새 노트 생성</div>
+              <button
+                onClick={() => {
+                  const position = {
+                    x: contextMenu.x - 100,
+                    y: contextMenu.y - 60,
+                  };
+                  handleContextMenuAction('create_result', position);
+                }}
+              >
+                🔴 결과 (가시적 요소)
+              </button>
+              <button
+                onClick={() => {
+                  const position = {
+                    x: contextMenu.x - 100,
+                    y: contextMenu.y - 60,
+                  };
+                  handleContextMenuAction('create_behavior', position);
+                }}
+              >
+                🟡 행동 (관찰 행동)
+              </button>
+              <button
+                onClick={() => {
+                  const position = {
+                    x: contextMenu.x - 100,
+                    y: contextMenu.y - 60,
+                  };
+                  handleContextMenuAction('create_tangible_lever', position);
+                }}
+              >
+                🔵 유형 레버 (규범/가치)
+              </button>
+              <button
+                onClick={() => {
+                  const position = {
+                    x: contextMenu.x - 100,
+                    y: contextMenu.y - 60,
+                  };
+                  handleContextMenuAction('create_intangible_lever', position);
+                }}
+              >
+                🟣 무형 레버 (기본 가정)
+              </button>
+            </>
+          )}
           {contextMenu.type === 'node' && (
             <>
+              <div className="context-menu-title">🎨 속성 변경</div>
               <button onClick={() => handleContextMenuAction('positive')}>
                 ✅ 긍정으로 변경
               </button>
@@ -741,6 +844,7 @@ const CultureMapFlow = ({
           )}
           {contextMenu.type === 'edge' && (
             <>
+              <div className="context-menu-title">🔗 연결선 설정</div>
               <button onClick={() => handleContextMenuAction('direct')}>
                 ━ 실선 (직접)
               </button>
