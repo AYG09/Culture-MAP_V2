@@ -173,8 +173,11 @@ export const parseAIOutput = (
     // 정규식 개선: 레가시 형식 (:: 실선/점선) 지원
     // 레가시: [무형_레버_언급] '사람 중심' (유지 및 강화) → [유형_레버_언급] 리더 (유지 및 강화) :: 실선
     // 신규: [간접연결] [무형_레버] (긍정) 내용 (저자: XXX) → [유형_레버] (긍정) 내용 (직접)
+    
+    // 🔧 FIX: greedy 매칭으로 변경 ([^→]+ 사용)
+    // 작은따옴표, 괄호 등 모든 문자를 → 전까지 매칭
     const legacyRegex =
-      /\[(?<sourceType>[^\]]+)\]\s*(?<sourceContent>.+?)\s*\((?<sourceSentiment>[^)]+)\)\s*→\s*\[(?<targetType>[^\]]+)\]\s*(?<targetContent>.+?)\s*\((?<targetSentiment>[^)]+)\)\s*::\s*(?<relationType>실선|점선)/;
+      /\[(?<sourceType>[^\]]+)\]\s*(?<sourceContent>[^→]+)\s*\((?<sourceSentiment>[^)]+)\)\s*→\s*\[(?<targetType>[^\]]+)\]\s*(?<targetContent>[^:]+)\s*\((?<targetSentiment>[^)]+)\)\s*::\s*(?<relationType>실선|점선)/;
     const modernRegex =
       /\[(간접)?연결\]\s*\[(?<sourceType>[^\]]+)\]\s*\((?<sourceSentiment>[^)]+)\)\s*(?<sourceContent>.+?)(?:\s*\((?:저자|이론|연도):.*?\))?\s*→\s*\[(?<targetType>[^\]]+)\]\s*\((?<targetSentiment>[^)]+)\)\s*(?<targetContent>.+?)(?:\s*\((?:저자|이론|연도):.*?\))?\s*(?:\((?<relationType>직접|간접)\))?$/;
     

@@ -13,11 +13,12 @@ import { Position } from '@xyflow/react';
  */
 
 // 층위별 레이아웃 설정
+// 🔧 FIX: rankdir='BT'에서 높은 rank가 위에 배치됨
 const LAYER_CONFIG = {
-  result: { rank: 0, color: '#FF6B6B' },
-  behavior: { rank: 1, color: '#4ECDC4' },
-  tangible_lever: { rank: 2, color: '#95E1D3' },
-  intangible_lever: { rank: 3, color: '#FFE66D' }
+  result: { rank: 3, color: '#FF6B6B' },           // rank 3 (최상위)
+  behavior: { rank: 2, color: '#4ECDC4' },         // rank 2
+  tangible_lever: { rank: 1, color: '#95E1D3' },   // rank 1
+  intangible_lever: { rank: 0, color: '#FFE66D' }  // rank 0 (최하위)
 };
 
 // 레이아웃 옵션
