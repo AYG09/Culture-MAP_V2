@@ -37,18 +37,13 @@ const NODE_HEIGHT = 120;
 
 /**
  * 4층위 계층 구조로 노드 자동 배치
+ * ⚡ 개선: 층위별 Y 좌표 강제 고정 (순환 연결 대응)
  */
 export function getLayoutedElements(
   nodes: Node[],
-  edges: Edge[],
-  options = LAYOUT_OPTIONS
+  edges: Edge[]
 ): { nodes: Node[]; edges: Edge[] } {
-  // dagre 그래프 생성
-  const dagreGraph = new dagre.graphlib.Graph();
-  dagreGraph.setDefaultEdgeLabel(() => ({}));
-  dagreGraph.setGraph(options);
-
-  // 노드를 층위별로 그룹화
+  // 1단계: 노드를 층위별로 그룹화
   const nodesByLayer = new Map<string, Node[]>();
   nodes.forEach((node) => {
     const layer = node.type || 'result';
@@ -58,40 +53,69 @@ export function getLayoutedElements(
     nodesByLayer.get(layer)!.push(node);
   });
 
-  // 각 노드를 dagre 그래프에 추가
-  nodes.forEach((node) => {
-    const layer = node.type || 'result';
-    const rank = LAYER_CONFIG[layer as keyof typeof LAYER_CONFIG]?.rank ?? 0;
+  // 2단계: 각 층위별로 별도의 dagre 그래프 생성 (수평 배치만 계산)
+  const layoutedNodes: Node[] = [];
 
-    dagreGraph.setNode(node.id, {
-      width: NODE_WIDTH,
-      height: NODE_HEIGHT,
-      rank // 층위 순서 지정
+  // 층위 순서 (아래에서 위로)
+  const layerOrder: Array<keyof typeof LAYER_CONFIG> = [
+    'intangible_lever', // 최하단 (Y = 450)
+    'tangible_lever',   // (Y = 300)
+    'behavior',         // (Y = 150)
+    'result'            // 최상단 (Y = 0)
+  ];
+
+  layerOrder.forEach((layerKey, layerIndex) => {
+    const layerNodes = nodesByLayer.get(layerKey) || [];
+    if (layerNodes.length === 0) return;
+
+    // 각 층위의 Y 좌표 고정 (위에서 아래로: 0, 150, 300, 450)
+    const fixedY = layerIndex * (NODE_HEIGHT + LAYOUT_OPTIONS.ranksep);
+
+    // 수평 배치를 위한 dagre 그래프 생성
+    const layerGraph = new dagre.graphlib.Graph();
+    layerGraph.setDefaultEdgeLabel(() => ({}));
+    layerGraph.setGraph({
+      rankdir: 'LR', // Left to Right (수평 배치)
+      nodesep: LAYOUT_OPTIONS.nodesep,
+      ranksep: 50,
+      marginx: LAYOUT_OPTIONS.marginx,
+      marginy: LAYOUT_OPTIONS.marginy
     });
-  });
 
-  // 엣지 추가
-  edges.forEach((edge) => {
-    dagreGraph.setEdge(edge.source, edge.target);
-  });
+    // 같은 층위의 노드들만 추가
+    layerNodes.forEach((node) => {
+      layerGraph.setNode(node.id, {
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT
+      });
+    });
 
-  // 레이아웃 계산
-  dagre.layout(dagreGraph);
+    // 같은 층위 내부의 연결선만 추가 (수평 순서 결정용)
+    edges.forEach((edge) => {
+      const sourceNode = layerNodes.find((n) => n.id === edge.source);
+      const targetNode = layerNodes.find((n) => n.id === edge.target);
+      if (sourceNode && targetNode) {
+        layerGraph.setEdge(edge.source, edge.target);
+      }
+    });
 
-  // 계산된 위치를 노드에 적용
-  const layoutedNodes = nodes.map((node) => {
-    const nodeWithPosition = dagreGraph.node(node.id);
-    
-    return {
-      ...node,
-      position: {
-        x: nodeWithPosition.x - NODE_WIDTH / 2,
-        y: nodeWithPosition.y - NODE_HEIGHT / 2
-      },
-      // Handle 위치 설정
-      targetPosition: Position.Top,
-      sourcePosition: Position.Bottom
-    };
+    // 레이아웃 계산
+    dagre.layout(layerGraph);
+
+    // X 좌표만 dagre 결과 사용, Y 좌표는 층위별로 고정
+    layerNodes.forEach((node) => {
+      const nodeWithPosition = layerGraph.node(node.id);
+      layoutedNodes.push({
+        ...node,
+        position: {
+          x: nodeWithPosition.x - NODE_WIDTH / 2,
+          y: fixedY // 층위별 Y 좌표 강제 고정
+        },
+        // Handle 위치 설정
+        targetPosition: Position.Top,
+        sourcePosition: Position.Bottom
+      });
+    });
   });
 
   return {
