@@ -78,15 +78,15 @@ const BehaviorNode = ({ data, selected }: NodeProps & { data: BehaviorNodeData }
         </div>
       )}
 
-      {/* 연결 핸들 - 행동은 중간층 */}
+      {/* 연결 핸들 - 행동은 중간층 (아래에서 받고, 위로 보냄) */}
       <Handle
-        type="target"
+        type="source"
         position={Position.Top}
         className="custom-handle"
         isConnectable={true}
       />
       <Handle
-        type="source"
+        type="target"
         position={Position.Bottom}
         className="custom-handle"
         isConnectable={true}

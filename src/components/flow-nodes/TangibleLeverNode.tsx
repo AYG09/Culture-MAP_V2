@@ -80,15 +80,15 @@ const TangibleLeverNode = ({ data, selected }: NodeProps & { data: TangibleLever
         </div>
       )}
 
-      {/* 연결 핸들 - 유형레버 */}
+      {/* 연결 핸들 - 유형레버 (아래에서 받고, 위로 보냄) */}
       <Handle
-        type="target"
+        type="source"
         position={Position.Top}
         className="custom-handle"
         isConnectable={true}
       />
       <Handle
-        type="source"
+        type="target"
         position={Position.Bottom}
         className="custom-handle"
         isConnectable={true}
