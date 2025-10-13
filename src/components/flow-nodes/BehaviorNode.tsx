@@ -78,7 +78,7 @@ const BehaviorNode = ({ data, selected }: NodeProps & { data: BehaviorNodeData }
         </div>
       )}
 
-      {/* 연결 핸들 */}
+      {/* 연결 핸들 - 행동은 중간층 */}
       <Handle
         type="target"
         position={Position.Top}

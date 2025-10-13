@@ -77,8 +77,8 @@ export const parseAIOutput = (
       const layerIndex = layerNameToIndex[normalizedType];
       const trimmedContent = content.trim();
 
-      // 메타데이터 파싱 (저자, 이론, 연도 추출)
-      let basis: { author: string; theory: string; year: string } | undefined = undefined;
+      // 메타데이터 파싱 (문자열로 저장)
+      let basis: string | undefined = undefined;
 
       if (metadata) {
         const authorMatch = metadata.match(/저자:\s*([^,]+)/);
@@ -86,11 +86,10 @@ export const parseAIOutput = (
         const yearMatch = metadata.match(/연도:\s*([^,)]+)/);
 
         if (authorMatch && theoryMatch && yearMatch) {
-          basis = {
-            author: authorMatch[1].trim(),
-            theory: theoryMatch[1].trim(),
-            year: yearMatch[1].trim(),
-          };
+          const author = authorMatch[1].trim();
+          const theory = theoryMatch[1].trim();
+          const year = yearMatch[1].trim();
+          basis = `저자: ${author}, 이론: ${theory}, 연도: ${year}`;
         }
       }
 
@@ -131,12 +130,12 @@ export const parseAIOutput = (
   console.log(`🔍 최종 결과 - 생성된 노트 수: ${notes.length}`);
   console.log(`🔍 최종 결과 - 연결선 대기 수: ${pendingConnections.length}`);
 
-  // 2차: 층위별로 위치 계산 🔧 FIX: 여기서 실제 위치 계산
+  // 2차: 층위별로 위치 계산 🔧 FIX: 결과가 최상층, 무형_레버가 최하층
   const layerTops: { [key: string]: number } = {
-    결과: 150,
-    행동: 150 + 150 + 150,
-    유형_레버: 150 + 2 * (150 + 150),
-    무형_레버: 150 + 3 * (150 + 150),
+    결과: 150,                       // Layer 1 - 제일 위 (가시적 요소)
+    행동: 150 + 150 + 150,           // Layer 2 - 관찰 행동
+    유형_레버: 150 + 2 * (150 + 150), // Layer 3 - 규범/가치
+    무형_레버: 150 + 3 * (150 + 150), // Layer 4 - 제일 아래 (기본 가정)
   };
 
   const nodesByLayer: { [key: string]: NoteData[] } = {
@@ -192,8 +191,28 @@ export const parseAIOutput = (
         .trim()
         .replace(/\s*\((?:저자|이론|연도):.*?\)\s*$/, '');
 
-      const sourceId = noteContentToIdMap.get(cleanSourceContent);
-      const targetId = noteContentToIdMap.get(cleanTargetContent);
+      // 정확한 매칭 시도
+      let sourceId = noteContentToIdMap.get(cleanSourceContent);
+      let targetId = noteContentToIdMap.get(cleanTargetContent);
+
+      // 정확한 매칭 실패 시, 부분 매칭 시도 (괄호 포함 노드 매칭)
+      if (!sourceId) {
+        for (const [content, id] of noteContentToIdMap.entries()) {
+          if (content.startsWith(cleanSourceContent) || cleanSourceContent.startsWith(content)) {
+            sourceId = id;
+            break;
+          }
+        }
+      }
+
+      if (!targetId) {
+        for (const [content, id] of noteContentToIdMap.entries()) {
+          if (content.startsWith(cleanTargetContent) || cleanTargetContent.startsWith(content)) {
+            targetId = id;
+            break;
+          }
+        }
+      }
 
       if (sourceId && targetId) {
         let relationType = 'direct';
@@ -201,10 +220,13 @@ export const parseAIOutput = (
           relationType = 'indirect';
         }
 
+        // 🔧 FIX: Bottom-Up 연결 방향을 위해 source와 target을 바꿈
+        // 레가시 형식: [무형_레버] → [유형_레버] (하위층 → 상위층)
+        // React Flow: source가 위층, target이 아래층이어야 화살표가 위로 향함
         const newConnection: ConnectionData = {
           id: uuidv4(),
-          sourceId: sourceId,
-          targetId: targetId,
+          sourceId: targetId,  // 원래 target (위층)을 source로
+          targetId: sourceId,  // 원래 source (아래층)을 target으로
           isPositive: true, // 연결선 극성은 일단 '긍정'으로 고정
           relationType: relationType as 'direct' | 'indirect',
         };

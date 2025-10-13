@@ -621,13 +621,100 @@ const CultureMapFlow = ({
           );
           FirebaseMultiUserService.deleteStickyNote(contextMenu.targetId!);
         } else if (action === 'positive' || action === 'negative' || action === 'neutral') {
-          // 색상 변경
+          // 색상 변경 + Firebase 동기화 + 연결선 색상 재계산
           setNodes((nds) =>
-            nds.map((n) =>
-              n.id === contextMenu.targetId
-                ? { ...n, data: { ...n.data, sentiment: action } }
-                : n
-            )
+            nds.map((n) => {
+              if (n.id === contextMenu.targetId) {
+                const updatedNode = { ...n, data: { ...n.data, sentiment: action } };
+                
+                // Firebase 동기화
+                const layerMap: { [key: string]: number } = {
+                  result: 1,
+                  behavior: 2,
+                  tangible_lever: 3,
+                  intangible_lever: 4,
+                };
+                
+                FirebaseMultiUserService.updateStickyNote({
+                  id: n.id,
+                  content: (n.data as { content?: string }).content || '',
+                  x: n.position.x,
+                  y: n.position.y,
+                  layer: layerMap[n.type || 'result'] || 1,
+                  color: action,
+                  type: n.type || 'sticky_note',
+                  width: (n.width as number) || 200,
+                  height: (n.height as number) || 120,
+                });
+                
+                return updatedNode;
+              }
+              return n;
+            })
+          );
+          
+          // 연결선 색상 재계산
+          setEdges((eds) =>
+            eds.map((e) => {
+              if (e.source === contextMenu.targetId || e.target === contextMenu.targetId) {
+                const sourceNode = nodes.find((n) => n.id === e.source);
+                const targetNode = nodes.find((n) => n.id === e.target);
+                
+                const sourceSentiment =
+                  e.source === contextMenu.targetId
+                    ? action
+                    : (sourceNode?.data as { sentiment?: string })?.sentiment || 'neutral';
+                const targetSentiment =
+                  e.target === contextMenu.targetId
+                    ? action
+                    : (targetNode?.data as { sentiment?: string })?.sentiment || 'neutral';
+                
+                let edgeColor = '#10b981';
+                let isPositive = true;
+                
+                if (sourceSentiment === 'positive' && targetSentiment === 'positive') {
+                  edgeColor = '#10b981';
+                  isPositive = true;
+                } else if (
+                  (sourceSentiment === 'positive' && targetSentiment === 'negative') ||
+                  (sourceSentiment === 'negative' && targetSentiment === 'positive')
+                ) {
+                  edgeColor = '#ef4444';
+                  isPositive = false;
+                } else if (sourceSentiment === 'negative' && targetSentiment === 'negative') {
+                  edgeColor = '#f97316';
+                  isPositive = false;
+                } else {
+                  edgeColor = '#6b7280';
+                  isPositive = true;
+                }
+                
+                // Firebase 동기화
+                FirebaseMultiUserService.updateConnection({
+                  id: e.id,
+                  sourceId: e.source,
+                  targetId: e.target,
+                  relationType: (e.data as { relationType?: string })?.relationType === 'indirect' ? 'indirect' : 'direct',
+                  isPositive,
+                });
+                
+                return {
+                  ...e,
+                  style: {
+                    ...e.style,
+                    stroke: edgeColor,
+                  },
+                  markerEnd: {
+                    type: 'arrowclosed' as const,
+                    width: 20,
+                    height: 20,
+                    color: edgeColor,
+                  },
+                  data: { ...e.data, isPositive },
+                };
+              }
+              return e;
+            })
           );
         }
       } else if (contextMenu.type === 'edge' && contextMenu.targetId) {
@@ -639,21 +726,33 @@ const CultureMapFlow = ({
           setEdges((eds) => eds.filter((e) => e.id !== contextMenu.targetId));
           FirebaseMultiUserService.deleteConnection(contextMenu.targetId!);
         } else if (action === 'direct' || action === 'indirect') {
-          // 점선/실선 전환
+          // 점선/실선 전환 + Firebase 동기화
           setEdges((eds) =>
-            eds.map((e) =>
-              e.id === contextMenu.targetId
-                ? {
-                    ...e,
-                    animated: action === 'direct',
-                    style: {
-                      ...e.style,
-                      strokeDasharray: action === 'indirect' ? '5,5' : undefined,
-                    },
-                    data: { ...e.data, relationType: action },
-                  }
-                : e
-            )
+            eds.map((e) => {
+              if (e.id === contextMenu.targetId) {
+                const updatedEdge = {
+                  ...e,
+                  animated: action === 'direct',
+                  style: {
+                    ...e.style,
+                    strokeDasharray: action === 'indirect' ? '5,5' : undefined,
+                  },
+                  data: { ...e.data, relationType: action },
+                };
+                
+                // Firebase 동기화
+                FirebaseMultiUserService.updateConnection({
+                  id: e.id,
+                  sourceId: e.source,
+                  targetId: e.target,
+                  relationType: action,
+                  isPositive: (e.data as { isPositive?: boolean })?.isPositive !== false,
+                });
+                
+                return updatedEdge;
+              }
+              return e;
+            })
           );
         }
       }

@@ -80,7 +80,7 @@ const TangibleLeverNode = ({ data, selected }: NodeProps & { data: TangibleLever
         </div>
       )}
 
-      {/* 연결 핸들 */}
+      {/* 연결 핸들 - 유형레버 */}
       <Handle
         type="target"
         position={Position.Top}

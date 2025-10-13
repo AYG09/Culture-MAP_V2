@@ -78,15 +78,9 @@ const ResultNode = ({ data, selected }: NodeProps & { data: ResultNodeData }) =>
         </div>
       )}
 
-      {/* 연결 핸들 */}
+      {/* 연결 핸들 - 결과는 최상층이므로 아래에서만 연결받음 */}
       <Handle
         type="target"
-        position={Position.Top}
-        className="custom-handle"
-        isConnectable={true}
-      />
-      <Handle
-        type="source"
         position={Position.Bottom}
         className="custom-handle"
         isConnectable={true}

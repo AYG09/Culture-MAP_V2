@@ -22,7 +22,7 @@ const LAYER_CONFIG = {
 
 // 레이아웃 옵션
 const LAYOUT_OPTIONS = {
-  rankdir: 'TB', // Top to Bottom (위에서 아래로)
+  rankdir: 'BT', // Bottom to Top (아래에서 위로) - 결과가 위에
   align: 'UL', // Upper Left 정렬
   nodesep: 100, // 노드 간 수평 간격
   ranksep: 150, // 층위 간 수직 간격
