@@ -80,9 +80,9 @@ const IntangibleLeverNode = ({ data, selected }: NodeProps & { data: IntangibleL
         </div>
       )}
 
-      {/* 연결 핸들 - 무형레버는 최하층이므로 위로만 연결 */}
+      {/* 연결 핸들 - 무형레버는 최하층이므로 위에서만 연결받음 */}
       <Handle
-        type="source"
+        type="target"
         position={Position.Top}
         className="custom-handle"
         isConnectable={true}

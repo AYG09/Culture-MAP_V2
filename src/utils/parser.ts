@@ -170,10 +170,15 @@ export const parseAIOutput = (
 
   // 3차: 모든 연결선을 생성합니다.
   pendingConnections.forEach(line => {
-    // 정규식 개선: 메타데이터를 고려하여 소스/타겟에서 내용만 정확히 추출
-    const connectionRegex =
+    // 정규식 개선: 레가시 형식 (:: 실선/점선) 지원
+    // 레가시: [무형_레버_언급] '사람 중심' (유지 및 강화) → [유형_레버_언급] 리더 (유지 및 강화) :: 실선
+    // 신규: [간접연결] [무형_레버] (긍정) 내용 (저자: XXX) → [유형_레버] (긍정) 내용 (직접)
+    const legacyRegex =
+      /\[(?<sourceType>[^\]]+)\]\s*(?<sourceContent>.+?)\s*\((?<sourceSentiment>[^)]+)\)\s*→\s*\[(?<targetType>[^\]]+)\]\s*(?<targetContent>.+?)\s*\((?<targetSentiment>[^)]+)\)\s*::\s*(?<relationType>실선|점선)/;
+    const modernRegex =
       /\[(간접)?연결\]\s*\[(?<sourceType>[^\]]+)\]\s*\((?<sourceSentiment>[^)]+)\)\s*(?<sourceContent>.+?)(?:\s*\((?:저자|이론|연도):.*?\))?\s*→\s*\[(?<targetType>[^\]]+)\]\s*\((?<targetSentiment>[^)]+)\)\s*(?<targetContent>.+?)(?:\s*\((?:저자|이론|연도):.*?\))?\s*(?:\((?<relationType>직접|간접)\))?$/;
-    const connectionMatch = line.match(connectionRegex);
+    
+    const connectionMatch = line.match(legacyRegex) || line.match(modernRegex);
 
     if (connectionMatch?.groups) {
       const {
@@ -215,18 +220,20 @@ export const parseAIOutput = (
       }
 
       if (sourceId && targetId) {
+        // 레가시 형식: 실선=direct, 점선=indirect
+        // 신규 형식: [간접연결] or (간접)
         let relationType = 'direct';
-        if (isIndirectPrefix || relationTypeSuffix === '간접') {
+        if (isIndirectPrefix || relationTypeSuffix === '간접' || relationTypeSuffix === '점선') {
           relationType = 'indirect';
         }
 
-        // 🔧 FIX: Bottom-Up 연결 방향을 위해 source와 target을 바꿈
+        // 🔧 FIX: Bottom-Up 연결 방향 (원래대로 유지)
         // 레가시 형식: [무형_레버] → [유형_레버] (하위층 → 상위층)
-        // React Flow: source가 위층, target이 아래층이어야 화살표가 위로 향함
+        // dagre rankdir='BT'가 알아서 아래층을 밑에, 위층을 위에 배치함
         const newConnection: ConnectionData = {
           id: uuidv4(),
-          sourceId: targetId,  // 원래 target (위층)을 source로
-          targetId: sourceId,  // 원래 source (아래층)을 target으로
+          sourceId: sourceId,  // 하위층 (무형_레버 등)
+          targetId: targetId,  // 상위층 (유형_레버 등)
           isPositive: true, // 연결선 극성은 일단 '긍정'으로 고정
           relationType: relationType as 'direct' | 'indirect',
         };
