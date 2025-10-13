@@ -45,6 +45,43 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  position: relative;
+}
+
+/* React Flow 전환 토글 */
+.flow-toggle-container {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  background: white;
+  padding: 12px 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.flow-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.flow-toggle-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.flow-toggle-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.flow-toggle-label:hover .flow-toggle-text {
+  color: #667eea;
 }
 
 .top-bar {

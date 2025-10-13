@@ -7,6 +7,7 @@ import html2canvas from 'html2canvas';
 
 // 컴포넌트
 import { EnhancedCultureMapApp } from './components/EnhancedCultureMapApp';
+import CultureMapFlow from './components/CultureMapFlow';
 import CultureDashboard from './components/CultureDashboard';
 import WelcomeModal from './components/WelcomeModal';
 
@@ -52,6 +53,9 @@ function App({ sessionInfo }: AppProps = {}) {
   // 앱 모드 상태
   const [appMode, setAppMode] = useState<AppMode>('culture_map');
   const [selectedProject, setSelectedProject] = useState<CultureProject | null>(null);
+
+  // React Flow 사용 여부 (기본값: React Flow 사용)
+  const [useReactFlow, setUseReactFlow] = useState(true);
 
   // Welcome Modal 상태
   const [showWelcomeModal, setShowWelcomeModal] = useState(true);
@@ -1362,7 +1366,35 @@ function App({ sessionInfo }: AppProps = {}) {
             <CultureDashboard onSelectProject={handleProjectSelect} />
           </div>
         ) : (
-          <EnhancedCultureMapApp
+          <>
+            {/* React Flow 전환 토글 버튼 */}
+            <div className="flow-toggle-container">
+              <label className="flow-toggle-label">
+                <input
+                  type="checkbox"
+                  checked={useReactFlow}
+                  onChange={(e) => setUseReactFlow(e.target.checked)}
+                  className="flow-toggle-checkbox"
+                />
+                <span className="flow-toggle-text">
+                  {useReactFlow ? '🚀 React Flow 모드' : '📝 레거시 모드'}
+                </span>
+              </label>
+            </div>
+
+            {useReactFlow ? (
+              <CultureMapFlow
+                notes={notes}
+                connections={connections}
+                onNotesChange={setNotes}
+                onConnectionsChange={setConnections}
+                onNodeUpdate={(id, content) => {
+                  // content만 업데이트하는 간단한 래퍼
+                  handleUpdateNote(id, { text: content });
+                }}
+              />
+            ) : (
+              <EnhancedCultureMapApp
             // 상태 전달
             notes={notes}
             connections={connections}
@@ -1419,7 +1451,9 @@ function App({ sessionInfo }: AppProps = {}) {
             setLayerState={setLayerState}
             // 계산된 값 전달
             highlightedLayers={[]} // 더 이상 사용 안함
-          />
+              />
+            )}
+          </>
         )}
 
         {/* Welcome Modal */}
