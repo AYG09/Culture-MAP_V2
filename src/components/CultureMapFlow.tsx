@@ -76,6 +76,10 @@ const CultureMapFlow = ({
   const [_selectedNodes, setSelectedNodes] = useState<Node[]>([]);
   const [_selectedEdges, setSelectedEdges] = useState<Edge[]>([]);
 
+  // 층위 간격 조절 상태
+  const [layerSpacing, setLayerSpacing] = useState(200);
+  const [showLayerBackground, setShowLayerBackground] = useState(true);
+
   // 컨텍스트 메뉴 상태
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -494,10 +498,10 @@ const CultureMapFlow = ({
   // 자동 레이아웃
   // ============================================================================
   const handleAutoLayout = useCallback(() => {
-    const layouted = getLayoutedElements(nodes, edges);
+    const layouted = getLayoutedElements(nodes, edges, layerSpacing);
     setNodes(layouted.nodes);
     setEdges(layouted.edges);
-  }, [nodes, edges, setNodes, setEdges]);
+  }, [nodes, edges, layerSpacing, setNodes, setEdges]);
 
   // ============================================================================
   // 선택 변경 핸들러
@@ -763,9 +767,62 @@ const CultureMapFlow = ({
   );
 
   return (
-    <div className="culture-map-flow-container">
+    <div className="culture-map-flow-container" style={{ position: 'relative', width: '100%', height: '100%' }}>
       {/* 모바일 제스처 가이드 */}
       <MobileGestureGuide />
+
+      {/* 층위 배경 레이어 (ReactFlow 외부) */}
+      {showLayerBackground && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            pointerEvents: 'none',
+            zIndex: 1,
+          }}
+        >
+          {/* 배경층들 */}
+          {[
+            { name: '결과', color: 'rgba(255, 107, 107, 0.05)', y: 0 },
+            { name: '행동', color: 'rgba(78, 205, 196, 0.05)', y: layerSpacing },
+            { name: '유형 레버', color: 'rgba(149, 225, 211, 0.05)', y: layerSpacing * 2 },
+            { name: '무형 레버', color: 'rgba(255, 230, 109, 0.05)', y: layerSpacing * 3 },
+          ].map((layer, index) => (
+            <div
+              key={layer.name}
+              style={{
+                position: 'absolute',
+                top: `${layer.y}px`,
+                left: 0,
+                width: '100%',
+                height: `${layerSpacing}px`,
+                backgroundColor: layer.color,
+                borderBottom: index < 3 ? `2px dashed ${layer.color.replace('0.05', '0.3')}` : 'none',
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '10px',
+                  left: '10px',
+                  padding: '6px 12px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                  border: `2px solid ${layer.color.replace('0.05', '0.5')}`,
+                  borderRadius: '12px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  color: layer.color.replace('0.05', '0.8'),
+                }}
+              >
+                {layer.name}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <ReactFlow
         nodes={nodes}
@@ -802,38 +859,6 @@ const CultureMapFlow = ({
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
         
-        {/* 층위 배경 구분선 */}
-        <svg
-          style={{
-            position: 'absolute',
-            width: '100%',
-            height: '100%',
-            top: 0,
-            left: 0,
-            pointerEvents: 'none',
-            zIndex: 0,
-          }}
-        >
-          {/* 결과 층 (Y=0~200) */}
-          <rect x="-10000" y="0" width="20000" height="200" fill="rgba(255, 107, 107, 0.05)" />
-          <line x1="-10000" y1="200" x2="10000" y2="200" stroke="rgba(255, 107, 107, 0.3)" strokeWidth="2" strokeDasharray="5,5" />
-          <text x="10" y="20" fill="rgba(255, 107, 107, 0.6)" fontSize="14" fontWeight="bold">결과 (가시적 요소)</text>
-          
-          {/* 행동 층 (Y=200~400) */}
-          <rect x="-10000" y="200" width="20000" height="200" fill="rgba(78, 205, 196, 0.05)" />
-          <line x1="-10000" y1="400" x2="10000" y2="400" stroke="rgba(78, 205, 196, 0.3)" strokeWidth="2" strokeDasharray="5,5" />
-          <text x="10" y="220" fill="rgba(78, 205, 196, 0.6)" fontSize="14" fontWeight="bold">행동 (관찰 행동)</text>
-          
-          {/* 유형 레버 층 (Y=400~600) */}
-          <rect x="-10000" y="400" width="20000" height="200" fill="rgba(149, 225, 211, 0.05)" />
-          <line x1="-10000" y1="600" x2="10000" y2="600" stroke="rgba(149, 225, 211, 0.3)" strokeWidth="2" strokeDasharray="5,5" />
-          <text x="10" y="420" fill="rgba(149, 225, 211, 0.6)" fontSize="14" fontWeight="bold">유형 레버 (규범/가치)</text>
-          
-          {/* 무형 레버 층 (Y=600~800) */}
-          <rect x="-10000" y="600" width="20000" height="200" fill="rgba(255, 230, 109, 0.05)" />
-          <text x="10" y="620" fill="rgba(255, 230, 109, 0.6)" fontSize="14" fontWeight="bold">무형 레버 (기본 가정)</text>
-        </svg>
-
         <Controls />
         <MiniMap
           nodeStrokeWidth={3}
@@ -854,6 +879,37 @@ const CultureMapFlow = ({
         />
         <Panel position="top-left" className="layer-legend">
           <div className="legend-title">📊 4층위 모델</div>
+          
+          {/* 층위 간격 조절 슬라이더 */}
+          <div className="layer-spacing-control" style={{ marginBottom: '10px' }}>
+            <label htmlFor="layerSpacing" style={{ fontSize: '12px', fontWeight: 'bold' }}>
+              층위 간격: {layerSpacing}px
+            </label>
+            <input
+              type="range"
+              id="layerSpacing"
+              min="100"
+              max="400"
+              step="50"
+              value={layerSpacing}
+              onChange={(e) => setLayerSpacing(Number(e.target.value))}
+              style={{ width: '100%', marginTop: '5px' }}
+            />
+          </div>
+          
+          {/* 배경 표시 토글 */}
+          <div className="layer-background-toggle" style={{ marginBottom: '10px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', fontSize: '12px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={showLayerBackground}
+                onChange={(e) => setShowLayerBackground(e.target.checked)}
+                style={{ marginRight: '5px' }}
+              />
+              층위 배경 표시
+            </label>
+          </div>
+          
           <button
             className="auto-layout-button"
             onClick={handleAutoLayout}

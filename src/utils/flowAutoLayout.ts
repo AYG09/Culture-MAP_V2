@@ -40,7 +40,8 @@ const NODE_HEIGHT = 120;
  */
 export function getLayoutedElements(
   nodes: Node[],
-  edges: Edge[]
+  edges: Edge[],
+  layerSpacing = 200 // 층위 간격 (기본값: 200px)
 ): { nodes: Node[]; edges: Edge[] } {
   // 1단계: 노드를 층위별로 그룹화
   const nodesByLayer = new Map<string, Node[]>();
@@ -67,8 +68,8 @@ export function getLayoutedElements(
     const layerNodes = nodesByLayer.get(layerKey) || [];
     if (layerNodes.length === 0) return;
 
-    // 각 층위의 Y 좌표 고정 (위에서 아래로: 0, 200, 400, 600)
-    const fixedY = layerIndex * 200; // 층위 간격 200px
+    // 각 층위의 Y 좌표 고정 (위에서 아래로, layerSpacing 적용)
+    const fixedY = layerIndex * layerSpacing; // 층위 간격을 동적으로 적용
 
     // 수평 간격 설정
     const horizontalSpacing = 300; // 노드 간 수평 간격
