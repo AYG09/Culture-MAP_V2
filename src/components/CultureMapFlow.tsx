@@ -1,6 +1,7 @@
 // src/components/CultureMapFlow.tsx
 import { useCallback, useEffect } from 'react';
-import ReactFlow, {
+import {
+  ReactFlow,
   Background,
   Controls,
   MiniMap,
