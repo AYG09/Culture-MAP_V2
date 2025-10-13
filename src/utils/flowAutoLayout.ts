@@ -1,4 +1,3 @@
-import dagre from 'dagre';
 import type { Node, Edge } from '@xyflow/react';
 import { Position } from '@xyflow/react';
 
@@ -53,62 +52,34 @@ export function getLayoutedElements(
     nodesByLayer.get(layer)!.push(node);
   });
 
-  // 2단계: 각 층위별로 별도의 dagre 그래프 생성 (수평 배치만 계산)
+  // 2단계: 각 층위별로 Y 좌표 고정, X 좌표만 수평 배치
   const layoutedNodes: Node[] = [];
 
-  // 층위 순서 (아래에서 위로)
+  // 층위 순서 (위에서 아래로) - Y 좌표 역순
   const layerOrder: Array<keyof typeof LAYER_CONFIG> = [
-    'intangible_lever', // 최하단 (Y = 450)
-    'tangible_lever',   // (Y = 300)
-    'behavior',         // (Y = 150)
-    'result'            // 최상단 (Y = 0)
+    'result',           // 최상단 (Y = 0)
+    'behavior',         // (Y = 200)
+    'tangible_lever',   // (Y = 400)
+    'intangible_lever'  // 최하단 (Y = 600)
   ];
 
   layerOrder.forEach((layerKey, layerIndex) => {
     const layerNodes = nodesByLayer.get(layerKey) || [];
     if (layerNodes.length === 0) return;
 
-    // 각 층위의 Y 좌표 고정 (위에서 아래로: 0, 150, 300, 450)
-    const fixedY = layerIndex * (NODE_HEIGHT + LAYOUT_OPTIONS.ranksep);
+    // 각 층위의 Y 좌표 고정 (위에서 아래로: 0, 200, 400, 600)
+    const fixedY = layerIndex * 200; // 층위 간격 200px
 
-    // 수평 배치를 위한 dagre 그래프 생성
-    const layerGraph = new dagre.graphlib.Graph();
-    layerGraph.setDefaultEdgeLabel(() => ({}));
-    layerGraph.setGraph({
-      rankdir: 'LR', // Left to Right (수평 배치)
-      nodesep: LAYOUT_OPTIONS.nodesep,
-      ranksep: 50,
-      marginx: LAYOUT_OPTIONS.marginx,
-      marginy: LAYOUT_OPTIONS.marginy
-    });
+    // 수평 간격 설정
+    const horizontalSpacing = 300; // 노드 간 수평 간격
+    const startX = 100; // 시작 X 좌표
 
-    // 같은 층위의 노드들만 추가
-    layerNodes.forEach((node) => {
-      layerGraph.setNode(node.id, {
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT
-      });
-    });
-
-    // 같은 층위 내부의 연결선만 추가 (수평 순서 결정용)
-    edges.forEach((edge) => {
-      const sourceNode = layerNodes.find((n) => n.id === edge.source);
-      const targetNode = layerNodes.find((n) => n.id === edge.target);
-      if (sourceNode && targetNode) {
-        layerGraph.setEdge(edge.source, edge.target);
-      }
-    });
-
-    // 레이아웃 계산
-    dagre.layout(layerGraph);
-
-    // X 좌표만 dagre 결과 사용, Y 좌표는 층위별로 고정
-    layerNodes.forEach((node) => {
-      const nodeWithPosition = layerGraph.node(node.id);
+    // 같은 층위의 노드들을 수평으로 나열
+    layerNodes.forEach((node, nodeIndex) => {
       layoutedNodes.push({
         ...node,
         position: {
-          x: nodeWithPosition.x - NODE_WIDTH / 2,
+          x: startX + nodeIndex * horizontalSpacing, // 수평으로 간격을 두고 배치
           y: fixedY // 층위별 Y 좌표 강제 고정
         },
         // Handle 위치 설정
