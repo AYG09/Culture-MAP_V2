@@ -801,11 +801,53 @@ const CultureMapFlow = ({
         elementsSelectable={true}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+        
+        {/* 층위 배경 구분선 */}
+        <svg
+          style={{
+            position: 'absolute',
+            width: '100%',
+            height: '100%',
+            top: 0,
+            left: 0,
+            pointerEvents: 'none',
+            zIndex: 0,
+          }}
+        >
+          {/* 결과 층 (Y=0~200) */}
+          <rect x="-10000" y="0" width="20000" height="200" fill="rgba(255, 107, 107, 0.05)" />
+          <line x1="-10000" y1="200" x2="10000" y2="200" stroke="rgba(255, 107, 107, 0.3)" strokeWidth="2" strokeDasharray="5,5" />
+          <text x="10" y="20" fill="rgba(255, 107, 107, 0.6)" fontSize="14" fontWeight="bold">결과 (가시적 요소)</text>
+          
+          {/* 행동 층 (Y=200~400) */}
+          <rect x="-10000" y="200" width="20000" height="200" fill="rgba(78, 205, 196, 0.05)" />
+          <line x1="-10000" y1="400" x2="10000" y2="400" stroke="rgba(78, 205, 196, 0.3)" strokeWidth="2" strokeDasharray="5,5" />
+          <text x="10" y="220" fill="rgba(78, 205, 196, 0.6)" fontSize="14" fontWeight="bold">행동 (관찰 행동)</text>
+          
+          {/* 유형 레버 층 (Y=400~600) */}
+          <rect x="-10000" y="400" width="20000" height="200" fill="rgba(149, 225, 211, 0.05)" />
+          <line x1="-10000" y1="600" x2="10000" y2="600" stroke="rgba(149, 225, 211, 0.3)" strokeWidth="2" strokeDasharray="5,5" />
+          <text x="10" y="420" fill="rgba(149, 225, 211, 0.6)" fontSize="14" fontWeight="bold">유형 레버 (규범/가치)</text>
+          
+          {/* 무형 레버 층 (Y=600~800) */}
+          <rect x="-10000" y="600" width="20000" height="200" fill="rgba(255, 230, 109, 0.05)" />
+          <text x="10" y="620" fill="rgba(255, 230, 109, 0.6)" fontSize="14" fontWeight="bold">무형 레버 (기본 가정)</text>
+        </svg>
+
         <Controls />
         <MiniMap
           nodeStrokeWidth={3}
           zoomable
           pannable
+          nodeColor={(node) => {
+            const data = node.data as { sentiment?: string };
+            const sentiment = data.sentiment || 'neutral';
+            
+            // sentiment에 따른 색상 반환
+            if (sentiment === 'positive') return '#10b981'; // 녹색
+            if (sentiment === 'negative') return '#ef4444'; // 빨강
+            return '#6b7280'; // 회색 (중립)
+          }}
           style={{
             backgroundColor: '#f8f9fa',
           }}

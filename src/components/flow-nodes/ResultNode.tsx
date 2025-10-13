@@ -1,6 +1,6 @@
 // src/components/flow-nodes/ResultNode.tsx
 import { memo, useCallback, useState } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { Handle, Position, NodeResizer, type NodeProps } from '@xyflow/react';
 import './FlowNodes.css';
 
 export interface ResultNodeData {
@@ -51,6 +51,13 @@ const ResultNode = ({ data, selected }: NodeProps & { data: ResultNodeData }) =>
       className={`flow-node result-node ${data.sentiment} ${selected ? 'selected' : ''}`}
       onDoubleClick={handleDoubleClick}
     >
+      <NodeResizer
+        minWidth={180}
+        minHeight={100}
+        isVisible={selected}
+        lineClassName="node-resizer-line"
+        handleClassName="node-resizer-handle"
+      />
       <div className="node-header" style={{ borderLeftColor: sentimentColors[data.sentiment] }}>
         <span className="layer-badge">결과</span>
         {data.concept && <span className="concept-tag">{data.concept}</span>}

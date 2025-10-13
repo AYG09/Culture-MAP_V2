@@ -1,6 +1,6 @@
 // src/components/flow-nodes/TangibleLeverNode.tsx
 import { memo, useCallback, useState } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { Handle, Position, NodeResizer, type NodeProps } from '@xyflow/react';
 import './FlowNodes.css';
 
 export interface TangibleLeverNodeData {
@@ -52,6 +52,13 @@ const TangibleLeverNode = ({ data, selected }: NodeProps & { data: TangibleLever
       className={`flow-node tangible-lever-node ${data.sentiment} ${selected ? 'selected' : ''}`}
       onDoubleClick={handleDoubleClick}
     >
+      <NodeResizer
+        minWidth={180}
+        minHeight={100}
+        isVisible={selected}
+        lineClassName="node-resizer-line"
+        handleClassName="node-resizer-handle"
+      />
       <div className="node-header" style={{ borderLeftColor: sentimentColors[data.sentiment] }}>
         <span className="layer-badge">유형 레버</span>
         {data.concept && <span className="concept-tag">{data.concept}</span>}
