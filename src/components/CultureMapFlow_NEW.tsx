@@ -42,8 +42,8 @@ import FirebaseMultiUserService from '../services/FirebaseMultiUserService';
 import './CultureMapFlow.css';
 
 interface CultureMapFlowProps {
-  notes?: NoteData[]; // 초기 데이터 (optional)
-  connections?: ConnectionData[]; // 초기 데이터 (optional)
+  notes: NoteData[];
+  connections: ConnectionData[];
   onNotesChange: (notes: NoteData[]) => void;
   onConnectionsChange: (connections: ConnectionData[]) => void;
   onNodeUpdate: (id: string, content: string) => void;
@@ -58,8 +58,8 @@ const nodeTypes = {
 };
 
 const CultureMapFlow = ({
-  notes: _notes, // props에서는 받되 사용하지 않음 (Firebase가 소스)
-  connections: _connections,
+  notes,
+  connections,
   onNotesChange,
   onConnectionsChange,
   onNodeUpdate,
@@ -72,9 +72,9 @@ const CultureMapFlow = ({
   const [aiInput, setAiInput] = useState('');
   const [showAiInput, setShowAiInput] = useState(false);
 
-  // 선택된 노드/엣지 상태 (추후 활용 가능)
-  const [_selectedNodes, setSelectedNodes] = useState<Node[]>([]);
-  const [_selectedEdges, setSelectedEdges] = useState<Edge[]>([]);
+  // 선택된 노드/엣지 상태
+  const [selectedNodes, setSelectedNodes] = useState<Node[]>([]);
+  const [selectedEdges, setSelectedEdges] = useState<Edge[]>([]);
 
   // 컨텍스트 메뉴 상태
   const [contextMenu, setContextMenu] = useState<{
@@ -90,39 +90,8 @@ const CultureMapFlow = ({
   useEffect(() => {
     console.log('✅ [React Flow] Firebase 리스너 등록 시작');
 
-    // 타입 정의
-    type StickyNoteUpdateEvent = {
-      id: string;
-      authorId?: string;
-      content?: string;
-      text?: string;
-      x: number;
-      y: number;
-      layer: number;
-      layerIndex?: number;
-      color: string;
-      width?: number;
-      height?: number;
-    };
-
-    type StickyNoteDeleteEvent = {
-      noteId: string;
-    };
-
-    type ConnectionUpdateEvent = {
-      id: string;
-      sourceId: string;
-      targetId: string;
-      relationType: 'direct' | 'indirect';
-      isPositive: boolean;
-    };
-
-    type ConnectionDeleteEvent = {
-      connectionId: string;
-    };
-
     // 다른 사용자의 노드 업데이트 수신
-    const handleStickyNoteUpdated = (note: StickyNoteUpdateEvent) => {
+    const handleStickyNoteUpdated = (note: any) => {
       console.log('📥 [React Flow] Firebase 노드 수신:', note.id);
 
       // 자신이 보낸 업데이트는 무시
@@ -166,7 +135,7 @@ const CultureMapFlow = ({
     };
 
     // 다른 사용자의 노드 삭제 수신
-    const handleStickyNoteDeleted = (data: StickyNoteDeleteEvent) => {
+    const handleStickyNoteDeleted = (data: { noteId: string }) => {
       console.log('🗑️ [React Flow] Firebase 노드 삭제 수신:', data.noteId);
       setNodes((currentNodes) => currentNodes.filter((n) => n.id !== data.noteId));
       setEdges((currentEdges) =>
@@ -175,7 +144,13 @@ const CultureMapFlow = ({
     };
 
     // 다른 사용자의 연결선 업데이트 수신
-    const handleConnectionUpdated = (connection: ConnectionUpdateEvent) => {
+    const handleConnectionUpdated = (connection: {
+      id: string;
+      sourceId: string;
+      targetId: string;
+      relationType: 'direct' | 'indirect';
+      isPositive: boolean;
+    }) => {
       console.log('🔗 [React Flow] Firebase 연결선 수신:', connection.id);
 
       setEdges((currentEdges) => {
@@ -222,29 +197,28 @@ const CultureMapFlow = ({
     };
 
     // 다른 사용자의 연결선 삭제 수신
-    const handleConnectionDeleted = (data: ConnectionDeleteEvent) => {
+    const handleConnectionDeleted = (data: { connectionId: string }) => {
       console.log('🗑️ [React Flow] Firebase 연결선 삭제 수신:', data.connectionId);
       setEdges((currentEdges) => currentEdges.filter((e) => e.id !== data.connectionId));
     };
 
-    // Firebase 이벤트 리스너 등록 (타입 안전성을 위해 캐스팅)
-    type EventHandler = (...args: unknown[]) => void;
-    FirebaseMultiUserService.on('sticky-note-updated', handleStickyNoteUpdated as EventHandler);
-    FirebaseMultiUserService.on('sticky-note-deleted', handleStickyNoteDeleted as EventHandler);
-    FirebaseMultiUserService.on('connection-updated', handleConnectionUpdated as EventHandler);
-    FirebaseMultiUserService.on('connection-deleted', handleConnectionDeleted as EventHandler);
+    // Firebase 이벤트 리스너 등록
+    FirebaseMultiUserService.on('sticky-note-updated', handleStickyNoteUpdated as any);
+    FirebaseMultiUserService.on('sticky-note-deleted', handleStickyNoteDeleted as any);
+    FirebaseMultiUserService.on('connection-updated', handleConnectionUpdated as any);
+    FirebaseMultiUserService.on('connection-deleted', handleConnectionDeleted as any);
 
     console.log('✅ [React Flow] Firebase 리스너 등록 완료');
 
     // Cleanup: 컴포넌트 언마운트 시 리스너 제거
     return () => {
-      FirebaseMultiUserService.off('sticky-note-updated', handleStickyNoteUpdated as EventHandler);
-      FirebaseMultiUserService.off('sticky-note-deleted', handleStickyNoteDeleted as EventHandler);
-      FirebaseMultiUserService.off('connection-updated', handleConnectionUpdated as EventHandler);
-      FirebaseMultiUserService.off('connection-deleted', handleConnectionDeleted as EventHandler);
+      FirebaseMultiUserService.off('sticky-note-updated', handleStickyNoteUpdated as any);
+      FirebaseMultiUserService.off('sticky-note-deleted', handleStickyNoteDeleted as any);
+      FirebaseMultiUserService.off('connection-updated', handleConnectionUpdated as any);
+      FirebaseMultiUserService.off('connection-deleted', handleConnectionDeleted as any);
       console.log('🔌 [React Flow] Firebase 리스너 제거 완료');
     };
-  }, [onNodeUpdate, setNodes, setEdges]);
+  }, [onNodeUpdate]);
 
   // ============================================================================
   // AI 일괄 생성 기능
@@ -293,10 +267,10 @@ const CultureMapFlow = ({
         setTimeout(() => {
           FirebaseMultiUserService.updateStickyNote({
             id: note.id,
-            content: note.text || '',
+            content: note.content || note.text || '',
             x: note.position.x,
             y: note.position.y,
-            layer: note.layer || 1,
+            layer: note.layerIndex || note.layer || 1,
             color: note.sentiment || 'neutral',
             type: note.type || 'sticky_note',
             width: note.width || 200,
@@ -325,7 +299,7 @@ const CultureMapFlow = ({
       console.error('❌ [React Flow] AI 일괄 생성 실패:', error);
       alert('AI 출력 파싱 중 오류가 발생했습니다. 형식을 확인해주세요.');
     }
-  }, [aiInput, onNodeUpdate, onNotesChange, onConnectionsChange, setNodes, setEdges]);
+  }, [aiInput, onNodeUpdate, onNotesChange, onConnectionsChange]);
 
   // ============================================================================
   // 노드 변경 핸들러 + Firebase 동기화
@@ -517,7 +491,7 @@ const CultureMapFlow = ({
   // ============================================================================
   // 컨텍스트 메뉴 (우클릭)
   // ============================================================================
-  const handlePaneContextMenu = useCallback((event: React.MouseEvent | MouseEvent) => {
+  const handlePaneContextMenu = useCallback((event: React.MouseEvent) => {
     event.preventDefault();
     setContextMenu({
       x: event.clientX,
@@ -526,7 +500,7 @@ const CultureMapFlow = ({
     });
   }, []);
 
-  const handleNodeContextMenu = useCallback((event: React.MouseEvent | MouseEvent, node: Node) => {
+  const handleNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
     event.preventDefault();
     setContextMenu({
       x: event.clientX,
@@ -536,7 +510,7 @@ const CultureMapFlow = ({
     });
   }, []);
 
-  const handleEdgeContextMenu = useCallback((event: React.MouseEvent | MouseEvent, edge: Edge) => {
+  const handleEdgeContextMenu = useCallback((event: React.MouseEvent, edge: Edge) => {
     event.preventDefault();
     setContextMenu({
       x: event.clientX,
