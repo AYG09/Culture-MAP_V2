@@ -1,0 +1,172 @@
+/* src/components/flow-nodes/FlowNodes.css */
+
+.flow-node {
+  padding: 12px;
+  border-radius: 8px;
+  border: 2px solid #d1d5db;
+  background: white;
+  min-width: 180px;
+  max-width: 280px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.flow-node.selected {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  transform: scale(1.02);
+}
+
+.flow-node:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* 노드 헤더 */
+.node-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding-left: 8px;
+  border-left: 4px solid #6b7280;
+}
+
+.layer-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #4b5563;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.concept-tag {
+  font-size: 10px;
+  background: #e5e7eb;
+  color: #374151;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* 노드 바디 */
+.node-body {
+  margin-bottom: 8px;
+}
+
+.node-content {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #1f2937;
+  word-wrap: break-word;
+  min-height: 40px;
+}
+
+.node-textarea {
+  width: 100%;
+  min-height: 60px;
+  padding: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.node-textarea:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* 노드 푸터 */
+.node-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.source-tag,
+.basis-tag {
+  font-size: 10px;
+  background: #f3f4f6;
+  color: #6b7280;
+  padding: 2px 6px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.basis-tag {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* 감정 색상 */
+.flow-node.positive .node-header {
+  border-left-color: #10b981;
+}
+
+.flow-node.negative .node-header {
+  border-left-color: #ef4444;
+}
+
+.flow-node.neutral .node-header {
+  border-left-color: #6b7280;
+}
+
+/* 층위별 배경색 */
+.result-node {
+  background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
+}
+
+.behavior-node {
+  background: linear-gradient(135deg, #ffffff 0%, #fef9e7 100%);
+}
+
+.tangible-lever-node {
+  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+}
+
+.intangible-lever-node {
+  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
+}
+
+/* 커스텀 핸들 */
+.custom-handle {
+  width: 12px;
+  height: 12px;
+  background: #6b7280;
+  border: 2px solid white;
+  transition: all 0.2s;
+}
+
+.custom-handle:hover {
+  background: #3b82f6;
+  transform: scale(1.2);
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .flow-node {
+    min-width: 140px;
+    max-width: 220px;
+    padding: 10px;
+  }
+
+  .node-content,
+  .node-textarea {
+    font-size: 13px;
+  }
+
+  .layer-badge {
+    font-size: 10px;
+  }
+
+  .custom-handle {
+    width: 16px;
+    height: 16px;
+  }
+}

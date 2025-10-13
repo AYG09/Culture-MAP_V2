@@ -17,9 +17,12 @@
     "test:e2e": "npx playwright test"
   },
   "dependencies": {
+    "@types/dagre": "^0.7.53",
     "@types/qrcode": "^1.5.5",
     "@types/react-router-dom": "^5.3.3",
     "@types/uuid": "^10.0.0",
+    "@xyflow/react": "^12.8.6",
+    "dagre": "^0.8.5",
     "docx": "^8.5.0",
     "file-saver": "^2.0.5",
     "firebase": "^12.1.0",
