@@ -1,0 +1,171 @@
+/* src/components/CultureMapFlow.css */
+
+.culture-map-flow-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* 레전드 패널 */
+.layer-legend {
+  background: white;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  min-width: 200px;
+}
+
+.legend-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: #1f2937;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 8px;
+}
+
+/* 자동 레이아웃 버튼 */
+.auto-layout-button {
+  width: 100%;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.auto-layout-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.auto-layout-button:active {
+  transform: translateY(0);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+.legend-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  min-width: 80px;
+  text-align: center;
+}
+
+.legend-item.result .legend-badge {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.legend-item.behavior .legend-badge {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.legend-item.tangible .legend-badge {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.legend-item.intangible .legend-badge {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+/* React Flow 커스터마이징 */
+.react-flow__node {
+  cursor: grab;
+}
+
+.react-flow__node:active {
+  cursor: grabbing;
+}
+
+.react-flow__edge {
+  cursor: pointer;
+}
+
+.react-flow__edge:hover {
+  stroke-width: 3px !important;
+}
+
+.react-flow__minimap {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+}
+
+.react-flow__controls {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.react-flow__controls-button {
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.react-flow__controls-button:hover {
+  background: #f3f4f6;
+}
+
+/* 모바일 반응형 */
+@media (max-width: 768px) {
+  .layer-legend {
+    min-width: 160px;
+    padding: 12px;
+  }
+
+  .legend-title {
+    font-size: 12px;
+  }
+
+  .legend-item {
+    font-size: 11px;
+    padding: 4px 0;
+  }
+
+  .legend-badge {
+    font-size: 9px;
+    padding: 2px 6px;
+    min-width: 70px;
+  }
+
+  .react-flow__minimap {
+    width: 120px !important;
+    height: 80px !important;
+  }
+
+  .react-flow__controls {
+    transform: scale(0.9);
+  }
+}
+
+/* 프린트 모드 */
+@media print {
+  .react-flow__controls,
+  .react-flow__minimap,
+  .layer-legend {
+    display: none !important;
+  }
+}
