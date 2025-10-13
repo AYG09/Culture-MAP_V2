@@ -80,6 +80,9 @@ const CultureMapFlow = ({
   // 층위별 개별 높이 조절 상태 (레거시 모드와 동일)
   const [layerHeights, setLayerHeights] = useState<number[]>([200, 200, 200, 200]); // [결과, 행동, 유형, 무형]
   const [showLayerBackground, setShowLayerBackground] = useState(true);
+  
+  // Panel 토글 상태
+  const [showPanel, setShowPanel] = useState(true);
 
   // 컨텍스트 메뉴 상태
   const [contextMenu, setContextMenu] = useState<{
@@ -917,8 +920,50 @@ const CultureMapFlow = ({
             backgroundColor: '#f8f9fa',
           }}
         />
-        <Panel position="top-left" className="layer-legend">
-          <div className="legend-title">📊 4층위 모델</div>
+        
+        {/* 토글 버튼 (Panel이 숨겨져 있을 때 표시) */}
+        {!showPanel && (
+          <button
+            onClick={() => setShowPanel(true)}
+            style={{
+              position: 'absolute',
+              bottom: '20px',
+              right: '20px',
+              zIndex: 1000,
+              padding: '12px 16px',
+              background: 'rgba(255, 255, 255, 0.95)',
+              border: '1px solid rgba(0, 0, 0, 0.1)',
+              borderRadius: '12px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+            }}
+          >
+            ⚙️ 보기 설정
+          </button>
+        )}
+        
+        {/* Panel (showPanel이 true일 때만 표시) */}
+        {showPanel && (
+        <Panel position="bottom-right" className="layer-legend" style={{ maxWidth: '280px', maxHeight: '500px', overflowY: 'auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <div className="legend-title">📊 4층위 모델</div>
+            <button
+              onClick={() => setShowPanel(false)}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: '18px',
+                cursor: 'pointer',
+                padding: '0 4px',
+                color: '#666',
+              }}
+              title="패널 닫기"
+            >
+              ✕
+            </button>
+          </div>
           
           {/* 층위별 개별 높이 조절 슬라이더 (레거시 모드와 동일) */}
           <div className="layer-heights-control" style={{ marginBottom: '10px' }}>
@@ -1039,6 +1084,7 @@ const CultureMapFlow = ({
             <span>기본 가정</span>
           </div>
         </Panel>
+        )}
       </ReactFlow>
 
       {/* AI 일괄 생성 입력 패널 */}
