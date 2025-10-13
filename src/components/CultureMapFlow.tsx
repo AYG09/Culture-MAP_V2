@@ -24,6 +24,7 @@ import {
   TangibleLeverNode,
   IntangibleLeverNode,
 } from './flow-nodes';
+import MobileGestureGuide from './MobileGestureGuide';
 
 // 타입
 import type { NoteData, ConnectionData } from '../types/culture';
@@ -176,6 +177,9 @@ const CultureMapFlow = ({
 
   return (
     <div className="culture-map-flow-container">
+      {/* 모바일 제스처 가이드 */}
+      <MobileGestureGuide />
+      
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -189,6 +193,20 @@ const CultureMapFlow = ({
         maxZoom={2}
         defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
         proOptions={{ hideAttribution: true }}
+        // 모바일 터치 최적화
+        panOnDrag={true}
+        panOnScroll={false}
+        zoomOnScroll={true}
+        zoomOnPinch={true}
+        zoomOnDoubleClick={false}
+        preventScrolling={true}
+        // 모바일 제스처
+        selectionOnDrag={false}
+        panActivationKeyCode={null}
+        // 성능 최적화
+        nodesDraggable={true}
+        nodesConnectable={true}
+        elementsSelectable={true}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
         <Controls />

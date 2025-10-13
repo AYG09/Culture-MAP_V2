@@ -4,6 +4,11 @@
   width: 100%;
   height: 100%;
   position: relative;
+  /* 모바일 터치 최적화 */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* 레전드 패널 */
@@ -94,10 +99,32 @@
 /* React Flow 커스터마이징 */
 .react-flow__node {
   cursor: grab;
+  /* 터치 영역 확대 (모바일) */
+  touch-action: none;
 }
 
 .react-flow__node:active {
   cursor: grabbing;
+}
+
+/* 모바일 터치 피드백 */
+@media (hover: none) and (pointer: coarse) {
+  .react-flow__node {
+    /* 모바일에서 노드 크기 약간 증가 */
+    transform: scale(1);
+    transition: transform 0.1s;
+  }
+
+  .react-flow__node:active {
+    transform: scale(1.05);
+  }
+
+  .auto-layout-button,
+  .react-flow__controls-button {
+    /* 터치 영역 확대 */
+    min-height: 44px;
+    min-width: 44px;
+  }
 }
 
 .react-flow__edge {
