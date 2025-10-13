@@ -37,12 +37,18 @@ const NODE_HEIGHT = 120;
 /**
  * 4층위 계층 구조로 노드 자동 배치
  * ⚡ 개선: 층위별 Y 좌표 강제 고정 (순환 연결 대응)
+ * ⚡ 개선2: 층위별 개별 높이 지원 (레거시 모드와 동일)
  */
 export function getLayoutedElements(
   nodes: Node[],
   edges: Edge[],
-  layerSpacing = 200 // 층위 간격 (기본값: 200px)
+  layerHeightsOrSpacing: number[] | number = 200 // 층위별 높이 배열 또는 일괄 간격
 ): { nodes: Node[]; edges: Edge[] } {
+  // layerHeightsOrSpacing이 배열이면 개별 높이, 숫자면 일괄 간격
+  const layerHeights = Array.isArray(layerHeightsOrSpacing)
+    ? layerHeightsOrSpacing
+    : [layerHeightsOrSpacing, layerHeightsOrSpacing, layerHeightsOrSpacing, layerHeightsOrSpacing];
+
   // 1단계: 노드를 층위별로 그룹화
   const nodesByLayer = new Map<string, Node[]>();
   nodes.forEach((node) => {
@@ -59,17 +65,20 @@ export function getLayoutedElements(
   // 층위 순서 (위에서 아래로) - Y 좌표 역순
   const layerOrder: Array<keyof typeof LAYER_CONFIG> = [
     'result',           // 최상단 (Y = 0)
-    'behavior',         // (Y = 200)
-    'tangible_lever',   // (Y = 400)
-    'intangible_lever'  // 최하단 (Y = 600)
+    'behavior',         // (Y = layerHeights[0])
+    'tangible_lever',   // (Y = layerHeights[0] + layerHeights[1])
+    'intangible_lever'  // 최하단 (Y = layerHeights[0] + layerHeights[1] + layerHeights[2])
   ];
 
   layerOrder.forEach((layerKey, layerIndex) => {
     const layerNodes = nodesByLayer.get(layerKey) || [];
     if (layerNodes.length === 0) return;
 
-    // 각 층위의 Y 좌표 고정 (위에서 아래로, layerSpacing 적용)
-    const fixedY = layerIndex * layerSpacing; // 층위 간격을 동적으로 적용
+    // 각 층위의 Y 좌표를 개별 높이에 따라 계산
+    let fixedY = 0;
+    for (let i = 0; i < layerIndex; i++) {
+      fixedY += layerHeights[i];
+    }
 
     // 수평 간격 설정
     const horizontalSpacing = 300; // 노드 간 수평 간격

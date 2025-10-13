@@ -27,6 +27,7 @@ import {
   IntangibleLeverNode,
 } from './flow-nodes';
 import MobileGestureGuide from './MobileGestureGuide';
+import PromptGenerator from './PromptGenerator'; // 좌측 사이드메뉴 추가
 
 // 타입
 import type { NoteData, ConnectionData } from '../types/culture';
@@ -76,8 +77,8 @@ const CultureMapFlow = ({
   const [_selectedNodes, setSelectedNodes] = useState<Node[]>([]);
   const [_selectedEdges, setSelectedEdges] = useState<Edge[]>([]);
 
-  // 층위 간격 조절 상태
-  const [layerSpacing, setLayerSpacing] = useState(200);
+  // 층위별 개별 높이 조절 상태 (레거시 모드와 동일)
+  const [layerHeights, setLayerHeights] = useState<number[]>([200, 200, 200, 200]); // [결과, 행동, 유형, 무형]
   const [showLayerBackground, setShowLayerBackground] = useState(true);
 
   // 컨텍스트 메뉴 상태
@@ -498,10 +499,10 @@ const CultureMapFlow = ({
   // 자동 레이아웃
   // ============================================================================
   const handleAutoLayout = useCallback(() => {
-    const layouted = getLayoutedElements(nodes, edges, layerSpacing);
+    const layouted = getLayoutedElements(nodes, edges, layerHeights);
     setNodes(layouted.nodes);
     setEdges(layouted.edges);
-  }, [nodes, edges, layerSpacing, setNodes, setEdges]);
+  }, [nodes, edges, layerHeights, setNodes, setEdges]);
 
   // ============================================================================
   // 선택 변경 핸들러
@@ -766,10 +767,41 @@ const CultureMapFlow = ({
     [contextMenu, nodes, edges, setNodes, setEdges, closeContextMenu, onNodeUpdate]
   );
 
+  // PromptGenerator에서 맵 생성 (AI 텍스트 파싱)
+  const handleGenerateMapFromPrompt = useCallback((data: { notes: NoteData[]; connections: ConnectionData[] }) => {
+    // PromptGenerator는 parseAIOutput을 거쳐 이미 파싱된 데이터를 전달
+    // 하지만 우리는 handleRenderFromText를 사용하여 일관성 유지
+    console.log('📊 PromptGenerator에서 맵 생성 요청:', data);
+    alert('PromptGenerator의 맵 생성 기능은 "AI 일괄 생성" 버튼을 사용해주세요.');
+  }, []);
+
+  const handleShowReport = useCallback((reportText: string) => {
+    // 보고서 생성 기능 (추후 구현 가능)
+    console.log('보고서 생성:', reportText);
+    alert('보고서 기능은 추후 추가 예정입니다.');
+  }, []);
+
   return (
-    <div className="culture-map-flow-container" style={{ position: 'relative', width: '100%', height: '100%' }}>
-      {/* 모바일 제스처 가이드 */}
-      <MobileGestureGuide />
+    <div className="culture-map-flow-container" style={{ display: 'flex', width: '100%', height: '100%' }}>
+      {/* 왼쪽 사이드메뉴 (레거시 모드와 동일) */}
+      <div className="left-panel no-print" style={{ 
+        width: '280px', 
+        minWidth: '280px',
+        height: '100%',
+        overflowY: 'auto',
+        borderRight: '1px solid #e5e7eb',
+        backgroundColor: '#f9fafb'
+      }}>
+        <PromptGenerator
+          onGenerateMap={handleGenerateMapFromPrompt}
+          onShowReport={handleShowReport}
+        />
+      </div>
+
+      {/* 메인 React Flow 영역 */}
+      <div style={{ position: 'relative', flex: 1, height: '100%' }}>
+        {/* 모바일 제스처 가이드 */}
+        <MobileGestureGuide />
 
       {/* 층위 배경 레이어 (ReactFlow 외부) */}
       {showLayerBackground && (
@@ -784,43 +816,51 @@ const CultureMapFlow = ({
             zIndex: 1,
           }}
         >
-          {/* 배경층들 */}
+          {/* 배경층들 - 개별 높이 적용 */}
           {[
-            { name: '결과', color: 'rgba(255, 107, 107, 0.05)', y: 0 },
-            { name: '행동', color: 'rgba(78, 205, 196, 0.05)', y: layerSpacing },
-            { name: '유형 레버', color: 'rgba(149, 225, 211, 0.05)', y: layerSpacing * 2 },
-            { name: '무형 레버', color: 'rgba(255, 230, 109, 0.05)', y: layerSpacing * 3 },
-          ].map((layer, index) => (
-            <div
-              key={layer.name}
-              style={{
-                position: 'absolute',
-                top: `${layer.y}px`,
-                left: 0,
-                width: '100%',
-                height: `${layerSpacing}px`,
-                backgroundColor: layer.color,
-                borderBottom: index < 3 ? `2px dashed ${layer.color.replace('0.05', '0.3')}` : 'none',
-              }}
-            >
+            { name: '결과', color: 'rgba(255, 107, 107, 0.05)', index: 0 },
+            { name: '행동', color: 'rgba(78, 205, 196, 0.05)', index: 1 },
+            { name: '유형 레버', color: 'rgba(149, 225, 211, 0.05)', index: 2 },
+            { name: '무형 레버', color: 'rgba(255, 230, 109, 0.05)', index: 3 },
+          ].map((layer) => {
+            // 각 층위의 Y 좌표 계산 (이전 층위들의 높이 합산)
+            let y = 0;
+            for (let i = 0; i < layer.index; i++) {
+              y += layerHeights[i];
+            }
+            
+            return (
               <div
+                key={layer.name}
                 style={{
                   position: 'absolute',
-                  top: '10px',
-                  left: '10px',
-                  padding: '6px 12px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                  border: `2px solid ${layer.color.replace('0.05', '0.5')}`,
-                  borderRadius: '12px',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  color: layer.color.replace('0.05', '0.8'),
+                  top: `${y}px`,
+                  left: 0,
+                  width: '100%',
+                  height: `${layerHeights[layer.index]}px`,
+                  backgroundColor: layer.color,
+                  borderBottom: layer.index < 3 ? `2px dashed ${layer.color.replace('0.05', '0.3')}` : 'none',
                 }}
               >
-                {layer.name}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '10px',
+                    left: '10px',
+                    padding: '6px 12px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    border: `2px solid ${layer.color.replace('0.05', '0.5')}`,
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    color: layer.color.replace('0.05', '0.8'),
+                  }}
+                >
+                  {layer.name}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -880,21 +920,79 @@ const CultureMapFlow = ({
         <Panel position="top-left" className="layer-legend">
           <div className="legend-title">📊 4층위 모델</div>
           
-          {/* 층위 간격 조절 슬라이더 */}
-          <div className="layer-spacing-control" style={{ marginBottom: '10px' }}>
-            <label htmlFor="layerSpacing" style={{ fontSize: '12px', fontWeight: 'bold' }}>
-              층위 간격: {layerSpacing}px
-            </label>
-            <input
-              type="range"
-              id="layerSpacing"
-              min="100"
-              max="400"
-              step="50"
-              value={layerSpacing}
-              onChange={(e) => setLayerSpacing(Number(e.target.value))}
-              style={{ width: '100%', marginTop: '5px' }}
-            />
+          {/* 층위별 개별 높이 조절 슬라이더 (레거시 모드와 동일) */}
+          <div className="layer-heights-control" style={{ marginBottom: '10px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>
+              층위별 높이 조절
+            </div>
+            
+            {/* 결과 층위 */}
+            <div style={{ marginBottom: '8px' }}>
+              <label htmlFor="layer0" style={{ fontSize: '11px', color: '#FF6B6B' }}>
+                결과: {layerHeights[0]}px
+              </label>
+              <input
+                type="range"
+                id="layer0"
+                min="100"
+                max="400"
+                step="20"
+                value={layerHeights[0]}
+                onChange={(e) => setLayerHeights([Number(e.target.value), layerHeights[1], layerHeights[2], layerHeights[3]])}
+                style={{ width: '100%' }}
+              />
+            </div>
+            
+            {/* 행동 층위 */}
+            <div style={{ marginBottom: '8px' }}>
+              <label htmlFor="layer1" style={{ fontSize: '11px', color: '#4ECDC4' }}>
+                행동: {layerHeights[1]}px
+              </label>
+              <input
+                type="range"
+                id="layer1"
+                min="100"
+                max="400"
+                step="20"
+                value={layerHeights[1]}
+                onChange={(e) => setLayerHeights([layerHeights[0], Number(e.target.value), layerHeights[2], layerHeights[3]])}
+                style={{ width: '100%' }}
+              />
+            </div>
+            
+            {/* 유형 레버 층위 */}
+            <div style={{ marginBottom: '8px' }}>
+              <label htmlFor="layer2" style={{ fontSize: '11px', color: '#95E1D3' }}>
+                유형 레버: {layerHeights[2]}px
+              </label>
+              <input
+                type="range"
+                id="layer2"
+                min="100"
+                max="400"
+                step="20"
+                value={layerHeights[2]}
+                onChange={(e) => setLayerHeights([layerHeights[0], layerHeights[1], Number(e.target.value), layerHeights[3]])}
+                style={{ width: '100%' }}
+              />
+            </div>
+            
+            {/* 무형 레버 층위 */}
+            <div style={{ marginBottom: '8px' }}>
+              <label htmlFor="layer3" style={{ fontSize: '11px', color: '#FFE66D' }}>
+                무형 레버: {layerHeights[3]}px
+              </label>
+              <input
+                type="range"
+                id="layer3"
+                min="100"
+                max="400"
+                step="20"
+                value={layerHeights[3]}
+                onChange={(e) => setLayerHeights([layerHeights[0], layerHeights[1], layerHeights[2], Number(e.target.value)])}
+                style={{ width: '100%' }}
+              />
+            </div>
           </div>
           
           {/* 배경 표시 토글 */}
@@ -1054,6 +1152,7 @@ const CultureMapFlow = ({
           )}
         </div>
       )}
+      </div>
     </div>
   );
 };
