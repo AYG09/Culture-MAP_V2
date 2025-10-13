@@ -83,6 +83,46 @@ const CultureMapFlow = ({
   
   // Panel 토글 상태
   const [showPanel, setShowPanel] = useState(true);
+  
+  // 사이드 패널 리사이즈 상태
+  const [sidebarWidth, setSidebarWidth] = useState(380); // 초기 너비 280px → 380px
+  const [isResizing, setIsResizing] = useState(false);
+
+  // 사이드 패널 리사이즈 핸들러
+  const handleMouseDown = useCallback(() => {
+    setIsResizing(true);
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      
+      // 최소 280px, 최대 600px로 제한
+      const newWidth = Math.min(Math.max(e.clientX, 280), 600);
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      
+      // 리사이징 중 텍스트 선택 방지
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
 
   // 컨텍스트 메뉴 상태
   const [contextMenu, setContextMenu] = useState<{
@@ -155,9 +195,12 @@ const CultureMapFlow = ({
           type: nodeType,
           position: { x: note.x, y: note.y },
           data: {
-            content: note.content,
+            content: note.content || '', // Firebase의 content 필드 사용
             sentiment: note.color,
-            onUpdate: onNodeUpdate,
+            onUpdate: (id: string, newContent: string) => {
+              console.log('📝 [React Flow Node] onUpdate called:', { id, newContent });
+              onNodeUpdate(id, newContent);
+            },
           },
           width: note.width || 200,
           height: note.height || 120,
@@ -788,16 +831,42 @@ const CultureMapFlow = ({
     <div className="culture-map-flow-container" style={{ display: 'flex', width: '100%', height: '100%' }}>
       {/* 왼쪽 사이드메뉴 (레거시 모드와 동일) */}
       <div className="left-panel no-print" style={{ 
-        width: '280px', 
-        minWidth: '280px',
+        position: 'relative',
+        width: `${sidebarWidth}px`, 
+        minWidth: `${sidebarWidth}px`,
         height: '100%',
         overflowY: 'auto',
         borderRight: '1px solid #e5e7eb',
-        backgroundColor: '#f9fafb'
+        backgroundColor: '#f9fafb',
+        wordBreak: 'keep-all',
+        wordWrap: 'break-word',
+        overflowWrap: 'break-word'
       }}>
         <PromptGenerator
           onGenerateMap={handleGenerateMapFromPrompt}
           onShowReport={handleShowReport}
+        />
+        
+        {/* 리사이즈 핸들 */}
+        <div
+          onMouseDown={handleMouseDown}
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: 0,
+            width: '5px',
+            height: '100%',
+            cursor: 'col-resize',
+            backgroundColor: isResizing ? '#3b82f6' : 'transparent',
+            transition: isResizing ? 'none' : 'background-color 0.2s',
+            zIndex: 10
+          }}
+          onMouseEnter={(e) => {
+            if (!isResizing) e.currentTarget.style.backgroundColor = '#e5e7eb';
+          }}
+          onMouseLeave={(e) => {
+            if (!isResizing) e.currentTarget.style.backgroundColor = 'transparent';
+          }}
         />
       </div>
 

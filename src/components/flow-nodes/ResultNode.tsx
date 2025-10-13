@@ -9,11 +9,11 @@ export interface ResultNodeData {
   concept?: string;
   source?: string;
   category?: string;
-  onUpdate: (content: string) => void;
+  onUpdate: (id: string, content: string) => void; // id 파라미터 추가
   onEdit?: () => void;
 }
 
-const ResultNode = ({ data, selected }: NodeProps & { data: ResultNodeData }) => {
+const ResultNode = ({ id, data, selected }: NodeProps & { data: ResultNodeData }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [content, setContent] = useState(data.content);
 
@@ -25,9 +25,10 @@ const ResultNode = ({ data, selected }: NodeProps & { data: ResultNodeData }) =>
   const handleBlur = useCallback(() => {
     setIsEditing(false);
     if (content !== data.content) {
-      data.onUpdate(content);
+      console.log('📝 [ResultNode] Calling onUpdate:', { id, content });
+      data.onUpdate(id, content); // id 전달
     }
-  }, [content, data]);
+  }, [content, data, id]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

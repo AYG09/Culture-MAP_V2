@@ -9,11 +9,11 @@ export interface BehaviorNodeData {
   concept?: string;
   source?: string;
   category?: string;
-  onUpdate: (content: string) => void;
+  onUpdate: (id: string, content: string) => void;
   onEdit?: () => void;
 }
 
-const BehaviorNode = ({ data, selected }: NodeProps & { data: BehaviorNodeData }) => {
+const BehaviorNode = ({ id, data, selected }: NodeProps & { data: BehaviorNodeData }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [content, setContent] = useState(data.content);
 
@@ -25,9 +25,9 @@ const BehaviorNode = ({ data, selected }: NodeProps & { data: BehaviorNodeData }
   const handleBlur = useCallback(() => {
     setIsEditing(false);
     if (content !== data.content) {
-      data.onUpdate(content);
+      data.onUpdate(id, content);
     }
-  }, [content, data]);
+  }, [content, data, id]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

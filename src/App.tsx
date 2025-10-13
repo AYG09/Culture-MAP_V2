@@ -120,6 +120,29 @@ function App({ sessionInfo }: AppProps = {}) {
   const boardRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // 자동 세션 생성 (앱 시작 시 한 번만 실행)
+  useEffect(() => {
+    const initializeSession = async () => {
+      // 이미 세션이 있는지 확인
+      const existingSession = FirebaseMultiUserService.getCurrentSession();
+      if (existingSession) {
+        console.log('✅ [Auto-Session] Existing session found:', existingSession.code);
+        return;
+      }
+
+      try {
+        // 자동으로 익명 세션 생성
+        const code = await FirebaseMultiUserService.createSession();
+        FirebaseMultiUserService.joinSession(code, true);
+        console.log('🎉 [Auto-Session] Auto-created session:', code);
+      } catch (error) {
+        console.error('❌ [Auto-Session] Failed to create session:', error);
+      }
+    };
+
+    initializeSession();
+  }, []); // 빈 의존성 배열 - 마운트 시 한 번만 실행
+
   // MultiUser 서비스 이벤트 리스너
   useEffect(() => {
     // 다른 사용자의 스티키 노트 업데이트 수신
@@ -1389,8 +1412,9 @@ function App({ sessionInfo }: AppProps = {}) {
                 onNotesChange={setNotes}
                 onConnectionsChange={setConnections}
                 onNodeUpdate={(id, content) => {
-                  // content만 업데이트하는 간단한 래퍼
-                  handleUpdateNote(id, { text: content });
+                  // content와 text 둘 다 업데이트
+                  console.log('📝 [App] onNodeUpdate called:', { id, content });
+                  handleUpdateNote(id, { text: content, content: content });
                 }}
               />
             ) : (
