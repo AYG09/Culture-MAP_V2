@@ -155,7 +155,7 @@ export const convertFlowNodeToNote = (node: Node): NoteData => {
  */
 export const convertConnectionToFlowEdge = (connection: ConnectionData): Edge => {
   const edgeColor = connection.isPositive !== false ? '#10b981' : '#ef4444';
-  
+
   return {
     id: connection.id,
     source: connection.sourceId,
@@ -165,8 +165,7 @@ export const convertConnectionToFlowEdge = (connection: ConnectionData): Edge =>
     style: {
       strokeWidth: 2,
       stroke: edgeColor,
-      // 간접 연결일 때 점선 스타일 추가
-      strokeDasharray: connection.relationType === 'indirect' ? '5,5' : undefined,
+      strokeDasharray: connection.relationType === 'indirect' ? '5 5' : undefined,
     },
     markerEnd: {
       type: 'arrowclosed',
@@ -185,12 +184,19 @@ export const convertConnectionToFlowEdge = (connection: ConnectionData): Edge =>
  * React Flow Edge를 ConnectionData로 변환
  */
 export const convertFlowEdgeToConnection = (edge: Edge): ConnectionData => {
+  const relationTypeFromData = (edge.data as { relationType?: 'direct' | 'indirect' } | undefined)?.relationType;
+  const relationTypeFromStyle = edge.style && 'strokeDasharray' in edge.style && edge.style.strokeDasharray ? 'indirect' : 'direct';
+  const relationType = relationTypeFromData ?? relationTypeFromStyle;
+
+  const isPositiveFromData = (edge.data as { isPositive?: boolean } | undefined)?.isPositive;
+  const isPositive = isPositiveFromData !== undefined ? isPositiveFromData : true;
+
   return {
     id: edge.id,
     sourceId: edge.source,
     targetId: edge.target,
-    relationType: edge.type === 'step' ? 'indirect' : 'direct',
-    isPositive: true, // 기본값
+    relationType,
+    isPositive,
   };
 };
 

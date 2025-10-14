@@ -260,7 +260,7 @@ const CultureMapFlow = ({
         const edgeStyle =
           connection.relationType === 'direct'
             ? { strokeWidth: 2 }
-            : { strokeWidth: 2, strokeDasharray: '5,5' };
+            : { strokeWidth: 2, strokeDasharray: '5 5' };
 
         const edgeColor = connection.isPositive ? '#10b981' : '#ef4444';
 
@@ -810,7 +810,7 @@ const CultureMapFlow = ({
                   animated: action === 'direct',
                   style: {
                     ...e.style,
-                    strokeDasharray: action === 'indirect' ? '5,5' : undefined,
+                    strokeDasharray: action === 'indirect' ? '5 5' : undefined,
                   },
                   data: { ...e.data, relationType: action },
                 };
