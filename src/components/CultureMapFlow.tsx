@@ -40,6 +40,8 @@ import { parseAIOutput } from '../utils/parser';
 // Firebase 서비스
 import FirebaseMultiUserService from '../services/FirebaseMultiUserService';
 
+const TOP_BAR_HEIGHT = 64;
+
 import './CultureMapFlow.css';
 
 interface CultureMapFlowProps {
@@ -861,7 +863,10 @@ const CultureMapFlow = ({
         padding: '12px 20px',
         backgroundColor: '#fff',
         borderBottom: '1px solid #e5e7eb',
+        position: 'sticky',
+        top: 0,
         zIndex: 1000,
+        boxShadow: '0 4px 12px rgba(15, 23, 42, 0.04)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 600 }}>🗺️ 조직문화 분석기</h1>
@@ -1110,8 +1115,8 @@ const CultureMapFlow = ({
         elementsSelectable={true}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-        
-        <Controls />
+
+        <Controls style={{ left: 16, top: TOP_BAR_HEIGHT + 16 }} />
         <MiniMap
           nodeStrokeWidth={3}
           zoomable
