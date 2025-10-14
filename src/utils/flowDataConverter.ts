@@ -11,12 +11,18 @@ import type {
 /**
  * 기존 NoteData를 React Flow Node로 변환
  */
-export const convertNoteToFlowNode = (note: NoteData, onUpdate: (id: string, content: string) => void): Node => {
+export const convertNoteToFlowNode = (
+  note: NoteData,
+  onUpdate: (id: string, content: string) => void
+): Node => {
   // 층위에 따른 노드 타입 결정
   let nodeType: string;
   let nodeData: ResultNodeData | BehaviorNodeData | TangibleLeverNodeData | IntangibleLeverNodeData;
 
-  const handleUpdate = (content: string) => onUpdate(note.id, content);
+  const handleUpdate = (id: string, content: string) => {
+    const targetId = id || note.id;
+    onUpdate(targetId, content);
+  };
 
   // basis 문자열에서 정보 추출
   let author: string | undefined;
@@ -83,7 +89,7 @@ export const convertNoteToFlowNode = (note: NoteData, onUpdate: (id: string, con
  * React Flow Node를 NoteData로 변환
  */
 export const convertFlowNodeToNote = (node: Node): NoteData => {
-  const data = node.data as
+  const data = node.data as unknown as
     | ResultNodeData
     | BehaviorNodeData
     | TangibleLeverNodeData

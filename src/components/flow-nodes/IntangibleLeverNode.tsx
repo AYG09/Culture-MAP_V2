@@ -1,5 +1,5 @@
 // src/components/flow-nodes/IntangibleLeverNode.tsx
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { Handle, Position, NodeResizer, type NodeProps } from '@xyflow/react';
 import './FlowNodes.css';
 
@@ -17,6 +17,12 @@ export interface IntangibleLeverNodeData {
 const IntangibleLeverNode = ({ id, data, selected }: NodeProps & { data: IntangibleLeverNodeData }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [content, setContent] = useState(data.content);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setContent(data.content);
+    }
+  }, [data.content, isEditing]);
 
   const handleDoubleClick = useCallback(() => {
     setIsEditing(true);

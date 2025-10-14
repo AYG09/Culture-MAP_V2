@@ -132,6 +132,33 @@ const CultureMapFlow = ({
     targetId?: string;
   } | null>(null);
 
+  const handleNodeContentUpdate = useCallback(
+    (nodeId: string, newContent: string) => {
+      console.log('📝 [React Flow] handleNodeContentUpdate', { nodeId, newContent });
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => {
+          if (node.id !== nodeId) {
+            return node;
+          }
+
+          const currentData = node.data as Record<string, unknown>;
+
+          return {
+            ...node,
+            data: {
+              ...currentData,
+              content: newContent,
+            },
+          };
+        })
+      );
+
+      onNodeUpdate(nodeId, newContent);
+    },
+    [onNodeUpdate, setNodes]
+  );
+
   // ============================================================================
   // Firebase 실시간 리스너 등록
   // ============================================================================
@@ -197,10 +224,7 @@ const CultureMapFlow = ({
           data: {
             content: note.content || '', // Firebase의 content 필드 사용
             sentiment: note.color,
-            onUpdate: (id: string, newContent: string) => {
-              console.log('📝 [React Flow Node] onUpdate called:', { id, newContent });
-              onNodeUpdate(id, newContent);
-            },
+            onUpdate: handleNodeContentUpdate,
           },
           width: note.width || 200,
           height: note.height || 120,
@@ -295,7 +319,7 @@ const CultureMapFlow = ({
       FirebaseMultiUserService.off('connection-deleted', handleConnectionDeleted as EventHandler);
       console.log('🔌 [React Flow] Firebase 리스너 제거 완료');
     };
-  }, [onNodeUpdate, setNodes, setEdges]);
+  }, [handleNodeContentUpdate, setNodes, setEdges]);
 
   // ============================================================================
   // AI 일괄 생성 기능
@@ -323,7 +347,7 @@ const CultureMapFlow = ({
       const { nodes: flowNodes, edges: flowEdges } = convertToFlowData(
         parsedNotes,
         parsedConnections,
-        onNodeUpdate
+        handleNodeContentUpdate
       );
 
       // 자동 레이아웃 적용
@@ -376,7 +400,7 @@ const CultureMapFlow = ({
       console.error('❌ [React Flow] AI 일괄 생성 실패:', error);
       alert('AI 출력 파싱 중 오류가 발생했습니다. 형식을 확인해주세요.');
     }
-  }, [aiInput, onNodeUpdate, onNotesChange, onConnectionsChange, setNodes, setEdges]);
+  }, [aiInput, handleNodeContentUpdate, onNotesChange, onConnectionsChange, setNodes, setEdges]);
 
   // ============================================================================
   // 노드 변경 핸들러 + Firebase 동기화
@@ -627,7 +651,7 @@ const CultureMapFlow = ({
           data: {
             content: '새 노트',
             sentiment: 'neutral',
-            onUpdate: onNodeUpdate,
+            onUpdate: handleNodeContentUpdate,
           },
         };
 
@@ -810,7 +834,7 @@ const CultureMapFlow = ({
 
       closeContextMenu();
     },
-    [contextMenu, nodes, edges, setNodes, setEdges, closeContextMenu, onNodeUpdate]
+    [contextMenu, nodes, edges, setNodes, setEdges, closeContextMenu, handleNodeContentUpdate]
   );
 
   // PromptGenerator에서 맵 생성 (AI 텍스트 파싱)

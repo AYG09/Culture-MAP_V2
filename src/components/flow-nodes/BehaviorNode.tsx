@@ -1,5 +1,5 @@
 // src/components/flow-nodes/BehaviorNode.tsx
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { Handle, Position, NodeResizer, type NodeProps } from '@xyflow/react';
 import './FlowNodes.css';
 
@@ -16,6 +16,12 @@ export interface BehaviorNodeData {
 const BehaviorNode = ({ id, data, selected }: NodeProps & { data: BehaviorNodeData }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [content, setContent] = useState(data.content);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setContent(data.content);
+    }
+  }, [data.content, isEditing]);
 
   const handleDoubleClick = useCallback(() => {
     setIsEditing(true);
