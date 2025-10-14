@@ -828,7 +828,123 @@ const CultureMapFlow = ({
   }, []);
 
   return (
-    <div className="culture-map-flow-container" style={{ display: 'flex', width: '100%', height: '100%' }}>
+    <div className="culture-map-flow-wrapper" style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
+      {/* 상단 바 */}
+      <div className="top-bar no-print" style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '12px 20px',
+        backgroundColor: '#fff',
+        borderBottom: '1px solid #e5e7eb',
+        zIndex: 1000,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 600 }}>🗺️ 조직문화 분석기</h1>
+          <button
+            className="help-button"
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              border: '2px solid #3b82f6',
+              backgroundColor: '#fff',
+              color: '#3b82f6',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            onClick={() => {
+              alert(
+                '🗺️ React Flow 모드 사용법\n\n' +
+                '📌 노드 생성: 빈 캔버스 우클릭\n' +
+                '✏️ 노드 편집: 노드 더블클릭\n' +
+                '🔗 연결선 생성: 노드 핸들 드래그\n' +
+                '🎨 속성 변경: 노드/엣지 우클릭\n' +
+                '📐 자동 정렬: 우측 하단 "자동 정렬" 버튼\n' +
+                '🤖 AI 생성: 우측 하단 "AI 일괄 생성" 버튼'
+              );
+            }}
+          >
+            ?
+          </button>
+        </div>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* 세션 정보 */}
+          {(() => {
+            const session = FirebaseMultiUserService.getCurrentSession();
+            const userId = FirebaseMultiUserService.getCurrentUserId();
+            
+            return session ? (
+              <>
+                <button
+                  className="session-info-btn"
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid #10b981',
+                    backgroundColor: '#ecfdf5',
+                    color: '#065f46',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    const statusMessage = 
+                      `✅ 연결 상태: 정상\n` +
+                      `🔗 세션 코드: ${session.code}\n` +
+                      `👤 사용자 ID: ${userId?.substring(0, 8)}...\n` +
+                      `💾 자동 저장: 활성화`;
+                    alert(statusMessage);
+                  }}
+                >
+                  🔗 세션: {session.code}
+                </button>
+              </>
+            ) : (
+              <span style={{ fontSize: '14px', color: '#6b7280' }}>세션 연결 중...</span>
+            );
+          })()}
+          
+          {/* Clear All 버튼 */}
+          <button
+            className="clear-all-btn"
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              border: '1px solid #ef4444',
+              backgroundColor: '#fff',
+              color: '#ef4444',
+              fontSize: '14px',
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+            onClick={() => {
+              if (window.confirm('⚠️ 모든 노드와 연결선을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
+                // 모든 노드와 엣지 삭제
+                setNodes([]);
+                setEdges([]);
+                
+                // Firebase에서도 삭제
+                nodes.forEach((node) => {
+                  FirebaseMultiUserService.deleteStickyNote(node.id);
+                });
+                
+                console.log('🗑️ [React Flow] 전체 삭제 완료');
+              }
+            }}
+          >
+            🗑️ 전체 삭제
+          </button>
+        </div>
+      </div>
+      
+      {/* 메인 컨텐츠 영역 */}
+      <div className="culture-map-flow-container" style={{ display: 'flex', width: '100%', flex: 1 }}>
       {/* 왼쪽 사이드메뉴 (레거시 모드와 동일) */}
       <div className="left-panel no-print" style={{ 
         position: 'relative',
@@ -1155,6 +1271,8 @@ const CultureMapFlow = ({
         </Panel>
         )}
       </ReactFlow>
+      </div> {/* 메인 React Flow 영역 닫기 */}
+      </div> {/* culture-map-flow-container 닫기 */}
 
       {/* AI 일괄 생성 입력 패널 */}
       {showAiInput && (
@@ -1267,7 +1385,6 @@ const CultureMapFlow = ({
           )}
         </div>
       )}
-      </div>
     </div>
   );
 };
