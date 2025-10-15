@@ -152,6 +152,28 @@ const CultureMapFlow = ({
   // 컨텍스트 메뉴 상태
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
+  // 컨텍스트 메뉴 외부 클릭 시 닫기
+  useEffect(() => {
+    if (!contextMenu) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.react-flow-context-menu')) {
+        setContextMenu(null);
+      }
+    };
+
+    // 짧은 딜레이 후 리스너 등록 (메뉴가 열릴 때 즉시 닫히는 것 방지)
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('click', handleClickOutside);
+    }, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [contextMenu]);
+
   const handleNodeContentUpdate = useCallback(
     (nodeId: string, newContent: string) => {
       console.log('📝 [React Flow] handleNodeContentUpdate', { nodeId, newContent });
@@ -1057,7 +1079,15 @@ const CultureMapFlow = ({
       </div>
 
       {/* 메인 React Flow 영역 */}
-      <div ref={flowWrapperRef} style={{ position: 'relative', flex: 1, height: '100%' }}>
+      <div 
+        ref={flowWrapperRef} 
+        style={{ position: 'relative', flex: 1, height: '100%' }}
+        onContextMenu={(e) => {
+          // 브라우저 기본 컨텍스트 메뉴 완전 차단
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+      >
         {/* 모바일 제스처 가이드 */}
         <MobileGestureGuide />
 
