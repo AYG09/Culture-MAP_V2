@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import App from '../App';
 import SessionManager from './SessionManager';
 import FirebaseMultiUserService from '../services/FirebaseMultiUserService';
@@ -6,23 +6,38 @@ import './IPAccessNotice.css';
 
 const MultiUserApp: React.FC = () => {
   const [sessionActive, setSessionActive] = useState(false);
-  const [sessionCode, setSessionCode] = useState<string>('');
-  const [isHost, setIsHost] = useState(false);
-  const [connectedUsers, setConnectedUsers] = useState(1);
-  const [isConnected, setIsConnected] = useState(false);
   const [showIPAccessNotice, setShowIPAccessNotice] = useState(false);
 
+  const syncSessionStateFromService = useCallback(() => {
+    const currentSession = FirebaseMultiUserService.getCurrentSession();
+
+    if (!currentSession) {
+      return false;
+    }
+
+    setSessionActive(true);
+    return true;
+  }, []);
+
   useEffect(() => {
+    // 🔥 초기 로드 시 기존 세션 상태 즉시 동기화
+    const initialSync = syncSessionStateFromService();
+    if (initialSync) {
+      console.log('✅ Existing session detected and synced on mount');
+    }
+
     // IP 주소 접속 감지 (안내 메시지용)
     const currentHost = window.location.hostname;
     const isIPAddress = /^(\d{1,3}\.){3}\d{1,3}$/.test(currentHost);
     const hasExplicitParam =
       new URLSearchParams(window.location.search).get('multiuser') === 'true';
 
+    let noticeTimeout: number | undefined;
+
     if (isIPAddress && !hasExplicitParam) {
       setShowIPAccessNotice(true);
       // 3초 후 안내 메시지 자동 숨김
-      setTimeout(() => setShowIPAccessNotice(false), 3000);
+      noticeTimeout = window.setTimeout(() => setShowIPAccessNotice(false), 3000);
 
       // URL에 multiuser=true 파라미터 추가 (브라우저 히스토리에 영향 없이)
       const newUrl = new URL(window.location.href);
@@ -30,94 +45,53 @@ const MultiUserApp: React.FC = () => {
       window.history.replaceState(null, '', newUrl.toString());
     }
 
-    // 멀티유저 서비스 이벤트 리스너 등록
-    FirebaseMultiUserService.on('session-data', (data: unknown) => {
+    type UserCountPayload = { userCount: number };
+    type GenericEventHandler = (...args: unknown[]) => void;
+
+    const handleSessionData: GenericEventHandler = (...args) => {
+      const [data] = args;
       console.log('📦 Received session data:', data);
-      // 세션 데이터를 받으면 App 컴포넌트에 적용
-      // 이 부분은 App 컴포넌트의 상태 관리와 연동해야 합니다.
-    });
-
-    // 연결 상태 및 사용자 수 업데이트
-    FirebaseMultiUserService.on('user-joined', (data: { userCount: number }) => {
-      setConnectedUsers(data.userCount);
-      setIsConnected(FirebaseMultiUserService.isConnected());
-      console.log('👥 User joined - total users:', data.userCount);
-    });
-
-    FirebaseMultiUserService.on('user-left', (data: { userCount: number }) => {
-      setConnectedUsers(data.userCount);
-      setIsConnected(FirebaseMultiUserService.isConnected());
-      console.log('👤 User left - total users:', data.userCount);
-    });
-
-    // 연결 상태 변경 감지
-    const checkConnectionStatus = () => {
-      setIsConnected(FirebaseMultiUserService.isConnected());
     };
 
-    // 주기적으로 연결 상태 확인
-    const statusInterval = setInterval(checkConnectionStatus, 1000);
+    const handleUserJoined: GenericEventHandler = (...args) => {
+      const [payload] = args;
+      const data = (payload as UserCountPayload) ?? { userCount: 0 };
+      console.log('👥 User joined - total users:', data.userCount);
+      const wasSynced = syncSessionStateFromService();
+      if (!wasSynced) {
+        console.warn('⚠️ User joined event received but no active session found');
+      }
+    };
 
-    // 초기 연결 상태 설정
-    checkConnectionStatus();
+    const handleUserLeft: GenericEventHandler = (...args) => {
+      const [payload] = args;
+      const data = (payload as UserCountPayload) ?? { userCount: 0 };
+      if (!FirebaseMultiUserService.isConnected()) {
+        setSessionActive(false);
+      }
 
-    FirebaseMultiUserService.on('sticky-note-updated', (note: unknown) => {
-      console.log('📝 Sticky note updated:', note);
-      // 다른 사용자가 업데이트한 스티키 노트를 반영
-    });
+      console.log('👤 User left - total users:', data.userCount);
+    };
 
-    FirebaseMultiUserService.on('sticky-note-deleted', (data: unknown) => {
-      console.log('🗑️ Sticky note deleted:', data);
-      // 다른 사용자가 삭제한 스티키 노트를 반영
-    });
-
-    FirebaseMultiUserService.on('project-data-synced', (data: unknown) => {
-      console.log('🔄 Project data synced:', data);
-      // 프로젝트 데이터 동기화
-    });
-
-    FirebaseMultiUserService.on('analysis-data-updated', (data: unknown) => {
-      console.log('📊 Analysis data updated:', data);
-      // 분석 데이터 업데이트
-    });
-
-    FirebaseMultiUserService.on('workshop-data-updated', (data: unknown) => {
-      console.log('👥 Workshop data updated:', data);
-      // 워크샵 데이터 업데이트
-    });
+    FirebaseMultiUserService.on('session-data', handleSessionData);
+    FirebaseMultiUserService.on('user-joined', handleUserJoined);
+    FirebaseMultiUserService.on('user-left', handleUserLeft);
 
     return () => {
-      // 컴포넌트 언마운트 시 이벤트 리스너 및 인터벌 정리
-      clearInterval(statusInterval);
-      FirebaseMultiUserService.off('session-data', () => {});
-      FirebaseMultiUserService.off('user-joined', () => {});
-      FirebaseMultiUserService.off('user-left', () => {});
-      FirebaseMultiUserService.off('sticky-note-updated', () => {});
-      FirebaseMultiUserService.off('sticky-note-deleted', () => {});
-      FirebaseMultiUserService.off('project-data-synced', () => {});
-      FirebaseMultiUserService.off('analysis-data-updated', () => {});
-      FirebaseMultiUserService.off('workshop-data-updated', () => {});
+      if (noticeTimeout) {
+        window.clearTimeout(noticeTimeout);
+      }
+      FirebaseMultiUserService.off('session-data', handleSessionData);
+      FirebaseMultiUserService.off('user-joined', handleUserJoined);
+      FirebaseMultiUserService.off('user-left', handleUserLeft);
     };
-  }, []);
+  }, [syncSessionStateFromService]);
 
   const handleSessionJoined = (code: string, hostStatus: boolean) => {
-    setSessionCode(code);
-    setIsHost(hostStatus);
     setSessionActive(true);
-    setConnectedUsers(1); // 세션 참가 시 최소 1명
-    setIsConnected(true);
+    syncSessionStateFromService();
 
     console.log(`🎉 Session joined: ${code} (${hostStatus ? 'Host' : 'Participant'})`);
-  };
-
-  const handleSessionLeft = () => {
-    setSessionActive(false);
-    setSessionCode('');
-    setIsHost(false);
-    setConnectedUsers(1);
-    setIsConnected(false);
-
-    console.log('👋 Left session');
   };
 
   return (
@@ -136,19 +110,7 @@ const MultiUserApp: React.FC = () => {
       {!sessionActive && <SessionManager onSessionJoined={handleSessionJoined} />}
 
       {/* 메인 애플리케이션 - 세션 정보를 props로 전달 */}
-      <App
-        sessionInfo={
-          sessionActive
-            ? {
-                sessionCode,
-                isHost,
-                connectedUsers,
-                isConnected,
-                onLeaveSession: handleSessionLeft,
-              }
-            : null
-        }
-      />
+      <App />
     </>
   );
 };
