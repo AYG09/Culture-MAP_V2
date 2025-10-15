@@ -1047,7 +1047,7 @@ const CultureMapFlow = ({
       </div>
       
       {/* 메인 컨텐츠 영역 */}
-      <div className="culture-map-flow-container" style={{ display: 'flex', width: '100%', flex: 1 }}>
+      <div className="culture-map-flow-container" style={{ display: 'flex', width: '100%', flex: 1, minHeight: 0 }}>
       {/* 왼쪽 사이드메뉴 (레거시 모드와 동일) */}
       <div className="left-panel no-print" style={{ 
         position: 'relative',

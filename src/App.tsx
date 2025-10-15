@@ -272,7 +272,7 @@ function App() {
 
   return (
     <Router>
-      <div className="app-container">
+      <div className="app-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
         {appMode === 'culture_analysis' ? (
           <div className="culture-analysis-container">
             <div className="analysis-header">
