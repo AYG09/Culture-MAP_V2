@@ -1,5 +1,5 @@
 // src/components/CultureMapFlow.tsx - 완전히 재작성된 버전
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -16,6 +16,7 @@ import {
   type NodeChange,
   type EdgeChange,
   type OnSelectionChangeParams,
+  type ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -49,6 +50,29 @@ interface CultureMapFlowProps {
   onConnectionsChange: (connections: ConnectionData[]) => void;
   onNodeUpdate: (id: string, content: string) => void;
 }
+
+type PaneContextMenuState = {
+  type: 'pane';
+  x: number;
+  y: number;
+  flowPosition: { x: number; y: number };
+};
+
+type NodeContextMenuState = {
+  type: 'node';
+  x: number;
+  y: number;
+  targetId: string;
+};
+
+type EdgeContextMenuState = {
+  type: 'edge';
+  x: number;
+  y: number;
+  targetId: string;
+};
+
+type ContextMenuState = PaneContextMenuState | NodeContextMenuState | EdgeContextMenuState;
 
 // 커스텀 노드 타입 정의
 const nodeTypes = {
@@ -85,6 +109,9 @@ const CultureMapFlow = ({
   // 사이드 패널 리사이즈 상태
   const [sidebarWidth, setSidebarWidth] = useState(380); // 초기 너비 280px → 380px
   const [isResizing, setIsResizing] = useState(false);
+
+  const flowWrapperRef = useRef<HTMLDivElement>(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
 
   // 사이드 패널 리사이즈 핸들러
   const handleMouseDown = useCallback(() => {
@@ -123,12 +150,7 @@ const CultureMapFlow = ({
   }, [isResizing]);
 
   // 컨텍스트 메뉴 상태
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    type: 'pane' | 'node' | 'edge';
-    targetId?: string;
-  } | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   const handleNodeContentUpdate = useCallback(
     (nodeId: string, newContent: string) => {
@@ -599,14 +621,36 @@ const CultureMapFlow = ({
   // ============================================================================
   // 컨텍스트 메뉴 (우클릭)
   // ============================================================================
-  const handlePaneContextMenu = useCallback((event: React.MouseEvent | MouseEvent) => {
-    event.preventDefault();
-    setContextMenu({
-      x: event.clientX,
-      y: event.clientY,
-      type: 'pane',
-    });
-  }, []);
+  const handlePaneContextMenu = useCallback(
+    (event: React.MouseEvent | MouseEvent) => {
+      event.preventDefault();
+
+      if (!reactFlowInstance) {
+        return;
+      }
+
+      const projector = reactFlowInstance as ReactFlowInstance & {
+        screenToFlowPosition?: (position: { x: number; y: number }) => {
+          x: number;
+          y: number;
+        };
+        project?: (position: { x: number; y: number }) => { x: number; y: number };
+      };
+
+      const projected =
+        projector.screenToFlowPosition?.({ x: event.clientX, y: event.clientY }) ??
+        projector.project?.({ x: event.clientX, y: event.clientY }) ??
+        { x: event.clientX, y: event.clientY };
+
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        type: 'pane',
+        flowPosition: projected,
+      });
+    },
+    [reactFlowInstance]
+  );
 
   const handleNodeContextMenu = useCallback((event: React.MouseEvent | MouseEvent, node: Node) => {
     event.preventDefault();
@@ -634,18 +678,24 @@ const CultureMapFlow = ({
 
   // 컨텍스트 메뉴 액션
   const handleContextMenuAction = useCallback(
-    (action: string, position?: { x: number; y: number }) => {
+    (action: string) => {
       if (!contextMenu) return;
 
       // 빈 캔버스 우클릭 → 노드 생성
-      if (contextMenu.type === 'pane' && position && action.startsWith('create_')) {
+      if (contextMenu.type === 'pane' && action.startsWith('create_')) {
         const nodeType = action.replace('create_', '');
         const newNodeId = `node-${Date.now()}`;
+
+        const basePosition = contextMenu.flowPosition;
+        const nodePosition = {
+          x: basePosition.x - 100,
+          y: basePosition.y - 60,
+        };
 
         const newNode: Node = {
           id: newNodeId,
           type: nodeType,
-          position: position,
+          position: nodePosition,
           data: {
             content: '새 노트',
             sentiment: 'neutral',
@@ -653,7 +703,11 @@ const CultureMapFlow = ({
           },
         };
 
-        setNodes((nds) => [...nds, newNode]);
+        const updatedNodes = [...nodes, newNode];
+        setNodes(updatedNodes);
+
+        const { notes: updatedNotes } = convertFromFlowData(updatedNodes, edges);
+        onNotesChange(updatedNotes);
 
         // Firebase 동기화
         const layerMap: { [key: string]: number } = {
@@ -666,8 +720,8 @@ const CultureMapFlow = ({
         FirebaseMultiUserService.updateStickyNote({
           id: newNodeId,
           content: '새 노트',
-          x: position.x,
-          y: position.y,
+          x: nodePosition.x,
+          y: nodePosition.y,
           layer: layerMap[nodeType] || 1,
           color: 'neutral',
           type: nodeType,
@@ -680,130 +734,139 @@ const CultureMapFlow = ({
         return;
       }
 
-      if (contextMenu.type === 'node' && contextMenu.targetId) {
+      if (contextMenu.type === 'node') {
         const node = nodes.find((n) => n.id === contextMenu.targetId);
         if (!node) return;
 
         if (action === 'delete') {
           // 노드 삭제
-          setNodes((nds) => nds.filter((n) => n.id !== contextMenu.targetId));
-          setEdges((eds) =>
-            eds.filter(
-              (e) => e.source !== contextMenu.targetId && e.target !== contextMenu.targetId
-            )
+          const updatedNodes = nodes.filter((n) => n.id !== contextMenu.targetId);
+          const updatedEdges = edges.filter(
+            (e) => e.source !== contextMenu.targetId && e.target !== contextMenu.targetId
           );
+
+          setNodes(updatedNodes);
+          setEdges(updatedEdges);
+
+          const { notes: updatedNotes, connections: updatedConnections } = convertFromFlowData(
+            updatedNodes,
+            updatedEdges
+          );
+          onNotesChange(updatedNotes);
+          onConnectionsChange(updatedConnections);
           FirebaseMultiUserService.deleteStickyNote(contextMenu.targetId!);
         } else if (action === 'positive' || action === 'negative' || action === 'neutral') {
           // 색상 변경 + Firebase 동기화 + 연결선 색상 재계산
-          setNodes((nds) =>
-            nds.map((n) => {
-              if (n.id === contextMenu.targetId) {
-                const updatedNode = { ...n, data: { ...n.data, sentiment: action } };
-                
-                // Firebase 동기화
-                const layerMap: { [key: string]: number } = {
-                  result: 1,
-                  behavior: 2,
-                  tangible_lever: 3,
-                  intangible_lever: 4,
-                };
-                
-                FirebaseMultiUserService.updateStickyNote({
-                  id: n.id,
-                  content: (n.data as { content?: string }).content || '',
-                  x: n.position.x,
-                  y: n.position.y,
-                  layer: layerMap[n.type || 'result'] || 1,
-                  color: action,
-                  type: n.type || 'sticky_note',
-                  width: (n.width as number) || 200,
-                  height: (n.height as number) || 120,
-                });
-                
-                return updatedNode;
-              }
-              return n;
-            })
+          const updatedNodes = nodes.map((n) =>
+            n.id === contextMenu.targetId ? { ...n, data: { ...n.data, sentiment: action } } : n
           );
-          
-          // 연결선 색상 재계산
-          setEdges((eds) =>
-            eds.map((e) => {
-              if (e.source === contextMenu.targetId || e.target === contextMenu.targetId) {
-                const sourceNode = nodes.find((n) => n.id === e.source);
-                const targetNode = nodes.find((n) => n.id === e.target);
-                
-                const sourceSentiment =
-                  e.source === contextMenu.targetId
-                    ? action
-                    : (sourceNode?.data as { sentiment?: string })?.sentiment || 'neutral';
-                const targetSentiment =
-                  e.target === contextMenu.targetId
-                    ? action
-                    : (targetNode?.data as { sentiment?: string })?.sentiment || 'neutral';
-                
-                let edgeColor = '#10b981';
-                let isPositive = true;
-                
-                if (sourceSentiment === 'positive' && targetSentiment === 'positive') {
-                  edgeColor = '#10b981';
-                  isPositive = true;
-                } else if (
-                  (sourceSentiment === 'positive' && targetSentiment === 'negative') ||
-                  (sourceSentiment === 'negative' && targetSentiment === 'positive')
-                ) {
-                  edgeColor = '#ef4444';
-                  isPositive = false;
-                } else if (sourceSentiment === 'negative' && targetSentiment === 'negative') {
-                  edgeColor = '#f97316';
-                  isPositive = false;
-                } else {
-                  edgeColor = '#6b7280';
-                  isPositive = true;
-                }
-                
-                // Firebase 동기화
-                FirebaseMultiUserService.updateConnection({
-                  id: e.id,
-                  sourceId: e.source,
-                  targetId: e.target,
-                  relationType: (e.data as { relationType?: string })?.relationType === 'indirect' ? 'indirect' : 'direct',
-                  isPositive,
-                });
-                
-                return {
-                  ...e,
-                  style: {
-                    ...e.style,
-                    stroke: edgeColor,
-                  },
-                  markerEnd: {
-                    type: 'arrowclosed' as const,
-                    width: 20,
-                    height: 20,
-                    color: edgeColor,
-                  },
-                  data: { ...e.data, isPositive },
-                };
-              }
+
+          const recalculatedEdges = edges.map((e) => {
+            if (e.source !== contextMenu.targetId && e.target !== contextMenu.targetId) {
               return e;
-            })
+            }
+
+            const sourceNode = updatedNodes.find((n) => n.id === e.source);
+            const targetNode = updatedNodes.find((n) => n.id === e.target);
+
+            const sourceSentiment =
+              (sourceNode?.data as { sentiment?: string })?.sentiment || 'neutral';
+            const targetSentiment =
+              (targetNode?.data as { sentiment?: string })?.sentiment || 'neutral';
+
+            let edgeColor = '#10b981';
+            let isPositive = true;
+
+            if (sourceSentiment === 'positive' && targetSentiment === 'positive') {
+              edgeColor = '#10b981';
+              isPositive = true;
+            } else if (
+              (sourceSentiment === 'positive' && targetSentiment === 'negative') ||
+              (sourceSentiment === 'negative' && targetSentiment === 'positive')
+            ) {
+              edgeColor = '#ef4444';
+              isPositive = false;
+            } else if (sourceSentiment === 'negative' && targetSentiment === 'negative') {
+              edgeColor = '#f97316';
+              isPositive = false;
+            } else {
+              edgeColor = '#6b7280';
+              isPositive = true;
+            }
+
+            FirebaseMultiUserService.updateConnection({
+              id: e.id,
+              sourceId: e.source,
+              targetId: e.target,
+              relationType:
+                (e.data as { relationType?: string })?.relationType === 'indirect'
+                  ? 'indirect'
+                  : 'direct',
+              isPositive,
+            });
+
+            return {
+              ...e,
+              style: {
+                ...e.style,
+                stroke: edgeColor,
+              },
+              markerEnd: {
+                type: 'arrowclosed' as const,
+                width: 20,
+                height: 20,
+                color: edgeColor,
+              },
+              data: { ...e.data, isPositive },
+            };
+          });
+
+          setNodes(updatedNodes);
+          setEdges(recalculatedEdges);
+
+          const { notes: updatedNotes, connections: updatedConnections } = convertFromFlowData(
+            updatedNodes,
+            recalculatedEdges
           );
+          onNotesChange(updatedNotes);
+          onConnectionsChange(updatedConnections);
+
+          const layerMap: { [key: string]: number } = {
+            result: 1,
+            behavior: 2,
+            tangible_lever: 3,
+            intangible_lever: 4,
+          };
+
+          FirebaseMultiUserService.updateStickyNote({
+            id: node.id,
+            content: (node.data as { content?: string }).content || '',
+            x: node.position.x,
+            y: node.position.y,
+            layer: layerMap[node.type || 'result'] || 1,
+            color: action,
+            type: node.type || 'sticky_note',
+            width: (node.width as number) || 200,
+            height: (node.height as number) || 120,
+          });
         }
-      } else if (contextMenu.type === 'edge' && contextMenu.targetId) {
+      } else if (contextMenu.type === 'edge') {
         const edge = edges.find((e) => e.id === contextMenu.targetId);
         if (!edge) return;
 
         if (action === 'delete') {
           // 엣지 삭제
-          setEdges((eds) => eds.filter((e) => e.id !== contextMenu.targetId));
+          const updatedEdges = edges.filter((e) => e.id !== contextMenu.targetId);
+          setEdges(updatedEdges);
+
+          const { connections: updatedConnections } = convertFromFlowData(nodes, updatedEdges);
+          onConnectionsChange(updatedConnections);
           FirebaseMultiUserService.deleteConnection(contextMenu.targetId!);
         } else if (action === 'direct' || action === 'indirect') {
           // 점선/실선 전환 + Firebase 동기화
-          setEdges((eds) =>
-            eds.map((e) => {
-              if (e.id === contextMenu.targetId) {
-                const updatedEdge = {
+          const updatedEdges = edges.map((e) =>
+            e.id === contextMenu.targetId
+              ? {
                   ...e,
                   animated: action === 'direct',
                   style: {
@@ -811,28 +874,38 @@ const CultureMapFlow = ({
                     strokeDasharray: action === 'indirect' ? '5 5' : undefined,
                   },
                   data: { ...e.data, relationType: action },
-                };
-                
-                // Firebase 동기화
-                FirebaseMultiUserService.updateConnection({
-                  id: e.id,
-                  sourceId: e.source,
-                  targetId: e.target,
-                  relationType: action,
-                  isPositive: (e.data as { isPositive?: boolean })?.isPositive !== false,
-                });
-                
-                return updatedEdge;
-              }
-              return e;
-            })
+                }
+              : e
           );
+
+          setEdges(updatedEdges);
+
+          const { connections: updatedConnections } = convertFromFlowData(nodes, updatedEdges);
+          onConnectionsChange(updatedConnections);
+
+          FirebaseMultiUserService.updateConnection({
+            id: edge.id,
+            sourceId: edge.source,
+            targetId: edge.target,
+            relationType: action,
+            isPositive: (edge.data as { isPositive?: boolean })?.isPositive !== false,
+          });
         }
       }
 
       closeContextMenu();
     },
-    [contextMenu, nodes, edges, setNodes, setEdges, closeContextMenu, handleNodeContentUpdate]
+    [
+      contextMenu,
+      nodes,
+      edges,
+      setNodes,
+      setEdges,
+      closeContextMenu,
+      handleNodeContentUpdate,
+      onConnectionsChange,
+      onNotesChange,
+    ]
   );
 
   // PromptGenerator에서 맵 생성 (AI 텍스트 파싱)
@@ -852,36 +925,15 @@ const CultureMapFlow = ({
   return (
     <div className="culture-map-flow-wrapper" style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
       {/* 상단 바 */}
-      <div className="top-bar no-print" style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '12px 20px',
-        backgroundColor: '#fff',
-        borderBottom: '1px solid #e5e7eb',
-        position: 'sticky',
-        top: 0,
-        zIndex: 1000,
-        boxShadow: '0 4px 12px rgba(15, 23, 42, 0.04)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 600 }}>🗺️ 조직문화 분석기</h1>
+      <div className="culture-top-bar no-print">
+        <div className="top-bar-left">
+          <h1 className="top-bar-title">
+            <span role="img" aria-label="map icon">🗺️</span>
+            조직문화 분석기
+          </h1>
           <button
-            className="help-button"
-            style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '50%',
-              border: '2px solid #3b82f6',
-              backgroundColor: '#fff',
-              color: '#3b82f6',
-              fontSize: '16px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
+            className="glass-circle-button"
+            type="button"
             onClick={() => {
               alert(
                 '🗺️ React Flow 모드 사용법\n\n' +
@@ -898,7 +950,16 @@ const CultureMapFlow = ({
           </button>
         </div>
         
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className="top-bar-right">
+          <button
+            className="glass-button"
+            type="button"
+            onClick={() => setShowPanel((prev) => !prev)}
+            title={showPanel ? '층위 패널 숨기기' : '층위 패널 열기'}
+          >
+            ⚙️ {showPanel ? '패널 숨기기' : '층위 패널 열기'}
+          </button>
+
           {/* 세션 정보 */}
           {(() => {
             const session = FirebaseMultiUserService.getCurrentSession();
@@ -907,17 +968,8 @@ const CultureMapFlow = ({
             return session ? (
               <>
                 <button
-                  className="session-info-btn"
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    border: '1px solid #10b981',
-                    backgroundColor: '#ecfdf5',
-                    color: '#065f46',
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                  }}
+                  className="glass-button glass-button--accent"
+                  type="button"
                   onClick={() => {
                     const statusMessage = 
                       `✅ 연결 상태: 정상\n` +
@@ -937,22 +989,15 @@ const CultureMapFlow = ({
           
           {/* Clear All 버튼 */}
           <button
-            className="clear-all-btn"
-            style={{
-              padding: '6px 12px',
-              borderRadius: '6px',
-              border: '1px solid #ef4444',
-              backgroundColor: '#fff',
-              color: '#ef4444',
-              fontSize: '14px',
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
+            className="glass-button glass-button--danger"
+            type="button"
             onClick={() => {
               if (window.confirm('⚠️ 모든 노드와 연결선을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
                 // 모든 노드와 엣지 삭제
                 setNodes([]);
                 setEdges([]);
+                onNotesChange([]);
+                onConnectionsChange([]);
                 
                 // Firebase에서도 삭제
                 nodes.forEach((node) => {
@@ -1012,7 +1057,7 @@ const CultureMapFlow = ({
       </div>
 
       {/* 메인 React Flow 영역 */}
-      <div style={{ position: 'relative', flex: 1, height: '100%' }}>
+      <div ref={flowWrapperRef} style={{ position: 'relative', flex: 1, height: '100%' }}>
         {/* 모바일 제스처 가이드 */}
         <MobileGestureGuide />
 
@@ -1109,6 +1154,7 @@ const CultureMapFlow = ({
         nodesDraggable={true}
         nodesConnectable={true}
         elementsSelectable={true}
+        onInit={setReactFlowInstance}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
 
@@ -1335,44 +1381,28 @@ const CultureMapFlow = ({
               <div className="context-menu-title">📌 새 노트 생성</div>
               <button
                 onClick={() => {
-                  const position = {
-                    x: contextMenu.x - 100,
-                    y: contextMenu.y - 60,
-                  };
-                  handleContextMenuAction('create_result', position);
+                  handleContextMenuAction('create_result');
                 }}
               >
                 🔴 결과 (가시적 요소)
               </button>
               <button
                 onClick={() => {
-                  const position = {
-                    x: contextMenu.x - 100,
-                    y: contextMenu.y - 60,
-                  };
-                  handleContextMenuAction('create_behavior', position);
+                  handleContextMenuAction('create_behavior');
                 }}
               >
                 🟡 행동 (관찰 행동)
               </button>
               <button
                 onClick={() => {
-                  const position = {
-                    x: contextMenu.x - 100,
-                    y: contextMenu.y - 60,
-                  };
-                  handleContextMenuAction('create_tangible_lever', position);
+                  handleContextMenuAction('create_tangible_lever');
                 }}
               >
                 🔵 유형 레버 (규범/가치)
               </button>
               <button
                 onClick={() => {
-                  const position = {
-                    x: contextMenu.x - 100,
-                    y: contextMenu.y - 60,
-                  };
-                  handleContextMenuAction('create_intangible_lever', position);
+                  handleContextMenuAction('create_intangible_lever');
                 }}
               >
                 🟣 무형 레버 (기본 가정)
