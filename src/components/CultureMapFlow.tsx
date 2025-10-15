@@ -645,9 +645,12 @@ const CultureMapFlow = ({
   // ============================================================================
   const handlePaneContextMenu = useCallback(
     (event: React.MouseEvent | MouseEvent) => {
+      console.log('🎯 handlePaneContextMenu called', { x: event.clientX, y: event.clientY });
       event.preventDefault();
+      event.stopPropagation();
 
       if (!reactFlowInstance) {
+        console.warn('⚠️ reactFlowInstance not available');
         return;
       }
 
@@ -664,12 +667,16 @@ const CultureMapFlow = ({
         projector.project?.({ x: event.clientX, y: event.clientY }) ??
         { x: event.clientX, y: event.clientY };
 
-      setContextMenu({
+      console.log('📍 Context menu position:', { screen: { x: event.clientX, y: event.clientY }, flow: projected });
+
+      const newContextMenu = {
         x: event.clientX,
         y: event.clientY,
-        type: 'pane',
+        type: 'pane' as const,
         flowPosition: projected,
-      });
+      };
+      console.log('🔥 Setting contextMenu state:', newContextMenu);
+      setContextMenu(newContextMenu);
     },
     [reactFlowInstance]
   );
@@ -695,6 +702,7 @@ const CultureMapFlow = ({
   }, []);
 
   const closeContextMenu = useCallback(() => {
+    console.log('🚪 closeContextMenu called');
     setContextMenu(null);
   }, []);
 
@@ -944,6 +952,9 @@ const CultureMapFlow = ({
     alert('보고서 기능은 추후 추가 예정입니다.');
   }, []);
 
+  // 렌더링 시점 로그
+  console.log('🎨 [Render] contextMenu state:', contextMenu);
+
   return (
     <div className="culture-map-flow-wrapper" style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
       {/* 상단 바 */}
@@ -1082,11 +1093,6 @@ const CultureMapFlow = ({
       <div 
         ref={flowWrapperRef} 
         style={{ position: 'relative', flex: 1, height: '100%' }}
-        onContextMenu={(e) => {
-          // 브라우저 기본 컨텍스트 메뉴 완전 차단
-          e.preventDefault();
-          e.stopPropagation();
-        }}
       >
         {/* 모바일 제스처 가이드 */}
         <MobileGestureGuide />
