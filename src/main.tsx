@@ -2,7 +2,6 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import MultiUserApp from './components/MultiUserApp.tsx';
 import './index.css';
-import './styles/layerSystem.css';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 
 // Firebase 앱 초기화

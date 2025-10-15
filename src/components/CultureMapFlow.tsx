@@ -45,8 +45,6 @@ const TOP_BAR_HEIGHT = 64;
 import './CultureMapFlow.css';
 
 interface CultureMapFlowProps {
-  notes?: NoteData[]; // 초기 데이터 (optional)
-  connections?: ConnectionData[]; // 초기 데이터 (optional)
   onNotesChange: (notes: NoteData[]) => void;
   onConnectionsChange: (connections: ConnectionData[]) => void;
   onNodeUpdate: (id: string, content: string) => void;
@@ -61,8 +59,6 @@ const nodeTypes = {
 };
 
 const CultureMapFlow = ({
-  notes: _notes, // props에서는 받되 사용하지 않음 (Firebase가 소스)
-  connections: _connections,
   onNotesChange,
   onConnectionsChange,
   onNodeUpdate,
@@ -76,8 +72,8 @@ const CultureMapFlow = ({
   const [showAiInput, setShowAiInput] = useState(false);
 
   // 선택된 노드/엣지 상태 (추후 활용 가능)
-  const [_selectedNodes, setSelectedNodes] = useState<Node[]>([]);
-  const [_selectedEdges, setSelectedEdges] = useState<Edge[]>([]);
+  const [, setSelectedNodes] = useState<Node[]>([]);
+  const [, setSelectedEdges] = useState<Edge[]>([]);
 
   // 층위별 개별 높이 조절 상태 (레거시 모드와 동일)
   const [layerHeights, setLayerHeights] = useState<number[]>([200, 200, 200, 200]); // [결과, 행동, 유형, 무형]
@@ -1116,7 +1112,7 @@ const CultureMapFlow = ({
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
 
-        <Controls style={{ left: 16, top: TOP_BAR_HEIGHT + 16 }} />
+  <Controls style={{ left: 16, top: TOP_BAR_HEIGHT + 16, bottom: 'auto' }} />
         <MiniMap
           nodeStrokeWidth={3}
           zoomable
