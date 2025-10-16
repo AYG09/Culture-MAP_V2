@@ -119,7 +119,8 @@ function App() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(true);
   const [showSessionManager, setShowSessionManager] = useState(false);
   const [pendingSessionCode, setPendingSessionCode] = useState<string | undefined>();
-  const [passwordType, setPasswordType] = useState<PasswordType>('workshop');  // 추가: 비밀번호 타입
+  const [passwordType, setPasswordType] = useState<PasswordType>('workshop');
+  const [isAdmin, setIsAdmin] = useState(false);  // 추가: 관리자 상태 추적
 
   // Gateway 인증 완료 시 처리
   const handleAuthenticated = useCallback((isAdmin: boolean, sessionCode?: string, passwordType?: PasswordType) => {
@@ -127,6 +128,9 @@ function App() {
     
     // passwordType 저장
     setPasswordType(passwordType || 'workshop');
+    
+    // 관리자 상태 저장
+    setIsAdmin(isAdmin);
     
     // 관리자는 세션 관리자를 표시하지 않음 (AdminGateway에서 직접 처리)
     if (isAdmin) {
@@ -300,13 +304,15 @@ function App() {
   return (
     <Gateway onAuthenticated={handleAuthenticated}>
       <Router>
-        {/* 세션 관리자 모달 */}
-        <SessionManager 
+        {/* 세션 관리자 모달 - 관리자가 아닐 때만 표시 */}
+        {!isAdmin && (
+          <SessionManager 
             showModal={showSessionManager} 
             onClose={handleSessionJoined}
             initialSessionCode={pendingSessionCode}
             passwordType={passwordType}
           />
+        )}
 
           <div className="app-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             {appMode === 'culture_analysis' ? (
