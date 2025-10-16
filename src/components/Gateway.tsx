@@ -200,11 +200,12 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
     );
   }
 
-  // 인증됨 - 메인 앱 또는 관리자 패널 표시
-  if (showAdminPanel) {
+  // 인증됨 - 관리자 패널 표시 (세션 불필요)
+  if (showAdminPanel && isAdmin) {
     return <AdminGateway onBack={() => setShowAdminPanel(false)} />;
   }
 
+  // 인증됨 - 메인 앱 표시
   return (
     <div className="gateway-authenticated">
       {/* 인증된 사용자를 위한 헤더 */}

@@ -128,6 +128,13 @@ function App() {
     // passwordType 저장
     setPasswordType(passwordType || 'workshop');
     
+    // 관리자는 세션 관리자를 표시하지 않음 (AdminGateway에서 직접 처리)
+    if (isAdmin) {
+      console.log('✅ Admin authenticated - no session creation needed');
+      setShowSessionManager(false);
+      return;
+    }
+    
     if (sessionCode) {
       // 세션 코드가 있으면 바로 해당 세션에 참가
       setPendingSessionCode(sessionCode);
