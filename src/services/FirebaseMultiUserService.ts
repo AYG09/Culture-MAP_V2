@@ -10,13 +10,31 @@ import {
   onDisconnect,
 } from 'firebase/database';
 import type { DatabaseReference } from 'firebase/database';
+import type { PerceptionIntensity } from '../types/culture';
+import gatewayAdminService from './GatewayAdminService';
+
+// 세션 타입: 워크샵, 컨설팅
+export type SessionType = 'workshop' | 'consulting';
 
 // 기존 MultiUserService와 동일한 인터페이스 유지
 interface MultiUserSession {
   code: string;
   isHost: boolean;
   connectedUsers: number;
+  name?: string;  // 추가: 세션 명칭
+  type: SessionType;  // 추가: 세션 타입
 }
+
+interface SessionMetadata {
+  code: string;
+  name: string;
+  type: SessionType;  // 추가: 세션 타입
+  userCount: number;
+  createdAt: number;
+  lastActivity: number;
+}
+
+export type { SessionMetadata };  // export 추가
 
 interface StickyNoteUpdate {
   id: string;
@@ -35,6 +53,7 @@ interface StickyNoteUpdate {
   category?: string;
   metadata?: string;
   basis?: { author: string; year: number; theory: string };
+  frequency?: PerceptionIntensity; // 컨설팅 모드용 빈도 필드
 }
 
 class FirebaseMultiUserService {
@@ -79,16 +98,19 @@ class FirebaseMultiUserService {
   }
 
   // 세션 생성
-  async createSession(): Promise<string> {
+  async createSession(sessionName?: string, sessionType: SessionType = 'workshop'): Promise<string> {
     try {
       const sessionCode = this.generateSessionCode();
       const sessionRef = ref(database, `sessions/${sessionCode}`);
 
       // 세션 메타데이터 설정
       await set(sessionRef, {
+        name: sessionName || `세션 ${sessionCode}`,  // 추가: 기본 이름
         code: sessionCode,
+        type: sessionType,  // 추가: 세션 타입
         host: this.userId,
         createdAt: serverTimestamp(),
+        lastActivity: serverTimestamp(),  // 추가: 마지막 활동 시간
         users: {
           [this.userId]: {
             userId: this.userId,
@@ -103,7 +125,24 @@ class FirebaseMultiUserService {
         layerState: {},
       });
 
-      console.log('🔥 Firebase session created:', sessionCode);
+      // currentSession에 타입 포함
+      this.currentSession = {
+        code: sessionCode,
+        type: sessionType,  // 추가: 세션 타입
+        isHost: true,
+        connectedUsers: 1,
+      };
+
+      // 🔑 세션 코드를 비밀번호로 자동 등록 (24시간 유효)
+      try {
+        const passwordId = await gatewayAdminService.createSessionPassword(sessionCode, 24);
+        console.log(`🔑 Gateway password created for session: ${sessionCode} (ID: ${passwordId})`);
+      } catch (pwdError) {
+        console.error('⚠️ Failed to create gateway password:', pwdError);
+        // 비밀번호 생성 실패해도 세션은 계속 진행
+      }
+
+      console.log('🔥 Firebase session created:', sessionCode, 'Type:', sessionType);
       return sessionCode;
     } catch (error) {
       console.error('❌ Failed to create Firebase session:', error);
@@ -114,15 +153,25 @@ class FirebaseMultiUserService {
   // 세션 참가
   joinSession(code: string, isHost: boolean = false) {
     try {
-      this.currentSession = {
-        code,
-        isHost,
-        connectedUsers: 1,
-      };
-
       const sessionRef = ref(database, `sessions/${code}`);
       const userRef = ref(database, `sessions/${code}/users/${this.userId}`);
-      const userCountRef = ref(database, `sessions/${code}/userCount`);
+
+      // 세션 타입 읽기 (하위 호환성: type 없으면 'workshop')
+      onValue(sessionRef, (snapshot) => {
+        const sessionData = snapshot.val();
+        const sessionType = sessionData?.type || 'workshop';  // 기본값
+        const sessionName = sessionData?.name;
+
+        this.currentSession = {
+          code,
+          type: sessionType,  // 추가: 세션 타입
+          isHost,
+          connectedUsers: sessionData?.userCount || 1,
+          name: sessionName,
+        };
+
+        console.log('🔥 Session type loaded:', sessionType);
+      }, { onlyOnce: true });
 
       // 사용자 정보 등록
       set(userRef, {
@@ -449,11 +498,126 @@ class FirebaseMultiUserService {
     return this.currentSession !== null;
   }
 
+  // 세션 이름 업데이트
+  async updateSessionName(sessionCode: string, newName: string): Promise<void> {
+    if (!newName.trim()) {
+      throw new Error('세션 이름은 비어있을 수 없습니다.');
+    }
+    
+    try {
+      const nameRef = ref(database, `sessions/${sessionCode}/name`);
+      const lastActivityRef = ref(database, `sessions/${sessionCode}/lastActivity`);
+      
+      await set(nameRef, newName.trim());
+      await set(lastActivityRef, serverTimestamp());
+      
+      this.emit('session-name-updated', { code: sessionCode, name: newName });
+      console.log(`🔥 Session name updated: ${sessionCode} -> ${newName}`);
+    } catch (error) {
+      console.error('❌ Failed to update session name:', error);
+      throw new Error('세션 이름 변경에 실패했습니다.');
+    }
+  }
+
+  // 활성 세션 목록 조회
+  async getActiveSessions(limitCount: number = 10): Promise<SessionMetadata[]> {
+    const sessionsRef = ref(database, 'sessions');
+    const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+    
+    return new Promise((resolve) => {
+      onValue(sessionsRef, (snapshot) => {
+        if (!snapshot.exists()) {
+          resolve([]);
+          return;
+        }
+        
+        const sessions = snapshot.val();
+        const activeSessions = Object.values(sessions)
+          .filter((s: any) => {
+            const activity = s.lastActivity || s.createdAt;
+            return activity > twoHoursAgo;
+          })
+          .sort((a: any, b: any) => {
+            const aActivity = a.lastActivity || a.createdAt;
+            const bActivity = b.lastActivity || b.createdAt;
+            return bActivity - aActivity;
+          })
+          .slice(0, limitCount)
+          .map((s: any) => ({
+            code: s.code,
+            name: s.name || s.code,  // fallback
+            type: s.type || 'workshop',  // 추가: 기본값 'workshop'
+            userCount: s.userCount || 0,
+            createdAt: s.createdAt,
+            lastActivity: s.lastActivity || s.createdAt  // fallback
+          }));
+        
+        resolve(activeSessions);
+      }, { onlyOnce: true });
+    });
+  }
+
+  // 활성 세션 목록 실시간 감시
+  onActiveSessions(
+    callback: (sessions: SessionMetadata[]) => void,
+    limitCount: number = 10
+  ): () => void {
+    const sessionsRef = ref(database, 'sessions');
+    const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+    
+    const unsubscribe = onValue(sessionsRef, (snapshot) => {
+      if (!snapshot.exists()) {
+        callback([]);
+        return;
+      }
+      
+      const sessions = snapshot.val();
+      const activeSessions = Object.values(sessions)
+        .filter((s: any) => {
+          const activity = s.lastActivity || s.createdAt;
+          return activity > twoHoursAgo;
+        })
+        .sort((a: any, b: any) => {
+          const aActivity = a.lastActivity || a.createdAt;
+          const bActivity = b.lastActivity || b.createdAt;
+          return bActivity - aActivity;
+        })
+        .slice(0, limitCount)
+        .map((s: any) => ({
+          code: s.code,
+          name: s.name || s.code,
+          type: s.type || 'workshop',  // 추가: 기본값 'workshop'
+          userCount: s.userCount || 0,
+          createdAt: s.createdAt,
+          lastActivity: s.lastActivity || s.createdAt
+        }));
+      
+      callback(activeSessions);
+    });
+
+    // cleanup 함수 반환
+    return () => off(sessionsRef, 'value', unsubscribe);
+  }
+
   // 연결 해제
   disconnect() {
     if (this.currentSession) {
+      const sessionCode = this.currentSession.code;
+
+      // 🔑 세션 종료 시 Gateway 비밀번호 삭제
+      if (sessionCode) {
+        gatewayAdminService
+          .deletePasswordBySessionCode(sessionCode)
+          .then(() => {
+            console.log(`🗑️ Gateway password deleted for session: ${sessionCode}`);
+          })
+          .catch((error) => {
+            console.error('⚠️ Failed to delete gateway password:', error);
+          });
+      }
+
       // 모든 Firebase 리스너 해제
-      Object.values(this.firebaseRefs).forEach(ref => {
+      Object.values(this.firebaseRefs).forEach((ref) => {
         off(ref);
       });
 
@@ -461,6 +625,22 @@ class FirebaseMultiUserService {
       this.currentSession = null;
 
       console.log('🔥 Firebase disconnected');
+    }
+  }
+
+  // 관리자용: 특정 세션 삭제
+  async deleteSession(code: string): Promise<void> {
+    try {
+      const sessionRef = ref(database, `sessions/${code}`);
+      await remove(sessionRef);
+      
+      // Gateway 비밀번호도 삭제
+      await gatewayAdminService.deletePasswordBySessionCode(code);
+      
+      console.log(`🗑️ Session deleted: ${code}`);
+    } catch (error) {
+      console.error('❌ Failed to delete session:', error);
+      throw error;
     }
   }
 }
