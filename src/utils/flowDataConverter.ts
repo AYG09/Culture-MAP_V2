@@ -1,6 +1,6 @@
 // src/utils/flowDataConverter.ts
 import type { Node, Edge } from '@xyflow/react';
-import type { NoteData, ConnectionData } from '../types/culture';
+import type { NoteData, ConnectionData, PerceptionIntensity } from '../types/culture';
 import type {
   ResultNodeData,
   BehaviorNodeData,
@@ -43,6 +43,7 @@ export const convertNoteToFlowNode = (
     content: note.text || '',
     sentiment: note.sentiment || 'neutral',
     concept: note.perceptionIntensity, // 집중/관심/언급
+    frequency: note.frequency, // 빈도多/中/少
     source: author && year ? `${author} (${year})` : undefined, // 저자 (연도)
     category: undefined, // NoteData에는 없음
     onUpdate: handleUpdate,
@@ -142,7 +143,8 @@ export const convertFlowNodeToNote = (node: Node): NoteData => {
     type: noteType,
     layer: layerIndex,
     sentiment: data.sentiment,
-    perceptionIntensity: data.concept as '집중' | '관심' | '언급' | undefined, // 집중/관심/언급
+    perceptionIntensity: data.concept as PerceptionIntensity, // 집중/관심/언급
+    frequency: data.frequency as PerceptionIntensity, // 빈도多/中/少
     position: { x: node.position.x, y: node.position.y },
     basis: basisString,
     width: 200,

@@ -1,6 +1,8 @@
 // src/components/flow-nodes/IntangibleLeverNode.tsx
 import { memo, useCallback, useEffect, useState } from 'react';
 import { Handle, Position, NodeResizer, type NodeProps } from '@xyflow/react';
+import type { PerceptionIntensity } from '../../types/culture';
+import { FREQUENCY_LABELS } from '../../types/culture';
 import './FlowNodes.css';
 
 export interface IntangibleLeverNodeData {
@@ -10,6 +12,7 @@ export interface IntangibleLeverNodeData {
   source?: string;
   category?: string;
   basis?: string; // 이론적 근거
+  frequency?: PerceptionIntensity; // 빈도 추가
   onUpdate: (id: string, content: string) => void;
   onEdit?: () => void;
 }
@@ -48,15 +51,33 @@ const IntangibleLeverNode = ({ id, data, selected }: NodeProps & { data: Intangi
   }, [data.content, handleBlur]);
 
   const sentimentColors = {
-    positive: '#10b981',
-    negative: '#ef4444',
-    neutral: '#6b7280',
+    positive: '#3b82f6', // 파랑
+    negative: '#ef4444', // 빨강
+    neutral: '#9ca3af', // 회색
+  };
+
+  const sentimentLabels = {
+    positive: '긍정',
+    negative: '부정',
+    neutral: '중립',
+  };
+
+  const frequencyColors = {
+    high: '#ef4444', // 빨강
+    medium: '#f59e0b', // 주황
+    low: '#10b981', // 초록
+  };
+
+  const getFrequencyLabel = (frequency?: PerceptionIntensity) => {
+    if (!frequency) return null;
+    return FREQUENCY_LABELS[frequency];
   };
 
   return (
     <div
       className={`flow-node intangible-lever-node ${data.sentiment} ${selected ? 'selected' : ''}`}
       onDoubleClick={handleDoubleClick}
+      style={{ border: `3px solid ${sentimentColors[data.sentiment]}` }}
     >
       <NodeResizer
         minWidth={180}
@@ -65,8 +86,30 @@ const IntangibleLeverNode = ({ id, data, selected }: NodeProps & { data: Intangi
         lineClassName="node-resizer-line"
         handleClassName="node-resizer-handle"
       />
-      <div className="node-header" style={{ borderLeftColor: sentimentColors[data.sentiment] }}>
+      <div className="node-header">
         <span className="layer-badge">무형 레버</span>
+        <span 
+          className="sentiment-badge" 
+          style={{ 
+            backgroundColor: sentimentColors[data.sentiment],
+            color: 'white',
+            padding: '2px 8px',
+            borderRadius: '4px',
+            fontSize: '11px',
+            fontWeight: 'bold',
+            marginLeft: '6px'
+          }}
+        >
+          {sentimentLabels[data.sentiment]}
+        </span>
+        {data.frequency && (
+          <span 
+            className="frequency-badge" 
+            style={{ backgroundColor: frequencyColors[data.frequency] }}
+          >
+            {getFrequencyLabel(data.frequency)}
+          </span>
+        )}
         {data.concept && <span className="concept-tag">{data.concept}</span>}
       </div>
 

@@ -29,9 +29,11 @@ import {
 } from './flow-nodes';
 import MobileGestureGuide from './MobileGestureGuide';
 import PromptGenerator from './PromptGenerator'; // 좌측 사이드메뉴 추가
+import ExportMenu from './ExportMenu'; // 컬쳐맵 내보내기 메뉴
+import ReportEditor from './ReportEditor'; // 보고서 편집기
 
 // 타입
-import type { NoteData, ConnectionData } from '../types/culture';
+import type { NoteData, ConnectionData, PerceptionIntensity } from '../types/culture';
 
 // 유틸리티
 import { convertToFlowData, convertFromFlowData } from '../utils/flowDataConverter';
@@ -40,6 +42,7 @@ import { parseAIOutput } from '../utils/parser';
 
 // Firebase 서비스
 import FirebaseMultiUserService from '../services/FirebaseMultiUserService';
+import SessionInfoPanel from './SessionInfoPanel';
 
 const TOP_BAR_HEIGHT = 64;
 
@@ -87,6 +90,11 @@ const CultureMapFlow = ({
   onConnectionsChange,
   onNodeUpdate,
 }: CultureMapFlowProps) => {
+  // 세션 타입 기반 모드 결정
+  const currentSession = FirebaseMultiUserService.getCurrentSession();
+  const mode = (currentSession?.type || 'workshop') as 'workshop' | 'consulting';
+  const isConsultingMode = mode === 'consulting';
+
   // React Flow 노드/엣지 상태
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -95,16 +103,24 @@ const CultureMapFlow = ({
   const [aiInput, setAiInput] = useState('');
   const [showAiInput, setShowAiInput] = useState(false);
 
+  // 탭 시스템 상태 (컬쳐맵 / 보고서)
+  const [activeTab, setActiveTab] = useState<'map' | 'report'>('map');
+  const [reportContent, setReportContent] = useState(''); // 보고서 내용
+
   // 선택된 노드/엣지 상태 (추후 활용 가능)
   const [, setSelectedNodes] = useState<Node[]>([]);
   const [, setSelectedEdges] = useState<Edge[]>([]);
 
   // 층위별 개별 높이 조절 상태 (레거시 모드와 동일)
   const [layerHeights, setLayerHeights] = useState<number[]>([200, 200, 200, 200]); // [결과, 행동, 유형, 무형]
+  const [layerOpacities, setLayerOpacities] = useState<number[]>([0.05, 0.05, 0.05, 0.05]); // 층위별 투명도
   const [showLayerBackground, setShowLayerBackground] = useState(true);
   
   // Panel 토글 상태
   const [showPanel, setShowPanel] = useState(true);
+  
+  // 세션 관리 모달 상태
+  const [showSessionInfo, setShowSessionInfo] = useState(false);
   
   // 사이드 패널 리사이즈 상태
   const [sidebarWidth, setSidebarWidth] = useState(380); // 초기 너비 280px → 380px
@@ -311,7 +327,7 @@ const CultureMapFlow = ({
           source: connection.sourceId,
           target: connection.targetId,
           type: 'default',
-          animated: connection.relationType === 'direct',
+          animated: false, // 애니메이션은 사용하지 않음
           style: {
             ...edgeStyle,
             stroke: edgeColor,
@@ -566,7 +582,7 @@ const CultureMapFlow = ({
         source: params.source!,
         target: params.target!,
         type: 'default',
-        animated: true,
+        animated: false, // 기본값은 애니메이션 없음
         style: {
           strokeWidth: 2,
           stroke: edgeColor,
@@ -879,6 +895,54 @@ const CultureMapFlow = ({
             width: (node.width as number) || 200,
             height: (node.height as number) || 120,
           });
+        } else if (
+          action === 'frequency_high' ||
+          action === 'frequency_medium' ||
+          action === 'frequency_low' ||
+          action === 'frequency_remove'
+        ) {
+          // 빈도 설정 (컨설팅 모드)
+          const frequencyMap: { [key: string]: PerceptionIntensity } = {
+            frequency_high: 'high',
+            frequency_medium: 'medium',
+            frequency_low: 'low',
+            frequency_remove: null,
+          };
+
+          const newFrequency = frequencyMap[action];
+
+          const updatedNodes = nodes.map((n) =>
+            n.id === contextMenu.targetId ? { ...n, data: { ...n.data, frequency: newFrequency } } : n
+          );
+
+          setNodes(updatedNodes);
+
+          const { notes: updatedNotes, connections: updatedConnections } = convertFromFlowData(
+            updatedNodes,
+            edges
+          );
+          onNotesChange(updatedNotes);
+          onConnectionsChange(updatedConnections);
+
+          const layerMap: { [key: string]: number } = {
+            result: 1,
+            behavior: 2,
+            tangible_lever: 3,
+            intangible_lever: 4,
+          };
+
+          FirebaseMultiUserService.updateStickyNote({
+            id: node.id,
+            content: (node.data as { content?: string }).content || '',
+            x: node.position.x,
+            y: node.position.y,
+            layer: layerMap[node.type || 'result'] || 1,
+            color: (node.data as { sentiment?: string }).sentiment || 'neutral',
+            type: node.type || 'sticky_note',
+            width: (node.width as number) || 200,
+            height: (node.height as number) || 120,
+            frequency: newFrequency,
+          });
         }
       } else if (contextMenu.type === 'edge') {
         const edge = edges.find((e) => e.id === contextMenu.targetId);
@@ -898,7 +962,7 @@ const CultureMapFlow = ({
             e.id === contextMenu.targetId
               ? {
                   ...e,
-                  animated: action === 'direct',
+                  animated: false, // 애니메이션은 사용하지 않음
                   style: {
                     ...e.style,
                     strokeDasharray: action === 'indirect' ? '5 5' : undefined,
@@ -946,12 +1010,6 @@ const CultureMapFlow = ({
     alert('PromptGenerator의 맵 생성 기능은 "AI 일괄 생성" 버튼을 사용해주세요.');
   }, []);
 
-  const handleShowReport = useCallback((reportText: string) => {
-    // 보고서 생성 기능 (추후 구현 가능)
-    console.log('보고서 생성:', reportText);
-    alert('보고서 기능은 추후 추가 예정입니다.');
-  }, []);
-
   // 렌더링 시점 로그
   console.log('🎨 [Render] contextMenu state:', contextMenu);
 
@@ -964,6 +1022,25 @@ const CultureMapFlow = ({
             <span role="img" aria-label="map icon">🗺️</span>
             조직문화 분석기
           </h1>
+          
+          {/* 탭 전환 버튼 */}
+          <div className="tab-buttons">
+            <button
+              className={`tab-button ${activeTab === 'map' ? 'tab-button--active' : ''}`}
+              type="button"
+              onClick={() => setActiveTab('map')}
+            >
+              🗺️ 컬쳐맵
+            </button>
+            <button
+              className={`tab-button ${activeTab === 'report' ? 'tab-button--active' : ''}`}
+              type="button"
+              onClick={() => setActiveTab('report')}
+            >
+              📄 보고서
+            </button>
+          </div>
+          
           <button
             className="glass-circle-button"
             type="button"
@@ -984,6 +1061,13 @@ const CultureMapFlow = ({
         </div>
         
         <div className="top-bar-right">
+          {/* 컬쳐맵 내보내기 메뉴 */}
+          <ExportMenu 
+            reactFlowInstance={reactFlowInstance}
+            nodes={nodes}
+            edges={edges}
+          />
+
           <button
             className="glass-button"
             type="button"
@@ -996,25 +1080,16 @@ const CultureMapFlow = ({
           {/* 세션 정보 */}
           {(() => {
             const session = FirebaseMultiUserService.getCurrentSession();
-            const userId = FirebaseMultiUserService.getCurrentUserId();
             
             return session ? (
-              <>
-                <button
-                  className="glass-button glass-button--accent"
-                  type="button"
-                  onClick={() => {
-                    const statusMessage = 
-                      `✅ 연결 상태: 정상\n` +
-                      `🔗 세션 코드: ${session.code}\n` +
-                      `👤 사용자 ID: ${userId?.substring(0, 8)}...\n` +
-                      `💾 자동 저장: 활성화`;
-                    alert(statusMessage);
-                  }}
-                >
-                  🔗 세션: {session.code}
-                </button>
-              </>
+              <button
+                className="glass-button glass-button--accent"
+                type="button"
+                onClick={() => setShowSessionInfo(true)}
+                title="세션 관리 및 접속 안내"
+              >
+                🔗 세션 관리
+              </button>
             ) : (
               <span style={{ fontSize: '14px', color: '#6b7280' }}>세션 연결 중...</span>
             );
@@ -1048,6 +1123,10 @@ const CultureMapFlow = ({
       
       {/* 메인 컨텐츠 영역 */}
       <div className="culture-map-flow-container" style={{ display: 'flex', width: '100%', flex: 1, minHeight: 0 }}>
+      
+      {/* 컬쳐맵 탭 */}
+      {activeTab === 'map' && (
+        <>
       {/* 왼쪽 사이드메뉴 (레거시 모드와 동일) */}
       <div className="left-panel no-print" style={{ 
         position: 'relative',
@@ -1062,8 +1141,11 @@ const CultureMapFlow = ({
         overflowWrap: 'break-word'
       }}>
         <PromptGenerator
+          mode={mode}
           onGenerateMap={handleGenerateMapFromPrompt}
-          onShowReport={handleShowReport}
+          reportContent={reportContent}
+          onReportChange={setReportContent}
+          onSwitchToReportTab={() => setActiveTab('report')}
         />
         
         {/* 리사이즈 핸들 */}
@@ -1107,21 +1189,23 @@ const CultureMapFlow = ({
             width: '100%',
             height: '100%',
             pointerEvents: 'none',
-            zIndex: 1,
+            zIndex: 0, // 포스트잇 뒤로 이동
           }}
         >
           {/* 배경층들 - 개별 높이 적용 */}
           {[
-            { name: '결과', color: 'rgba(255, 107, 107, 0.05)', index: 0 },
-            { name: '행동', color: 'rgba(78, 205, 196, 0.05)', index: 1 },
-            { name: '유형 레버', color: 'rgba(149, 225, 211, 0.05)', index: 2 },
-            { name: '무형 레버', color: 'rgba(255, 230, 109, 0.05)', index: 3 },
+            { name: '결과', color: 'rgba(255, 107, 107, OPACITY)', index: 0 },
+            { name: '행동', color: 'rgba(78, 205, 196, OPACITY)', index: 1 },
+            { name: '유형 레버', color: 'rgba(149, 225, 211, OPACITY)', index: 2 },
+            { name: '무형 레버', color: 'rgba(255, 230, 109, OPACITY)', index: 3 },
           ].map((layer) => {
             // 각 층위의 Y 좌표 계산 (이전 층위들의 높이 합산)
             let y = 0;
             for (let i = 0; i < layer.index; i++) {
               y += layerHeights[i];
             }
+            
+            const bgColor = layer.color.replace('OPACITY', String(layerOpacities[layer.index]));
             
             return (
               <div
@@ -1132,8 +1216,8 @@ const CultureMapFlow = ({
                   left: 0,
                   width: '100%',
                   height: `${layerHeights[layer.index]}px`,
-                  backgroundColor: layer.color,
-                  borderBottom: layer.index < 3 ? `2px dashed ${layer.color.replace('0.05', '0.3')}` : 'none',
+                  backgroundColor: bgColor,
+                  borderBottom: layer.index < 3 ? `2px dashed ${bgColor.replace(String(layerOpacities[layer.index]), '0.3')}` : 'none',
                 }}
               >
                 <div
@@ -1143,11 +1227,12 @@ const CultureMapFlow = ({
                     left: '10px',
                     padding: '6px 12px',
                     backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                    border: `2px solid ${layer.color.replace('0.05', '0.5')}`,
+                    border: `2px solid ${bgColor.replace(String(layerOpacities[layer.index]), '0.5')}`,
                     borderRadius: '12px',
                     fontSize: '12px',
                     fontWeight: 'bold',
                     color: layer.color.replace('0.05', '0.8'),
+                    zIndex: -1, // 포스트잇 뒤로
                   }}
                 >
                   {layer.name}
@@ -1177,15 +1262,15 @@ const CultureMapFlow = ({
         defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
         proOptions={{ hideAttribution: true }}
         // 모바일 터치 최적화
-        panOnDrag={true}
+        panOnDrag={[1, 2]} // 마우스 중간 버튼과 우클릭으로 팬
         panOnScroll={false}
         zoomOnScroll={true}
         zoomOnPinch={true}
         zoomOnDoubleClick={false}
         preventScrolling={true}
-        // 모바일 제스처
-        selectionOnDrag={false}
-        panActivationKeyCode={null}
+        // 모바일 제스처 및 다중 선택
+        selectionOnDrag={true} // 드래그로 영역 선택 활성화
+        panActivationKeyCode="Space" // 스페이스바로도 팬 가능
         // 성능 최적화
         nodesDraggable={true}
         nodesConnectable={true}
@@ -1212,29 +1297,6 @@ const CultureMapFlow = ({
             backgroundColor: '#f8f9fa',
           }}
         />
-        
-        {/* 토글 버튼 (Panel이 숨겨져 있을 때 표시) */}
-        {!showPanel && (
-          <button
-            onClick={() => setShowPanel(true)}
-            style={{
-              position: 'absolute',
-              bottom: '20px',
-              right: '20px',
-              zIndex: 1000,
-              padding: '12px 16px',
-              background: 'rgba(255, 255, 255, 0.95)',
-              border: '1px solid rgba(0, 0, 0, 0.1)',
-              borderRadius: '12px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-            }}
-          >
-            ⚙️ 보기 설정
-          </button>
-        )}
         
         {/* Panel (showPanel이 true일 때만 표시) */}
         {showPanel && (
@@ -1332,6 +1394,79 @@ const CultureMapFlow = ({
             </div>
           </div>
           
+          {/* 층위별 투명도 조절 */}
+          <div style={{ marginTop: '15px', marginBottom: '10px' }}>
+            <h4 style={{ fontSize: '12px', marginBottom: '8px', color: '#4a5568' }}>층위별 투명도 조절</h4>
+            
+            {/* 결과 층위 투명도 */}
+            <div style={{ marginBottom: '8px' }}>
+              <label htmlFor="opacity0" style={{ fontSize: '11px', color: '#FF6B6B' }}>
+                결과: {Math.round(layerOpacities[0] * 100)}%
+              </label>
+              <input
+                type="range"
+                id="opacity0"
+                min="0"
+                max="0.3"
+                step="0.01"
+                value={layerOpacities[0]}
+                onChange={(e) => setLayerOpacities([Number(e.target.value), layerOpacities[1], layerOpacities[2], layerOpacities[3]])}
+                style={{ width: '100%' }}
+              />
+            </div>
+            
+            {/* 행동 층위 투명도 */}
+            <div style={{ marginBottom: '8px' }}>
+              <label htmlFor="opacity1" style={{ fontSize: '11px', color: '#4ECDC4' }}>
+                행동: {Math.round(layerOpacities[1] * 100)}%
+              </label>
+              <input
+                type="range"
+                id="opacity1"
+                min="0"
+                max="0.3"
+                step="0.01"
+                value={layerOpacities[1]}
+                onChange={(e) => setLayerOpacities([layerOpacities[0], Number(e.target.value), layerOpacities[2], layerOpacities[3]])}
+                style={{ width: '100%' }}
+              />
+            </div>
+            
+            {/* 유형 레버 층위 투명도 */}
+            <div style={{ marginBottom: '8px' }}>
+              <label htmlFor="opacity2" style={{ fontSize: '11px', color: '#95E1D3' }}>
+                유형 레버: {Math.round(layerOpacities[2] * 100)}%
+              </label>
+              <input
+                type="range"
+                id="opacity2"
+                min="0"
+                max="0.3"
+                step="0.01"
+                value={layerOpacities[2]}
+                onChange={(e) => setLayerOpacities([layerOpacities[0], layerOpacities[1], Number(e.target.value), layerOpacities[3]])}
+                style={{ width: '100%' }}
+              />
+            </div>
+            
+            {/* 무형 레버 층위 투명도 */}
+            <div style={{ marginBottom: '8px' }}>
+              <label htmlFor="opacity3" style={{ fontSize: '11px', color: '#FFE66D' }}>
+                무형 레버: {Math.round(layerOpacities[3] * 100)}%
+              </label>
+              <input
+                type="range"
+                id="opacity3"
+                min="0"
+                max="0.3"
+                step="0.01"
+                value={layerOpacities[3]}
+                onChange={(e) => setLayerOpacities([layerOpacities[0], layerOpacities[1], layerOpacities[2], Number(e.target.value)])}
+                style={{ width: '100%' }}
+              />
+            </div>
+          </div>
+          
           {/* 배경 표시 토글 */}
           <div className="layer-background-toggle" style={{ marginBottom: '10px' }}>
             <label style={{ display: 'flex', alignItems: 'center', fontSize: '12px', cursor: 'pointer' }}>
@@ -1379,6 +1514,19 @@ const CultureMapFlow = ({
         )}
       </ReactFlow>
       </div> {/* 메인 React Flow 영역 닫기 */}
+      </>
+      )} {/* 컬쳐맵 탭 닫기 */}
+      
+      {/* 보고서 탭 */}
+      {activeTab === 'report' && (
+        <div style={{ width: '100%', height: '100%', overflow: 'auto', padding: '24px' }}>
+          <ReportEditor 
+            initialContent={reportContent}
+            onSave={setReportContent}
+          />
+        </div>
+      )}
+      
       </div> {/* culture-map-flow-container 닫기 */}
 
       {/* AI 일괄 생성 입력 패널 */}
@@ -1457,6 +1605,27 @@ const CultureMapFlow = ({
               <button onClick={() => handleContextMenuAction('negative')}>
                 ❌ 부정으로 변경
               </button>
+              
+              {/* 컨설팅 모드일 때만 빈도 설정 표시 */}
+              {isConsultingMode && (
+                <>
+                  <hr />
+                  <div className="context-menu-title">📊 빈도 설정</div>
+                  <button onClick={() => handleContextMenuAction('frequency_high')}>
+                    🔴 빈도多
+                  </button>
+                  <button onClick={() => handleContextMenuAction('frequency_medium')}>
+                    🟡 빈도中
+                  </button>
+                  <button onClick={() => handleContextMenuAction('frequency_low')}>
+                    🟢 빈도少
+                  </button>
+                  <button onClick={() => handleContextMenuAction('frequency_remove')}>
+                    ⚪ 빈도 제거
+                  </button>
+                </>
+              )}
+              
               <hr />
               <button onClick={() => handleContextMenuAction('delete')}>🗑️ 삭제</button>
             </>
@@ -1476,6 +1645,38 @@ const CultureMapFlow = ({
           )}
         </div>
       )}
+      
+      {/* 세션 정보 모달 */}
+      {showSessionInfo && (() => {
+        const session = FirebaseMultiUserService.getCurrentSession();
+        return session ? (
+          <div 
+            className="connection-guide-overlay" 
+            onClick={() => setShowSessionInfo(false)}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 10000,
+            }}
+          >
+            <div onClick={(e) => e.stopPropagation()}>
+              <SessionInfoPanel
+                sessionCode={session.code}
+                isHost={session.isHost}
+                connectedUsers={session.connectedUsers}
+                onClose={() => setShowSessionInfo(false)}
+              />
+            </div>
+          </div>
+        ) : null;
+      })()}
     </div>
   );
 };

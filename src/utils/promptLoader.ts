@@ -33,8 +33,8 @@ const STEP_FILE_MAP: Record<string, string | null> = {
   step4a3_bias_analysis: 'step4a3_bias_analysis.md',
   step4b_claude_strategy: 'step4b_claude_strategy.md',
   // 교육용 워크샵 전용 프롬프트 파일
-  stepworkshop: 'workshop.md',
-  workshop: 'workshop.md',
+  stepworkshop: 'workshop_analysis.md',
+  workshop: 'workshop_analysis.md',
   // 워크샵 분석 전용 프롬프트 파일 (교육용)
   workshop_analysis: 'workshop_analysis.md',
   // 종합 분석 프롬프트 파일

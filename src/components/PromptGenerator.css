@@ -1599,3 +1599,25 @@
     font-size: 0.8rem !important;
   }
 }
+
+/* 🎯 컨설팅 컨텍스트 패널 섹션 */
+.context-panel-section {
+  margin: 15px 0;
+  padding: 15px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+  border-left: 4px solid #007acc;
+}
+
+.context-panel-section h4 {
+  margin-top: 0;
+  color: #333;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.context-panel-section p {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 10px;
+}

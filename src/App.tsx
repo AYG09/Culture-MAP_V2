@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
 
+import Gateway from './components/Gateway';
+import type { PasswordType } from './services/GatewayAdminService';
+import SessionManager from './components/SessionManager';
 import CultureMapFlow from './components/CultureMapFlow';
 import CultureDashboard from './components/CultureDashboard';
 import WelcomeModal from './components/WelcomeModal';
@@ -114,23 +117,40 @@ function App() {
   const [, setNotes] = useState<AppNote[]>([]);
   const [, setConnections] = useState<ConnectionData[]>([]);
   const [showWelcomeModal, setShowWelcomeModal] = useState(true);
+  const [showSessionManager, setShowSessionManager] = useState(false);
+  const [pendingSessionCode, setPendingSessionCode] = useState<string | undefined>();
+  const [passwordType, setPasswordType] = useState<PasswordType>('workshop');  // 추가: 비밀번호 타입
+
+  // Gateway 인증 완료 시 처리
+  const handleAuthenticated = useCallback((isAdmin: boolean, sessionCode?: string, passwordType?: PasswordType) => {
+    console.log('Gateway authenticated, admin:', isAdmin, 'sessionCode:', sessionCode, 'passwordType:', passwordType);
+    
+    // passwordType 저장
+    setPasswordType(passwordType || 'workshop');
+    
+    if (sessionCode) {
+      // 세션 코드가 있으면 바로 해당 세션에 참가
+      setPendingSessionCode(sessionCode);
+      FirebaseMultiUserService.joinSession(sessionCode, false);
+      setShowSessionManager(false);
+    } else {
+      // 일반 비밀번호로 로그인한 경우 세션 관리자 표시
+      setShowSessionManager(true);
+    }
+  }, []);
+
+  // 세션 선택 완료 시 처리
+  const handleSessionJoined = useCallback(() => {
+    setShowSessionManager(false);
+    setPendingSessionCode(undefined);
+  }, []);
 
   useEffect(() => {
-    const initializeSession = async () => {
-      const existingSession = FirebaseMultiUserService.getCurrentSession();
-      if (existingSession) {
-        return;
-      }
-
-      try {
-        const code = await FirebaseMultiUserService.createSession();
-        FirebaseMultiUserService.joinSession(code, true);
-      } catch (error) {
-        console.error('Failed to create auto session', error);
-      }
-    };
-
-    initializeSession();
+    // 자동 세션 생성 제거 - SessionManager에서 처리
+    const existingSession = FirebaseMultiUserService.getCurrentSession();
+    if (existingSession) {
+      console.log('Existing session found:', existingSession);
+    }
   }, []);
 
   useEffect(() => {
@@ -271,29 +291,39 @@ function App() {
   }, []);
 
   return (
-    <Router>
-      <div className="app-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        {appMode === 'culture_analysis' ? (
-          <div className="culture-analysis-container">
-            <div className="analysis-header">
-              <button className="back-to-map-btn" onClick={handleBackToCultureMap}>
-                ← 컬처맵으로 돌아가기
-              </button>
-              {selectedProject && <h1>조직문화 분석: {selectedProject.name}</h1>}
-            </div>
-            <CultureDashboard onSelectProject={handleProjectSelect} />
-          </div>
-        ) : (
-          <CultureMapFlow
-            onNotesChange={handleNotesChange}
-            onConnectionsChange={handleConnectionsChange}
-            onNodeUpdate={handleNodeUpdate}
+    <Gateway onAuthenticated={handleAuthenticated}>
+      <Router>
+        {/* 세션 관리자 모달 */}
+        <SessionManager 
+            showModal={showSessionManager} 
+            onClose={handleSessionJoined}
+            initialSessionCode={pendingSessionCode}
+            passwordType={passwordType}
           />
-        )}
 
-        <WelcomeModal isOpen={showWelcomeModal} onClose={() => setShowWelcomeModal(false)} />
-      </div>
-    </Router>
+          <div className="app-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            {appMode === 'culture_analysis' ? (
+              <div className="culture-analysis-container">
+                <div className="analysis-header">
+                  <button className="back-to-map-btn" onClick={handleBackToCultureMap}>
+                    ← 컬처맵으로 돌아가기
+                  </button>
+                  {selectedProject && <h1>조직문화 분석: {selectedProject.name}</h1>}
+                </div>
+                <CultureDashboard onSelectProject={handleProjectSelect} />
+              </div>
+            ) : (
+              <CultureMapFlow
+                onNotesChange={handleNotesChange}
+                onConnectionsChange={handleConnectionsChange}
+                onNodeUpdate={handleNodeUpdate}
+              />
+            )}
+
+            <WelcomeModal isOpen={showWelcomeModal} onClose={() => setShowWelcomeModal(false)} />
+          </div>
+        </Router>
+    </Gateway>
   );
 }
 

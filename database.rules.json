@@ -1,0 +1,24 @@
+{
+  "rules": {
+    ".read": true,
+    ".write": true,
+    "gateway": {
+      ".read": true,
+      ".write": true,
+      "passwords": {
+        ".indexOn": ["sessionCode", "status", "type"]
+      },
+      "sessions": {
+        ".indexOn": ["isActive", "passwordId"]
+      }
+    },
+    "sessions": {
+      ".read": true,
+      ".write": true,
+      ".indexOn": ["lastActivity", "createdAt"],
+      "$sessionCode": {
+        ".indexOn": ["host", "createdAt", "lastActivity"]
+      }
+    }
+  }
+}

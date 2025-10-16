@@ -1,0 +1,53 @@
+{
+  "name": "gateway-auth-module",
+  "version": "1.0.0",
+  "description": "Modular gateway authentication system for web applications",
+  "main": "components/Gateway.jsx",
+  "scripts": {
+    "install": "echo '🚪 Gateway Module 설치 완료!'",
+    "test": "echo '테스트는 구현되지 않았습니다.'"
+  },
+  "keywords": [
+    "gateway",
+    "authentication",
+    "access-control",
+    "react",
+    "temporary-password",
+    "admin-panel"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.0.0"
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/gateway-auth-module.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/gateway-auth-module/issues"
+  },
+  "homepage": "https://github.com/your-username/gateway-auth-module#readme",
+  "files": [
+    "components/",
+    "api/",
+    "database/",
+    "utils/",
+    "README.md",
+    "INSTALL.md"
+  ],
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "browserslist": [
+    ">0.2%",
+    "not dead",
+    "not ie <= 11",
+    "not op_mini all"
+  ]
+}

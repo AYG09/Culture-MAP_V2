@@ -1,0 +1,52 @@
+{
+  "rules": {
+    "gateway": {
+      "passwords": {
+        ".read": true,
+        ".write": true,
+        ".indexOn": ["sessionCode", "status", "type"],
+        "$passwordId": {
+          ".validate": "newData.hasChildren(['password', 'type', 'createdAt', 'expiresAt', 'usedCount', 'status'])"
+        }
+      },
+      "sessions": {
+        ".read": true,
+        ".write": true,
+        ".indexOn": ["isActive", "passwordId"],
+        "$sessionCode": {
+          ".validate": "newData.hasChildren(['host', 'createdAt', 'passwordId', 'isActive'])"
+        }
+      }
+    },
+    "sessions": {
+      ".read": true,
+      "$sessionCode": {
+        ".write": "auth != null || !data.exists()",
+        ".indexOn": ["host", "createdAt"],
+        "users": {
+          "$userId": {
+            ".write": true
+          }
+        },
+        "notes": {
+          "$noteId": {
+            ".write": true
+          }
+        },
+        "connections": {
+          "$connectionId": {
+            ".write": true
+          }
+        },
+        "layerState": {
+          ".write": true
+        },
+        "editing": {
+          "$userId": {
+            ".write": true
+          }
+        }
+      }
+    }
+  }
+}

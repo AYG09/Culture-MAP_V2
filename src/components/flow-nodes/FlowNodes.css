@@ -2,35 +2,69 @@
 
 .flow-node {
   padding: 12px;
-  border-radius: 8px;
+  border-radius: 12px;
   border: 2px solid #d1d5db;
-  background: white;
+  /* 글래스모픽 스타일 - 애플 디자인 */
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   min-width: 180px;
   max-width: 280px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s ease;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  position: relative;
+  overflow: hidden;
+  z-index: 10; /* 층위 배경(z-index: 0)보다 위에 렌더링 */
+}
+
+/* 글래스 효과를 위한 내부 하이라이트 */
+.flow-node::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.8) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  pointer-events: none;
 }
 
 .flow-node.selected {
   border-color: #3b82f6;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-  transform: scale(1.02);
+  box-shadow: 
+    0 12px 48px rgba(59, 130, 246, 0.25),
+    0 4px 16px rgba(59, 130, 246, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transform: scale(1.02) translateZ(0);
 }
 
 .flow-node:hover {
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 
+    0 12px 40px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  transform: translateY(-2px) translateZ(0);
 }
 
 /* 노드 헤더 */
 .node-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 6px;
   margin-bottom: 8px;
   padding-left: 8px;
   border-left: 4px solid #6b7280;
+  flex-wrap: wrap;
 }
 
 .layer-badge {
@@ -39,6 +73,16 @@
   color: #4b5563;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.frequency-badge {
+  font-size: 10px;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .concept-tag {
@@ -117,21 +161,29 @@
   border-left-color: #6b7280;
 }
 
-/* 층위별 배경색 */
+/* 층위별 배경색 - 글래스모픽 스타일 */
 .result-node {
-  background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
+  background: rgba(254, 242, 242, 0.92);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
 .behavior-node {
-  background: linear-gradient(135deg, #ffffff 0%, #fef9e7 100%);
+  background: rgba(254, 249, 231, 0.92);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
 .tangible-lever-node {
-  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+  background: rgba(239, 246, 255, 0.92);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
 .intangible-lever-node {
-  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
+  background: rgba(245, 243, 255, 0.92);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
 /* 커스텀 핸들 */

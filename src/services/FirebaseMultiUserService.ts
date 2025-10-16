@@ -1,7 +1,6 @@
 import { database } from '../lib/firebase';
 import {
   ref,
-  push,
   set,
   onValue,
   off,
@@ -54,6 +53,35 @@ interface StickyNoteUpdate {
   metadata?: string;
   basis?: { author: string; year: number; theory: string };
   frequency?: PerceptionIntensity; // 컨설팅 모드용 빈도 필드
+}
+
+interface EditingInfo {
+  userId: string;
+  userName?: string;
+  timestamp: number;
+}
+
+interface FirebaseUser {
+  id: string;
+  isOnline: boolean;
+  lastActivity: number;
+}
+
+interface FirebaseConnection {
+  id: string;
+  source: string;
+  target: string;
+  type?: string;
+  [key: string]: unknown;
+}
+
+interface FirebaseSessionData {
+  code: string;
+  name: string;
+  type: SessionType;
+  userCount: number;
+  createdAt: number | object;
+  lastActivity: number | object;
 }
 
 class FirebaseMultiUserService {
@@ -206,8 +234,8 @@ class FirebaseMultiUserService {
 
     onValue(userCountRef, snapshot => {
       if (snapshot.exists()) {
-        const users = snapshot.val();
-        const onlineUsers = Object.values(users).filter((user: unknown) => user.isOnline);
+        const users = snapshot.val() as Record<string, FirebaseUser>;
+        const onlineUsers = Object.values(users).filter((user) => user.isOnline);
         const userCount = onlineUsers.length;
 
         if (this.currentSession) {
@@ -224,8 +252,8 @@ class FirebaseMultiUserService {
 
     onValue(notesRef, snapshot => {
       if (snapshot.exists()) {
-        const notes = snapshot.val();
-        Object.values(notes).forEach((note: StickyNoteUpdate) => {
+        const notes = snapshot.val() as Record<string, StickyNoteUpdate>;
+        Object.values(notes).forEach((note) => {
           if (note.author !== this.userId) {
             this.emit('sticky-note-updated', note);
           }
@@ -239,8 +267,8 @@ class FirebaseMultiUserService {
 
     onValue(connectionsRef, snapshot => {
       if (snapshot.exists()) {
-        const connections = snapshot.val();
-        Object.values(connections).forEach((connection: unknown) => {
+        const connections = snapshot.val() as Record<string, FirebaseConnection>;
+        Object.values(connections).forEach((connection) => {
           this.emit('connection-updated', connection);
         });
       }
@@ -262,13 +290,13 @@ class FirebaseMultiUserService {
     this.firebaseRefs.editing = editingRef;
 
     // 이전 편집 상태를 추적하여 시작/중지 이벤트 구분
-    let previousEditingData: { [key: string]: any } = {};
+    let previousEditingData: Record<string, EditingInfo & { itemType: string }> = {};
 
     onValue(editingRef, snapshot => {
-      const currentEditingData = snapshot.exists() ? snapshot.val() : {};
+      const currentEditingData = snapshot.exists() ? snapshot.val() as Record<string, EditingInfo & { itemType: string }> : {};
       
       // 새로 시작된 편집 감지
-      Object.entries(currentEditingData).forEach(([itemId, editInfo]: [string, any]) => {
+      Object.entries(currentEditingData).forEach(([itemId, editInfo]) => {
         if (!previousEditingData[itemId] && editInfo.userId !== this.userId) {
           console.log('🔥 Firebase editing started:', { itemId, editInfo });
           this.emit('editing-started', {
@@ -280,7 +308,7 @@ class FirebaseMultiUserService {
       });
 
       // 중지된 편집 감지
-      Object.entries(previousEditingData).forEach(([itemId, editInfo]: [string, any]) => {
+      Object.entries(previousEditingData).forEach(([itemId, editInfo]) => {
         if (!currentEditingData[itemId] && editInfo.userId !== this.userId) {
           console.log('🔥 Firebase editing stopped:', { itemId, editInfo });
           this.emit('editing-stopped', {
@@ -355,7 +383,7 @@ class FirebaseMultiUserService {
   }
 
   // 연결선 업데이트
-  updateConnection(connection: unknown) {
+  updateConnection(connection: FirebaseConnection) {
     if (!this.currentSession) return;
 
     try {
@@ -453,7 +481,7 @@ class FirebaseMultiUserService {
   }
 
   // 편집 완료 알림
-  stopEditing(itemId: string, itemType: 'note' | 'connection') {
+  stopEditing(itemId: string, _itemType?: 'note' | 'connection') {
     if (!this.currentSession) {
       console.log('⚠️ No session - edited locally only');
       return;
@@ -531,25 +559,25 @@ class FirebaseMultiUserService {
           return;
         }
         
-        const sessions = snapshot.val();
+        const sessions = snapshot.val() as Record<string, FirebaseSessionData>;
         const activeSessions = Object.values(sessions)
-          .filter((s: any) => {
-            const activity = s.lastActivity || s.createdAt;
+          .filter((s) => {
+            const activity = typeof s.lastActivity === 'number' ? s.lastActivity : (typeof s.createdAt === 'number' ? s.createdAt : 0);
             return activity > twoHoursAgo;
           })
-          .sort((a: any, b: any) => {
-            const aActivity = a.lastActivity || a.createdAt;
-            const bActivity = b.lastActivity || b.createdAt;
+          .sort((a, b) => {
+            const aActivity = typeof a.lastActivity === 'number' ? a.lastActivity : (typeof a.createdAt === 'number' ? a.createdAt : 0);
+            const bActivity = typeof b.lastActivity === 'number' ? b.lastActivity : (typeof b.createdAt === 'number' ? b.createdAt : 0);
             return bActivity - aActivity;
           })
           .slice(0, limitCount)
-          .map((s: any) => ({
+          .map((s): SessionMetadata => ({
             code: s.code,
-            name: s.name || s.code,  // fallback
-            type: s.type || 'workshop',  // 추가: 기본값 'workshop'
+            name: s.name || s.code,
+            type: s.type || 'workshop',
             userCount: s.userCount || 0,
-            createdAt: s.createdAt,
-            lastActivity: s.lastActivity || s.createdAt  // fallback
+            createdAt: typeof s.createdAt === 'number' ? s.createdAt : Date.now(),
+            lastActivity: typeof s.lastActivity === 'number' ? s.lastActivity : (typeof s.createdAt === 'number' ? s.createdAt : Date.now())
           }));
         
         resolve(activeSessions);
@@ -571,25 +599,25 @@ class FirebaseMultiUserService {
         return;
       }
       
-      const sessions = snapshot.val();
+      const sessions = snapshot.val() as Record<string, FirebaseSessionData>;
       const activeSessions = Object.values(sessions)
-        .filter((s: any) => {
-          const activity = s.lastActivity || s.createdAt;
+        .filter((s) => {
+          const activity = typeof s.lastActivity === 'number' ? s.lastActivity : (typeof s.createdAt === 'number' ? s.createdAt : 0);
           return activity > twoHoursAgo;
         })
-        .sort((a: any, b: any) => {
-          const aActivity = a.lastActivity || a.createdAt;
-          const bActivity = b.lastActivity || b.createdAt;
+        .sort((a, b) => {
+          const aActivity = typeof a.lastActivity === 'number' ? a.lastActivity : (typeof a.createdAt === 'number' ? a.createdAt : 0);
+          const bActivity = typeof b.lastActivity === 'number' ? b.lastActivity : (typeof b.createdAt === 'number' ? b.createdAt : 0);
           return bActivity - aActivity;
         })
         .slice(0, limitCount)
-        .map((s: any) => ({
+        .map((s): SessionMetadata => ({
           code: s.code,
           name: s.name || s.code,
-          type: s.type || 'workshop',  // 추가: 기본값 'workshop'
+          type: s.type || 'workshop',
           userCount: s.userCount || 0,
-          createdAt: s.createdAt,
-          lastActivity: s.lastActivity || s.createdAt
+          createdAt: typeof s.createdAt === 'number' ? s.createdAt : Date.now(),
+          lastActivity: typeof s.lastActivity === 'number' ? s.lastActivity : (typeof s.createdAt === 'number' ? s.createdAt : Date.now())
         }));
       
       callback(activeSessions);

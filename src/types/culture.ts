@@ -388,9 +388,25 @@ export const STANDARD_WORKFLOW_STAGES: StageStatus[] = [
 ];
 
 /**
- * 구성원 인식 강도 타입
+ * 구성원 인식 강도 타입 (인터뷰 빈도 기반)
  */
-export type PerceptionIntensity = '집중' | '관심' | '언급';
+export type PerceptionIntensity = 'high' | 'medium' | 'low' | null;
+
+/**
+ * 빈도 레이블 매핑
+ */
+export const FREQUENCY_LABELS: Record<Exclude<PerceptionIntensity, null>, string> = {
+  high: '빈도多',
+  medium: '빈도中',
+  low: '빈도少',
+};
+
+/**
+ * 애플리케이션 모드
+ * - workshop: 워크샵 모드 (포스트잇 기반, 빈도 기능 숨김)
+ * - consulting: 컨설팅 모드 (인터뷰 분석 기반, 빈도 기능 활성화)
+ */
+export type AppMode = 'workshop' | 'consulting';
 
 /**
  * 컬쳐맵 노트 데이터
@@ -409,6 +425,7 @@ export interface NoteData {
   type: NoteType;
   sentiment: 'positive' | 'negative' | 'neutral';
   perceptionIntensity?: PerceptionIntensity; // 구성원 인식 강도 (집중/관심/언급)
+  frequency?: PerceptionIntensity; // 컨설팅 모드: 인터뷰 빈도 (빈도多/中/少)
   basis?: string; // 이론적 근거 (저자, 이론, 연도) - 문자열 형식
   layer: 1 | 2 | 3 | 4;
   connections?: string[]; // 연결된 노트들의 ID

@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import MultiUserApp from './components/MultiUserApp.tsx';
 import './index.css';
+import 'react-quill-new/dist/quill.snow.css'; // React Quill New 스타일
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 
 // Firebase 앱 초기화

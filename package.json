@@ -19,20 +19,26 @@
   "dependencies": {
     "@types/dagre": "^0.7.53",
     "@types/qrcode": "^1.5.5",
+    "@types/quill": "^2.0.14",
     "@types/react-router-dom": "^5.3.3",
     "@types/uuid": "^10.0.0",
+    "@types/xlsx": "^0.0.35",
     "@xyflow/react": "^12.8.6",
     "dagre": "^0.8.5",
     "docx": "^8.5.0",
     "file-saver": "^2.0.5",
     "firebase": "^12.1.0",
+    "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.1",
     "qrcode": "^1.5.4",
+    "quill": "^2.0.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-quill-new": "^3.6.0",
     "react-router-dom": "^7.7.0",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",
