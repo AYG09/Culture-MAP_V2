@@ -200,36 +200,63 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
     );
   }
 
-  // 인증됨 - 관리자 패널 표시 (세션 불필요)
-  if (showAdminPanel && isAdmin) {
-    return <AdminGateway onBack={() => setShowAdminPanel(false)} />;
-  }
-
-  // 인증됨 - 메인 앱 표시
-  return (
-    <div className="gateway-authenticated">
-      {/* 인증된 사용자를 위한 헤더 */}
-      <div className="gateway-auth-header">
-        <div className="auth-status">
-          <span className="auth-indicator"></span>
-          <span className="auth-text">인증됨 {isAdmin && '(관리자)'}</span>
-        </div>
-        <div className="auth-actions">
-          {isAdmin && (
+  // 인증됨 - 관리자인 경우 AdminGateway만 표시 (children 렌더링 안 함)
+  if (isAuth && isAdmin) {
+    if (showAdminPanel) {
+      return <AdminGateway onBack={() => setShowAdminPanel(false)} />;
+    }
+    // 관리자가 Admin Panel을 닫았을 때
+    return (
+      <div className="gateway-authenticated">
+        <div className="gateway-auth-header">
+          <div className="auth-status">
+            <span className="auth-indicator"></span>
+            <span className="auth-text">인증됨 (관리자)</span>
+          </div>
+          <div className="auth-actions">
             <button onClick={toggleAdminPanel} className="admin-panel-button" title="관리자 패널">
               🔧 관리자 패널
             </button>
-          )}
-          <button onClick={handleLogout} className="logout-button" title="로그아웃">
-            로그아웃
-          </button>
+            <button onClick={handleLogout} className="logout-button" title="로그아웃">
+              로그아웃
+            </button>
+          </div>
+        </div>
+        <div className="gateway-main-content">
+          <div style={{ padding: '2rem', textAlign: 'center' }}>
+            <h2>관리자 모드</h2>
+            <p>관리자 패널 버튼을 클릭하여 세션을 관리하세요.</p>
+          </div>
         </div>
       </div>
+    );
+  }
 
-      {/* 메인 애플리케이션 */}
-      <div className="gateway-main-content">{children}</div>
-    </div>
-  );
+  // 인증됨 - 일반 사용자 (메인 앱 표시)
+  if (isAuth) {
+    return (
+      <div className="gateway-authenticated">
+        {/* 인증된 사용자를 위한 헤더 */}
+        <div className="gateway-auth-header">
+          <div className="auth-status">
+            <span className="auth-indicator"></span>
+            <span className="auth-text">인증됨</span>
+          </div>
+          <div className="auth-actions">
+            <button onClick={handleLogout} className="logout-button" title="로그아웃">
+              로그아웃
+            </button>
+          </div>
+        </div>
+
+        {/* 메인 애플리케이션 */}
+        <div className="gateway-main-content">{children}</div>
+      </div>
+    );
+  }
+
+  // 여기에 도달하면 안 됨
+  return null;
 };
 
 export default Gateway;
