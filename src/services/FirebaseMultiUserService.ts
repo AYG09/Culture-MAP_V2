@@ -67,10 +67,14 @@ interface FirebaseUser {
   lastActivity: number;
 }
 
-interface FirebaseConnection {
+export interface FirebaseConnection {
   id: string;
-  source: string;
-  target: string;
+  source?: string;
+  target?: string;
+  sourceId?: string;
+  targetId?: string;
+  relationType?: string;
+  isPositive?: boolean;
   type?: string;
   [key: string]: unknown;
 }

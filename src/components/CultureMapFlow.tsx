@@ -34,6 +34,7 @@ import ReportEditor from './ReportEditor'; // 보고서 편집기
 
 // 타입
 import type { NoteData, ConnectionData, PerceptionIntensity } from '../types/culture';
+import type { FirebaseConnection } from '../services/FirebaseMultiUserService';
 
 // 유틸리티
 import { convertToFlowData, convertFromFlowData } from '../utils/flowDataConverter';
@@ -441,7 +442,7 @@ const CultureMapFlow = ({
       parsedConnections.forEach((connection, index) => {
         setTimeout(
           () => {
-            FirebaseMultiUserService.updateConnection(connection);
+            FirebaseMultiUserService.updateConnection(connection as FirebaseConnection);
           },
           parsedNotes.length * 100 + index * 50
         );
