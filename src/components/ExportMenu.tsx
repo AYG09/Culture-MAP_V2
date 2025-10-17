@@ -38,9 +38,15 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
     try {
       // 실제 노드 경계 기반 동적 크기 계산
       const nodesBounds = getNodesBounds(nodes);
-      const PADDING = 100; // 각 방향 100px 여백
-      const imageWidth = nodesBounds.width + PADDING * 2;
-      const imageHeight = nodesBounds.height + PADDING * 2;
+      
+      // 층위 배경 레이블 영역을 고려한 패딩 (왼쪽 여유 공간 확보)
+      const PADDING_LEFT = 200;  // 왼쪽: 층위 레이블 공간 확보
+      const PADDING_RIGHT = 100;  // 오른쪽: 일반 여백
+      const PADDING_TOP = 100;    // 상단: 일반 여백
+      const PADDING_BOTTOM = 100; // 하단: 일반 여백
+      
+      const imageWidth = nodesBounds.width + PADDING_LEFT + PADDING_RIGHT;
+      const imageHeight = nodesBounds.height + PADDING_TOP + PADDING_BOTTOM;
 
       // 노드들이 이미지 중앙에 오도록 viewport 계산
       const transform = getViewportForBounds(
@@ -49,7 +55,7 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
         imageHeight,
         0.5, // minZoom
         2,   // maxZoom
-        PADDING / Math.max(imageWidth, imageHeight)  // 동적 padding 비율
+        PADDING_LEFT / imageWidth  // 왼쪽 패딩 비율
       );
 
       // 변경: viewport 대신 flowWrapperRef를 포함하는 부모 선택 (층위 배경 포함)

@@ -11,17 +11,35 @@ const layerNameToIndex: { [key: string]: number } = {
 };
 
 // 인식 강도(PerceptionIntensity) 추출 함수
+// 빈도多/中/少를 high/medium/low로 자동 변환 (레거시 호환)
 const extractPerceptionIntensity = (type: string): PerceptionIntensity => {
-  if (type.endsWith('_집중')) return '집중';
-  if (type.endsWith('_관심')) return '관심';
-  if (type.endsWith('_언급')) return '언급';
-  return '언급'; // 기본값
+  // 신규 형식: 빈도多/中/少
+  if (type.includes('빈도多') || type.includes('빈도_多')) return 'high';
+  if (type.includes('빈도中') || type.includes('빈도_中')) return 'medium';
+  if (type.includes('빈도少') || type.includes('빈도_少')) return 'low';
+  
+  // 레거시 형식: 집중/관심/언급 → high/medium/low 변환
+  if (type.endsWith('_집중')) return 'high';
+  if (type.endsWith('_관심')) return 'medium';
+  if (type.endsWith('_언급')) return 'low';
+  
+  return 'low'; // 기본값
 };
 
 // 타입 정규화 함수 (인식강도 suffix 처리 포함)
 const normalizeType = (type: string): string => {
   let typeWithoutIntensity = type;
-  if (type.endsWith('_집중')) {
+  
+  // 신규 형식: 빈도多/中/少 제거
+  if (type.includes('빈도多') || type.includes('빈도_多')) {
+    typeWithoutIntensity = type.replace(/[_]?빈도[_]?多/g, '');
+  } else if (type.includes('빈도中') || type.includes('빈도_中')) {
+    typeWithoutIntensity = type.replace(/[_]?빈도[_]?中/g, '');
+  } else if (type.includes('빈도少') || type.includes('빈도_少')) {
+    typeWithoutIntensity = type.replace(/[_]?빈도[_]?少/g, '');
+  }
+  // 레거시 형식: 집중/관심/언급 제거
+  else if (type.endsWith('_집중')) {
     typeWithoutIntensity = type.slice(0, -3);
   } else if (type.endsWith('_관심')) {
     typeWithoutIntensity = type.slice(0, -3);
