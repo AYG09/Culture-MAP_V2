@@ -4,6 +4,7 @@ import './SessionInfoPanel.css';
 
 interface SessionInfoPanelProps {
   sessionCode: string;
+  sessionName?: string;
   isHost: boolean;
   connectedUsers: number;
   onClose?: () => void;
@@ -11,16 +12,20 @@ interface SessionInfoPanelProps {
 
 const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
   sessionCode,
+  sessionName,
   isHost,
   connectedUsers,
   onClose,
 }) => {
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [localIP, setLocalIP] = useState<string>('');
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState(sessionName || `세션 ${sessionCode}`);
 
   useEffect(() => {
     generateQRCode();
     getLocalIP();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionCode]);
 
   const generateQRCode = async () => {
@@ -62,6 +67,23 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
     alert('접속 URL이 복사되었습니다!');
   };
 
+  const handleSaveSessionName = async () => {
+    if (!editedName.trim()) {
+      alert('세션 이름을 입력해주세요.');
+      return;
+    }
+
+    try {
+      const FirebaseMultiUserService = (await import('../services/FirebaseMultiUserService')).default;
+      await FirebaseMultiUserService.updateSessionName(sessionCode, editedName.trim());
+      setIsEditingName(false);
+      alert('세션 이름이 변경되었습니다!');
+    } catch (error) {
+      console.error('세션 이름 변경 실패:', error);
+      alert('세션 이름 변경에 실패했습니다.');
+    }
+  };
+
   return (
     <div className="session-info-panel">
       <div className="session-info-header">
@@ -74,6 +96,44 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
       </div>
 
       <div className="session-details">
+        {/* 세션 이름 섹션 */}
+        <div className="session-name-section">
+          <h4>세션 이름</h4>
+          {isEditingName ? (
+            <div className="session-name-edit">
+              <input
+                type="text"
+                value={editedName}
+                onChange={(e) => setEditedName(e.target.value)}
+                placeholder="세션 이름을 입력하세요"
+                autoFocus
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  border: '2px solid #3b82f6',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                }}
+              />
+              <button onClick={handleSaveSessionName} style={{ padding: '8px 16px' }}>
+                💾 저장
+              </button>
+              <button onClick={() => setIsEditingName(false)} style={{ padding: '8px 16px' }}>
+                ✕ 취소
+              </button>
+            </div>
+          ) : (
+            <div className="session-name-display">
+              <span className="name">{editedName}</span>
+              {isHost && (
+                <button onClick={() => setIsEditingName(true)} className="edit-btn">
+                  ✏️ 편집
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="session-code-section">
           <h4>세션 코드</h4>
           <div className="session-code-display">

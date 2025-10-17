@@ -112,6 +112,27 @@ const CultureMapFlow = ({
   const [, setSelectedNodes] = useState<Node[]>([]);
   const [, setSelectedEdges] = useState<Edge[]>([]);
 
+  // 보고서 내용 변경 핸들러 (컨설팅 모드에서만 Firebase에 저장)
+  const handleReportChange = useCallback((content: string) => {
+    setReportContent(content);
+    
+    // 컨설팅 모드에서만 Firebase에 저장
+    if (isConsultingMode) {
+      FirebaseMultiUserService.updateReportContent(content);
+    }
+  }, [isConsultingMode]);
+
+  // 보고서 내용 Firebase 동기화 (컨설팅 모드에서만)
+  useEffect(() => {
+    if (!isConsultingMode) return;
+
+    const unsubscribe = FirebaseMultiUserService.onReportContent((content) => {
+      setReportContent(content);
+    });
+
+    return unsubscribe;
+  }, [isConsultingMode]);
+
   // 층위별 개별 높이 조절 상태 (레거시 모드와 동일)
   const [layerHeights, setLayerHeights] = useState<number[]>([200, 200, 200, 200]); // [결과, 행동, 유형, 무형]
   const [layerOpacities, setLayerOpacities] = useState<number[]>([0.05, 0.05, 0.05, 0.05]); // 층위별 투명도
@@ -1152,7 +1173,7 @@ const CultureMapFlow = ({
           mode={mode}
           onGenerateMap={handleGenerateMapFromPrompt}
           reportContent={reportContent}
-          onReportChange={setReportContent}
+          onReportChange={handleReportChange}
           onSwitchToReportTab={() => setActiveTab('report')}
           onOpenAiPanel={handleOpenAiPanel}
         />
@@ -1517,7 +1538,7 @@ const CultureMapFlow = ({
         <div style={{ width: '100%', height: '100%', overflow: 'auto', padding: '24px' }}>
           <ReportEditor 
             initialContent={reportContent}
-            onSave={setReportContent}
+            onSave={handleReportChange}
           />
         </div>
       )}
@@ -1673,6 +1694,7 @@ const CultureMapFlow = ({
             <div onClick={(e) => e.stopPropagation()}>
               <SessionInfoPanel
                 sessionCode={session.code}
+                sessionName={session.name}
                 isHost={session.isHost}
                 connectedUsers={session.connectedUsers}
                 onClose={() => setShowSessionInfo(false)}

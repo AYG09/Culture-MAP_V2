@@ -74,6 +74,7 @@ const PromptGenerator: React.FC<PromptGeneratorProps> = ({
 const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({ 
   mode = 'workshop',
   onGenerateMap,
+  onReportChange,
   onSwitchToReportTab,
   onOpenAiPanel
 }) => {
@@ -588,7 +589,12 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
 
           {analysisInput && (
             <button
-              onClick={() => onSwitchToReportTab?.()}
+              onClick={() => {
+                // AI 보고서 내용을 보고서 에디터로 전달
+                onReportChange?.(analysisInput);
+                // 보고서 탭으로 전환
+                onSwitchToReportTab?.();
+              }}
               className="btn-primary"
               style={{ marginTop: '16px' }}
             >

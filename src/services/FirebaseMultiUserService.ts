@@ -682,6 +682,54 @@ class FirebaseMultiUserService {
       throw error;
     }
   }
+
+  // 보고서 내용 저장
+  updateReportContent(content: string) {
+    if (!this.currentSession) {
+      console.log('⚠️ No session - report content not saved to Firebase');
+      return;
+    }
+
+    // 워크샵 모드에서는 보고서 저장하지 않음 (서버 용량 절약)
+    if (this.currentSession.type === 'workshop') {
+      console.log('ℹ️ Workshop mode - report content not saved to Firebase');
+      return;
+    }
+
+    try {
+      const reportRef = ref(database, `sessions/${this.currentSession.code}/report`);
+      const lastActivityRef = ref(database, `sessions/${this.currentSession.code}/lastActivity`);
+      
+      set(reportRef, {
+        content,
+        updatedAt: serverTimestamp(),
+        updatedBy: this.userId,
+      });
+      
+      set(lastActivityRef, serverTimestamp());
+
+      console.log('🔥 Firebase report content updated');
+    } catch (error) {
+      console.error('❌ Failed to update Firebase report content:', error);
+    }
+  }
+
+  // 보고서 내용 로드
+  onReportContent(callback: (content: string) => void): () => void {
+    if (!this.currentSession) {
+      console.log('⚠️ No session - cannot load report content');
+      return () => {};
+    }
+
+    const reportRef = ref(database, `sessions/${this.currentSession.code}/report/content`);
+    
+    const unsubscribe = onValue(reportRef, (snapshot) => {
+      const content = snapshot.val() || '';
+      callback(content);
+    });
+
+    return () => off(reportRef, 'value', unsubscribe);
+  }
 }
 
 export default new FirebaseMultiUserService();
