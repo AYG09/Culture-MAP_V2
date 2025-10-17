@@ -51,7 +51,8 @@ const StickyNote = ({
     layerIndex,
     sentiment,
     position,
-    metadata,
+    met
+    adata,
     concept,
     source,
     category,
@@ -409,7 +410,7 @@ const StickyNote = ({
         </div>
       ) : (
         <>
-          <div className="sticky-content">{content}</div>
+          <div className="sticky-content" style={{ fontWeight: 700 }}>{content}</div>
           {!isEditMode && renderMetadata()}
         </>
       )}

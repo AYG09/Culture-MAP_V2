@@ -82,11 +82,10 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
         height: imageHeight,
         pixelRatio: 4,            // 초고화질 (4배 해상도, 4K 디스플레이 최적화)
         cacheBust: true,          // 캐시 문제 방지
-        fontEmbedCSS: '',         // 폰트 임베딩 최적화 (볼드 처리 보장)
+        fontEmbedCSS: '',         // 폰트 임베딩 최적화
         skipFonts: false,         // 폰트 정보 포함
         style: {
           transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.zoom})`,
-          fontWeight: '700',      // 볼드 명시적 적용
         },
       });
 
