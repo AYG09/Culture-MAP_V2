@@ -5,18 +5,15 @@ import Gateway from './components/Gateway';
 import type { PasswordType } from './services/GatewayAdminService';
 import SessionManager from './components/SessionManager';
 import CultureMapFlow from './components/CultureMapFlow';
-import CultureDashboard from './components/CultureDashboard';
 import WelcomeModal from './components/WelcomeModal';
 import FirebaseMultiUserService from './services/FirebaseMultiUserService';
 
-import type { CultureProject, ConnectionData, NoteData, NoteType } from './types/culture';
+import type { ConnectionData, NoteData, NoteType } from './types/culture';
 
 import './App.css';
 
 const TOP_LAYER = 4;
 const TOP_LAYER_MIN = 1;
-
-type AppMode = 'culture_map' | 'culture_analysis';
 
 type AppNote = NoteData & {
   content?: string;
@@ -112,8 +109,6 @@ const mapFirebaseNoteToAppNote = (note: FirebaseStickyNoteUpdate): AppNote => {
 };
 
 function App() {
-  const [appMode, setAppMode] = useState<AppMode>('culture_map');
-  const [selectedProject, setSelectedProject] = useState<CultureProject | null>(null);
   const [, setNotes] = useState<AppNote[]>([]);
   const [, setConnections] = useState<ConnectionData[]>([]);
   const [showWelcomeModal, setShowWelcomeModal] = useState(true);
@@ -299,16 +294,6 @@ function App() {
     setConnections(updatedConnections.map(connection => ({ ...connection })));
   }, []);
 
-  const handleProjectSelect = useCallback((project: CultureProject) => {
-    setSelectedProject(project);
-    setAppMode('culture_analysis');
-  }, []);
-
-  const handleBackToCultureMap = useCallback(() => {
-    setSelectedProject(null);
-    setAppMode('culture_map');
-  }, []);
-
   return (
     <Gateway onAuthenticated={handleAuthenticated}>
       <Router>
@@ -323,23 +308,11 @@ function App() {
         )}
 
           <div className="app-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            {appMode === 'culture_analysis' ? (
-              <div className="culture-analysis-container">
-                <div className="analysis-header">
-                  <button className="back-to-map-btn" onClick={handleBackToCultureMap}>
-                    ← 컬처맵으로 돌아가기
-                  </button>
-                  {selectedProject && <h1>조직문화 분석: {selectedProject.name}</h1>}
-                </div>
-                <CultureDashboard onSelectProject={handleProjectSelect} />
-              </div>
-            ) : (
-              <CultureMapFlow
-                onNotesChange={handleNotesChange}
-                onConnectionsChange={handleConnectionsChange}
-                onNodeUpdate={handleNodeUpdate}
-              />
-            )}
+            <CultureMapFlow
+              onNotesChange={handleNotesChange}
+              onConnectionsChange={handleConnectionsChange}
+              onNodeUpdate={handleNodeUpdate}
+            />
 
             <WelcomeModal isOpen={showWelcomeModal} onClose={() => setShowWelcomeModal(false)} />
           </div>
