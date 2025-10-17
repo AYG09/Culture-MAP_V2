@@ -58,7 +58,19 @@ export const parseAIOutput = (
   text: string
 ): { notes: NoteData[]; connections: ConnectionData[] } => {
   console.log('🔍 parseAIOutput 입력 텍스트:', text);
-  const lines = text.split('\n').filter(line => line.trim() !== '');
+  
+  // 입력이 한 줄로 붙어있을 수 있으므로, 대괄호 기준으로 분리
+  // 1. 먼저 줄바꿈으로 분리
+  const rawLines = text.split('\n').filter(line => line.trim() !== '');
+  
+  // 2. 각 라인에서 대괄호로 시작하는 항목들을 추가로 분리
+  const lines: string[] = [];
+  rawLines.forEach(rawLine => {
+    // [로 시작하는 패턴을 찾아서 분리
+    const items = rawLine.split(/(?=\[)/).filter(item => item.trim() !== '');
+    lines.push(...items);
+  });
+  
   console.log('🔍 파싱할 라인 수:', lines.length);
   console.log('🔍 각 라인:', lines);
 
