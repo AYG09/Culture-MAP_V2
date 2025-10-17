@@ -19,7 +19,8 @@ const SessionManager: React.FC<SessionManagerProps> = ({
   onSessionJoined,
   passwordType = 'workshop'  // 기본값 workshop
 }) => {
-  const [showModal, setShowModal] = useState(externalShowModal ?? true);
+  // externalShowModal이 명시적으로 전달되면 그 값을 사용, 그렇지 않으면 false
+  const [showModal, setShowModal] = useState(externalShowModal ?? false);
   const [sessionCode, setSessionCode] = useState(initialSessionCode || '');
   const [isCreating, setIsCreating] = useState(false);
   const [isValidating, setIsValidating] = useState(false);

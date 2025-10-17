@@ -164,6 +164,14 @@ function App() {
     }
   }, []);
 
+  // 관리자 상태 변경 시 SessionManager 강제 숨김
+  useEffect(() => {
+    if (isAdmin) {
+      console.log('🔧 Admin detected - forcing SessionManager to hide');
+      setShowSessionManager(false);
+    }
+  }, [isAdmin]);
+
   useEffect(() => {
     const handleStickyNoteUpdated = (note: FirebaseStickyNoteUpdate) => {
       const normalized = mapFirebaseNoteToAppNote(note);
