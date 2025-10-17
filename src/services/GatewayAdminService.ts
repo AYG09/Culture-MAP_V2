@@ -119,7 +119,7 @@ class GatewayAdminService {
     passwordType?: PasswordType;  // 추가: 비밀번호 타입 반환
   }> {
     // 관리자 비밀번호 확인
-    const adminPassword = import.meta.env.VITE_GATEWAY_ADMIN_PASSWORD || 'WINTER09@!';
+    const adminPassword = import.meta.env.VITE_GATEWAY_ADMIN_PASSWORD || 'excadmin';
     if (inputPassword === adminPassword) {
       return { isValid: true, isAdmin: true, passwordType: 'admin' };
     }
@@ -150,9 +150,12 @@ class GatewayAdminService {
         // 사용 횟수 증가
         await this.incrementPasswordUsage(id);
 
+        // Firebase에서 조회한 비밀번호도 type이 'admin'이면 isAdmin: true 반환
+        const isAdmin = pwd.type === 'admin';
+
         return { 
           isValid: true, 
-          isAdmin: false, 
+          isAdmin,
           passwordId: id,
           passwordType: pwd.type,  // 추가: 비밀번호 타입 반환
         };
