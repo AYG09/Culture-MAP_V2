@@ -399,6 +399,8 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
         </div>
       </div>
 
+      {/* 워크샵 모드 Steps */}
+      {mode === 'workshop' && (
       <div className="workshop-mode">
         <Step
           stepNumber={0}
@@ -575,6 +577,7 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
           )}
         </Step>
       </div>
+      )}
 
       {/* 컨설팅 모드 Steps */}
       {mode === 'consulting' && (
