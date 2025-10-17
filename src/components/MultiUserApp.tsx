@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import App from '../App';
 import SessionManager from './SessionManager';
 import FirebaseMultiUserService from '../services/FirebaseMultiUserService';
-import './IPAccessNotice.css';
 
 const MultiUserApp: React.FC = () => {
   const [sessionActive, setSessionActive] = useState(false);

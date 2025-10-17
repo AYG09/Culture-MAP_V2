@@ -1,0 +1,251 @@
+import { useState, useEffect, useRef } from 'react';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css'; // Quill Snow 테마 CSS
+import { Document, Packer, Paragraph } from 'docx';
+import { saveAs } from 'file-saver';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import './ReportEditor.css';
+
+interface ReportEditorProps {
+  /** 초기 HTML 콘텐츠 */
+  initialContent: string;
+  /** 콘텐츠 변경 시 호출되는 콜백 */
+  onSave: (content: string) => void;
+}
+
+/**
+ * ReportEditor - React Quill 기반 리치 텍스트 편집기
+ * 
+ * 편집 모드와 뷰어 모드를 토글할 수 있으며,
+ * AI가 생성한 보고서를 수정하거나 새로 작성할 수 있습니다.
+ */
+export default function ReportEditor({ initialContent, onSave }: ReportEditorProps) {
+  const [content, setContent] = useState(initialContent);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  /**
+   * 콘텐츠 변경 핸들러 (debounce 적용)
+   * 300ms 대기 후 onSave 호출하여 성능 최적화
+   */
+  const handleChange = (value: string) => {
+    setContent(value);
+    
+    // 기존 타이머 취소
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
+    // 300ms 후 저장
+    saveTimeoutRef.current = setTimeout(() => {
+      onSave(value);
+    }, 300);
+  };
+
+  /**
+   * 컴포넌트 언마운트 시 타이머 정리
+   */
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  /**
+   * 편집 모드 토글
+   */
+  const toggleEditMode = () => {
+    setIsEditing((prev) => !prev);
+  };
+
+  /**
+   * Word 문서로 내보내기
+   * HTML을 Plain Text로 변환하여 .docx 파일 생성
+   */
+  const handleExportWord = async () => {
+    if (!content) {
+      alert('내보낼 콘텐츠가 없습니다.');
+      return;
+    }
+
+    setIsExporting(true);
+
+    try {
+      // HTML을 Plain Text로 변환
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = content;
+      const plainText = tempDiv.innerText || tempDiv.textContent || '';
+
+      // 줄 단위로 분리하여 Paragraph 생성
+      const lines = plainText.split('\n').filter((line) => line.trim() !== '');
+      
+      const doc = new Document({
+        sections: [
+          {
+            children: lines.map(
+              (line) =>
+                new Paragraph({
+                  text: line,
+                })
+            ),
+          },
+        ],
+      });
+
+      const blob = await Packer.toBlob(doc);
+      saveAs(blob, `report-${Date.now()}.docx`);
+
+      console.log('✅ Word 내보내기 완료');
+    } catch (error) {
+      console.error('❌ Word 내보내기 실패:', error);
+      alert('Word 내보내기에 실패했습니다.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  /**
+   * PDF 문서로 내보내기
+   * HTML 렌더링 결과를 이미지로 변환하여 PDF 생성
+   */
+  const handleExportPDF = async () => {
+    const reportElement = document.querySelector('.report-content') as HTMLElement;
+    
+    if (!reportElement) {
+      alert('내보낼 콘텐츠가 없습니다. 먼저 보고서를 작성해주세요.');
+      return;
+    }
+
+    setIsExporting(true);
+
+    try {
+      const canvas = await html2canvas(reportElement, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const componentWidth = reportElement.scrollWidth;
+      const componentHeight = reportElement.scrollHeight;
+
+      const pdf = new jsPDF({
+        orientation: 'p',
+        unit: 'px',
+        format: [componentWidth, componentHeight],
+      });
+
+      pdf.addImage(imgData, 'PNG', 0, 0, componentWidth, componentHeight);
+      pdf.save(`report-${Date.now()}.pdf`);
+
+      console.log('✅ PDF 내보내기 완료');
+    } catch (error) {
+      console.error('❌ PDF 내보내기 실패:', error);
+      alert('PDF 내보내기에 실패했습니다.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  /**
+   * Quill 에디터 툴바 설정
+   * - 기본 서식: 굵게, 기울임, 밑줄
+   * - 제목: H1, H2, H3
+   * - 목록: 번호 목록, 글머리 목록
+   * - 정리: 서식 제거
+   */
+  const modules = {
+    toolbar: [
+      ['bold', 'italic', 'underline'],
+      [{ header: [1, 2, 3, false] }],
+      [{ list: 'ordered' }, { list: 'bullet' }],
+      ['clean'],
+    ],
+  };
+
+  /**
+   * Quill 에디터 포맷 설정
+   * Note: 'bullet'은 format이 아니며, 'list' format이 toolbar의 { list: 'bullet' } 옵션을 통해 처리됨
+   */
+  const formats = [
+    'header',
+    'bold',
+    'italic',
+    'underline',
+    'list',
+  ];
+
+  return (
+    <div className="report-editor">
+      {/* 툴바: 편집 모드 토글 버튼 및 내보내기 버튼 */}
+      <div className="editor-toolbar">
+        <div className="export-buttons">
+          <button
+            className="export-button"
+            onClick={handleExportWord}
+            disabled={isExporting || !content}
+            type="button"
+            title="Word 문서로 다운로드"
+          >
+            📄 Word
+          </button>
+          <button
+            className="export-button"
+            onClick={handleExportPDF}
+            disabled={isExporting || !content}
+            type="button"
+            title="PDF 문서로 다운로드"
+          >
+            📋 PDF
+          </button>
+        </div>
+
+        <button
+          className={`edit-toggle-button ${isEditing ? 'edit-toggle-button--active' : ''}`}
+          onClick={toggleEditMode}
+          type="button"
+        >
+          {isExporting ? '내보내는 중...' : isEditing ? '✅ 편집 완료' : '✏️ 편집하기'}
+        </button>
+      </div>
+
+      {/* 편집 모드: Quill 에디터 */}
+      {isEditing ? (
+        <div className="editor-container">
+          <ReactQuill
+            value={content}
+            onChange={handleChange}
+            modules={modules}
+            formats={formats}
+            theme="snow"
+            placeholder="AI가 생성한 보고서를 입력하거나 편집하세요..."
+            style={{
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          />
+        </div>
+      ) : (
+        /* 뷰어 모드: HTML 렌더링 */
+        <div className="report-viewer">
+          {content ? (
+            <div
+              className="report-content"
+              dangerouslySetInnerHTML={{ __html: content }}
+            />
+          ) : (
+            <div className="report-empty">
+              <p>아직 보고서가 작성되지 않았습니다.</p>
+              <p>상단의 "✏️ 편집하기" 버튼을 눌러 보고서를 작성해주세요.</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

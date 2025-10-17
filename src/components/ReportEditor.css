@@ -1,0 +1,227 @@
+/* ReportEditor.css - 보고서 편집기 스타일 */
+
+.report-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* 툴바 */
+.editor-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: #f9fafb;
+  border-bottom: 2px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.export-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.export-button {
+  padding: 6px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.export-button:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.export-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.edit-toggle-button {
+  padding: 8px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.edit-toggle-button:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.edit-toggle-button--active {
+  background: #3b82f6;
+  color: #ffffff;
+  border-color: #3b82f6;
+}
+
+.edit-toggle-button--active:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+/* Quill 에디터 컨테이너 */
+.editor-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background: #ffffff;
+  border: 2px solid #3b82f6;
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 500px;
+}
+
+/* Quill 에디터 커스터마이징 */
+.editor-container .ql-toolbar {
+  background: #f3f4f6 !important;
+  border-bottom: 2px solid #e5e7eb !important;
+  padding: 12px !important;
+  flex-shrink: 0;
+  min-height: auto !important;
+  height: auto !important;
+  max-height: 80px !important;
+}
+
+.editor-container .ql-container {
+  font-size: 14px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
+  flex: 1;
+  background: #ffffff !important;
+  border: none !important;
+}
+
+.editor-container .ql-editor {
+  flex: 1;
+  padding: 20px;
+  font-size: 15px;
+  line-height: 1.8;
+  min-height: 400px;
+}
+
+.editor-container .ql-editor.ql-blank::before {
+  color: #9ca3af;
+  font-style: normal;
+}
+
+/* 뷰어 모드 */
+.report-viewer {
+  flex: 1;
+  padding: 24px;
+  background: #f9fafb;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  overflow-y: auto;
+  min-height: 500px;
+}
+
+.report-content {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #374151;
+}
+
+.report-content h1 {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: #111827;
+}
+
+.report-content h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  margin-top: 24px;
+  color: #1f2937;
+}
+
+.report-content h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  margin-top: 16px;
+  color: #374151;
+}
+
+.report-content p {
+  margin-bottom: 12px;
+}
+
+.report-content ul,
+.report-content ol {
+  margin-left: 24px;
+  margin-bottom: 12px;
+}
+
+.report-content li {
+  margin-bottom: 4px;
+}
+
+.report-content strong {
+  font-weight: 600;
+  color: #111827;
+}
+
+.report-content em {
+  font-style: italic;
+  color: #4b5563;
+}
+
+/* 빈 보고서 상태 */
+.report-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 350px;
+  color: #9ca3af;
+  text-align: center;
+}
+
+.report-empty p {
+  margin: 4px 0;
+  font-size: 14px;
+}
+
+.report-empty p:first-child {
+  font-weight: 500;
+  color: #6b7280;
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .report-editor {
+    padding: 12px;
+  }
+
+  .editor-container {
+    min-height: 300px;
+  }
+
+  .editor-container .ql-editor {
+    min-height: 250px;
+  }
+
+  .report-viewer {
+    min-height: 300px;
+    padding: 12px;
+  }
+}
