@@ -78,6 +78,7 @@ export const parseAIOutput = (
   const connections: ConnectionData[] = [];
   const noteContentToIdMap = new Map<string, string>();
   const pendingConnections: string[] = [];
+  let accumulatingConnection = '';
 
   // 2단계 파싱 방식: 메타데이터를 먼저 추출한 후 나머지 파싱
   // Step 1: 메타데이터 패턴 (역방향 매칭)
@@ -90,9 +91,30 @@ export const parseAIOutput = (
   lines.forEach((line, index) => {
     console.log(`🔍 라인 ${index + 1}: "${line}"`);
 
+    // 연결선 시작 감지
     if (line.startsWith('[연결]') || line.startsWith('[간접연결]')) {
-      console.log(`🔍 연결선으로 분류: ${line}`);
-      pendingConnections.push(line);
+      console.log(`🔍 연결선 시작: ${line}`);
+      // 이전에 누적된 연결선이 있으면 저장
+      if (accumulatingConnection) {
+        pendingConnections.push(accumulatingConnection);
+        console.log(`🔍 이전 연결선 저장: ${accumulatingConnection}`);
+      }
+      // 새 연결선 시작 (공백으로 이어붙일 준비)
+      accumulatingConnection = line.trim();
+      return;
+    }
+
+    // 연결선 누적 중인 경우
+    if (accumulatingConnection) {
+      accumulatingConnection += ' ' + line.trim();
+      console.log(`🔍 연결선 누적 중: ${accumulatingConnection}`);
+      
+      // 연결선 완성 조건: (직접) 또는 (간접) 또는 끝에 ]로 끝나는 경우
+      if (line.includes('(직접)') || line.includes('(간접)') || line.trim().endsWith(']')) {
+        pendingConnections.push(accumulatingConnection);
+        console.log(`🔍 연결선 완성: ${accumulatingConnection}`);
+        accumulatingConnection = '';
+      }
       return;
     }
 
@@ -191,6 +213,12 @@ export const parseAIOutput = (
       }
     }
   });
+
+  // 루프 종료 후 마지막 누적된 연결선 처리
+  if (accumulatingConnection) {
+    pendingConnections.push(accumulatingConnection);
+    console.log(`🔍 마지막 연결선 저장: ${accumulatingConnection}`);
+  }
 
   console.log(`🔍 최종 결과 - 생성된 노트 수: ${notes.length}`);
   console.log(`🔍 최종 결과 - 연결선 대기 수: ${pendingConnections.length}`);
