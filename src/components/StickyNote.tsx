@@ -47,24 +47,18 @@ const StickyNote = ({
 }: StickyNoteProps) => {
   const {
     id,
-    content,
-    layerIndex,
+    text,
     sentiment,
     position,
-    met
-    adata,
-    concept,
-    source,
-    category,
+    layer,
     perceptionIntensity,
+    basis,
   } = note;
-  const currentLayer = layerInfo[layerIndex] || layerInfo[0];
+  const currentLayer = layerInfo[layer - 1] || layerInfo[0];
 
   const [isEditMode, setIsEditMode] = useState(isEditing);
-  const [editContent, setEditContent] = useState(content);
-  const [editConcept, setEditConcept] = useState(concept || '');
-  const [editSource, setEditSource] = useState(source || '');
-  const [editCategory, setEditCategory] = useState(category || '');
+  const [editContent, setEditContent] = useState(text);
+  const [editBasis, setEditBasis] = useState(basis || '');
 
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -107,42 +101,14 @@ const StickyNote = ({
       console.log('편집 모드 진입:', {
         id,
         type: note.type,
-        content,
-        metadata,
-        concept,
-        source,
-        category,
+        text,
+        basis,
       });
 
-      setEditContent(content);
-
-      // metadata에서 개념, 출처, 분류 파싱
-      let conceptFromMeta = concept || '';
-      let sourceFromMeta = source || '';
-      let categoryFromMeta = category || '';
-
-      if (metadata && (note.type.startsWith('유형_레버') || note.type.startsWith('무형_레버'))) {
-        const parts = metadata.split(/,\s*(?=[^)]*(?:\(|$))/g);
-        parts.forEach(part => {
-          const [key, ...value] = part.split(':');
-          const keyTrimmed = key.trim();
-          const valueTrimmed = value.join(':').trim();
-
-          if (keyTrimmed === '개념') {
-            conceptFromMeta = valueTrimmed;
-          } else if (keyTrimmed === '출처') {
-            sourceFromMeta = valueTrimmed;
-          } else if (keyTrimmed === '분류') {
-            categoryFromMeta = valueTrimmed;
-          }
-        });
-      }
-
-      setEditConcept(conceptFromMeta);
-      setEditSource(sourceFromMeta);
-      setEditCategory(categoryFromMeta);
+      setEditContent(text);
+      setEditBasis(basis || '');
     }
-  }, [isEditMode, content, concept, source, category, metadata, note.type]);
+  }, [id, isEditMode, text, basis, note.type]);
 
   const handleNoteClick = () => {
     console.log('StickyNote 클릭됨:', { id, isConnecting, connectingNoteId });
@@ -159,40 +125,27 @@ const StickyNote = ({
   const handleSave = useCallback(() => {
     console.log(`[StickyNote ${id}] handleSave 호출:`, {
       editContent,
-      editConcept,
-      editSource,
-      editCategory,
+      editBasis,
     });
     const updates: Partial<NoteData> = {
-      content: editContent,
+      text: editContent,
     };
 
-    // 유형/무형 레버인 경우 추가 필드 업데이트
-    if (note.type.startsWith('유형_레버') || note.type.startsWith('무형_레버')) {
-      updates.concept = editConcept;
-      updates.source = editSource;
-      updates.category = editCategory;
-
-      // metadata도 함께 업데이트
-      const metadataParts = [];
-      if (editConcept) metadataParts.push(`개념: ${editConcept}`);
-      if (editSource) metadataParts.push(`출처: ${editSource}`);
-      if (editCategory) metadataParts.push(`분류: ${editCategory}`);
-      updates.metadata = metadataParts.join(', ');
+    // basis 필드가 있으면 업데이트
+    if (editBasis) {
+      updates.basis = editBasis;
     }
 
     onUpdate(id, updates);
     setIsEditMode(false);
-  }, [id, editContent, editConcept, editSource, editCategory, note.type, onUpdate]);
+  }, [id, editContent, editBasis, onUpdate]);
 
   const handleCancel = useCallback(() => {
     console.log(`[StickyNote ${id}] handleCancel 호출`);
-    setEditContent(content);
-    setEditConcept(concept || '');
-    setEditSource(source || '');
-    setEditCategory(category || '');
+    setEditContent(text);
+    setEditBasis(basis || '');
     setIsEditMode(false);
-  }, [id, content, concept, source, category]);
+  }, [id, text, basis]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -219,14 +172,13 @@ const StickyNote = ({
         // 내용이 실제로 변경되었을 때만 업데이트 (빈 내용도 허용)
         console.log(`🔍 [StickyNote ${id}] debouncedUpdate check:`, {
           newContent,
-          currentContent: content,
-          isDifferent: newContent !== content,
+          currentContent: text,
+          isDifferent: newContent !== text,
         });
 
-        if (newContent !== content) {
+        if (newContent !== text) {
           const updates: Partial<NoteData> = {
-            content: newContent,
-            text: newContent, // 호환성
+            text: newContent,
           };
 
           console.log(`📤 [StickyNote ${id}] Calling onUpdate with:`, updates);
@@ -234,7 +186,7 @@ const StickyNote = ({
         }
       }, 300); // 300ms 디바운싱으로 단축
     },
-    [id, content, onUpdate]
+    [id, text, onUpdate]
   );
 
   // 편집 내용 변경 시 실시간 동기화
@@ -242,11 +194,11 @@ const StickyNote = ({
     console.log(`🔍 [StickyNote ${id}] Edit content useEffect:`, {
       isEditMode,
       editContent,
-      content,
-      shouldUpdate: isEditMode && editContent !== content,
+      text,
+      shouldUpdate: isEditMode && editContent !== text,
     });
 
-    if (isEditMode && editContent !== content) {
+    if (isEditMode && editContent !== text) {
       console.log(`⏱️ [StickyNote ${id}] Calling debouncedUpdate with:`, editContent);
       debouncedUpdate(editContent);
     }
@@ -257,24 +209,17 @@ const StickyNote = ({
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [editContent, isEditMode, content, debouncedUpdate]);
+  }, [editContent, isEditMode, text, debouncedUpdate, id]);
 
   // 메타데이터를 파싱하여 렌더링하는 함수
   const renderMetadata = () => {
-    if (!metadata) return null;
-    // (개념: 조직 의례, 출처: Deal & Kennedy) -> ['개념: 조직 의례', '출처: Deal & Kennedy']
-    const parts = metadata.split(/,\s*(?=[^)]*(?:\(|$))/g);
+    if (!basis) return null;
     return (
       <div className="sticky-metadata">
-        {parts.map((part, index) => {
-          const [key, ...value] = part.split(':');
-          return (
-            <div key={index} className="metadata-item">
-              <span className="metadata-key">{key.trim()}:</span>
-              <span className="metadata-value">{value.join(':').trim()}</span>
-            </div>
-          );
-        })}
+        <div className="metadata-item">
+          <span className="metadata-key">이론적 근거:</span>
+          <span className="metadata-value">{basis}</span>
+        </div>
       </div>
     );
   };
@@ -290,7 +235,7 @@ const StickyNote = ({
         width: note.width,
         height: note.height,
         cursor: isEditMode ? 'text' : isConnecting ? 'crosshair' : 'grab',
-        zIndex: isSelected ? 1000 : note.layerIndex * 10 + 10,
+        zIndex: isSelected ? 1000 : (layer - 1) * 10 + 10,
         willChange: isSelected ? 'transform' : 'auto',
       }}
       onMouseDown={isEditMode ? e => e.stopPropagation() : onMouseDown}
@@ -338,53 +283,18 @@ const StickyNote = ({
             readOnly={false}
           />
 
-          {(() => {
-            const shouldShowFields =
-              note.type.startsWith('유형_레버') || note.type.startsWith('무형_레버');
-            console.log('편집 필드 표시 조건:', {
-              noteType: note.type,
-              shouldShowFields,
-              isEditMode,
-              editConcept,
-              editSource,
-              editCategory,
-            });
-            return shouldShowFields;
-          })() && (
+          {/* basis 필드가 있으면 편집 가능 */}
+          {basis !== undefined && (
             <div className="edit-fields">
               <div className="field-group">
-                <label className="field-label">개념</label>
+                <label className="field-label">이론적 근거</label>
                 <input
                   type="text"
-                  value={editConcept}
-                  onChange={e => setEditConcept(e.target.value)}
+                  value={editBasis}
+                  onChange={e => setEditBasis(e.target.value)}
                   onMouseDown={e => e.stopPropagation()}
                   onClick={e => e.stopPropagation()}
-                  placeholder="개념을 입력하세요"
-                  className="field-input"
-                />
-              </div>
-              <div className="field-group">
-                <label className="field-label">출처</label>
-                <input
-                  type="text"
-                  value={editSource}
-                  onChange={e => setEditSource(e.target.value)}
-                  onMouseDown={e => e.stopPropagation()}
-                  onClick={e => e.stopPropagation()}
-                  placeholder="출처를 입력하세요"
-                  className="field-input"
-                />
-              </div>
-              <div className="field-group">
-                <label className="field-label">분류</label>
-                <input
-                  type="text"
-                  value={editCategory}
-                  onChange={e => setEditCategory(e.target.value)}
-                  onMouseDown={e => e.stopPropagation()}
-                  onClick={e => e.stopPropagation()}
-                  placeholder="분류를 입력하세요"
+                  placeholder="이론적 근거를 입력하세요 (저자, 이론, 연도)"
                   className="field-input"
                 />
               </div>
@@ -410,7 +320,7 @@ const StickyNote = ({
         </div>
       ) : (
         <>
-          <div className="sticky-content" style={{ fontWeight: 700 }}>{content}</div>
+          <div className="sticky-content" style={{ fontWeight: 700 }}>{text}</div>
           {!isEditMode && renderMetadata()}
         </>
       )}
