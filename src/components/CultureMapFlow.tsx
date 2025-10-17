@@ -1175,7 +1175,7 @@ const CultureMapFlow = ({
       {/* 메인 React Flow 영역 */}
       <div 
         ref={flowWrapperRef} 
-        style={{ position: 'relative', flex: 1, minHeight: 0 }}
+        style={{ position: 'relative', flex: '1 1 0', overflow: 'hidden' }}
       >
         {/* 모바일 제스처 가이드 */}
         <MobileGestureGuide />
