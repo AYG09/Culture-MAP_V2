@@ -217,8 +217,7 @@ const StickyNote = ({
     return (
       <div className="sticky-metadata">
         <div className="metadata-item">
-          <span className="metadata-key">이론적 근거:</span>
-          <span className="metadata-value">{basis}</span>
+          <span className="metadata-value">({basis})</span>
         </div>
       </div>
     );
@@ -325,7 +324,15 @@ const StickyNote = ({
         </>
       )}
 
-      <div className="resize-handle" onMouseDown={onResizeStart}></div>
+      {/* 리사이즈 핸들 - 8방향 */}
+      <div className="resize-handle" onMouseDown={onResizeStart} data-direction="se"></div>
+      <div className="resize-handle-nw" onMouseDown={onResizeStart} data-direction="nw"></div>
+      <div className="resize-handle-ne" onMouseDown={onResizeStart} data-direction="ne"></div>
+      <div className="resize-handle-sw" onMouseDown={onResizeStart} data-direction="sw"></div>
+      <div className="resize-handle-n" onMouseDown={onResizeStart} data-direction="n"></div>
+      <div className="resize-handle-s" onMouseDown={onResizeStart} data-direction="s"></div>
+      <div className="resize-handle-e" onMouseDown={onResizeStart} data-direction="e"></div>
+      <div className="resize-handle-w" onMouseDown={onResizeStart} data-direction="w"></div>
     </div>
   );
 };

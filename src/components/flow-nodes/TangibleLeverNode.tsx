@@ -132,7 +132,7 @@ const TangibleLeverNode = ({ id, data, selected }: NodeProps & { data: TangibleL
       {(data.source || data.basis) && (
         <div className="node-footer">
           {data.source && <span className="source-tag">📚 {data.source}</span>}
-          {data.basis && <span className="basis-tag">💡 {data.basis}</span>}
+          {data.basis && <span className="basis-tag">({data.basis})</span>}
         </div>
       )}
 

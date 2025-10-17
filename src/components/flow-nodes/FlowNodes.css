@@ -100,11 +100,18 @@
 }
 
 .node-content {
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: clamp(14px, 1.5vw, 18px); /* 동적 크기 */
+  line-height: 1.4;
   color: #1f2937;
-  word-wrap: break-word;
+  word-break: keep-all; /* 단어 단위 줄바꿈 */
+  overflow-wrap: break-word; /* 긴 단어는 줄바꿈 */
   min-height: 40px;
+  text-align: center; /* 중앙 정렬 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600; /* 더 두껍게 */
+  padding: 8px;
 }
 
 .node-textarea {
@@ -128,19 +135,25 @@
 /* 노드 푸터 */
 .node-footer {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 8px;
+  flex-direction: column; /* 세로 배치로 변경 */
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08); /* 구분선 추가 */
 }
 
 .source-tag,
 .basis-tag {
-  font-size: 10px;
+  font-size: 11px;
   background: #f3f4f6;
   color: #6b7280;
-  padding: 2px 6px;
-  border-radius: 3px;
-  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: block; /* 전체 너비 사용 */
+  text-align: center; /* 중앙 정렬 */
+  word-break: keep-all; /* 단어 단위 줄바꿈 */
+  overflow-wrap: break-word;
+  line-height: 1.4;
 }
 
 .basis-tag {

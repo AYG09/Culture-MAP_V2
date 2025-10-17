@@ -155,7 +155,8 @@ export const parseAIOutput = (
           const author = authorMatch[1].trim();
           const theory = theoryMatch[1].trim();
           const year = yearMatch[1].trim();
-          basis = `저자: ${author}, 이론: ${theory}, 연도: ${year}`;
+          // 간결한 형식: (저자, 이론, 연도)
+          basis = `${author}, ${theory}, ${year}`;
         }
       }
 
