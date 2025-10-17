@@ -50,24 +50,36 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
         0.1  // padding
       );
 
-      const viewport = document.querySelector('.react-flow__viewport') as HTMLElement;
+      // 변경: viewport 대신 flowWrapperRef를 포함하는 부모 선택 (층위 배경 포함)
+      const captureElement = document.querySelector('[data-capture-root="true"]') as HTMLElement;
       
-      if (!viewport) {
-        throw new Error('React Flow viewport를 찾을 수 없습니다.');
+      if (!captureElement) {
+        throw new Error('캡처할 영역을 찾을 수 없습니다.');
       }
 
-      // PNG 이미지 생성
-      const dataUrl = await toPng(viewport, {
-        // MiniMap과 Controls는 이미지에서 제외
+      // PNG 이미지 생성 (고화질, Retina 디스플레이 지원)
+      const dataUrl = await toPng(captureElement, {
+        // 불필요한 UI 요소 제외 (MiniMap, Controls, 상단 바, 좌측 패널)
         filter: (node) => {
-          return (
-            !node?.classList?.contains('react-flow__minimap') &&
-            !node?.classList?.contains('react-flow__controls')
-          );
+          if (!node?.classList) return true;
+
+          // 제외할 클래스 목록
+          const excludeClasses = [
+            'react-flow__minimap',
+            'react-flow__controls',
+            'culture-top-bar',      // 상단 바 제외
+            'left-panel',           // 좌측 AI 패널 제외
+            'no-print',             // no-print 클래스 제외
+            'layer-legend',         // Panel 범례 제외 (선택적)
+          ];
+
+          return !excludeClasses.some(cls => node.classList.contains(cls));
         },
         backgroundColor: '#ffffff',
         width: imageWidth,
         height: imageHeight,
+        pixelRatio: 2,            // Retina 디스플레이 지원 (2배 해상도)
+        cacheBust: true,          // 캐시 문제 방지
         style: {
           transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.zoom})`,
         },
@@ -79,7 +91,7 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
       a.href = dataUrl;
       a.click();
 
-      console.log('✅ PNG 내보내기 완료');
+      console.log('✅ PNG 내보내기 완료 (고화질, 층위 배경 포함)');
     } catch (error) {
       console.error('❌ PNG 내보내기 실패:', error);
       setExportError('이미지 내보내기에 실패했습니다.');

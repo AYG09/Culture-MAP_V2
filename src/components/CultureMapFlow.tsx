@@ -45,8 +45,6 @@ import { parseAIOutput } from '../utils/parser';
 import FirebaseMultiUserService from '../services/FirebaseMultiUserService';
 import SessionInfoPanel from './SessionInfoPanel';
 
-const TOP_BAR_HEIGHT = 64;
-
 import './CultureMapFlow.css';
 
 interface CultureMapFlowProps {
@@ -1043,7 +1041,13 @@ const CultureMapFlow = ({
   console.log('🎨 [Render] contextMenu state:', contextMenu);
 
   return (
-    <div className="culture-map-flow-wrapper" style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
+    <div className="culture-map-flow-wrapper" style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      width: '100%', 
+      height: '100vh',  // 뷰포트 기준 고정 (아코디언 펼쳐도 높이 변하지 않음)
+      overflow: 'hidden' // 자식 요소가 부모를 넘치지 못하게
+    }}>
       {/* 상단 바 */}
       <div className="culture-top-bar no-print">
         <div className="top-bar-left">
@@ -1151,7 +1155,13 @@ const CultureMapFlow = ({
       </div>
       
       {/* 메인 컨텐츠 영역 */}
-      <div className="culture-map-flow-container" style={{ display: 'flex', width: '100%', flex: 1, minHeight: 0 }}>
+      <div className="culture-map-flow-container" style={{ 
+        display: 'flex', 
+        width: '100%', 
+        flex: 1, 
+        minHeight: 0,
+        overflow: 'hidden' // 자식(left-panel, flowWrapperRef)이 부모 높이 초과 방지
+      }}>
       
       {/* 컬쳐맵 탭 */}
       {activeTab === 'map' && (
@@ -1203,7 +1213,8 @@ const CultureMapFlow = ({
 
       {/* 메인 React Flow 영역 */}
       <div 
-        ref={flowWrapperRef} 
+        ref={flowWrapperRef}
+        data-capture-root="true"
         style={{ position: 'relative', flex: '1 1 0', overflow: 'hidden' }}
       >
         {/* 모바일 제스처 가이드 */}
@@ -1309,7 +1320,8 @@ const CultureMapFlow = ({
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
 
-  <Controls style={{ left: 16, top: TOP_BAR_HEIGHT + 16, bottom: 'auto' }} />
+        {/* Controls의 top 제거 - 기본 위치(top: 10px) 사용 */}
+        <Controls style={{ left: 16, bottom: 'auto' }} />
         <MiniMap
           nodeStrokeWidth={3}
           zoomable
