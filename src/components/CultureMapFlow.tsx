@@ -634,6 +634,13 @@ const CultureMapFlow = ({
   }, [nodes, edges, layerHeights, setNodes, setEdges]);
 
   // ============================================================================
+  // AI 일괄 생성 패널 열기
+  // ============================================================================
+  const handleOpenAiPanel = useCallback(() => {
+    setShowAiInput(true);
+  }, []);
+
+  // ============================================================================
   // 선택 변경 핸들러
   // ============================================================================
   const handleSelectionChange = useCallback((params: OnSelectionChangeParams) => {
@@ -1147,6 +1154,7 @@ const CultureMapFlow = ({
           reportContent={reportContent}
           onReportChange={setReportContent}
           onSwitchToReportTab={() => setActiveTab('report')}
+          onOpenAiPanel={handleOpenAiPanel}
         />
         
         {/* 리사이즈 핸들 */}
@@ -1481,20 +1489,6 @@ const CultureMapFlow = ({
             </label>
           </div>
           
-          <button
-            className="auto-layout-button"
-            onClick={handleAutoLayout}
-            title="자동 레이아웃 적용"
-          >
-            🔄 자동 정렬
-          </button>
-          <button
-            className="ai-generate-button"
-            onClick={() => setShowAiInput(!showAiInput)}
-            title="AI 일괄 생성"
-          >
-            🤖 AI 일괄 생성
-          </button>
           <div className="legend-item result">
             <span className="legend-badge">결과</span>
             <span>가시적 요소</span>
@@ -1591,6 +1585,15 @@ const CultureMapFlow = ({
                 }}
               >
                 🟣 무형 레버 (기본 가정)
+              </button>
+              <div className="context-menu-divider" />
+              <button
+                onClick={() => {
+                  handleAutoLayout();
+                  closeContextMenu();
+                }}
+              >
+                🔄 자동 정렬
               </button>
             </>
           )}

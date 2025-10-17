@@ -46,6 +46,7 @@ interface PromptGeneratorProps {
   reportContent?: string;
   onReportChange?: (content: string) => void;
   onSwitchToReportTab?: () => void;
+  onOpenAiPanel?: () => void;
 }
 
 const PromptGenerator: React.FC<PromptGeneratorProps> = ({ 
@@ -53,7 +54,8 @@ const PromptGenerator: React.FC<PromptGeneratorProps> = ({
   onGenerateMap,
   reportContent,
   onReportChange,
-  onSwitchToReportTab
+  onSwitchToReportTab,
+  onOpenAiPanel
 }) => {
   return (
     <ConsultingContextProvider>
@@ -63,6 +65,7 @@ const PromptGenerator: React.FC<PromptGeneratorProps> = ({
         reportContent={reportContent}
         onReportChange={onReportChange}
         onSwitchToReportTab={onSwitchToReportTab}
+        onOpenAiPanel={onOpenAiPanel}
       />
     </ConsultingContextProvider>
   );
@@ -71,7 +74,8 @@ const PromptGenerator: React.FC<PromptGeneratorProps> = ({
 const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({ 
   mode = 'workshop',
   onGenerateMap,
-  onSwitchToReportTab
+  onSwitchToReportTab,
+  onOpenAiPanel
 }) => {
   // ConsultingContext 사용
   const { toneAndManner, positivity, negativity, observationNote, koreanCulture } = useConsultingContext();
@@ -663,7 +667,7 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
               onClick={async () => {
                 if (!consultingPrompts.step2) return;
                 
-                const finalPrompt = buildPromptWithContext(consultingPrompts.step2);
+                const finalPrompt = generateContextualPrompt(consultingPrompts.step2);
                 
                 try {
                   await navigator.clipboard.writeText(finalPrompt);
@@ -718,14 +722,14 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
               <li>Step 2의 Gemini 분석 결과 복사</li>
               <li>아래 "프롬프트 복사" 버튼 클릭</li>
               <li>프롬프트를 <strong>Claude</strong>에 붙여넣기</li>
-              <li>생성된 컬처맵 데이터를 복사하여 "컬처 맵으로 이동" 버튼 클릭</li>
+              <li>생성된 컬처맵 데이터를 복사하여 "AI 일괄 생성 패널 열기" 버튼으로 입력</li>
             </ol>
             <button
               className="copy-prompt-btn"
               onClick={async () => {
                 if (!consultingPrompts.step3) return;
                 
-                const finalPrompt = buildPromptWithContext(consultingPrompts.step3);
+                const finalPrompt = generateContextualPrompt(consultingPrompts.step3);
                 
                 try {
                   await navigator.clipboard.writeText(finalPrompt);
@@ -756,15 +760,13 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
               📋 프롬프트 복사
             </button>
             
-            {onSwitchToReportTab && (
-              <button
-                className="switch-tab-btn"
-                onClick={onSwitchToReportTab}
-                style={{ marginTop: '10px' }}
-              >
-                🗺️ 컬처 맵으로 이동
-              </button>
-            )}
+            <button
+              className="ai-generate-btn"
+              onClick={() => onOpenAiPanel?.()}
+              style={{ marginTop: '10px' }}
+            >
+              🤖 AI 일괄 생성 패널 열기
+            </button>
           </Step>
 
           {/* Step 4: 조직문화 진단 */}
