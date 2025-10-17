@@ -3,11 +3,11 @@
 .report-editor {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px;
+  height: 100%;
   background: #ffffff;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
 }
 
 /* 툴바 */
@@ -15,8 +15,10 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 16px;
+  background: #f9fafb;
+  border-bottom: 2px solid #e5e7eb;
+  flex-shrink: 0;
 }
 
 .export-buttons {
@@ -76,33 +78,39 @@
 
 /* Quill 에디터 컨테이너 */
 .editor-container {
-  min-height: 400px;
-  height: 500px;
+  flex: 1;
   display: flex;
   flex-direction: column;
+  padding: 0;
+  background: #ffffff;
+  border: 2px solid #3b82f6;
+  border-radius: 8px;
   overflow: hidden;
+  min-height: 500px;
 }
 
 /* Quill 에디터 커스터마이징 */
+.editor-container .ql-toolbar {
+  background: #f3f4f6 !important;
+  border-bottom: 2px solid #e5e7eb !important;
+  padding: 12px !important;
+  flex-shrink: 0;
+}
+
 .editor-container .ql-container {
   font-size: 14px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
-  min-height: 350px;
-  height: 100%;
-  border-radius: 0 0 6px 6px;
   flex: 1;
-  overflow-y: auto;
-}
-
-.editor-container .ql-toolbar {
-  border-radius: 6px 6px 0 0;
-  background: #f9fafb;
+  background: #ffffff !important;
+  border: none !important;
 }
 
 .editor-container .ql-editor {
-  min-height: 350px;
-  height: 100%;
-  overflow-y: auto;
+  flex: 1;
+  padding: 20px;
+  font-size: 15px;
+  line-height: 1.8;
+  min-height: 400px;
 }
 
 .editor-container .ql-editor.ql-blank::before {
@@ -112,11 +120,13 @@
 
 /* 뷰어 모드 */
 .report-viewer {
-  min-height: 400px;
-  padding: 16px;
+  flex: 1;
+  padding: 24px;
   background: #f9fafb;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  overflow-y: auto;
+  min-height: 500px;
 }
 
 .report-content {

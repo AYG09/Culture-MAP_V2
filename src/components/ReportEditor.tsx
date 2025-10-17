@@ -168,6 +168,7 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
 
   /**
    * Quill 에디터 포맷 설정
+   * Note: 'bullet'은 format이 아니며, 'list' format이 toolbar의 { list: 'bullet' } 옵션을 통해 처리됨
    */
   const formats = [
     'header',
@@ -175,7 +176,6 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
     'italic',
     'underline',
     'list',
-    'bullet',
   ];
 
   return (
@@ -222,6 +222,11 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
             formats={formats}
             theme="snow"
             placeholder="AI가 생성한 보고서를 입력하거나 편집하세요..."
+            style={{
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
           />
         </div>
       ) : (
