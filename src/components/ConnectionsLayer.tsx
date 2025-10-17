@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import type { MouseEvent } from 'react';
 import type { ConnectionData } from '../App';
-import type { NoteData } from './StickyNote';
+import type { NoteData } from '../types/culture';
 import EditingIndicator from './EditingIndicator';
 
 interface ConnectionsLayerProps {
