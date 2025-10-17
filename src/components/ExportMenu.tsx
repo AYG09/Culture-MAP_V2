@@ -36,9 +36,11 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
     setExportError(null);
 
     try {
+      // 실제 노드 경계 기반 동적 크기 계산
       const nodesBounds = getNodesBounds(nodes);
-      const imageWidth = 1920;
-      const imageHeight = 1080;
+      const PADDING = 100; // 각 방향 100px 여백
+      const imageWidth = nodesBounds.width + PADDING * 2;
+      const imageHeight = nodesBounds.height + PADDING * 2;
 
       // 노드들이 이미지 중앙에 오도록 viewport 계산
       const transform = getViewportForBounds(
@@ -47,7 +49,7 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
         imageHeight,
         0.5, // minZoom
         2,   // maxZoom
-        0.1  // padding
+        PADDING / Math.max(imageWidth, imageHeight)  // 동적 padding 비율
       );
 
       // 변경: viewport 대신 flowWrapperRef를 포함하는 부모 선택 (층위 배경 포함)
@@ -57,7 +59,7 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
         throw new Error('캡처할 영역을 찾을 수 없습니다.');
       }
 
-      // PNG 이미지 생성 (고화질, Retina 디스플레이 지원)
+      // PNG 이미지 생성 (초고화질, 4K 디스플레이 지원)
       const dataUrl = await toPng(captureElement, {
         // 불필요한 UI 요소 제외 (MiniMap, Controls, 상단 바, 좌측 패널)
         filter: (node) => {
@@ -78,10 +80,13 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
         backgroundColor: '#ffffff',
         width: imageWidth,
         height: imageHeight,
-        pixelRatio: 2,            // Retina 디스플레이 지원 (2배 해상도)
+        pixelRatio: 4,            // 초고화질 (4배 해상도, 4K 디스플레이 최적화)
         cacheBust: true,          // 캐시 문제 방지
+        fontEmbedCSS: '',         // 폰트 임베딩 최적화 (볼드 처리 보장)
+        skipFonts: false,         // 폰트 정보 포함
         style: {
           transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.zoom})`,
+          fontWeight: '700',      // 볼드 명시적 적용
         },
       });
 
