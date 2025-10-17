@@ -67,9 +67,12 @@ export const parseAIOutput = (
   const noteContentToIdMap = new Map<string, string>();
   const pendingConnections: string[] = [];
 
-  // 정규식 단순화: 타입에 모든 문자를 허용
-  const nodeRegex =
-    /^\[(?<type>[^\]]+)\]\s*\((?<sentiment>[^)]+)\)\s*(?<content>.*?)\s*(?:\((?<metadata>(?:저자|이론|연도):.*?)\))?$/i;
+  // 2단계 파싱 방식: 메타데이터를 먼저 추출한 후 나머지 파싱
+  // Step 1: 메타데이터 패턴 (역방향 매칭)
+  const metadataPattern = /\(저자:\s*[^,)]+,\s*이론:\s*[^,)]+,\s*연도:\s*[^)]+\)$/;
+  
+  // Step 2: 메타데이터 제거 후 노드 파싱 (content가 greedy)
+  const nodeRegex = /^\[(?<type>[^\]]+)\]\s*\((?<sentiment>[^)]+)\)\s*(?<content>.+)$/i;
 
   // 1차: 모든 노드를 생성 (위치 계산은 나중에)
   lines.forEach((line, index) => {
@@ -81,11 +84,22 @@ export const parseAIOutput = (
       return;
     }
 
-    const nodeMatch = line.match(nodeRegex);
+    // 2단계 파싱: 메타데이터 먼저 추출
+    const metadataMatch = line.match(metadataPattern);
+    const extractedMetadata = metadataMatch ? metadataMatch[0] : null;
+    const lineWithoutMetadata = extractedMetadata 
+      ? line.replace(extractedMetadata, '').trim() 
+      : line;
+
+    console.log(`🔍 메타데이터 추출:`, extractedMetadata);
+    console.log(`🔍 메타데이터 제거 후:`, lineWithoutMetadata);
+
+    const nodeMatch = lineWithoutMetadata.match(nodeRegex);
     console.log(`🔍 정규식 매치 결과:`, nodeMatch);
 
     if (nodeMatch?.groups) {
-      const { type, sentiment, content, metadata } = nodeMatch.groups;
+      const { type, sentiment, content } = nodeMatch.groups;
+      const metadata = extractedMetadata;
 
       // 인식 강도 추출
       const perceptionIntensity = extractPerceptionIntensity(type);
@@ -142,6 +156,27 @@ export const parseAIOutput = (
 
       notes.push(newNote);
       noteContentToIdMap.set(trimmedContent, newNote.id);
+    } else {
+      // 파싱 실패 케이스 - 상세 로깅
+      if (process.env.NODE_ENV === 'development') {
+        const openBrackets = (line.match(/\[/g) || []).length;
+        const closeBrackets = (line.match(/\]/g) || []).length;
+        const openParens = (line.match(/\(/g) || []).length;
+        const closeParens = (line.match(/\)/g) || []).length;
+        const hasMetadata = line.includes('저자:') || line.includes('이론:') || line.includes('연도:');
+        
+        console.warn(`❌ [파싱 실패] 라인 ${index + 1}:`, {
+          line: line,
+          length: line.length,
+          brackets: { open: openBrackets, close: closeBrackets },
+          parenthesis: { open: openParens, close: closeParens },
+          hasMetadata: hasMetadata,
+          startsWithConnection: line.startsWith('[연결]') || line.startsWith('[간접연결]'),
+          lineWithoutMetadata: lineWithoutMetadata,
+        });
+      } else {
+        console.warn(`파싱 실패: 라인 ${index + 1}`);
+      }
     }
   });
 
