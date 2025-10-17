@@ -789,6 +789,28 @@ const DriveAnalysisPanel: React.FC<DriveAnalysisPanelProps> = ({
     }
   };
 
+  // PDF 보고서 다운로드
+  const handleDownloadPdf = async () => {
+    if (!workflowState.step4Data?.analysisResult) {
+      alert('분석 결과가 없습니다.');
+      return;
+    }
+
+    try {
+      const fileName = selectedFile
+        ? `조직문화_분석_${selectedFile.name.replace(/\.[^/.]+$/, '')}.pdf`
+        : '조직문화_분석_결과.pdf';
+
+      await driveAnalysisService.generateAndDownloadPdf(
+        workflowState.step4Data.analysisResult,
+        fileName
+      );
+    } catch (error) {
+      console.error('PDF 생성 실패:', error);
+      alert('PDF 보고서 생성에 실패했습니다.');
+    }
+  };
+
   // 특정 단계로 이동 (디버깅용)
   const moveToStage = (stage: WorkflowStage) => {
     setWorkflowState(prev => ({ ...prev, stage }));
@@ -1285,7 +1307,14 @@ const DriveAnalysisPanel: React.FC<DriveAnalysisPanelProps> = ({
                 onClick={handleDownloadDocx}
                 disabled={workflowState.isProcessing}
               >
-                📄 분석 보고서 다운로드
+                📄 Word로 저장
+              </button>
+              <button
+                className="download-pdf-btn"
+                onClick={handleDownloadPdf}
+                disabled={workflowState.isProcessing}
+              >
+                📑 PDF로 저장
               </button>
               <button className="new-analysis-btn" onClick={handleStartNewAnalysis}>
                 🚀 새 분석 시작

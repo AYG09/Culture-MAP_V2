@@ -46,8 +46,10 @@
   padding: 40px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
   width: 100%;
-  max-width: 400px;
+  max-width: 600px;
   text-align: center;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .gateway-header {
@@ -173,6 +175,67 @@
   color: #666;
   font-size: 0.9rem;
   margin: 0;
+}
+
+/* 프로그램 소개 섹션 */
+.gateway-intro-section {
+  margin-top: 30px;
+  padding-top: 30px;
+  border-top: 1px solid #e1e5e9;
+  text-align: left;
+}
+
+.intro-content h3 {
+  font-size: 1.3rem;
+  color: #333;
+  margin: 20px 0 12px 0;
+  font-weight: 600;
+}
+
+.intro-content h3:first-child {
+  margin-top: 0;
+}
+
+.intro-content p {
+  color: #555;
+  line-height: 1.6;
+  margin: 10px 0;
+  font-size: 0.95rem;
+}
+
+.intro-content ul,
+.intro-content ol {
+  color: #555;
+  line-height: 1.8;
+  margin: 12px 0;
+  padding-left: 24px;
+}
+
+.intro-content li {
+  margin: 8px 0;
+  font-size: 0.95rem;
+}
+
+.intro-content li strong {
+  color: #667eea;
+  font-weight: 600;
+}
+
+.intro-footer {
+  background: #f8f9fa;
+  padding: 16px;
+  border-radius: 10px;
+  margin-top: 20px;
+}
+
+.intro-footer p {
+  margin: 0;
+  color: #333;
+  font-size: 0.95rem;
+}
+
+.intro-footer strong {
+  color: #667eea;
 }
 
 /* 인증된 상태 */

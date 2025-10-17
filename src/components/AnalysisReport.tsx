@@ -37,22 +37,48 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({ reportData }) => {
       return;
     }
 
+    // A4 크기 설정 (mm 단위)
+    const a4Width = 210; // mm
+    const a4Height = 297; // mm
+    const margin = 15; // mm
+    const contentWidth = a4Width - margin * 2;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     html2canvas(
       reportContentElement as HTMLElement,
-      { scale: 2, window: window, useCORS: true } as any
+      { 
+        scale: 2, 
+        window: window, 
+        useCORS: true,
+        logging: false,
+        allowTaint: true
+      } as any
     ).then(canvas => {
-      const componentWidth = reportContentElement.scrollWidth;
-      const componentHeight = reportContentElement.scrollHeight;
-
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({
         orientation: 'p',
-        unit: 'px',
-        format: [componentWidth, componentHeight],
+        unit: 'mm',
+        format: 'a4',
       });
 
-      pdf.addImage(imgData, 'PNG', 0, 0, componentWidth, componentHeight);
+      const imgWidth = contentWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const pageHeight = a4Height - margin * 2;
+      let heightLeft = imgHeight;
+      let position = margin;
+
+      // 첫 페이지
+      pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      // 페이지가 넘어가는 경우 처리
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight + margin;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
       pdf.save('조직문화_분석보고서.pdf');
     });
   };
@@ -78,37 +104,89 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({ reportData }) => {
               text: element.content,
               heading: headingLevel,
               alignment: element.level === 1 ? AlignmentType.CENTER : AlignmentType.START,
+              spacing: {
+                after: 200,
+              },
             });
           }
-          case 'paragraph':
-            return new Paragraph({
-              children: element.content.map(
-                inline =>
-                  new TextRun({
-                    text: inline.content,
-                    bold: inline.type === 'bold',
-                  })
-              ),
+          case 'paragraph': {
+            // 텍스트를 줄바꿈 기준으로 분리
+            const lines: string[] = [];
+            element.content.forEach(inline => {
+              const splitLines = inline.content.split('\n');
+              splitLines.forEach((line, idx) => {
+                if (idx > 0) {
+                  lines.push('\n'); // 줄바꿈 마커
+                }
+                if (line) {
+                  lines.push(line);
+                }
+              });
             });
 
+            // 줄바꿈을 포함한 TextRun 배열 생성
+            const textRuns: TextRun[] = [];
+            lines.forEach(line => {
+              if (line === '\n') {
+                textRuns.push(new TextRun({ break: 1 }));
+              } else {
+                const matchingInline = element.content.find(inline => inline.content.includes(line));
+                textRuns.push(
+                  new TextRun({
+                    text: line,
+                    bold: matchingInline?.type === 'bold',
+                  })
+                );
+              }
+            });
+
+            return new Paragraph({
+              children: textRuns,
+              spacing: {
+                after: 120,
+                line: 276, // 1.15 line spacing (276/240)
+              },
+            });
+          }
+
           case 'list':
-            return element.items.map(
-              item =>
-                new Paragraph({
-                  children: item.content.map(
-                    inline =>
+            return element.items.map(item => {
+              // 리스트 아이템도 줄바꿈 처리
+              const textRuns: TextRun[] = [];
+              item.content.forEach(inline => {
+                const lines = inline.content.split('\n');
+                lines.forEach((line, idx) => {
+                  if (idx > 0) {
+                    textRuns.push(new TextRun({ break: 1 }));
+                  }
+                  if (line) {
+                    textRuns.push(
                       new TextRun({
-                        text: inline.content,
+                        text: line,
                         bold: inline.type === 'bold',
                       })
-                  ),
-                  bullet: { level: 0 },
-                })
-            );
+                    );
+                  }
+                });
+              });
+
+              return new Paragraph({
+                children: textRuns,
+                bullet: { level: 0 },
+                spacing: {
+                  after: 100,
+                  line: 276,
+                },
+              });
+            });
 
           case 'thematicBreak':
             return new Paragraph({
               thematicBreak: true,
+              spacing: {
+                before: 120,
+                after: 120,
+              },
             });
 
           default:
@@ -119,7 +197,21 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({ reportData }) => {
       const doc = new Document({
         sections: [
           {
-            properties: {},
+            properties: {
+              page: {
+                // A4 크기 설정
+                size: {
+                  width: 11906, // 210mm in twips
+                  height: 16838, // 297mm in twips
+                },
+                margin: {
+                  top: 1440, // 1 inch = 25.4mm
+                  right: 1440,
+                  bottom: 1440,
+                  left: 1440,
+                },
+              },
+            },
             children: docxElements,
           },
         ],
@@ -131,8 +223,19 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({ reportData }) => {
               basedOn: 'Normal',
               next: 'Normal',
               quickFormat: true,
-              run: { size: 48, bold: true, color: '000000' },
-              paragraph: { spacing: { after: 240 } },
+              run: { 
+                size: 32, // 16pt
+                bold: true, 
+                color: '000000',
+                font: '맑은 고딕'
+              },
+              paragraph: { 
+                spacing: { 
+                  before: 240,
+                  after: 240,
+                  line: 360,
+                } 
+              },
             },
             {
               id: 'Heading2',
@@ -140,8 +243,19 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({ reportData }) => {
               basedOn: 'Normal',
               next: 'Normal',
               quickFormat: true,
-              run: { size: 36, bold: true, color: '00205B' },
-              paragraph: { spacing: { after: 240 } },
+              run: { 
+                size: 28, // 14pt
+                bold: true, 
+                color: '00205B',
+                font: '맑은 고딕'
+              },
+              paragraph: { 
+                spacing: { 
+                  before: 200,
+                  after: 200,
+                  line: 320,
+                } 
+              },
             },
             {
               id: 'Heading3',
@@ -149,8 +263,32 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({ reportData }) => {
               basedOn: 'Normal',
               next: 'Normal',
               quickFormat: true,
-              run: { size: 28, bold: true, color: '1f3b6d' },
-              paragraph: { spacing: { after: 240 } },
+              run: { 
+                size: 24, // 12pt
+                bold: true, 
+                color: '1f3b6d',
+                font: '맑은 고딕'
+              },
+              paragraph: { 
+                spacing: { 
+                  before: 160,
+                  after: 160,
+                  line: 300,
+                } 
+              },
+            },
+            {
+              id: 'Normal',
+              name: 'Normal',
+              run: {
+                size: 22, // 11pt
+                font: '맑은 고딕',
+              },
+              paragraph: {
+                spacing: {
+                  line: 276, // 1.15 line spacing
+                },
+              },
             },
           ],
         },

@@ -414,8 +414,342 @@ class DriveAnalysisService {
     }
   }
 
-  async generateAndDownloadDocx(): Promise<void> {
-    // DOCX 생성 로직은 유지
+  async generateAndDownloadDocx(
+    analysisResult: FourLayerAnalysisResult,
+    fileName: string = '조직문화_분석_결과.docx'
+  ): Promise<void> {
+    try {
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = await import(
+        'docx'
+      );
+      const { saveAs } = await import('file-saver');
+
+      const paragraphs: any[] = [];
+
+      // 제목
+      paragraphs.push(
+        new Paragraph({
+          text: '조직문화 분석 보고서',
+          heading: HeadingLevel.HEADING_1,
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 400 },
+        })
+      );
+
+      // 각 섹션 추가
+      const sections = [
+        { title: '1. 가시적 요소 (Artifacts)', data: analysisResult.artifacts },
+        { title: '2. 행동 패턴 (Behaviors)', data: analysisResult.behaviors },
+        { title: '3. 규범과 가치 (Norms & Values)', data: analysisResult.norms_values },
+        { title: '4. 기본 가정 (Basic Assumptions)', data: analysisResult.assumptions },
+        { title: '5. 인사이트', data: analysisResult.insights },
+      ];
+
+      sections.forEach(section => {
+        // 섹션 제목
+        paragraphs.push(
+          new Paragraph({
+            text: section.title,
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 300, after: 200 },
+          })
+        );
+
+        // 섹션 내용
+        if (section.data && typeof section.data === 'object') {
+          Object.entries(section.data).forEach(([key, values]) => {
+            if (Array.isArray(values) && values.length > 0) {
+              // 하위 제목
+              paragraphs.push(
+                new Paragraph({
+                  text: key.replace(/_/g, ' ').toUpperCase(),
+                  heading: HeadingLevel.HEADING_3,
+                  spacing: { before: 200, after: 120 },
+                })
+              );
+
+              // 항목들
+              values.forEach((item: any) => {
+                const text = typeof item === 'string' ? item : JSON.stringify(item);
+                const lines = text.split('\n');
+
+                lines.forEach((line, idx) => {
+                  if (idx === 0) {
+                    paragraphs.push(
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: `• ${line}`,
+                          }),
+                        ],
+                        spacing: { after: 100, line: 276 },
+                      })
+                    );
+                  } else if (line.trim()) {
+                    paragraphs.push(
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: `  ${line}`,
+                          }),
+                        ],
+                        spacing: { after: 100, line: 276 },
+                      })
+                    );
+                  }
+                });
+              });
+            }
+          });
+        }
+      });
+
+      // 학술 참고문헌
+      if (analysisResult.academic_references && analysisResult.academic_references.length > 0) {
+        paragraphs.push(
+          new Paragraph({
+            text: '학술 참고문헌',
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 300, after: 200 },
+          })
+        );
+
+        analysisResult.academic_references.forEach((ref: any) => {
+          const refText =
+            typeof ref === 'string' ? ref : `${ref.author} (${ref.year}). ${ref.title}`;
+          paragraphs.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `• ${refText}`,
+                }),
+              ],
+              spacing: { after: 100, line: 276 },
+            })
+          );
+        });
+      }
+
+      // 문서 생성
+      const doc = new Document({
+        sections: [
+          {
+            properties: {
+              page: {
+                size: {
+                  width: 11906, // A4: 210mm
+                  height: 16838, // A4: 297mm
+                },
+                margin: {
+                  top: 1440, // 1 inch
+                  right: 1440,
+                  bottom: 1440,
+                  left: 1440,
+                },
+              },
+            },
+            children: paragraphs,
+          },
+        ],
+        styles: {
+          paragraphStyles: [
+            {
+              id: 'Heading1',
+              name: 'Heading 1',
+              basedOn: 'Normal',
+              next: 'Normal',
+              quickFormat: true,
+              run: {
+                size: 32, // 16pt
+                bold: true,
+                color: '000000',
+                font: '맑은 고딕',
+              },
+              paragraph: {
+                spacing: {
+                  before: 240,
+                  after: 240,
+                  line: 360,
+                },
+              },
+            },
+            {
+              id: 'Heading2',
+              name: 'Heading 2',
+              basedOn: 'Normal',
+              next: 'Normal',
+              quickFormat: true,
+              run: {
+                size: 28, // 14pt
+                bold: true,
+                color: '00205B',
+                font: '맑은 고딕',
+              },
+              paragraph: {
+                spacing: {
+                  before: 200,
+                  after: 200,
+                  line: 320,
+                },
+              },
+            },
+            {
+              id: 'Heading3',
+              name: 'Heading 3',
+              basedOn: 'Normal',
+              next: 'Normal',
+              quickFormat: true,
+              run: {
+                size: 24, // 12pt
+                bold: true,
+                color: '1f3b6d',
+                font: '맑은 고딕',
+              },
+              paragraph: {
+                spacing: {
+                  before: 160,
+                  after: 160,
+                  line: 300,
+                },
+              },
+            },
+            {
+              id: 'Normal',
+              name: 'Normal',
+              run: {
+                size: 22, // 11pt
+                font: '맑은 고딕',
+              },
+              paragraph: {
+                spacing: {
+                  line: 276, // 1.15 line spacing
+                },
+              },
+            },
+          ],
+        },
+      });
+
+      const blob = await Packer.toBlob(doc);
+      saveAs(blob, fileName);
+      console.log(`✅ DOCX 파일 다운로드: ${fileName}`);
+    } catch (error) {
+      console.error('❌ DOCX 생성 실패:', error);
+      throw error;
+    }
+  }
+
+  async generateAndDownloadPdf(
+    analysisResult: FourLayerAnalysisResult,
+    fileName: string = '조직문화_분석_결과.pdf'
+  ): Promise<void> {
+    try {
+      const jsPDF = (await import('jspdf')).default;
+      const html2canvas = (await import('html2canvas')).default;
+
+      // 임시 HTML 요소 생성
+      const tempDiv = document.createElement('div');
+      tempDiv.style.position = 'absolute';
+      tempDiv.style.left = '-9999px';
+      tempDiv.style.width = '800px';
+      tempDiv.style.padding = '40px';
+      tempDiv.style.backgroundColor = 'white';
+      tempDiv.style.fontFamily = '맑은 고딕, sans-serif';
+
+      // HTML 내용 구성
+      let htmlContent = '<h1 style="text-align: center; margin-bottom: 30px;">조직문화 분석 보고서</h1>';
+
+      const sections = [
+        { title: '1. 가시적 요소 (Artifacts)', data: analysisResult.artifacts },
+        { title: '2. 행동 패턴 (Behaviors)', data: analysisResult.behaviors },
+        { title: '3. 규범과 가치 (Norms & Values)', data: analysisResult.norms_values },
+        { title: '4. 기본 가정 (Basic Assumptions)', data: analysisResult.assumptions },
+        { title: '5. 인사이트', data: analysisResult.insights },
+      ];
+
+      sections.forEach(section => {
+        htmlContent += `<h2 style="margin-top: 25px; margin-bottom: 15px; color: #00205B;">${section.title}</h2>`;
+
+        if (section.data && typeof section.data === 'object') {
+          Object.entries(section.data).forEach(([key, values]) => {
+            if (Array.isArray(values) && values.length > 0) {
+              htmlContent += `<h3 style="margin-top: 15px; margin-bottom: 10px; color: #1f3b6d;">${key
+                .replace(/_/g, ' ')
+                .toUpperCase()}</h3>`;
+              htmlContent += '<ul style="margin-left: 20px; line-height: 1.6;">';
+              values.forEach((item: any) => {
+                const text = typeof item === 'string' ? item : JSON.stringify(item);
+                htmlContent += `<li style="margin-bottom: 8px;">${text.replace(/\n/g, '<br/>')}</li>`;
+              });
+              htmlContent += '</ul>';
+            }
+          });
+        }
+      });
+
+      // 학술 참고문헌
+      if (analysisResult.academic_references && analysisResult.academic_references.length > 0) {
+        htmlContent += `<h2 style="margin-top: 25px; margin-bottom: 15px; color: #00205B;">학술 참고문헌</h2>`;
+        htmlContent += '<ul style="margin-left: 20px; line-height: 1.6;">';
+        analysisResult.academic_references.forEach((ref: any) => {
+          const refText =
+            typeof ref === 'string' ? ref : `${ref.author} (${ref.year}). ${ref.title}`;
+          htmlContent += `<li style="margin-bottom: 8px;">${refText}</li>`;
+        });
+        htmlContent += '</ul>';
+      }
+
+      tempDiv.innerHTML = htmlContent;
+      document.body.appendChild(tempDiv);
+
+      // A4 크기 설정
+      const a4Width = 210; // mm
+      const a4Height = 297; // mm
+      const margin = 15; // mm
+      const contentWidth = a4Width - margin * 2;
+
+      // HTML을 캔버스로 변환
+      const canvas = await html2canvas(tempDiv, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        allowTaint: true,
+      });
+
+      document.body.removeChild(tempDiv);
+
+      // PDF 생성
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      const imgWidth = contentWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const pageHeight = a4Height - margin * 2;
+      let heightLeft = imgHeight;
+      let position = margin;
+
+      // 첫 페이지
+      pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      // 페이지가 넘어가는 경우 처리
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight + margin;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(fileName);
+      console.log(`✅ PDF 파일 다운로드: ${fileName}`);
+    } catch (error) {
+      console.error('❌ PDF 생성 실패:', error);
+      throw error;
+    }
   }
 }
 

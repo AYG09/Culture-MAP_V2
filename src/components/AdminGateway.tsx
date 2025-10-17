@@ -75,13 +75,20 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
 
   // 세션 삭제
   const handleDeleteSession = async (code: string) => {
-    if (!window.confirm(`세션 "${code}"를 삭제하시겠습니까?`)) {
+    if (!window.confirm(`세션 "${code}"를 삭제하시겠습니까?\n(해당 세션의 비밀번호도 함께 삭제됩니다)`)) {
       return;
     }
 
     try {
+      // 1. 세션 코드와 연결된 비밀번호 먼저 삭제
+      await gatewayAdminService.deletePasswordBySessionCode(code);
+      
+      // 2. 세션 삭제
       await FirebaseMultiUserService.deleteSession(code);
-      await loadSessions();  // 목록 새로고침
+      
+      // 3. 목록 새로고침
+      await loadSessions();
+      await loadPasswords();
     } catch (err) {
       setError(err instanceof Error ? err.message : '세션 삭제에 실패했습니다.');
     }

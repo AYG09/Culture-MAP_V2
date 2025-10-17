@@ -195,6 +195,63 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
               🔒 보안된 시스템입니다. 접근 권한이 있는 비밀번호를 입력해주세요.
             </p>
           </div>
+
+          {/* 프로그램 소개 섹션 */}
+          <div className="gateway-intro-section">
+            <div className="intro-content">
+              <h3>🎯 조직문화 분석기란?</h3>
+              <p>
+                <strong>Dave Gray-Schein 4층위 조직문화 모델</strong>을 기반으로 한 전문적인
+                조직문화 분석 도구입니다. 조직의 결과, 행동, 유형적/무형적 요인들을 시각화하여
+                문화의 근본 동인을 파악할 수 있습니다.
+              </p>
+
+              <h3>📋 주요 기능</h3>
+              <ul>
+                <li>
+                  <strong>컬쳐맵 생성:</strong> AI 분석을 통한 조직문화 요소들의 연결관계 시각화
+                </li>
+                <li>
+                  <strong>워크샵 모드:</strong> 포스트잇 사진 분석으로 실시간 컬쳐맵 생성
+                </li>
+                <li>
+                  <strong>프로페셜 모드:</strong> 단계별 심층 분석 프로세스
+                </li>
+                <li>
+                  <strong>인터랙티브 편집:</strong> 드래그&드롭으로 자유로운 맵 편집
+                </li>
+                <li>
+                  <strong>보고서 생성:</strong> 분석 결과를 전문적인 리포트로 출력
+                </li>
+              </ul>
+
+              <h3>🚀 활용 방식</h3>
+              <ol>
+                <li>
+                  <strong>데이터 수집:</strong> 조직문화 워크샵, 인터뷰, 설문조사 등
+                </li>
+                <li>
+                  <strong>AI 분석:</strong> 프롬프트 생성기로 LLM에 분석 요청
+                </li>
+                <li>
+                  <strong>맵 생성:</strong> AI 결과를 붙여넣어 컬쳐맵 자동 생성
+                </li>
+                <li>
+                  <strong>맵 편집:</strong> 필요시 노드/연결선 추가, 수정, 삭제
+                </li>
+                <li>
+                  <strong>보고서:</strong> 완성된 맵을 기반으로 전문 보고서 생성
+                </li>
+              </ol>
+
+              <div className="intro-footer">
+                <p>
+                  💡 <strong>Tip:</strong> 워크샵 모드에서 포스트잇 사진을 AI에게 보내면 즉시
+                  컬쳐맵을 생성할 수 있습니다!
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );

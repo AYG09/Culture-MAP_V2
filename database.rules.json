@@ -9,16 +9,20 @@
         ".indexOn": ["sessionCode", "status", "type"]
       },
       "sessions": {
-        ".indexOn": ["isActive", "passwordId"]
+        ".indexOn": ["isActive", "passwordId", "createdAt"]
       }
     },
     "sessions": {
       ".read": true,
       ".write": true,
-      ".indexOn": ["lastActivity", "createdAt"],
+      ".indexOn": ["lastActivity", "createdAt", "host"],
       "$sessionCode": {
         ".indexOn": ["host", "createdAt", "lastActivity"]
       }
+    },
+    "metadata": {
+      ".read": true,
+      ".write": true
     }
   }
 }
