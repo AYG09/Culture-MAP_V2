@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { promptLoader } from '../utils/promptLoader';
-import { parseAIOutput } from '../utils/parser';
 import type { NoteData, ConnectionData } from '../types/culture';
 import { ConsultingContextProvider } from '../contexts/ConsultingContext';
 import { useConsultingContext } from '../contexts/useConsultingContext';
@@ -155,7 +154,6 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
     return prompt;
   };
   
-  const [analysisInput, setAnalysisInput] = useState('');
   const [openStep, setOpenStep] = useState<number>(0);
   const [workshopPrompt, setWorkshopPrompt] = useState<string>('');
   const [comprehensiveAnalysisPrompt, setComprehensiveAnalysisPrompt] = useState<string>('');
@@ -335,8 +333,6 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
     }
   };
 
-  const isStep0Completed = !!analysisInput;
-
   return (
       <div className="prompt-generator">
         {/* 모드별 헤더 */}
@@ -428,7 +424,7 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
           title="포스트잇 사진 분석"
           isOpen={openStep === 0}
           onToggle={() => setOpenStep(openStep === 0 ? -1 : 0)}
-          isCompleted={isStep0Completed}
+          isCompleted={false}
         >
           <p>
             워크샵에서 참여자들이 만든 <strong>결과-행동 포스트잇 사진</strong>을 AI에게 분석
@@ -458,47 +454,24 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
           title="컬처 맵 그리기"
           isOpen={openStep === 1}
           onToggle={() => setOpenStep(openStep === 1 ? -1 : 1)}
-          isCompleted={!!analysisInput}
+          isCompleted={false}
         >
-          <p>AI가 생성한 Culture Map 텍스트를 아래에 붙여넣고 '컬처맵 생성하기' 버튼을 누르세요.</p>
+          <p>AI가 생성한 Culture Map 텍스트를 아래 버튼을 눌러 입력하세요.</p>
 
-          <textarea
-            value={analysisInput}
-            onChange={e => setAnalysisInput(e.target.value)}
-            placeholder="여기에 AI가 생성한 Culture Map 텍스트를 붙여넣으세요...
-
-(예시)
-[결과] (긍정) 프로젝트 성공률 향상
-[행동] (부정) 보고 절차가 복잡하다
-[유형_레버] (부정) 다단계 승인 구조 (저자: 막스 베버, 이론: 계층제 이론, 연도: 1922)
-[연결] [유형_레버] (부정) 다단계 승인 구조 → [행동] (부정) 보고 절차가 복잡하다 (직접)"
-            rows={10}
-            className="analysis-textarea"
-          />
+          <div className="workshop-instructions">
+            <h4>사용 방법</h4>
+            <ol>
+              <li>Step 0에서 AI가 생성한 Culture Map 텍스트를 복사하세요</li>
+              <li>아래 "AI 일괄 생성" 버튼을 클릭하세요</li>
+              <li>팝업창에 텍스트를 붙여넣고 생성하세요</li>
+            </ol>
+          </div>
 
           <button
-            onClick={() => {
-              if (!analysisInput.trim()) {
-                alert('분석 결과 텍스트를 먼저 입력해주세요.');
-                return;
-              }
-
-              try {
-                const parsedData = parseAIOutput(analysisInput);
-                if (parsedData.notes.length === 0) {
-                  alert('분석 결과에서 유효한 데이터를 찾을 수 없습니다.');
-                  return;
-                }
-                onGenerateMap(parsedData);
-              } catch (error) {
-                console.error('분석 결과 파싱 오류:', error);
-                alert('분석 결과 처리 중 오류가 발생했습니다.');
-              }
-            }}
-            disabled={!analysisInput}
+            onClick={() => onOpenAiPanel?.()}
             className="btn-primary"
           >
-            📊 컬처맵 생성하기
+            🤖 AI 일괄 생성
           </button>
         </Step>
 
@@ -547,60 +520,16 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
           </div>
 
           <button
-            onClick={() => handleCopyPrompt(comprehensiveAnalysisPrompt, '종합 분석')}
+            onClick={async () => {
+              await handleCopyPrompt(comprehensiveAnalysisPrompt, '종합 분석');
+              setTimeout(() => {
+                onSwitchToReportTab?.();
+              }, 500);
+            }}
             className="btn-primary"
           >
-            📊 종합 분석 프롬프트 복사
+            📊 종합 분석 프롬프트 복사 → 보고서 탭
           </button>
-        </Step>
-
-        {/* AI 보고서 입력 */}
-        <Step
-          stepNumber={3}
-          title="📝 AI 보고서 입력"
-          isOpen={openStep === 3}
-          onToggle={() => setOpenStep(openStep === 3 ? -1 : 3)}
-          isCompleted={!!analysisInput}
-        >
-          <div className="step-description">
-            <p>
-              AI가 생성한 <strong>종합 분석 보고서</strong>를 아래 텍스트 영역에 붙여넣으세요.
-            </p>
-          </div>
-
-          <div className="input-section">
-            <textarea
-              value={analysisInput}
-              onChange={(e) => setAnalysisInput(e.target.value)}
-              placeholder="AI가 생성한 종합 분석 보고서를 여기에 붙여넣으세요..."
-              rows={15}
-              style={{
-                width: '100%',
-                padding: '12px',
-                borderRadius: '8px',
-                border: '1px solid #e5e7eb',
-                fontFamily: 'inherit',
-                fontSize: '14px',
-                lineHeight: '1.6',
-                resize: 'vertical',
-              }}
-            />
-          </div>
-
-          {analysisInput && (
-            <button
-              onClick={() => {
-                // AI 보고서 내용을 보고서 에디터로 전달
-                onReportChange?.(analysisInput);
-                // 보고서 탭으로 전환
-                onSwitchToReportTab?.();
-              }}
-              className="btn-primary"
-              style={{ marginTop: '16px' }}
-            >
-              📄 보고서 탭으로 이동
-            </button>
-          )}
         </Step>
       </div>
       )}
@@ -888,11 +817,11 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
       <div className="workshop-mode">
         {/* 이론적 배경 */}
         <Step
-          stepNumber={mode === 'consulting' ? 6 : 4}
+          stepNumber={mode === 'consulting' ? 6 : 3}
           title="📖 이론적 배경"
-          isOpen={openStep === (mode === 'consulting' ? 6 : 4)}
+          isOpen={openStep === (mode === 'consulting' ? 6 : 3)}
           onToggle={() => {
-            const stepNum = mode === 'consulting' ? 6 : 4;
+            const stepNum = mode === 'consulting' ? 6 : 3;
             setOpenStep(openStep === stepNum ? -1 : stepNum);
           }}
           isCompleted={false}

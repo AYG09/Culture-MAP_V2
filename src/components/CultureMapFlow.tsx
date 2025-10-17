@@ -1292,7 +1292,7 @@ const CultureMapFlow = ({
         defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
         proOptions={{ hideAttribution: true }}
         // 모바일 터치 최적화
-        panOnDrag={[1]} // 마우스 중간 버튼으로만 팬 (우클릭은 컨텍스트 메뉴용으로 유지)
+        panOnDrag={[1, 2]} // 마우스 중간 버튼 또는 우클릭으로 팬 (onPaneContextMenu와 독립적으로 동작)
         panOnScroll={false}
         zoomOnScroll={true}
         zoomOnPinch={true}
