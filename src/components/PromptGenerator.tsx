@@ -4,7 +4,6 @@ import { parseAIOutput } from '../utils/parser';
 import type { NoteData, ConnectionData } from '../types/culture';
 import { ConsultingContextProvider } from '../contexts/ConsultingContext';
 import { useConsultingContext } from '../contexts/useConsultingContext';
-import ConsultingContextPanel from './ConsultingContextPanel';
 import CheckboxPopupModal, { type CheckboxItem } from './CheckboxPopupModal';
 import './PromptGenerator.css';
 
@@ -748,16 +747,10 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
               Step 1에서 추출한 핵심 데이터를 <strong>Gemini</strong>에 입력하여 1차 분석을 진행합니다.
             </p>
             
-            {/* ConsultingContextPanel 통합 */}
-            <div className="context-panel-section">
-              <h4>📝 컨설팅 컨텍스트 입력</h4>
-              <p>프롬프트에 포함될 인터뷰 맥락 정보를 입력하세요. (선택사항)</p>
-              <ConsultingContextPanel />
-            </div>
-            
             <ol>
               <li>Step 1에서 추출한 데이터 복사</li>
-              <li>아래 프롬프트를 <strong>Gemini</strong>에 붙여넣기</li>
+              <li>아래 "프롬프트 복사" 버튼 클릭 → 팝업에서 컨텍스트 선택</li>
+              <li>프롬프트를 <strong>Gemini</strong>에 붙여넣기</li>
               <li>Gemini 분석 결과를 다음 단계에 사용</li>
             </ol>
             <button
@@ -791,16 +784,10 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
               Step 2의 Gemini 분석 결과를 <strong>Claude</strong>에 입력하여 컬처맵을 생성합니다.
             </p>
             
-            {/* ConsultingContextPanel 재사용 */}
-            <div className="context-panel-section">
-              <h4>📝 컨설팅 컨텍스트 확인</h4>
-              <p>Step 2에서 입력한 컨텍스트가 자동으로 포함됩니다.</p>
-              <ConsultingContextPanel />
-            </div>
-            
             <ol>
               <li>Step 2의 Gemini 분석 결과 복사</li>
-              <li>아래 프롬프트를 <strong>Claude</strong>에 붙여넣기</li>
+              <li>아래 "프롬프트 복사" 버튼 클릭 → 팝업에서 컨텍스트 확인/선택</li>
+              <li>프롬프트를 <strong>Claude</strong>에 붙여넣기</li>
               <li>생성된 컬처맵 데이터를 복사하여 "컬처 맵으로 이동" 버튼 클릭</li>
             </ol>
             <button
