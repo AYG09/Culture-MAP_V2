@@ -23,7 +23,7 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
   const [newPassword, setNewPassword] = useState({
     password: '',
     description: '',
-    type: 'workshop' as PasswordType,  // 추가: 비밀번호 타입
+    type: 'workshop' as PasswordType,  // 초기값: 워크샵 모드 (사용자가 명시적으로 선택하도록 유도)
     expireHours: 24,
     maxUses: '',
     autoGenerate: false,
@@ -306,11 +306,12 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
               />
             </div>
 
-            {/* 비밀번호 타입 선택 */}
+            {/* 비밀번호 타입 선택 - 필수 선택 사항 */}
             <div className="password-type-selector">
-              <h4>비밀번호 타입</h4>
+              <h4>📌 비밀번호 타입 <span className="required">*</span></h4>
+              <p className="type-description">생성할 비밀번호의 용도를 선택하세요. 각 타입은 다른 권한을 가집니다.</p>
               <div className="mode-options">
-                <label>
+                <label className={newPassword.type === 'workshop' ? 'selected' : ''}>
                   <input
                     type="radio"
                     name="passwordType"
@@ -318,10 +319,11 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
                     checked={newPassword.type === 'workshop'}
                     onChange={() => setNewPassword({ ...newPassword, type: 'workshop' })}
                   />
-                  <span>🎓 워크샵 모드 (포스트잇 기반, 3 Steps)</span>
+                  <span className="type-label">🎓 워크샵 모드</span>
+                  <span className="type-detail">포스트잇 기반 분석, 3단계 프롬프트</span>
                 </label>
 
-                <label>
+                <label className={newPassword.type === 'consulting' ? 'selected' : ''}>
                   <input
                     type="radio"
                     name="passwordType"
@@ -329,10 +331,11 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
                     checked={newPassword.type === 'consulting'}
                     onChange={() => setNewPassword({ ...newPassword, type: 'consulting' })}
                   />
-                  <span>💼 컨설팅 모드 (인터뷰 분석, 6 Steps)</span>
+                  <span className="type-label">💼 컨설팅 모드</span>
+                  <span className="type-detail">인터뷰 기반 분석, 6단계 프롬프트</span>
                 </label>
 
-                <label>
+                <label className={newPassword.type === 'admin' ? 'selected' : ''}>
                   <input
                     type="radio"
                     name="passwordType"
@@ -340,7 +343,8 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
                     checked={newPassword.type === 'admin'}
                     onChange={() => setNewPassword({ ...newPassword, type: 'admin' })}
                   />
-                  <span>🔑 관리자 모드</span>
+                  <span className="type-label">🔑 관리자 모드</span>
+                  <span className="type-detail">어드민 패널 접근 권한</span>
                 </label>
               </div>
             </div>
