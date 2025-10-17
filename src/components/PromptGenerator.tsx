@@ -5,7 +5,6 @@ import type { NoteData, ConnectionData } from '../types/culture';
 import { ConsultingContextProvider } from '../contexts/ConsultingContext';
 import { useConsultingContext } from '../contexts/useConsultingContext';
 import ConsultingContextPanel from './ConsultingContextPanel';
-import CheckboxPopupModal, { type CheckboxItem } from './CheckboxPopupModal';
 import './PromptGenerator.css';
 
 interface StepProps {
@@ -151,113 +150,10 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
     return prompt;
   };
   
-  // Step 2 체크박스 항목 생성 함수
-  const getStep2CheckboxItems = (): CheckboxItem[] => {
-    const items: CheckboxItem[] = [];
-    
-    // 1. 컨설턴트 관찰 노트
-    if (observationNote && observationNote.trim()) {
-      items.push({
-        id: 'observation-note',
-        label: '컨설턴트 관찰 노트',
-        content: `## 🔍 컨설턴트 현장 관찰 내용\n\n${observationNote}`,
-        checked: true
-      });
-    }
-    
-    // 2. 인터뷰 맥락 (톤앤매너, 긍부정성)
-    if (toneAndManner || positivity || negativity) {
-      const contextParts: string[] = [];
-      
-      if (toneAndManner) {
-        const toneLabel: Record<string, string> = {
-          'formal': '격식있고 공손함',
-          'casual': '편안하고 자유로움',
-          'hierarchical': '위계적이고 조심스러움',
-          'collaborative': '협력적이고 개방적',
-          'passive': '소극적이고 방어적',
-          'dynamic': '적극적이고 역동적'
-        };
-        contextParts.push(`- **톤앤매너**: ${toneLabel[toneAndManner] || toneAndManner}`);
-      }
-      
-      if (positivity) {
-        const positivityLabel: Record<string, string> = {
-          'very-positive': '매우 긍정적',
-          'positive': '대체로 긍정적',
-          'neutral': '중립적',
-          'negative': '다소 부정적',
-          'very-negative': '매우 부정적'
-        };
-        contextParts.push(`- **긍정성**: ${positivityLabel[positivity] || positivity}`);
-      }
-      
-      if (negativity) {
-        const negativityLabel: Record<string, string> = {
-          'very-low': '거의 없음',
-          'low': '낮음',
-          'moderate': '보통',
-          'high': '높음',
-          'very-high': '매우 높음'
-        };
-        contextParts.push(`- **부정성**: ${negativityLabel[negativity] || negativity}`);
-      }
-      
-      if (contextParts.length > 0) {
-        items.push({
-          id: 'interview-context',
-          label: '인터뷰 맥락 (톤앤매너, 긍부정성)',
-          content: `## 🎭 인터뷰 상황 맥락\n\n${contextParts.join('\n')}`,
-          checked: true
-        });
-      }
-    }
-    
-    // 3. 한국문화 특성
-    const koreanItems: string[] = [];
-    if (koreanCulture.silence) koreanItems.push('- **침묵 빈도 높음**: 동의/불편함을 말로 표현하지 않고 침묵으로 전달');
-    if (koreanCulture.faceSaving) koreanItems.push('- **체면 문화**: 직접적인 비판이나 부정적 의견을 회피하는 경향');
-    if (koreanCulture.humor) koreanItems.push('- **풍자-해학**: 간접적이고 유머러스한 방식으로 의견 전달');
-    if (koreanCulture.consideration) koreanItems.push('- **배려/겸손**: 자기 주장을 절제하고 타인을 배려하는 태도');
-    if (koreanCulture.hierarchy) koreanItems.push('- **위계 문화**: 권위에 대한 복종, 수직적 의사소통');
-    if (koreanCulture.collectivism) koreanItems.push('- **집단주의**: 개인보다 조직/팀을 우선시');
-    if (koreanCulture.other && koreanCulture.other.trim()) koreanItems.push(`- **기타**: ${koreanCulture.other}`);
-    
-    if (koreanItems.length > 0) {
-      items.push({
-        id: 'korean-culture',
-        label: '한국문화 특성',
-        content: `## 🇰🇷 한국 조직문화 특성\n\n인터뷰 중 관찰된 한국 문화적 맥락:\n\n${koreanItems.join('\n')}\n\n**주의**: 위 특성들은 AI가 텍스트만으로는 감지하기 어려운 비언어적/상황적 맥락입니다. 분석 시 반드시 고려해주세요.`,
-        checked: true
-      });
-    }
-    
-    return items;
-  };
-  
-  // Step 3 체크박스 항목 생성 함수 (Step 2와 동일)
-  const getStep3CheckboxItems = (): CheckboxItem[] => {
-    return getStep2CheckboxItems();
-  };
-  
   const [analysisInput, setAnalysisInput] = useState('');
   const [openStep, setOpenStep] = useState<number>(0);
   const [workshopPrompt, setWorkshopPrompt] = useState<string>('');
   const [comprehensiveAnalysisPrompt, setComprehensiveAnalysisPrompt] = useState<string>('');
-  
-  // 체크박스 모달 상태 관리
-  const [showCheckboxModal, setShowCheckboxModal] = useState(false);
-  const [modalConfig, setModalConfig] = useState<{
-    step: 2 | 3 | null;
-    title: string;
-    items: CheckboxItem[];
-    prompt: string;
-  }>({
-    step: null,
-    title: '',
-    items: [],
-    prompt: ''
-  });
   
   // 컨설팅 모드 프롬프트 state 추가
   const [consultingPrompts, setConsultingPrompts] = useState<{
@@ -758,26 +654,44 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
             <ol>
               <li>위에 컨설팅 컨텍스트를 입력하세요 (선택사항)</li>
               <li>Step 1에서 추출한 데이터 복사</li>
-              <li>아래 "프롬프트 복사" 버튼 클릭 → 팝업에서 포함할 컨텍스트 선택</li>
+              <li>아래 "프롬프트 복사" 버튼 클릭</li>
               <li>프롬프트를 <strong>Gemini</strong>에 붙여넣기</li>
               <li>Gemini 분석 결과를 다음 단계에 사용</li>
             </ol>
             <button
               className="copy-prompt-btn"
-              onClick={() => {
+              onClick={async () => {
                 if (!consultingPrompts.step2) return;
                 
-                setModalConfig({
-                  step: 2,
-                  title: 'Step 2: Gemini 1차 분석 - 컨텍스트 선택',
-                  items: getStep2CheckboxItems(),
-                  prompt: consultingPrompts.step2
-                });
-                setShowCheckboxModal(true);
+                const finalPrompt = buildPromptWithContext(consultingPrompts.step2);
+                
+                try {
+                  await navigator.clipboard.writeText(finalPrompt);
+                  alert('프롬프트가 클립보드에 복사되었습니다!');
+                } catch {
+                  try {
+                    const textarea = document.createElement('textarea');
+                    textarea.value = finalPrompt;
+                    textarea.style.position = 'fixed';
+                    textarea.style.opacity = '0';
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    const success = document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    
+                    if (success) {
+                      alert('프롬프트가 클립보드에 복사되었습니다!');
+                    } else {
+                      throw new Error('복사 실패');
+                    }
+                  } catch {
+                    alert('클립보드 복사에 실패했습니다.');
+                  }
+                }
               }}
               disabled={!consultingPrompts.step2}
             >
-              📋 프롬프트 복사 (컨텍스트 선택)
+              📋 프롬프트 복사
             </button>
           </Step>
 
@@ -802,26 +716,44 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
             
             <ol>
               <li>Step 2의 Gemini 분석 결과 복사</li>
-              <li>아래 "프롬프트 복사" 버튼 클릭 → 팝업에서 포함할 컨텍스트 선택</li>
+              <li>아래 "프롬프트 복사" 버튼 클릭</li>
               <li>프롬프트를 <strong>Claude</strong>에 붙여넣기</li>
               <li>생성된 컬처맵 데이터를 복사하여 "컬처 맵으로 이동" 버튼 클릭</li>
             </ol>
             <button
               className="copy-prompt-btn"
-              onClick={() => {
+              onClick={async () => {
                 if (!consultingPrompts.step3) return;
                 
-                setModalConfig({
-                  step: 3,
-                  title: 'Step 3: Claude 컬처맵 생성 - 컨텍스트 선택',
-                  items: getStep3CheckboxItems(),
-                  prompt: consultingPrompts.step3
-                });
-                setShowCheckboxModal(true);
+                const finalPrompt = buildPromptWithContext(consultingPrompts.step3);
+                
+                try {
+                  await navigator.clipboard.writeText(finalPrompt);
+                  alert('프롬프트가 클립보드에 복사되었습니다!');
+                } catch {
+                  try {
+                    const textarea = document.createElement('textarea');
+                    textarea.value = finalPrompt;
+                    textarea.style.position = 'fixed';
+                    textarea.style.opacity = '0';
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    const success = document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    
+                    if (success) {
+                      alert('프롬프트가 클립보드에 복사되었습니다!');
+                    } else {
+                      throw new Error('복사 실패');
+                    }
+                  } catch {
+                    alert('클립보드 복사에 실패했습니다.');
+                  }
+                }
               }}
               disabled={!consultingPrompts.step3}
             >
-              📋 프롬프트 복사 (컨텍스트 선택)
+              📋 프롬프트 복사
             </button>
             
             {onSwitchToReportTab && (
@@ -934,45 +866,6 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
           </div>
         </Step>
       </div>
-      
-      {/* 체크박스 선택 모달 */}
-      {showCheckboxModal && (
-        <CheckboxPopupModal
-          isOpen={showCheckboxModal}
-          onClose={() => setShowCheckboxModal(false)}
-          title={modalConfig.title}
-          items={modalConfig.items}
-          originalPrompt={modalConfig.prompt}
-          onCopy={async (combinedContent) => {
-            try {
-              // Clipboard API 시도
-              await navigator.clipboard.writeText(combinedContent);
-              alert('프롬프트가 클립보드에 복사되었습니다!');
-            } catch {
-              // Fallback: execCommand
-              try {
-                const textarea = document.createElement('textarea');
-                textarea.value = combinedContent;
-                textarea.style.position = 'fixed';
-                textarea.style.opacity = '0';
-                document.body.appendChild(textarea);
-                textarea.select();
-                const success = document.execCommand('copy');
-                document.body.removeChild(textarea);
-                
-                if (success) {
-                  alert('프롬프트가 클립보드에 복사되었습니다!');
-                } else {
-                  throw new Error('execCommand 복사 실패');
-                }
-              } catch (fallbackErr) {
-                console.error('클립보드 복사 실패:', fallbackErr);
-                alert('클립보드 복사에 실패했습니다. 브라우저 설정을 확인해주세요.');
-              }
-            }
-          }}
-        />
-      )}
     </div>
   );
 };
