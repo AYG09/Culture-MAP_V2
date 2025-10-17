@@ -1656,3 +1656,24 @@
   transform: translateY(0);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
+
+/* 프롬프트 버튼 그룹 (Step 4 조직문화 진단) */
+.prompt-button-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.prompt-button-group .copy-prompt-btn {
+  width: 100%;
+  text-align: left;
+  padding: 10px 16px;
+  font-size: 14px;
+  margin-top: 0;
+}
+
+.prompt-button-group .copy-prompt-btn:hover:not(:disabled) {
+  transform: translateX(4px);
+  transition: transform 0.2s ease;
+}

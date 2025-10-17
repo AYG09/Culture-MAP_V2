@@ -166,6 +166,9 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
     step2: string;
     step3: string;
     step4a: string;
+    step4a1: string;
+    step4a2: string;
+    step4a3: string;
     step4b: string;
   }>({
     step0: '',
@@ -173,6 +176,9 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
     step2: '',
     step3: '',
     step4a: '',
+    step4a1: '',
+    step4a2: '',
+    step4a3: '',
     step4b: '',
   });
 
@@ -199,12 +205,15 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
             console.log('종합 분석 프롬프트 로딩:', comprehensiveResult.success ? '성공' : '실패');
           }
         } else if (mode === 'consulting') {
-          const [step0Result, step1Result, step2Result, step3Result, step4aResult, step4bResult] = await Promise.all([
+          const [step0Result, step1Result, step2Result, step3Result, step4aResult, step4a1Result, step4a2Result, step4a3Result, step4bResult] = await Promise.all([
             promptLoader.loadPrompt('step0'),
             promptLoader.loadPrompt('step1'),
             promptLoader.loadPrompt('step2'),
             promptLoader.loadPrompt('step3'),
             promptLoader.loadPrompt('step4a_claude_diagnosis'),
+            promptLoader.loadPrompt('step4a1_culture_diagnosis'),
+            promptLoader.loadPrompt('step4a2_theory_analysis'),
+            promptLoader.loadPrompt('step4a3_bias_analysis'),
             promptLoader.loadPrompt('step4b_claude_strategy'),
           ]);
           
@@ -215,13 +224,17 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
               step2: step2Result.content || '프롬프트를 불러올 수 없습니다.',
               step3: step3Result.content || '프롬프트를 불러올 수 없습니다.',
               step4a: step4aResult.content || '프롬프트를 불러올 수 없습니다.',
+              step4a1: step4a1Result.content || '프롬프트를 불러올 수 없습니다.',
+              step4a2: step4a2Result.content || '프롬프트를 불러올 수 없습니다.',
+              step4a3: step4a3Result.content || '프롬프트를 불러올 수 없습니다.',
               step4b: step4bResult.content || '프롬프트를 불러올 수 없습니다.',
             });
 
             // 로딩 결과 로그
             console.log('컨설팅 프롬프트 로딩:', 
               step0Result.success && step1Result.success && step2Result.success && 
-              step3Result.success && step4aResult.success && step4bResult.success ? '성공' : '실패'
+              step3Result.success && step4aResult.success && step4a1Result.success &&
+              step4a2Result.success && step4a3Result.success && step4bResult.success ? '성공' : '실패'
             );
           }
         }
@@ -237,6 +250,9 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
             step2: '프롬프트 로딩 중 오류가 발생했습니다.',
             step3: '프롬프트 로딩 중 오류가 발생했습니다.',
             step4a: '프롬프트 로딩 중 오류가 발생했습니다.',
+            step4a1: '프롬프트 로딩 중 오류가 발생했습니다.',
+            step4a2: '프롬프트 로딩 중 오류가 발생했습니다.',
+            step4a3: '프롬프트 로딩 중 오류가 발생했습니다.',
             step4b: '프롬프트 로딩 중 오류가 발생했습니다.',
           });
         }
@@ -778,20 +794,47 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
             isCompleted={false}
           >
             <p>
-              Step 3에서 생성한 컬처맵을 바탕으로 <strong>Claude</strong>를 이용하여 조직문화를 진단합니다.
+              Culture Map 분석을 <strong>3단계</strong>로 나누어 진행합니다.
+              각 단계별로 Claude에 프롬프트를 입력하여 심층 분석을 받으세요.
             </p>
             <ol>
-              <li>Step 3의 컬처맵 데이터 복사</li>
-              <li>아래 프롬프트를 <strong>Claude</strong>에 붙여넣기</li>
-              <li>진단 결과를 검토하고 다음 단계에 활용</li>
+              <li><strong>4A-1: 조직문화 상태 정의</strong> - 한 문장 정의, 학술적 근거, 핵심 특성 3가지</li>
+              <li><strong>4A-2: 컬쳐맵 설명력 및 이론 분석</strong> - 인과관계, 악순환/선순환, 이론 해설</li>
+              <li><strong>4A-3: 인지편향 및 한국 문화 분석</strong> - 과대/과소평가 요소, 세대 차이, 에코 체임버</li>
             </ol>
-            <button
-              className="copy-prompt-btn"
-              onClick={() => handleCopyPrompt(consultingPrompts.step4a, 'Step 4: 조직문화 진단')}
-              disabled={!consultingPrompts.step4a}
-            >
-              📋 프롬프트 복사
-            </button>
+            
+            <div className="prompt-button-group">
+              <button
+                className="copy-prompt-btn"
+                onClick={() => handleCopyPrompt(consultingPrompts.step4a1, 'Step 4A-1: 조직문화 상태 정의')}
+                disabled={!consultingPrompts.step4a1}
+              >
+                📋 4A-1: 문화 상태 정의
+              </button>
+              <button
+                className="copy-prompt-btn"
+                onClick={() => handleCopyPrompt(consultingPrompts.step4a2, 'Step 4A-2: 이론 분석')}
+                disabled={!consultingPrompts.step4a2}
+              >
+                📋 4A-2: 이론 분석
+              </button>
+              <button
+                className="copy-prompt-btn"
+                onClick={() => handleCopyPrompt(consultingPrompts.step4a3, 'Step 4A-3: 인지편향 분석')}
+                disabled={!consultingPrompts.step4a3}
+              >
+                📋 4A-3: 인지편향 분석
+              </button>
+            </div>
+            
+            <details style={{ marginTop: '12px', fontSize: '13px', color: '#666' }}>
+              <summary>💡 왜 3개로 나눴나요?</summary>
+              <p>
+                하나의 통합 프롬프트는 AI가 너무 많은 정보를 한 번에 처리하여 
+                각 항목별 분석 깊이가 부족합니다. 3개로 분리하면 각 분석마다 
+                충분한 토큰을 할당받아 더 정확하고 실용적인 결과를 얻을 수 있습니다.
+              </p>
+            </details>
             
             <div className="sub-prompts" style={{ marginTop: '15px' }}>
               <p><strong>세부 진단 프롬프트:</strong></p>
@@ -815,15 +858,23 @@ const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
             <ol>
               <li>Step 4의 진단 결과 복사</li>
               <li>아래 프롬프트를 <strong>Claude</strong>에 붙여넣기</li>
-              <li>생성된 실행 전략을 검토하고 조직에 적용</li>
+              <li>생성된 실행 전략을 검토하고 <strong>보고서 탭</strong>에 붙여넣기</li>
             </ol>
             <button
               className="copy-prompt-btn"
-              onClick={() => handleCopyPrompt(consultingPrompts.step4b, 'Step 5: 실행 전략')}
+              onClick={async () => {
+                await handleCopyPrompt(consultingPrompts.step4b, 'Step 5: 실행 전략');
+                setTimeout(() => {
+                  onSwitchToReportTab?.();
+                }, 800);
+              }}
               disabled={!consultingPrompts.step4b}
             >
-              📋 프롬프트 복사
+              📋 프롬프트 복사 → 보고서 탭으로 이동
             </button>
+            <p style={{ fontSize: '13px', color: '#666', marginTop: '8px' }}>
+              💡 프롬프트 복사 후 자동으로 보고서 탭으로 이동합니다.
+            </p>
           </Step>
         </div>
       )}
