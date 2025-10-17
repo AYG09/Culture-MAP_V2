@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css'; // Quill Snow 테마 CSS
 import { Document, Packer, Paragraph } from 'docx';
 import { saveAs } from 'file-saver';
 import html2canvas from 'html2canvas';
