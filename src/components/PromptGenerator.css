@@ -1645,7 +1645,8 @@
 }
 
 .copy-prompt-btn:disabled {
-  background: #95a5a6;
+  background: #4a5568;
+  color: #a0aec0;
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
