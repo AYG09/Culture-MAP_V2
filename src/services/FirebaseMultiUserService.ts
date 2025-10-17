@@ -552,7 +552,7 @@ class FirebaseMultiUserService {
   }
 
   // 활성 세션 목록 조회
-  async getActiveSessions(limitCount: number = 10): Promise<SessionMetadata[]> {
+  async getActiveSessions(limitCount: number = 10, sessionType?: SessionType): Promise<SessionMetadata[]> {
     const sessionsRef = ref(database, 'sessions');
     const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
     
@@ -567,7 +567,10 @@ class FirebaseMultiUserService {
         const activeSessions = Object.values(sessions)
           .filter((s) => {
             const activity = typeof s.lastActivity === 'number' ? s.lastActivity : (typeof s.createdAt === 'number' ? s.createdAt : 0);
-            return activity > twoHoursAgo;
+            const isActive = activity > twoHoursAgo;
+            // sessionType이 지정되면 해당 타입만 필터링
+            const matchesType = !sessionType || (s.type || 'workshop') === sessionType;
+            return isActive && matchesType;
           })
           .sort((a, b) => {
             const aActivity = typeof a.lastActivity === 'number' ? a.lastActivity : (typeof a.createdAt === 'number' ? a.createdAt : 0);
@@ -592,7 +595,8 @@ class FirebaseMultiUserService {
   // 활성 세션 목록 실시간 감시
   onActiveSessions(
     callback: (sessions: SessionMetadata[]) => void,
-    limitCount: number = 10
+    limitCount: number = 10,
+    sessionType?: SessionType
   ): () => void {
     const sessionsRef = ref(database, 'sessions');
     const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
@@ -607,7 +611,10 @@ class FirebaseMultiUserService {
       const activeSessions = Object.values(sessions)
         .filter((s) => {
           const activity = typeof s.lastActivity === 'number' ? s.lastActivity : (typeof s.createdAt === 'number' ? s.createdAt : 0);
-          return activity > twoHoursAgo;
+          const isActive = activity > twoHoursAgo;
+          // sessionType이 지정되면 해당 타입만 필터링
+          const matchesType = !sessionType || (s.type || 'workshop') === sessionType;
+          return isActive && matchesType;
         })
         .sort((a, b) => {
           const aActivity = typeof a.lastActivity === 'number' ? a.lastActivity : (typeof a.createdAt === 'number' ? a.createdAt : 0);

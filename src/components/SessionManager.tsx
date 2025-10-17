@@ -86,19 +86,23 @@ const SessionManager: React.FC<SessionManagerProps> = ({
     
     setIsLoadingSessions(true);
     
+    // passwordType을 sessionType으로 변환하여 해당 타입의 세션만 조회
+    const sessionType = passwordType === 'admin' ? 'consulting' : passwordType;
+    
     // 실시간 리스너 설정
     const unsubscribe = FirebaseMultiUserService.onActiveSessions(
       (sessions) => {
         setActiveSessions(sessions);
         setIsLoadingSessions(false);
       },
-      10
+      10,
+      sessionType  // 세션 타입 필터링 추가
     );
 
     return () => {
       unsubscribe();
     };
-  }, [showModal]);
+  }, [showModal, passwordType]);
 
   const createSession = async () => {
     setIsCreating(true);
