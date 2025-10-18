@@ -1,0 +1,319 @@
+/* VideoSplash.css */
+
+.video-splash-container {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: linear-gradient(135deg, #1e3a8a 0%, #312e81 100%);
+  overflow: hidden;
+}
+
+/* Skip 버튼 */
+.skip-button {
+  position: absolute;
+  top: 2rem;
+  right: 2rem;
+  z-index: 10;
+  padding: 0.75rem 1.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 9999px;
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.skip-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateX(4px);
+}
+
+/* Split Screen Layout */
+.split-screen {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: 100vh;
+  width: 100%;
+}
+
+/* 왼쪽: 비디오 영역 */
+.video-section {
+  position: relative;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.splash-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 비디오 Fallback */
+.video-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1e3a8a 0%, #7c3aed 100%);
+  z-index: -1;
+}
+
+.fallback-animation {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fallback-circle {
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.3), transparent);
+  filter: blur(60px);
+}
+
+.fallback-logo {
+  position: relative;
+  text-align: center;
+  z-index: 1;
+}
+
+.fallback-logo h1 {
+  font-size: 3rem;
+  font-weight: 900;
+  color: white;
+  margin-bottom: 0.5rem;
+  text-shadow: 0 0 30px rgba(139, 92, 246, 0.5);
+}
+
+.fallback-logo p {
+  font-size: 1.5rem;
+  font-weight: 600;
+  background: linear-gradient(90deg, #60a5fa, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* 오른쪽: 콘텐츠 영역 */
+.content-section {
+  position: relative;
+  background: linear-gradient(135deg, #312e81 0%, #4c1d95 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  overflow: hidden;
+}
+
+/* 배경 파티클 효과 */
+.content-section::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.2), transparent);
+  border-radius: 50%;
+  filter: blur(80px);
+  animation: float 6s ease-in-out infinite;
+}
+
+.content-section::after {
+  content: '';
+  position: absolute;
+  bottom: -50%;
+  left: -50%;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.2), transparent);
+  border-radius: 50%;
+  filter: blur(80px);
+  animation: float 8s ease-in-out infinite reverse;
+}
+
+@keyframes float {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(30px, 30px); }
+}
+
+/* 콘텐츠 슬라이드 */
+.content-slide {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  max-width: 500px;
+}
+
+/* 아이콘 */
+.feature-icon-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.feature-icon {
+  width: 120px;
+  height: 120px;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.icon-emoji {
+  font-size: 4rem;
+}
+
+/* 제목 */
+.feature-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 1rem;
+  line-height: 1.2;
+}
+
+/* 설명 */
+.feature-description {
+  font-size: 1.25rem;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.6;
+  margin-bottom: 2rem;
+}
+
+/* 진행 표시기 */
+.progress-indicators {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+.indicator {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
+}
+
+.indicator.active {
+  width: 2rem;
+  background: white;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 1023px) {
+  .split-screen {
+    grid-template-columns: 1fr;
+    grid-template-rows: 60vh 40vh;
+  }
+
+  .skip-button {
+    top: 1rem;
+    right: 1rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.75rem;
+  }
+
+  .content-section {
+    padding: 2rem;
+  }
+
+  .feature-icon {
+    width: 90px;
+    height: 90px;
+  }
+
+  .icon-emoji {
+    font-size: 3rem;
+  }
+
+  .feature-title {
+    font-size: 2rem;
+  }
+
+  .feature-description {
+    font-size: 1rem;
+  }
+
+  .fallback-logo h1 {
+    font-size: 2rem;
+  }
+
+  .fallback-logo p {
+    font-size: 1.125rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .split-screen {
+    grid-template-rows: 50vh 50vh;
+  }
+
+  .content-section {
+    padding: 1.5rem;
+  }
+
+  .feature-icon {
+    width: 70px;
+    height: 70px;
+  }
+
+  .icon-emoji {
+    font-size: 2.5rem;
+  }
+
+  .feature-title {
+    font-size: 1.5rem;
+  }
+
+  .feature-description {
+    font-size: 0.875rem;
+  }
+}
+
+/* Tailwind 그라데이션 유틸리티 클래스 대체 */
+.bg-gradient-to-br {
+  background-image: linear-gradient(to bottom right, var(--tw-gradient-stops));
+}
+
+.from-blue-500 {
+  --tw-gradient-from: #3b82f6;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(59, 130, 246, 0));
+}
+
+.to-cyan-500 {
+  --tw-gradient-to: #06b6d4;
+}
+
+.from-purple-500 {
+  --tw-gradient-from: #a855f7;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(168, 85, 247, 0));
+}
+
+.to-pink-500 {
+  --tw-gradient-to: #ec4899;
+}
+
+.from-orange-500 {
+  --tw-gradient-from: #f97316;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(249, 115, 22, 0));
+}
+
+.to-red-500 {
+  --tw-gradient-to: #ef4444;
+}

@@ -5,6 +5,7 @@ import Gateway from './components/Gateway';
 import type { PasswordType } from './services/GatewayAdminService';
 import SessionManager from './components/SessionManager';
 import CultureMapFlow from './components/CultureMapFlow';
+import VideoSplash from './components/VideoSplash';
 import FirebaseMultiUserService from './services/FirebaseMultiUserService';
 
 import type { ConnectionData, NoteData, NoteType } from './types/culture';
@@ -110,10 +111,16 @@ const mapFirebaseNoteToAppNote = (note: FirebaseStickyNoteUpdate): AppNote => {
 function App() {
   const [, setNotes] = useState<AppNote[]>([]);
   const [, setConnections] = useState<ConnectionData[]>([]);
+  const [showVideoSplash, setShowVideoSplash] = useState(true);
   const [showSessionManager, setShowSessionManager] = useState(false);
   const [pendingSessionCode, setPendingSessionCode] = useState<string | undefined>();
   const [passwordType, setPasswordType] = useState<PasswordType>('workshop');
   const [isAdmin, setIsAdmin] = useState(false);  // 추가: 관리자 상태 추적
+
+  // VideoSplash 완료 처리
+  const handleSplashComplete = () => {
+    setShowVideoSplash(false);
+  };
 
   // Gateway 인증 완료 시 처리
   const handleAuthenticated = useCallback((isAdmin: boolean, sessionCode?: string, passwordType?: PasswordType) => {
@@ -293,27 +300,35 @@ function App() {
   }, []);
 
   return (
-    <Gateway onAuthenticated={handleAuthenticated}>
-      <Router>
-        {/* 세션 관리자 모달 - 관리자가 아닐 때만 표시 */}
-        {!isAdmin && (
-          <SessionManager 
-            showModal={showSessionManager} 
-            onClose={handleSessionJoined}
-            initialSessionCode={pendingSessionCode}
-            passwordType={passwordType}
-          />
-        )}
+    <>
+      {/* VideoSplash 화면 */}
+      {showVideoSplash && <VideoSplash onComplete={handleSplashComplete} />}
 
-          <div className="app-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <CultureMapFlow
-              onNotesChange={handleNotesChange}
-              onConnectionsChange={handleConnectionsChange}
-              onNodeUpdate={handleNodeUpdate}
-            />
-          </div>
-        </Router>
-    </Gateway>
+      {/* 메인 앱 */}
+      {!showVideoSplash && (
+        <Gateway onAuthenticated={handleAuthenticated}>
+          <Router>
+            {/* 세션 관리자 모달 - 관리자가 아닐 때만 표시 */}
+            {!isAdmin && (
+              <SessionManager 
+                showModal={showSessionManager} 
+                onClose={handleSessionJoined}
+                initialSessionCode={pendingSessionCode}
+                passwordType={passwordType}
+              />
+            )}
+
+            <div className="app-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <CultureMapFlow
+                onNotesChange={handleNotesChange}
+                onConnectionsChange={handleConnectionsChange}
+                onNodeUpdate={handleNodeUpdate}
+              />
+            </div>
+          </Router>
+        </Gateway>
+      )}
+    </>
   );
 }
 
