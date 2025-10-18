@@ -403,6 +403,15 @@
   }
 }
 
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
 /* 모바일 최적화 */
 @media (max-width: 1023px) {
   .left-panel {

@@ -159,6 +159,9 @@ const CultureMapFlow = ({
   
   // 모바일 사이드바 토글 상태
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  
+  // 모바일 포스트잇 생성 모달 상태
+  const [showMobileAddMenu, setShowMobileAddMenu] = useState(false);
 
   const flowWrapperRef = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
@@ -1000,6 +1003,63 @@ const CultureMapFlow = ({
       targetId: node.id,
     });
   }, []);
+  
+  // 모바일용 포스트잇 생성 함수
+  const handleMobileAddNote = useCallback((nodeType: 'result' | 'behavior' | 'tangible_lever' | 'intangible_lever') => {
+    if (!reactFlowInstance) return;
+
+    // 화면 중앙에 노드 생성
+    const viewport = reactFlowInstance.getViewport();
+    const centerX = (window.innerWidth / 2 - viewport.x) / viewport.zoom;
+    const centerY = (window.innerHeight / 2 - viewport.y) / viewport.zoom;
+
+    const layerMap: { [key: string]: number } = {
+      result: 1,
+      behavior: 2,
+      tangible_lever: 3,
+      intangible_lever: 4,
+    };
+
+    const newNodeId = `node_${Date.now()}`;
+    const newNode: Node = {
+      id: newNodeId,
+      type: nodeType,
+      position: { x: centerX - 100, y: centerY - 60 }, // 중앙 정렬
+      data: {
+        id: newNodeId,
+        layer: layerMap[nodeType],
+        content: '새 노트',
+        sentiment: 'neutral',
+        onUpdate: handleNodeContentUpdate,
+        onEditStart: handleStartNodeEditing,
+        onEditEnd: handleStopNodeEditing,
+        isLocked: false,
+        lockedBy: undefined,
+      },
+    };
+
+    const updatedNodes = [...nodes, newNode];
+    setNodes(updatedNodes);
+
+    const { notes: updatedNotes } = convertFromFlowData(updatedNodes, edges);
+    onNotesChange(updatedNotes);
+
+    // Firebase 동기화
+    FirebaseMultiUserService.updateStickyNote({
+      id: newNodeId,
+      content: '새 노트',
+      x: newNode.position.x,
+      y: newNode.position.y,
+      layer: layerMap[nodeType],
+      color: 'neutral',
+      type: nodeType,
+      width: 200,
+      height: 120,
+    });
+
+    console.log('📱 [Mobile] 새 노드 생성:', newNodeId, nodeType);
+    setShowMobileAddMenu(false);
+  }, [reactFlowInstance, nodes, edges, onNotesChange, handleNodeContentUpdate, handleStartNodeEditing, handleStopNodeEditing, setNodes]);
 
   const handleEdgeContextMenu = useCallback((event: React.MouseEvent | MouseEvent, edge: Edge) => {
     event.preventDefault();
@@ -2069,6 +2129,154 @@ const CultureMapFlow = ({
         </div>
       )}
       
+      {/* 모바일 포스트잇 추가 FAB 버튼 */}
+      {isMobile && activeTab === 'map' && (
+        <button
+          className="mobile-add-fab"
+          onClick={() => setShowMobileAddMenu(true)}
+          style={{
+            position: 'fixed',
+            bottom: '80px',
+            right: '20px',
+            width: '56px',
+            height: '56px',
+            borderRadius: '50%',
+            backgroundColor: '#2196F3',
+            color: 'white',
+            border: 'none',
+            fontSize: '24px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            cursor: 'pointer',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.3s ease',
+          }}
+        >
+          ➕
+        </button>
+      )}
+
+      {/* 모바일 포스트잇 타입 선택 모달 */}
+      {showMobileAddMenu && (
+        <div
+          className="mobile-add-menu-overlay"
+          onClick={() => setShowMobileAddMenu(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            zIndex: 10001,
+            animation: 'fadeIn 0.3s ease',
+          }}
+        >
+          <div
+            className="mobile-add-menu"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '16px 16px 0 0',
+              padding: '24px',
+              width: '100%',
+              maxWidth: '500px',
+              animation: 'slideUp 0.3s ease',
+            }}
+          >
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600' }}>
+              📌 포스트잇 타입 선택
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <button
+                onClick={() => handleMobileAddNote('result')}
+                style={{
+                  padding: '16px',
+                  fontSize: '16px',
+                  backgroundColor: '#E3F2FD',
+                  border: '2px solid #2196F3',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontWeight: '500',
+                }}
+              >
+                <span style={{ fontSize: '20px', marginRight: '8px' }}>🎯</span>
+                결과 (가시적 요소)
+              </button>
+              <button
+                onClick={() => handleMobileAddNote('behavior')}
+                style={{
+                  padding: '16px',
+                  fontSize: '16px',
+                  backgroundColor: '#FFF3E0',
+                  border: '2px solid #FF9800',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontWeight: '500',
+                }}
+              >
+                <span style={{ fontSize: '20px', marginRight: '8px' }}>👥</span>
+                행동 (관찰 행동)
+              </button>
+              <button
+                onClick={() => handleMobileAddNote('tangible_lever')}
+                style={{
+                  padding: '16px',
+                  fontSize: '16px',
+                  backgroundColor: '#E8F5E9',
+                  border: '2px solid #4CAF50',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontWeight: '500',
+                }}
+              >
+                <span style={{ fontSize: '20px', marginRight: '8px' }}>📋</span>
+                유형 레버 (규범/가치)
+              </button>
+              <button
+                onClick={() => handleMobileAddNote('intangible_lever')}
+                style={{
+                  padding: '16px',
+                  fontSize: '16px',
+                  backgroundColor: '#F3E5F5',
+                  border: '2px solid #9C27B0',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontWeight: '500',
+                }}
+              >
+                <span style={{ fontSize: '20px', marginRight: '8px' }}>💡</span>
+                무형 레버 (기본 가정)
+              </button>
+            </div>
+            <button
+              onClick={() => setShowMobileAddMenu(false)}
+              style={{
+                marginTop: '16px',
+                width: '100%',
+                padding: '12px',
+                backgroundColor: '#f5f5f5',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '16px',
+                cursor: 'pointer',
+              }}
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 세션 정보 모달 */}
       {showSessionInfo && (() => {
         const session = FirebaseMultiUserService.getCurrentSession();
