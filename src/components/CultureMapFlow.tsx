@@ -140,12 +140,12 @@ const CultureMapFlow = ({
   }, [isConsultingMode]);
 
   // 층위별 개별 높이 조절 상태 (레거시 모드와 동일)
-  const [layerHeights, setLayerHeights] = useState<number[]>([200, 200, 200, 200]); // [결과, 행동, 유형, 무형]
+  const [layerHeights, setLayerHeights] = useState<number[]>([100, 100, 100, 100]); // [결과, 행동, 유형, 무형]
   const [layerOpacities, setLayerOpacities] = useState<number[]>([0.05, 0.05, 0.05, 0.05]); // 층위별 투명도
   const [showLayerBackground, setShowLayerBackground] = useState(true);
   
-  // Panel 토글 상태
-  const [showPanel, setShowPanel] = useState(true);
+  // 선택된 층위 (높이 조절용)
+  const [selectedLayerIndex, setSelectedLayerIndex] = useState<number>(0);
   
   // 세션 관리 모달 상태
   const [showSessionInfo, setShowSessionInfo] = useState(false);
@@ -1451,15 +1451,6 @@ const CultureMapFlow = ({
             edges={edges}
           />
 
-          <button
-            className="glass-button"
-            type="button"
-            onClick={() => setShowPanel((prev) => !prev)}
-            title={showPanel ? '층위 패널 숨기기' : '층위 패널 열기'}
-          >
-            ⚙️ {showPanel ? '패널 숨기기' : '층위 패널 열기'}
-          </button>
-
           {/* 세션 정보 */}
           {(() => {
             const session = FirebaseMultiUserService.getCurrentSession();
@@ -1717,22 +1708,27 @@ const CultureMapFlow = ({
               >
                 <div
                   data-layer-capture="label"
+                  onClick={() => setSelectedLayerIndex(layer.index)}
                   style={{
                     position: 'absolute',
                     top: '10px',
                     left: '32px',
                     padding: '6px 16px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                    border: `2px solid ${bgColor.replace(String(layerOpacities[layer.index]), '0.5')}`,
+                    backgroundColor: selectedLayerIndex === layer.index ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.9)',
+                    border: `2px solid ${selectedLayerIndex === layer.index ? bgColor.replace(String(layerOpacities[layer.index]), '0.8') : bgColor.replace(String(layerOpacities[layer.index]), '0.5')}`,
                     borderRadius: '12px',
                     fontSize: '12px',
                     fontWeight: 'bold',
                     color: layer.color.replace('0.05', '0.8'),
-                    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.12)',
+                    boxShadow: selectedLayerIndex === layer.index ? '0 4px 12px rgba(0, 0, 0, 0.2)' : '0 2px 6px rgba(0, 0, 0, 0.12)',
                     zIndex: -1, // 포스트잇 뒤로
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
                   }}
+                  className="nopan nodrag"
+                  title="클릭하여 이 층위 높이 조절"
                 >
-                  {layer.name}
+                  {selectedLayerIndex === layer.index ? '📌 ' : ''}{layer.name}
                 </div>
               </div>
             );
@@ -1776,6 +1772,140 @@ const CultureMapFlow = ({
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
 
+        {/* 상단 층위 관리 컨트롤 Panel */}
+        <Panel position="top-center" className="layer-control-panel" style={{ 
+          display: 'flex', 
+          gap: '16px', 
+          alignItems: 'center',
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          padding: '12px 20px',
+          borderRadius: '12px',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+          border: '1px solid rgba(0, 0, 0, 0.05)',
+        }}>
+          {/* 층위 배경 표시 토글 */}
+          <button
+            onClick={() => setShowLayerBackground(!showLayerBackground)}
+            style={{
+              padding: '6px 12px',
+              backgroundColor: showLayerBackground ? '#4CAF50' : '#f5f5f5',
+              color: showLayerBackground ? 'white' : '#666',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '12px',
+              fontWeight: '500',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              whiteSpace: 'nowrap',
+            }}
+            title="층위 배경 표시/숨김"
+          >
+            {showLayerBackground ? '🎨 층위 표시' : '🚫 층위 숨김'}
+          </button>
+
+          {/* 구분선 */}
+          <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />
+
+          {/* 층위 선택 드롭다운 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <label htmlFor="layer-select" style={{ fontSize: '12px', fontWeight: '500', color: '#666', whiteSpace: 'nowrap' }}>
+              조절할 층위:
+            </label>
+            <select
+              id="layer-select"
+              value={selectedLayerIndex}
+              onChange={(e) => setSelectedLayerIndex(Number(e.target.value))}
+              style={{
+                padding: '6px 10px',
+                borderRadius: '6px',
+                border: '1px solid #ddd',
+                fontSize: '12px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                backgroundColor: 'white',
+              }}
+            >
+              <option value={0}>📊 결과</option>
+              <option value={1}>🎬 행동</option>
+              <option value={2}>🔧 유형 레버</option>
+              <option value={3}>💡 무형 레버</option>
+            </select>
+          </div>
+
+          {/* 구분선 */}
+          <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />
+
+          {/* 선택된 층위 높이 조절 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '220px' }}>
+            <label htmlFor="layer-height-input" style={{ fontSize: '12px', fontWeight: '500', color: '#666', whiteSpace: 'nowrap' }}>
+              높이:
+            </label>
+            <input
+              type="range"
+              id="layer-height-input"
+              min="100"
+              max="400"
+              step="20"
+              value={layerHeights[selectedLayerIndex]}
+              onChange={(e) => {
+                const newHeights = [...layerHeights];
+                newHeights[selectedLayerIndex] = Number(e.target.value);
+                setLayerHeights(newHeights);
+              }}
+              style={{ flex: 1, minWidth: '100px' }}
+            />
+            <input
+              type="number"
+              min="100"
+              max="400"
+              step="20"
+              value={layerHeights[selectedLayerIndex]}
+              onChange={(e) => {
+                const value = Math.min(400, Math.max(100, Number(e.target.value)));
+                const newHeights = [...layerHeights];
+                newHeights[selectedLayerIndex] = value;
+                setLayerHeights(newHeights);
+              }}
+              style={{
+                width: '60px',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                border: '1px solid #ddd',
+                fontSize: '12px',
+                textAlign: 'right',
+              }}
+            />
+            <span style={{ fontSize: '11px', color: '#999' }}>px</span>
+          </div>
+
+          {/* 구분선 */}
+          <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />
+
+          {/* 전체 투명도 슬라이더 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '180px' }}>
+            <label htmlFor="global-opacity" style={{ fontSize: '12px', fontWeight: '500', color: '#666', whiteSpace: 'nowrap' }}>
+              투명도:
+            </label>
+            <input
+              type="range"
+              id="global-opacity"
+              min="0"
+              max="0.2"
+              step="0.01"
+              value={layerOpacities[selectedLayerIndex]}
+              onChange={(e) => {
+                const newOpacities = [...layerOpacities];
+                newOpacities[selectedLayerIndex] = Number(e.target.value);
+                setLayerOpacities(newOpacities);
+              }}
+              style={{ flex: 1, minWidth: '80px' }}
+            />
+            <span style={{ fontSize: '11px', color: '#999', minWidth: '35px', textAlign: 'right' }}>
+              {Math.round(layerOpacities[selectedLayerIndex] * 100)}%
+            </span>
+          </div>
+        </Panel>
+
         {/* Controls의 top 제거 - 기본 위치(top: 10px) 사용 */}
         <Controls style={{ left: 16, bottom: 'auto' }} />
         <MiniMap
@@ -1795,207 +1925,6 @@ const CultureMapFlow = ({
             backgroundColor: '#f8f9fa',
           }}
         />
-        
-        {/* Panel (showPanel이 true일 때만 표시) */}
-        {showPanel && (
-        <Panel position="bottom-right" className="layer-legend" style={{ maxWidth: '280px', maxHeight: '500px', overflowY: 'auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <div className="legend-title">📊 4층위 모델</div>
-            <button
-              onClick={() => setShowPanel(false)}
-              style={{
-                background: 'none',
-                border: 'none',
-                fontSize: '18px',
-                cursor: 'pointer',
-                padding: '0 4px',
-                color: '#666',
-              }}
-              title="패널 닫기"
-            >
-              ✕
-            </button>
-          </div>
-          
-          {/* 층위별 개별 높이 조절 슬라이더 (레거시 모드와 동일) */}
-          <div className="layer-heights-control" style={{ marginBottom: '10px' }}>
-            <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>
-              층위별 높이 조절
-            </div>
-            
-            {/* 결과 층위 */}
-            <div style={{ marginBottom: '8px' }}>
-              <label htmlFor="layer0" style={{ fontSize: '11px', color: '#FF6B6B' }}>
-                결과: {layerHeights[0]}px
-              </label>
-              <input
-                type="range"
-                id="layer0"
-                min="100"
-                max="400"
-                step="20"
-                value={layerHeights[0]}
-                onChange={(e) => setLayerHeights([Number(e.target.value), layerHeights[1], layerHeights[2], layerHeights[3]])}
-                style={{ width: '100%' }}
-              />
-            </div>
-            
-            {/* 행동 층위 */}
-            <div style={{ marginBottom: '8px' }}>
-              <label htmlFor="layer1" style={{ fontSize: '11px', color: '#4ECDC4' }}>
-                행동: {layerHeights[1]}px
-              </label>
-              <input
-                type="range"
-                id="layer1"
-                min="100"
-                max="400"
-                step="20"
-                value={layerHeights[1]}
-                onChange={(e) => setLayerHeights([layerHeights[0], Number(e.target.value), layerHeights[2], layerHeights[3]])}
-                style={{ width: '100%' }}
-              />
-            </div>
-            
-            {/* 유형 레버 층위 */}
-            <div style={{ marginBottom: '8px' }}>
-              <label htmlFor="layer2" style={{ fontSize: '11px', color: '#95E1D3' }}>
-                유형 레버: {layerHeights[2]}px
-              </label>
-              <input
-                type="range"
-                id="layer2"
-                min="100"
-                max="400"
-                step="20"
-                value={layerHeights[2]}
-                onChange={(e) => setLayerHeights([layerHeights[0], layerHeights[1], Number(e.target.value), layerHeights[3]])}
-                style={{ width: '100%' }}
-              />
-            </div>
-            
-            {/* 무형 레버 층위 */}
-            <div style={{ marginBottom: '8px' }}>
-              <label htmlFor="layer3" style={{ fontSize: '11px', color: '#FFE66D' }}>
-                무형 레버: {layerHeights[3]}px
-              </label>
-              <input
-                type="range"
-                id="layer3"
-                min="100"
-                max="400"
-                step="20"
-                value={layerHeights[3]}
-                onChange={(e) => setLayerHeights([layerHeights[0], layerHeights[1], layerHeights[2], Number(e.target.value)])}
-                style={{ width: '100%' }}
-              />
-            </div>
-          </div>
-          
-          {/* 층위별 투명도 조절 */}
-          <div style={{ marginTop: '15px', marginBottom: '10px' }}>
-            <h4 style={{ fontSize: '12px', marginBottom: '8px', color: '#4a5568' }}>층위별 투명도 조절</h4>
-            
-            {/* 결과 층위 투명도 */}
-            <div style={{ marginBottom: '8px' }}>
-              <label htmlFor="opacity0" style={{ fontSize: '11px', color: '#FF6B6B' }}>
-                결과: {Math.round(layerOpacities[0] * 100)}%
-              </label>
-              <input
-                type="range"
-                id="opacity0"
-                min="0"
-                max="0.3"
-                step="0.01"
-                value={layerOpacities[0]}
-                onChange={(e) => setLayerOpacities([Number(e.target.value), layerOpacities[1], layerOpacities[2], layerOpacities[3]])}
-                style={{ width: '100%' }}
-              />
-            </div>
-            
-            {/* 행동 층위 투명도 */}
-            <div style={{ marginBottom: '8px' }}>
-              <label htmlFor="opacity1" style={{ fontSize: '11px', color: '#4ECDC4' }}>
-                행동: {Math.round(layerOpacities[1] * 100)}%
-              </label>
-              <input
-                type="range"
-                id="opacity1"
-                min="0"
-                max="0.3"
-                step="0.01"
-                value={layerOpacities[1]}
-                onChange={(e) => setLayerOpacities([layerOpacities[0], Number(e.target.value), layerOpacities[2], layerOpacities[3]])}
-                style={{ width: '100%' }}
-              />
-            </div>
-            
-            {/* 유형 레버 층위 투명도 */}
-            <div style={{ marginBottom: '8px' }}>
-              <label htmlFor="opacity2" style={{ fontSize: '11px', color: '#95E1D3' }}>
-                유형 레버: {Math.round(layerOpacities[2] * 100)}%
-              </label>
-              <input
-                type="range"
-                id="opacity2"
-                min="0"
-                max="0.3"
-                step="0.01"
-                value={layerOpacities[2]}
-                onChange={(e) => setLayerOpacities([layerOpacities[0], layerOpacities[1], Number(e.target.value), layerOpacities[3]])}
-                style={{ width: '100%' }}
-              />
-            </div>
-            
-            {/* 무형 레버 층위 투명도 */}
-            <div style={{ marginBottom: '8px' }}>
-              <label htmlFor="opacity3" style={{ fontSize: '11px', color: '#FFE66D' }}>
-                무형 레버: {Math.round(layerOpacities[3] * 100)}%
-              </label>
-              <input
-                type="range"
-                id="opacity3"
-                min="0"
-                max="0.3"
-                step="0.01"
-                value={layerOpacities[3]}
-                onChange={(e) => setLayerOpacities([layerOpacities[0], layerOpacities[1], layerOpacities[2], Number(e.target.value)])}
-                style={{ width: '100%' }}
-              />
-            </div>
-          </div>
-          
-          {/* 배경 표시 토글 */}
-          <div className="layer-background-toggle" style={{ marginBottom: '10px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', fontSize: '12px', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={showLayerBackground}
-                onChange={(e) => setShowLayerBackground(e.target.checked)}
-                style={{ marginRight: '5px' }}
-              />
-              층위 배경 표시
-            </label>
-          </div>
-          
-          <div className="legend-item result">
-            <span className="legend-badge">결과</span>
-            <span>가시적 요소</span>
-          </div>
-          <div className="legend-item behavior">
-            <span className="legend-badge">행동</span>
-            <span>관찰 행동</span>
-          </div>
-          <div className="legend-item tangible">
-            <span className="legend-badge">유형 레버</span>
-            <span>규범/가치</span>
-          </div>
-          <div className="legend-item intangible">
-            <span className="legend-badge">무형 레버</span>
-            <span>기본 가정</span>
-          </div>
-        </Panel>
-        )}
       </ReactFlow>
       </div> {/* 메인 React Flow 영역 닫기 */}
       </>
