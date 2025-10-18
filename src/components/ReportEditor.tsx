@@ -210,10 +210,30 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
           foreignObjectRendering: false,
           // 폰트 렌더링 개선
           onclone: (clonedDoc: Document) => {
-            // 복제된 문서에 폰트 스타일 강제 적용
+            // 복제된 문서에서 @font-face 웹폰트 제거 (경고 방지)
+            const styleSheets = clonedDoc.styleSheets;
+            for (let i = 0; i < styleSheets.length; i++) {
+              try {
+                const sheet = styleSheets[i] as CSSStyleSheet;
+                if (!sheet.cssRules) continue;
+                
+                // @font-face 규칙 제거
+                for (let j = sheet.cssRules.length - 1; j >= 0; j--) {
+                  const rule = sheet.cssRules[j];
+                  if (rule instanceof CSSFontFaceRule) {
+                    sheet.deleteRule(j);
+                  }
+                }
+              } catch (e) {
+                // CORS 제한으로 접근 불가한 stylesheet는 무시
+                console.debug('Skipping inaccessible stylesheet', e);
+              }
+            }
+
+            // 복제된 문서에 시스템 폰트로 대체
             const clonedElement = clonedDoc.querySelector('.report-content') as HTMLElement;
             if (clonedElement) {
-              clonedElement.style.fontFamily = `"${PDF_FONT_FAMILY_NAME}", "Noto Sans KR", sans-serif`;
+              clonedElement.style.fontFamily = 'Arial, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif';
             }
           },
         },
