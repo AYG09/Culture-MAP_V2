@@ -245,10 +245,11 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
           <div className="tips">
             <h5>💡 팁</h5>
             <ul>
-              <li>모든 기기가 같은 Wi-Fi에 연결되어 있어야 합니다</li>
-              <li>세션은 2시간 후 자동으로 만료됩니다</li>
-              <li>원격 협업 시 호스트가 공유한 URL을 그대로 접속하면 인증이 간편합니다</li>
-              <li>실시간으로 모든 변경사항이 동기화됩니다</li>
+              <li>인터넷 연결만 있으면 전 세계 어디서나 접속 가능합니다</li>
+              <li>로컬 네트워크(같은 Wi-Fi)에서는 더 빠른 속도로 접속할 수 있습니다</li>
+              <li>세션 코드 또는 URL 공유 시 즉시 참가 가능합니다</li>
+              <li>실시간으로 모든 변경사항이 Firebase를 통해 동기화됩니다</li>
+              <li>편집 중인 포스트잇은 자동으로 잠금되어 충돌을 방지합니다</li>
             </ul>
           </div>
         </div>
