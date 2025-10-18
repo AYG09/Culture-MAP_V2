@@ -148,6 +148,13 @@ const CultureMapFlow = ({
   // 선택된 층위 (높이 조절용, null = 선택 없음)
   const [selectedLayerIndex, setSelectedLayerIndex] = useState<number | null>(0);
   
+  // translateExtent 동적 계산 (층위 높이 변경 시 자동 업데이트)
+  const totalHeight = layerHeights.reduce((sum, height) => sum + height, 0);
+  const translateExtent: [[number, number], [number, number]] = [
+    [-100, -100],  // 좌상단 여유 공간
+    [3200, totalHeight + 100],  // 우하단 (가로 3200px, 세로는 총 층위 높이 + 여유)
+  ];
+  
   // 층위 관리 패널 표시 여부
   const [showLayerControlPanel, setShowLayerControlPanel] = useState(false);
   
@@ -1684,6 +1691,7 @@ const CultureMapFlow = ({
         minZoom={0.1}
         maxZoom={2}
         defaultViewport={{ x: 0, y: 0, zoom: isMobile ? 0.5 : 0.8 }} // 모바일: 더 작은 줌으로 전체 보기
+        translateExtent={translateExtent} // 팬(이동) 범위 제한: 가로 3200px, 세로는 층위 높이 합
         proOptions={{ hideAttribution: true }}
         // 모바일/데스크톱 구분 제스처 설정
         panOnDrag={isMobile ? true : [1, 2]} // 모바일: 빈 공간 터치로 팬, 데스크톱: 중간/우클릭 팬
@@ -1942,7 +1950,7 @@ const CultureMapFlow = ({
               type="range"
               id="layer-height-input"
               min="100"
-              max="400"
+              max="600"
               step="20"
               value={layerHeights[selectedLayerIndex ?? 0]}
               onChange={(e) => {
@@ -1957,12 +1965,12 @@ const CultureMapFlow = ({
               <input
                 type="number"
                 min="100"
-                max="400"
+                max="600"
                 step="20"
                 value={layerHeights[selectedLayerIndex ?? 0]}
                 onChange={(e) => {
                   if (selectedLayerIndex === null) return;
-                  const value = Math.min(400, Math.max(100, Number(e.target.value)));
+                  const value = Math.min(600, Math.max(100, Number(e.target.value)));
                   const newHeights = [...layerHeights];
                   newHeights[selectedLayerIndex] = value;
                   setLayerHeights(newHeights);
