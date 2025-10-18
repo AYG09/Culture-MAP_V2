@@ -6,6 +6,7 @@ import {
   Controls,
   MiniMap,
   Panel,
+  ViewportPortal,
   useNodesState,
   useEdgesState,
   addEdge,
@@ -144,8 +145,8 @@ const CultureMapFlow = ({
   const [layerOpacities, setLayerOpacities] = useState<number[]>([0.05, 0.05, 0.05, 0.05]); // 층위별 투명도
   const [showLayerBackground, setShowLayerBackground] = useState(true);
   
-  // 선택된 층위 (높이 조절용)
-  const [selectedLayerIndex, setSelectedLayerIndex] = useState<number>(0);
+  // 선택된 층위 (높이 조절용, null = 선택 없음)
+  const [selectedLayerIndex, setSelectedLayerIndex] = useState<number | null>(0);
   
   // 층위 관리 패널 표시 여부
   const [showLayerControlPanel, setShowLayerControlPanel] = useState(false);
@@ -1666,79 +1667,6 @@ const CultureMapFlow = ({
         {/* 모바일 제스처 가이드 */}
         <MobileGestureGuide />
 
-      {/* 층위 배경 레이어 (ReactFlow 외부) */}
-      {showLayerBackground && (
-        <div
-          data-layer-background-root="true"
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            pointerEvents: 'none',
-            zIndex: 0, // 포스트잇 뒤로 이동
-          }}
-        >
-          {/* 배경층들 - 개별 높이 적용 */}
-          {[
-            { name: '결과', color: 'rgba(255, 107, 107, OPACITY)', index: 0 },
-            { name: '행동', color: 'rgba(78, 205, 196, OPACITY)', index: 1 },
-            { name: '유형 레버', color: 'rgba(149, 225, 211, OPACITY)', index: 2 },
-            { name: '무형 레버', color: 'rgba(255, 230, 109, OPACITY)', index: 3 },
-          ].map((layer) => {
-            // 각 층위의 Y 좌표 계산 (이전 층위들의 높이 합산)
-            let y = 0;
-            for (let i = 0; i < layer.index; i++) {
-              y += layerHeights[i];
-            }
-            
-            const bgColor = layer.color.replace('OPACITY', String(layerOpacities[layer.index]));
-            
-            return (
-              <div
-                data-layer-capture="segment"
-                key={layer.name}
-                style={{
-                  position: 'absolute',
-                  top: `${y}px`,
-                  left: 0,
-                  width: '100%',
-                  height: `${layerHeights[layer.index]}px`,
-                  backgroundColor: bgColor,
-                  borderBottom: layer.index < 3 ? `2px dashed ${bgColor.replace(String(layerOpacities[layer.index]), '0.3')}` : 'none',
-                }}
-              >
-                <div
-                  data-layer-capture="label"
-                  onClick={() => setSelectedLayerIndex(layer.index)}
-                  style={{
-                    position: 'absolute',
-                    top: '10px',
-                    left: '32px',
-                    padding: '6px 16px',
-                    backgroundColor: selectedLayerIndex === layer.index ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.9)',
-                    border: `2px solid ${selectedLayerIndex === layer.index ? bgColor.replace(String(layerOpacities[layer.index]), '0.8') : bgColor.replace(String(layerOpacities[layer.index]), '0.5')}`,
-                    borderRadius: '12px',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    color: layer.color.replace('0.05', '0.8'),
-                    boxShadow: selectedLayerIndex === layer.index ? '0 4px 12px rgba(0, 0, 0, 0.2)' : '0 2px 6px rgba(0, 0, 0, 0.12)',
-                    zIndex: -1, // 포스트잇 뒤로
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                  }}
-                  className="nopan nodrag"
-                  title="클릭하여 이 층위 높이 조절"
-                >
-                  {selectedLayerIndex === layer.index ? '📌 ' : ''}{layer.name}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -1774,6 +1702,91 @@ const CultureMapFlow = ({
         onInit={setReactFlowInstance}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+
+        {/* 층위 배경 레이어 (ViewportPortal 사용 - transform 적용됨) */}
+        {showLayerBackground && (
+          <ViewportPortal>
+            <div
+              data-layer-background-root="true"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '10000px', // 충분히 큰 크기
+                height: '10000px',
+                pointerEvents: 'none',
+                zIndex: -1, // 포스트잇 뒤로
+              }}
+            >
+              {/* 배경층들 - 개별 높이 적용 */}
+              {[
+                { name: '결과', color: 'rgba(255, 107, 107, OPACITY)', index: 0 },
+                { name: '행동', color: 'rgba(78, 205, 196, OPACITY)', index: 1 },
+                { name: '유형 레버', color: 'rgba(149, 225, 211, OPACITY)', index: 2 },
+                { name: '무형 레버', color: 'rgba(255, 230, 109, OPACITY)', index: 3 },
+              ].map((layer) => {
+                // 각 층위의 Y 좌표 계산 (이전 층위들의 높이 합산)
+                let y = 0;
+                for (let i = 0; i < layer.index; i++) {
+                  y += layerHeights[i];
+                }
+                
+                const bgColor = layer.color.replace('OPACITY', String(layerOpacities[layer.index]));
+                
+                return (
+                  <div
+                    data-layer-capture="segment"
+                    key={layer.name}
+                    style={{
+                      position: 'absolute',
+                      transform: `translate(0px, ${y}px)`, // ViewportPortal에서는 transform 사용
+                      left: 0,
+                      width: '100%',
+                      height: `${layerHeights[layer.index]}px`,
+                      backgroundColor: bgColor,
+                      borderBottom: layer.index < 3 ? `2px dashed ${bgColor.replace(String(layerOpacities[layer.index]), '0.3')}` : 'none',
+                    }}
+                  >
+                    <div
+                      data-layer-capture="label"
+                      onClick={() => {
+                        // 이미 선택된 라벨을 다시 클릭하면 선택 해제 및 패널 닫기
+                        if (selectedLayerIndex === layer.index) {
+                          setSelectedLayerIndex(null); // 선택 해제
+                          setShowLayerControlPanel(false); // 패널 닫기
+                        } else {
+                          // 다른 라벨 클릭 시 선택 변경 및 패널 열기
+                          setSelectedLayerIndex(layer.index);
+                          setShowLayerControlPanel(true);
+                        }
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: '10px',
+                        left: '32px',
+                        padding: '6px 16px',
+                        backgroundColor: selectedLayerIndex === layer.index ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.9)',
+                        border: `2px solid ${selectedLayerIndex === layer.index ? bgColor.replace(String(layerOpacities[layer.index]), '0.8') : bgColor.replace(String(layerOpacities[layer.index]), '0.5')}`,
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        color: layer.color.replace('0.05', '0.8'),
+                        boxShadow: selectedLayerIndex === layer.index ? '0 4px 12px rgba(0, 0, 0, 0.2)' : '0 2px 6px rgba(0, 0, 0, 0.12)',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        pointerEvents: 'auto', // 라벨만 클릭 가능
+                      }}
+                      className="nopan nodrag"
+                      title={selectedLayerIndex === layer.index ? "다시 클릭하여 선택 해제 및 패널 닫기" : "클릭하여 이 층위 선택 및 높이 조절"}
+                    >
+                      {selectedLayerIndex === layer.index ? '📌 ' : ''}{layer.name}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </ViewportPortal>
+        )}
 
         {/* 층위 관리 패널 토글 버튼 */}
         {!showLayerControlPanel && (
@@ -1897,7 +1910,7 @@ const CultureMapFlow = ({
             </label>
             <select
               id="layer-select"
-              value={selectedLayerIndex}
+              value={selectedLayerIndex ?? 0}
               onChange={(e) => setSelectedLayerIndex(Number(e.target.value))}
               style={{
                 padding: isMobile ? '10px 12px' : '6px 10px',
@@ -1931,8 +1944,9 @@ const CultureMapFlow = ({
               min="100"
               max="400"
               step="20"
-              value={layerHeights[selectedLayerIndex]}
+              value={layerHeights[selectedLayerIndex ?? 0]}
               onChange={(e) => {
+                if (selectedLayerIndex === null) return;
                 const newHeights = [...layerHeights];
                 newHeights[selectedLayerIndex] = Number(e.target.value);
                 setLayerHeights(newHeights);
@@ -1945,8 +1959,9 @@ const CultureMapFlow = ({
                 min="100"
                 max="400"
                 step="20"
-                value={layerHeights[selectedLayerIndex]}
+                value={layerHeights[selectedLayerIndex ?? 0]}
                 onChange={(e) => {
+                  if (selectedLayerIndex === null) return;
                   const value = Math.min(400, Math.max(100, Number(e.target.value)));
                   const newHeights = [...layerHeights];
                   newHeights[selectedLayerIndex] = value;
@@ -1979,8 +1994,9 @@ const CultureMapFlow = ({
               min="0"
               max="0.2"
               step="0.01"
-              value={layerOpacities[selectedLayerIndex]}
+              value={layerOpacities[selectedLayerIndex ?? 0]}
               onChange={(e) => {
+                if (selectedLayerIndex === null) return;
                 const newOpacities = [...layerOpacities];
                 newOpacities[selectedLayerIndex] = Number(e.target.value);
                 setLayerOpacities(newOpacities);
@@ -1988,7 +2004,7 @@ const CultureMapFlow = ({
               style={{ flex: 1, minWidth: isMobile ? 'auto' : '80px', width: isMobile ? '100%' : 'auto' }}
             />
             <span style={{ fontSize: '11px', color: '#999', minWidth: '35px', textAlign: 'right' }}>
-              {Math.round(layerOpacities[selectedLayerIndex] * 100)}%
+              {Math.round(layerOpacities[selectedLayerIndex ?? 0] * 100)}%
             </span>
           </div>
         </Panel>

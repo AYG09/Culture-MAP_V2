@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { toPng } from 'html-to-image';
-import { type ReactFlowInstance } from '@xyflow/react';
+import { type ReactFlowInstance, getNodesBounds, getViewportForBounds } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -19,7 +19,8 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
 
   /**
    * PNG 이미지로 내보내기
-   * React Flow 공식 예제 기반 구현
+   * React Flow 공식 Download Image 예제 패턴 기반
+   * https://reactflow.dev/examples/misc/download-image
    */
   const exportPNG = async () => {
     if (!reactFlowInstance) {
@@ -35,140 +36,110 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
     setIsExporting(true);
     setExportError(null);
 
-    let captureElement: HTMLElement | null = null;
-    const restoreStyleCallbacks: Array<() => void> = [];
-
     try {
-      const reactFlowNodes = reactFlowInstance.getNodes();
-      if (!reactFlowNodes.length) {
-        throw new Error('React Flow 노드를 찾을 수 없습니다.');
+      // 1. 노드들의 실제 bounds 계산
+      const nodesBounds = getNodesBounds(reactFlowInstance.getNodes());
+      
+      // 2. 층위 라벨 위치 추가 계산
+      const viewportElement = document.querySelector('.react-flow__viewport') as HTMLElement;
+      if (!viewportElement) {
+        throw new Error('React Flow viewport element not found');
       }
 
-      captureElement = document.querySelector('[data-capture-root="true"]') as HTMLElement;
-
-      if (!captureElement) {
-        throw new Error('캡처할 영역을 찾을 수 없습니다.');
-      }
-      const rootRect = captureElement.getBoundingClientRect();
-      const nodeElements = Array.from(
-        captureElement.querySelectorAll('.react-flow__node')
-      ) as HTMLElement[];
-      const layerElements = Array.from(
-        captureElement.querySelectorAll('[data-layer-capture]')
-      ) as HTMLElement[];
-      const edgeLayer = captureElement.querySelector('.react-flow__edges');
-
-      const boundsTargets: Element[] = [...nodeElements, ...layerElements];
-      if (edgeLayer) {
-        boundsTargets.push(edgeLayer);
-      }
-
-      if (!boundsTargets.length) {
-        throw new Error('내보낼 요소의 경계 정보를 계산할 수 없습니다.');
-      }
-
-      let minX = Number.POSITIVE_INFINITY;
-      let minY = Number.POSITIVE_INFINITY;
-      let maxX = Number.NEGATIVE_INFINITY;
-      let maxY = Number.NEGATIVE_INFINITY;
-
-      boundsTargets.forEach(element => {
-        const rect = element.getBoundingClientRect();
-        const relativeLeft = rect.left - rootRect.left;
-        const relativeTop = rect.top - rootRect.top;
-        const relativeRight = rect.right - rootRect.left;
-        const relativeBottom = rect.bottom - rootRect.top;
-
-        minX = Math.min(minX, relativeLeft);
-        minY = Math.min(minY, relativeTop);
-        maxX = Math.max(maxX, relativeRight);
-        maxY = Math.max(maxY, relativeBottom);
+      const layerBackgrounds = document.querySelectorAll('[data-layer-capture="segment"]');
+      const layerLabels = document.querySelectorAll('[data-layer-capture="label"]');
+      
+      let minX = nodesBounds.x;
+      let minY = nodesBounds.y;
+      let maxX = nodesBounds.x + nodesBounds.width;
+      let maxY = nodesBounds.y + nodesBounds.height;
+      
+      // 층위 배경(segment)의 Y 좌표를 파싱하여 bounds 확장
+      layerBackgrounds.forEach((bgElement) => {
+        const bg = bgElement as HTMLElement;
+        const parentTransform = bg.style.transform;
+        const match = parentTransform.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/);
+        
+        if (match) {
+          const y = parseFloat(match[2]);
+          const height = parseFloat(bg.style.height || '0');
+          
+          // Y축 방향으로만 확장 (배경은 전체 너비)
+          minY = Math.min(minY, y);
+          maxY = Math.max(maxY, y + height);
+        }
       });
-
-      const padding = {
-        top: 120,
-        right: 160,
-        bottom: 160,
-        left: 320,
-      };
-
-      const paddedMinX = Math.floor(minX) - padding.left;
-      const paddedMinY = Math.floor(minY) - padding.top;
-      const paddedMaxX = Math.ceil(maxX) + padding.right;
-      const paddedMaxY = Math.ceil(maxY) + padding.bottom;
-
-      const exportWidth = Math.max(1, paddedMaxX - paddedMinX);
-      const exportHeight = Math.max(1, paddedMaxY - paddedMinY);
-
-      const translateX = -paddedMinX;
-      const translateY = -paddedMinY;
-      const pixelRatio = typeof window !== 'undefined'
-        ? Math.min(window.devicePixelRatio || 1, 3)
-        : 1;
-
-      const setTemporaryStyle = (element: HTMLElement | null, property: string, value: string) => {
-        if (!element) return;
-        const previousValue = element.style.getPropertyValue(property);
-        const hadValue = previousValue !== '';
-        restoreStyleCallbacks.push(() => {
-          if (hadValue) {
-            element.style.setProperty(property, previousValue);
-          } else {
-            element.style.removeProperty(property);
+      
+      // 층위 라벨의 실제 위치 계산 (부모 transform + 자신의 position)
+      layerLabels.forEach((labelElement) => {
+        const label = labelElement as HTMLElement;
+        const parent = label.parentElement as HTMLElement;
+        
+        if (parent) {
+          // 부모의 transform에서 Y 좌표 파싱
+          const parentTransform = parent.style.transform;
+          const parentMatch = parentTransform.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/);
+          
+          if (parentMatch) {
+            const parentY = parseFloat(parentMatch[2]);
+            const labelTop = parseFloat(label.style.top || '0');
+            const labelLeft = parseFloat(label.style.left || '0');
+            const rect = label.getBoundingClientRect();
+            
+            // 실제 flow 좌표 계산
+            const labelX = labelLeft;
+            const labelY = parentY + labelTop;
+            
+            minX = Math.min(minX, labelX);
+            minY = Math.min(minY, labelY);
+            maxX = Math.max(maxX, labelX + rect.width);
+            maxY = Math.max(maxY, labelY + rect.height);
           }
-        });
-        element.style.setProperty(property, value);
+        }
+      });
+
+      // 3. 패딩 추가
+      const padding = 40;
+      const finalBounds = {
+        x: minX - padding,
+        y: minY - padding,
+        width: (maxX - minX) + (padding * 2),
+        height: (maxY - minY) + (padding * 2),
       };
 
-    setTemporaryStyle(captureElement, 'overflow', 'visible');
+      // 4. bounds에 맞는 viewport 계산
+      const viewport = getViewportForBounds(
+        finalBounds,
+        finalBounds.width,
+        finalBounds.height,
+        0.5,  // minZoom
+        2,    // maxZoom
+        0     // padding (이미 직접 추가함)
+      );
 
-      const dataUrl = await toPng(captureElement, {
-        filter: node => {
-          if (!node?.classList) return true;
-
-          const excludeClasses = [
-            'react-flow__minimap',
-            'react-flow__controls',
-            'culture-top-bar',
-            'left-panel',
-            'no-print',
-            'layer-legend',
-            'mobile-gesture-guide-overlay',
-          ];
-
-          return !excludeClasses.some(cls => node.classList.contains(cls));
-        },
+      // 5. .react-flow__viewport 요소를 타겟으로 캡처
+      const dataUrl = await toPng(viewportElement, {
         backgroundColor: '#ffffff',
-        width: exportWidth,
-        height: exportHeight,
-  pixelRatio,
-        cacheBust: true,
+        width: finalBounds.width,
+        height: finalBounds.height,
         style: {
-          transformOrigin: '0 0',
-          transform: `translate(${translateX}px, ${translateY}px)`,
-          width: `${exportWidth}px`,
-          height: `${exportHeight}px`,
-          overflow: 'visible',
+          width: `${finalBounds.width}px`,
+          height: `${finalBounds.height}px`,
+          transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
         },
       });
 
-      // 다운로드
+      // 6. 다운로드
       const a = document.createElement('a');
       a.download = `culture-map-${Date.now()}.png`;
       a.href = dataUrl;
       a.click();
 
-      console.log('✅ PNG 내보내기 완료 (고화질, 층위 배경 포함)');
+      console.log('✅ PNG 내보내기 완료');
     } catch (error) {
       console.error('❌ PNG 내보내기 실패:', error);
       setExportError('이미지 내보내기에 실패했습니다.');
     } finally {
-      while (restoreStyleCallbacks.length > 0) {
-        const restore = restoreStyleCallbacks.pop();
-        if (restore) {
-          restore();
-        }
-      }
       setIsExporting(false);
     }
   };
