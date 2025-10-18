@@ -42,8 +42,8 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
       // 실제 노드 경계 기반 동적 크기 계산
       const nodesBounds = getNodesBounds(nodes);
 
-      // 층위 배경 레이블 영역을 고려한 패딩 (왼쪽 여유 공간 확보)
-  const PADDING_LEFT = 320; // 왼쪽: 층위 레이블 공간 추가 확보 (레이블 잘림 방지)
+    // 층위 배경 레이블 영역을 고려한 패딩 (왼쪽 여유 공간 확보)
+    const PADDING_LEFT = 320; // 왼쪽: 층위 레이블 공간 추가 확보 (레이블 잘림 방지)
       const PADDING_RIGHT = 100; // 오른쪽: 일반 여백
       const PADDING_TOP = 100; // 상단: 일반 여백
       const PADDING_BOTTOM = 100; // 하단: 일반 여백
@@ -61,26 +61,33 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
       const scrollTop = captureElement.scrollTop;
       const elementRect = captureElement.getBoundingClientRect();
 
+      const extendedBounds = {
+        x: nodesBounds.x - PADDING_LEFT,
+        y: nodesBounds.y - PADDING_TOP,
+        width: nodesBounds.width + PADDING_LEFT + PADDING_RIGHT,
+        height: nodesBounds.height + PADDING_TOP + PADDING_BOTTOM,
+      };
+
       // 노드 경계와 실제 DOM 크기를 모두 고려하여 최종 캔버스 크기 결정
       const computedWidth = Math.ceil(
-        Math.max(nodesBounds.width + PADDING_LEFT + PADDING_RIGHT, scrollWidth, elementRect.width)
+        Math.max(extendedBounds.width, scrollWidth + PADDING_LEFT + PADDING_RIGHT, elementRect.width + PADDING_LEFT)
       );
       const computedHeight = Math.ceil(
         Math.max(
-          nodesBounds.height + PADDING_TOP + PADDING_BOTTOM,
-          scrollHeight,
-          elementRect.height
+          extendedBounds.height,
+          scrollHeight + PADDING_TOP + PADDING_BOTTOM,
+          elementRect.height + PADDING_TOP
         )
       );
 
       // 노드들이 이미지 중앙에 오도록 viewport 계산
       const transform = getViewportForBounds(
-        nodesBounds,
+        extendedBounds,
         computedWidth,
         computedHeight,
         0.5, // minZoom
         2, // maxZoom
-        PADDING_LEFT / computedWidth // 왼쪽 패딩 비율
+        0
       );
 
       // toPng로 넘기기 전 overflow를 잠시 해제하여 잘림을 방지
