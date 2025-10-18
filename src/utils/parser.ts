@@ -81,8 +81,9 @@ export const parseAIOutput = (
   let accumulatingConnection = '';
 
   // 2단계 파싱 방식: 메타데이터를 먼저 추출한 후 나머지 파싱
-  // Step 1: 메타데이터 패턴 (역방향 매칭)
-  const metadataPattern = /\(저자:\s*[^,)]+,\s*이론:\s*[^,)]+,\s*연도:\s*[^)]+\)$/;
+  // Step 1: 메타데이터 패턴 (역방향 매칭) - 신버전/구버전 모두 매칭
+  // 신버전: (xxx, yyy, zzz) 또는 구버전: (저자: xxx, 이론: yyy, 연도: zzz)
+  const metadataPattern = /\((?:저자:\s*)?[^,)]+,\s*(?:이론:\s*)?[^,)]+,\s*(?:연도:\s*)?[^)]+\)$/;
   
   // Step 2: 메타데이터 제거 후 노드 파싱 (content가 greedy)
   const nodeRegex = /^\[(?<type>[^\]]+)\]\s*\((?<sentiment>[^)]+)\)\s*(?<content>.+)$/i;
