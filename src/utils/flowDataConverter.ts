@@ -30,20 +30,28 @@ export const convertNoteToFlowNode = (
   let year: string | undefined;
   
   if (note.basis) {
-    const authorMatch = note.basis.match(/저자:\s*([^,]+)/);
-    const theoryMatch = note.basis.match(/이론:\s*([^,]+)/);
-    const yearMatch = note.basis.match(/연도:\s*([^,)]+)/);
-    
-    if (authorMatch) author = authorMatch[1].trim();
-    if (theoryMatch) theory = theoryMatch[1].trim();
-    if (yearMatch) year = yearMatch[1].trim();
+    // 새로운 형식: "(학자명, 이론명, 연도)" 파싱
+    const newFormatMatch = note.basis.match(/^\(?([^,]+),\s*([^,]+),\s*(\d{4})\)?$/);
+    if (newFormatMatch) {
+      author = newFormatMatch[1].trim();
+      theory = newFormatMatch[2].trim();
+      year = newFormatMatch[3].trim();
+    } else {
+      // 레거시 형식: "저자: XXX, 이론: YYY, 연도: ZZZZ"
+      const authorMatch = note.basis.match(/저자:\s*([^,]+)/);
+      const theoryMatch = note.basis.match(/이론:\s*([^,]+)/);
+      const yearMatch = note.basis.match(/연도:\s*([^,)]+)/);
+      
+      if (authorMatch) author = authorMatch[1].trim();
+      if (theoryMatch) theory = theoryMatch[1].trim();
+      if (yearMatch) year = yearMatch[1].trim();
+    }
   }
 
   const baseData = {
     content: note.text || '',
     sentiment: note.sentiment || 'neutral',
-    concept: note.perceptionIntensity, // 집중/관심/언급
-    frequency: note.frequency, // 빈도多/中/少
+    frequency: note.perceptionIntensity, // ✅ 수정: perceptionIntensity를 frequency로 매핑
     source: author && year ? `${author} (${year})` : undefined, // 저자 (연도)
     category: undefined, // NoteData에는 없음
     onUpdate: handleUpdate,
@@ -126,14 +134,19 @@ export const convertFlowNodeToNote = (node: Node): NoteData => {
   let basisString: string | undefined;
   if ('basis' in data && data.basis) {
     // theory만 있음
-    basisString = `이론: ${data.basis}`;
+    basisString = data.basis; // 이미 "이론명" 형태
   }
   if (data.source) {
     // source에서 author, year 추출
     const sourceMatch = data.source.match(/^(.+?)\s*\((\d{4})\)$/);
-    if (sourceMatch && basisString) {
+    if (sourceMatch) {
       const [, author, year] = sourceMatch;
-      basisString = `저자: ${author}, ${basisString}, 연도: ${year}`;
+      if (basisString) {
+        // 새 형식: "학자명, 이론명, 연도"
+        basisString = `${author}, ${basisString}, ${year}`;
+      } else {
+        basisString = `${author}, ${year}`;
+      }
     }
   }
 
@@ -143,8 +156,7 @@ export const convertFlowNodeToNote = (node: Node): NoteData => {
     type: noteType,
     layer: layerIndex,
     sentiment: data.sentiment,
-    perceptionIntensity: data.concept as PerceptionIntensity, // 집중/관심/언급
-    frequency: data.frequency as PerceptionIntensity, // 빈도多/中/少
+    perceptionIntensity: data.frequency as PerceptionIntensity, // ✅ 수정: frequency를 perceptionIntensity로 복원
     position: { x: node.position.x, y: node.position.y },
     basis: basisString,
     width: 200,

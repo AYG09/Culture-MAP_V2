@@ -73,11 +73,6 @@ const TangibleLeverNode = ({ id, data, selected }: NodeProps & { data: TangibleL
     return FREQUENCY_LABELS[frequency];
   };
 
-  // 디버깅: 빈도 데이터 확인
-  if (data.frequency) {
-    console.log('🔍 TangibleLeverNode frequency:', data.frequency, '→', getFrequencyLabel(data.frequency));
-  }
-
   return (
     <div
       className={`flow-node tangible-lever-node ${data.sentiment} ${selected ? 'selected' : ''}`}
