@@ -4,7 +4,7 @@ import 'react-quill-new/dist/quill.snow.css'; // Quill Snow 테마 CSS
 import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import { createDocxBlobFromHtml } from '../utils/htmlToDocx';
-import { ensurePdfFont } from '../utils/pdfFonts';
+import { ensurePdfFont, PDF_FONT_FAMILY_NAME } from '../utils/pdfFonts';
 import './ReportEditor.css';
 
 interface ReportEditorProps {
@@ -108,6 +108,18 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
       });
 
       await ensurePdfFont(pdf);
+      if ('fonts' in document && typeof document.fonts.load === 'function') {
+        try {
+          await Promise.all([
+            document.fonts.load(`400 16px "${PDF_FONT_FAMILY_NAME}"`),
+            document.fonts.load(`700 16px "${PDF_FONT_FAMILY_NAME}"`),
+          ]);
+          await document.fonts.ready;
+        } catch (fontError) {
+          console.warn('⚠️ PDF 폰트 사전 로드에 실패했습니다.', fontError);
+        }
+      }
+      pdf.setFont(PDF_FONT_FAMILY_NAME, 'normal');
 
       const pageWidth = pdf.internal.pageSize.getWidth();
       const horizontalMargin = 56; // 0.78in
@@ -123,7 +135,7 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
         windowWidth,
         autoPaging: 'text',
         html2canvas: {
-          scale: 1,
+          scale: window.devicePixelRatio > 1 ? Math.min(window.devicePixelRatio, 2) : 1,
           useCORS: true,
         },
         callback: (instance) => {

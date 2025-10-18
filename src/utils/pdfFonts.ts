@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 
+export const PDF_FONT_FAMILY_NAME = 'NanumGothic';
 const FONT_FILE_NAME = 'NanumGothic.ttf';
-const FONT_FAMILY_NAME = 'NanumGothic';
 const FONT_URL = '/fonts/NanumGothic.ttf';
 
 let cachedFontData: string | null = null;
@@ -46,6 +46,6 @@ export const ensurePdfFont = async (pdf: jsPDF): Promise<void> => {
   }
 
   pdf.addFileToVFS(FONT_FILE_NAME, cachedFontData);
-  pdf.addFont(FONT_FILE_NAME, FONT_FAMILY_NAME, 'normal');
-  pdf.setFont(FONT_FAMILY_NAME, 'normal');
+  pdf.addFont(FONT_FILE_NAME, PDF_FONT_FAMILY_NAME, 'normal', 'Identity-H');
+  pdf.setFont(PDF_FONT_FAMILY_NAME, 'normal');
 };

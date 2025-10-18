@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { toPng } from 'html-to-image';
-import { getNodesBounds, type ReactFlowInstance } from '@xyflow/react';
+import { type ReactFlowInstance } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -44,44 +44,46 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
         throw new Error('React Flow 노드를 찾을 수 없습니다.');
       }
 
-      const nodesBounds = getNodesBounds(reactFlowNodes);
       captureElement = document.querySelector('[data-capture-root="true"]') as HTMLElement;
 
       if (!captureElement) {
         throw new Error('캡처할 영역을 찾을 수 없습니다.');
       }
-
-      const viewportState = reactFlowInstance.getViewport();
       const rootRect = captureElement.getBoundingClientRect();
-
-      let minX = nodesBounds.x;
-      let minY = nodesBounds.y;
-      let maxX = nodesBounds.x + nodesBounds.width;
-      let maxY = nodesBounds.y + nodesBounds.height;
-
+      const nodeElements = Array.from(
+        captureElement.querySelectorAll('.react-flow__node')
+      ) as HTMLElement[];
       const layerElements = Array.from(
         captureElement.querySelectorAll('[data-layer-capture]')
       ) as HTMLElement[];
+      const edgeLayer = captureElement.querySelector('.react-flow__edges');
 
-      const applyRelativeBoundsToWorld = (element: HTMLElement) => {
+      const boundsTargets: Element[] = [...nodeElements, ...layerElements];
+      if (edgeLayer) {
+        boundsTargets.push(edgeLayer);
+      }
+
+      if (!boundsTargets.length) {
+        throw new Error('내보낼 요소의 경계 정보를 계산할 수 없습니다.');
+      }
+
+      let minX = Number.POSITIVE_INFINITY;
+      let minY = Number.POSITIVE_INFINITY;
+      let maxX = Number.NEGATIVE_INFINITY;
+      let maxY = Number.NEGATIVE_INFINITY;
+
+      boundsTargets.forEach(element => {
         const rect = element.getBoundingClientRect();
         const relativeLeft = rect.left - rootRect.left;
         const relativeTop = rect.top - rootRect.top;
         const relativeRight = rect.right - rootRect.left;
         const relativeBottom = rect.bottom - rootRect.top;
 
-        const worldLeft = (relativeLeft - viewportState.x) / viewportState.zoom;
-        const worldTop = (relativeTop - viewportState.y) / viewportState.zoom;
-        const worldRight = (relativeRight - viewportState.x) / viewportState.zoom;
-        const worldBottom = (relativeBottom - viewportState.y) / viewportState.zoom;
-
-        minX = Math.min(minX, worldLeft);
-        minY = Math.min(minY, worldTop);
-        maxX = Math.max(maxX, worldRight);
-        maxY = Math.max(maxY, worldBottom);
-      };
-
-      layerElements.forEach(applyRelativeBoundsToWorld);
+        minX = Math.min(minX, relativeLeft);
+        minY = Math.min(minY, relativeTop);
+        maxX = Math.max(maxX, relativeRight);
+        maxY = Math.max(maxY, relativeBottom);
+      });
 
       const padding = {
         top: 120,
@@ -90,20 +92,19 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
         left: 320,
       };
 
-      const paddedMinX = minX - padding.left;
-      const paddedMinY = minY - padding.top;
-      const paddedMaxX = maxX + padding.right;
-      const paddedMaxY = maxY + padding.bottom;
+      const paddedMinX = Math.floor(minX) - padding.left;
+      const paddedMinY = Math.floor(minY) - padding.top;
+      const paddedMaxX = Math.ceil(maxX) + padding.right;
+      const paddedMaxY = Math.ceil(maxY) + padding.bottom;
 
-      const exportWidth = Math.max(1, Math.ceil(paddedMaxX - paddedMinX));
-      const exportHeight = Math.max(1, Math.ceil(paddedMaxY - paddedMinY));
+      const exportWidth = Math.max(1, paddedMaxX - paddedMinX);
+      const exportHeight = Math.max(1, paddedMaxY - paddedMinY);
 
       const translateX = -paddedMinX;
       const translateY = -paddedMinY;
-
-      const viewportElement = captureElement.querySelector('.react-flow__viewport') as HTMLElement | null;
-      const backgroundRoot = captureElement.querySelector('[data-layer-background-root="true"]') as HTMLElement | null;
-      const reactFlowRoot = captureElement.querySelector('.react-flow') as HTMLElement | null;
+      const pixelRatio = typeof window !== 'undefined'
+        ? Math.min(window.devicePixelRatio || 1, 3)
+        : 1;
 
       const setTemporaryStyle = (element: HTMLElement | null, property: string, value: string) => {
         if (!element) return;
@@ -119,19 +120,7 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
         element.style.setProperty(property, value);
       };
 
-      setTemporaryStyle(captureElement, 'overflow', 'visible');
-      setTemporaryStyle(captureElement, 'width', `${exportWidth}px`);
-      setTemporaryStyle(captureElement, 'height', `${exportHeight}px`);
-      setTemporaryStyle(captureElement, 'position', 'relative');
-
-      setTemporaryStyle(reactFlowRoot, 'width', `${exportWidth}px`);
-      setTemporaryStyle(reactFlowRoot, 'height', `${exportHeight}px`);
-
-      setTemporaryStyle(viewportElement, 'transform-origin', '0 0');
-      setTemporaryStyle(viewportElement, 'transform', `translate(${translateX}px, ${translateY}px) scale(1)`);
-
-      setTemporaryStyle(backgroundRoot, 'transform-origin', '0 0');
-      setTemporaryStyle(backgroundRoot, 'transform', `translate(${translateX}px, ${translateY}px)`);
+    setTemporaryStyle(captureElement, 'overflow', 'visible');
 
       const dataUrl = await toPng(captureElement, {
         filter: node => {
@@ -152,11 +141,14 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
         backgroundColor: '#ffffff',
         width: exportWidth,
         height: exportHeight,
-        pixelRatio: 4,
+  pixelRatio,
         cacheBust: true,
         style: {
+          transformOrigin: '0 0',
+          transform: `translate(${translateX}px, ${translateY}px)`,
           width: `${exportWidth}px`,
           height: `${exportHeight}px`,
+          overflow: 'visible',
         },
       });
 
