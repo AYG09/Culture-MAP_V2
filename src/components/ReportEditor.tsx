@@ -125,23 +125,57 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
       const horizontalMargin = 56; // 0.78in
       const verticalMargin = 56;
       const availableWidth = pageWidth - horizontalMargin * 2;
-      const windowWidth = Math.max(reportElement.scrollWidth, availableWidth);
+      const deviceScale = window.devicePixelRatio > 1 ? Math.min(window.devicePixelRatio, 2) : 1;
 
-      await pdf.html(reportElement, {
-        x: horizontalMargin,
-        y: verticalMargin,
-        margin: [verticalMargin, horizontalMargin, verticalMargin, horizontalMargin],
-        width: availableWidth,
-        windowWidth,
-        autoPaging: 'text',
-        html2canvas: {
-          scale: window.devicePixelRatio > 1 ? Math.min(window.devicePixelRatio, 2) : 1,
-          useCORS: true,
-        },
-        callback: (instance) => {
-          instance.save(`report-${Date.now()}.pdf`);
-        },
-      });
+      const printContainer = document.createElement('div');
+      printContainer.style.position = 'fixed';
+      printContainer.style.left = '0';
+      printContainer.style.top = '0';
+      printContainer.style.width = `${availableWidth}px`;
+      printContainer.style.opacity = '0';
+      printContainer.style.pointerEvents = 'none';
+      printContainer.style.zIndex = '-1';
+      printContainer.style.backgroundColor = '#ffffff';
+      printContainer.style.boxSizing = 'border-box';
+
+      const clonedContent = reportElement.cloneNode(true) as HTMLElement;
+      clonedContent.style.boxSizing = 'border-box';
+      clonedContent.style.width = '100%';
+
+      printContainer.appendChild(clonedContent);
+      document.body.appendChild(printContainer);
+
+      try {
+        const targetHeight = printContainer.scrollHeight + verticalMargin * 2;
+        const windowWidth = Math.max(clonedContent.scrollWidth, availableWidth);
+
+        const htmlOptions: Record<string, unknown> = {
+          x: horizontalMargin,
+          y: verticalMargin,
+          margin: [verticalMargin, horizontalMargin, verticalMargin, horizontalMargin],
+          width: availableWidth,
+          windowWidth,
+          autoPaging: 'text',
+          pagebreak: { mode: ['css', 'legacy'] },
+          html2canvas: {
+            scale: deviceScale,
+            useCORS: true,
+            windowWidth,
+            windowHeight: Math.max(targetHeight, window.innerHeight),
+            scrollX: 0,
+            scrollY: 0,
+            backgroundColor: '#ffffff',
+          },
+        };
+
+        const typedOptions = htmlOptions as unknown as Parameters<typeof pdf.html>[1];
+
+        await pdf.html(printContainer, typedOptions);
+
+        pdf.save(`report-${Date.now()}.pdf`);
+      } finally {
+        document.body.removeChild(printContainer);
+      }
 
       console.log('✅ PDF 내보내기 완료');
     } catch (error) {
