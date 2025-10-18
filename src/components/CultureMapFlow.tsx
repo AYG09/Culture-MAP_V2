@@ -76,6 +76,13 @@ type EdgeContextMenuState = {
 
 type ContextMenuState = PaneContextMenuState | NodeContextMenuState | EdgeContextMenuState;
 
+type CollaborationLock = {
+  itemId: string;
+  itemType: 'note' | 'connection';
+  userId: string;
+  displayName?: string;
+};
+
 // 커스텀 노드 타입 정의
 const nodeTypes = {
   result: ResultNode,
@@ -148,6 +155,93 @@ const CultureMapFlow = ({
 
   const flowWrapperRef = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
+
+  const [collaborationLocks, setCollaborationLocks] = useState<Record<string, CollaborationLock>>({});
+  const collaborationLocksRef = useRef<Record<string, CollaborationLock>>({});
+
+  useEffect(() => {
+    collaborationLocksRef.current = collaborationLocks;
+  }, [collaborationLocks]);
+
+  const getCurrentUserId = useCallback(() => FirebaseMultiUserService.getCurrentUserId() ?? 'local-user', []);
+
+  const handleStartNodeEditing = useCallback(
+    (nodeId: string) => {
+      const userId = getCurrentUserId();
+      const displayName = FirebaseMultiUserService.getCurrentUserDisplayName();
+      const existingLock = collaborationLocksRef.current[nodeId];
+
+      if (existingLock && existingLock.userId !== userId) {
+        console.warn('🔒 [React Flow] 노드가 다른 사용자에 의해 잠겨있습니다.', {
+          nodeId,
+          existingLock,
+        });
+        return false;
+      }
+
+      const registerLocalLock = () => {
+        setCollaborationLocks(prev => {
+          const prevLock = prev[nodeId];
+          if (prevLock && prevLock.userId === userId && prevLock.displayName === displayName) {
+            return prev;
+          }
+
+          return {
+            ...prev,
+            [nodeId]: {
+              itemId: nodeId,
+              itemType: 'note',
+              userId,
+              displayName,
+            },
+          };
+        });
+      };
+
+      if (FirebaseMultiUserService.isConnected()) {
+        FirebaseMultiUserService.startEditing(nodeId, 'note');
+      }
+
+      registerLocalLock();
+
+      return true;
+    },
+    [getCurrentUserId]
+  );
+
+  const handleStopNodeEditing = useCallback(
+    (nodeId: string) => {
+      const userId = getCurrentUserId();
+      const displayName = FirebaseMultiUserService.getCurrentUserDisplayName();
+
+      if (FirebaseMultiUserService.isConnected()) {
+        FirebaseMultiUserService.stopEditing(nodeId, 'note');
+      }
+
+      setCollaborationLocks(prev => {
+        const prevLock = prev[nodeId];
+        if (!prevLock || prevLock.userId !== userId) {
+          return prev;
+        }
+
+        const updated = { ...prev };
+        delete updated[nodeId];
+        return updated;
+      });
+      // 편집 중간에 네트워크 상태가 바뀔 수 있으므로 동일 이름의 잠금이 남아있는 상태를 방지
+      collaborationLocksRef.current = {
+        ...collaborationLocksRef.current,
+        [nodeId]: {
+          itemId: nodeId,
+          itemType: 'note',
+          userId,
+          displayName,
+        },
+      };
+      delete collaborationLocksRef.current[nodeId];
+    },
+    [getCurrentUserId]
+  );
 
   // 사이드 패널 리사이즈 핸들러
   const handleMouseDown = useCallback(() => {
@@ -284,6 +378,8 @@ const CultureMapFlow = ({
 
       setNodes((currentNodes) => {
         const existingIndex = currentNodes.findIndex((n) => n.id === note.id);
+        const existingNode = existingIndex >= 0 ? currentNodes[existingIndex] : undefined;
+        const existingData = (existingNode?.data as Record<string, unknown>) ?? {};
 
         // 노드 타입 결정 (층위에서 역계산)
         const typeMap: { [key: number]: string } = {
@@ -295,26 +391,45 @@ const CultureMapFlow = ({
 
         const nodeType = typeMap[note.layer] || 'result';
 
+        const activeLock = collaborationLocksRef.current[note.id];
+        const currentUserId = getCurrentUserId();
+        const isLockedByOther = Boolean(
+          activeLock &&
+            activeLock.itemType === 'note' &&
+            activeLock.userId !== currentUserId
+        );
+
+        const previousContent = (existingData as { content?: string }).content ?? '';
+        const previousSentiment = (existingData as { sentiment?: string }).sentiment ?? 'neutral';
+
+        const updatedData: Record<string, unknown> = {
+          ...existingData,
+          content: note.content ?? previousContent,
+          sentiment: note.color ?? previousSentiment,
+          onUpdate: handleNodeContentUpdate,
+          onEditStart: handleStartNodeEditing,
+          onEditEnd: handleStopNodeEditing,
+          isLocked: isLockedByOther,
+          lockedBy: activeLock?.displayName ?? activeLock?.userId,
+        };
+
         const updatedNode: Node = {
           id: note.id,
           type: nodeType,
           position: { x: note.x, y: note.y },
-          data: {
-            content: note.content || '', // Firebase의 content 필드 사용
-            sentiment: note.color,
-            onUpdate: handleNodeContentUpdate,
-          },
-          width: note.width || 200,
-          height: note.height || 120,
+          data: updatedData,
+          width: note.width || (existingNode?.width as number) || 200,
+          height: note.height || (existingNode?.height as number) || 120,
+          selected: existingNode?.selected ?? false,
         };
 
         if (existingIndex >= 0) {
           // 기존 노드 업데이트
           return currentNodes.map((n, idx) => (idx === existingIndex ? updatedNode : n));
-        } else {
-          // 새 노드 추가
-          return [...currentNodes, updatedNode];
         }
+
+        // 새 노드 추가
+        return [...currentNodes, updatedNode];
       });
     };
 
@@ -397,7 +512,113 @@ const CultureMapFlow = ({
       FirebaseMultiUserService.off('connection-deleted', handleConnectionDeleted as EventHandler);
       console.log('🔌 [React Flow] Firebase 리스너 제거 완료');
     };
-  }, [handleNodeContentUpdate, setNodes, setEdges]);
+  }, [
+    getCurrentUserId,
+    handleNodeContentUpdate,
+    handleStartNodeEditing,
+    handleStopNodeEditing,
+    setNodes,
+    setEdges,
+  ]);
+
+  useEffect(() => {
+    type EditingEventPayload = {
+      itemId: string;
+      itemType: 'note' | 'connection';
+      userId: string;
+      displayName?: string;
+    };
+
+    const handleEditingStarted = (payload: unknown) => {
+      const data = payload as EditingEventPayload | undefined;
+      if (!data?.itemId) {
+        return;
+      }
+
+      setCollaborationLocks(prev => {
+        const prevLock = prev[data.itemId];
+        if (
+          prevLock &&
+          prevLock.userId === data.userId &&
+          prevLock.itemType === data.itemType
+        ) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          [data.itemId]: {
+            itemId: data.itemId,
+            itemType: data.itemType,
+            userId: data.userId,
+            displayName: data.displayName,
+          },
+        };
+      });
+    };
+
+    const handleEditingStopped = (payload: unknown) => {
+      const data = payload as EditingEventPayload | undefined;
+      if (!data?.itemId) {
+        return;
+      }
+
+      setCollaborationLocks(prev => {
+        const prevLock = prev[data.itemId];
+        if (!prevLock || prevLock.userId !== data.userId) {
+          return prev;
+        }
+
+        const updated = { ...prev };
+        delete updated[data.itemId];
+        return updated;
+      });
+    };
+
+    type EventHandler = (...args: unknown[]) => void;
+
+    FirebaseMultiUserService.on('editing-started', handleEditingStarted as EventHandler);
+    FirebaseMultiUserService.on('editing-stopped', handleEditingStopped as EventHandler);
+
+    return () => {
+      FirebaseMultiUserService.off('editing-started', handleEditingStarted as EventHandler);
+      FirebaseMultiUserService.off('editing-stopped', handleEditingStopped as EventHandler);
+    };
+  }, []);
+
+  useEffect(() => {
+    const currentUserId = getCurrentUserId();
+
+    setNodes(currentNodes =>
+      currentNodes.map(node => {
+        const lock = collaborationLocks[node.id];
+        const isLockedByOther = Boolean(
+          lock && lock.itemType === 'note' && lock.userId !== currentUserId
+        );
+        const lockLabel = lock?.displayName ?? lock?.userId;
+
+        const currentData = node.data as Record<string, unknown>;
+        const existingIsLocked = (currentData as { isLocked?: boolean }).isLocked ?? false;
+        const existingLockedBy = (currentData as { lockedBy?: string }).lockedBy;
+
+        if (
+          existingIsLocked === Boolean(isLockedByOther) &&
+          existingLockedBy === lockLabel
+        ) {
+          return node;
+        }
+
+        return {
+          ...node,
+          data: {
+            ...currentData,
+            isLocked: Boolean(isLockedByOther),
+            lockedBy: lockLabel,
+          },
+        };
+      })
+    );
+  }, [collaborationLocks, getCurrentUserId, setNodes]);
 
   // ============================================================================
   // AI 일괄 생성 기능
@@ -425,7 +646,13 @@ const CultureMapFlow = ({
       const { nodes: flowNodes, edges: flowEdges } = convertToFlowData(
         parsedNotes,
         parsedConnections,
-        handleNodeContentUpdate
+        handleNodeContentUpdate,
+        {
+          activeLocks: collaborationLocks,
+          onNodeEditStart: handleStartNodeEditing,
+          onNodeEditEnd: handleStopNodeEditing,
+          currentUserId: getCurrentUserId(),
+        }
       );
 
       // 자동 레이아웃 적용
@@ -478,7 +705,18 @@ const CultureMapFlow = ({
       console.error('❌ [React Flow] AI 일괄 생성 실패:', error);
       alert('AI 출력 파싱 중 오류가 발생했습니다. 형식을 확인해주세요.');
     }
-  }, [aiInput, handleNodeContentUpdate, onNotesChange, onConnectionsChange, setNodes, setEdges]);
+  }, [
+    aiInput,
+    collaborationLocks,
+    getCurrentUserId,
+    handleNodeContentUpdate,
+    handleStartNodeEditing,
+    handleStopNodeEditing,
+    onConnectionsChange,
+    onNotesChange,
+    setEdges,
+    setNodes,
+  ]);
 
   // ============================================================================
   // 노드 변경 핸들러 + Firebase 동기화
@@ -501,8 +739,18 @@ const CultureMapFlow = ({
             };
 
             const layer = layerMap[node.type || 'result'] || 1;
+            const activeLock = collaborationLocksRef.current[node.id];
+            const currentUserId = getCurrentUserId();
+            const isLockedByOther = Boolean(
+              activeLock &&
+                activeLock.itemType === 'note' &&
+                activeLock.userId !== currentUserId
+            );
 
-            // Firebase 실시간 동기화
+            if (isLockedByOther) {
+              return;
+            }
+
             FirebaseMultiUserService.updateStickyNote({
               id: node.id,
               content: (node.data as { content?: string }).content || '',
@@ -528,7 +776,7 @@ const CultureMapFlow = ({
       const updatedData = convertFromFlowData(nodes, edges);
       onNotesChange(updatedData.notes);
     },
-    [nodes, edges, onNodesChange, onNotesChange]
+    [getCurrentUserId, nodes, edges, onNodesChange, onNotesChange]
   );
 
   // ============================================================================
@@ -773,6 +1021,10 @@ const CultureMapFlow = ({
             content: '새 노트',
             sentiment: 'neutral',
             onUpdate: handleNodeContentUpdate,
+            onEditStart: handleStartNodeEditing,
+            onEditEnd: handleStopNodeEditing,
+            isLocked: false,
+            lockedBy: undefined,
           },
         };
 
@@ -1024,6 +1276,8 @@ const CultureMapFlow = ({
       setEdges,
       closeContextMenu,
       handleNodeContentUpdate,
+      handleStartNodeEditing,
+      handleStopNodeEditing,
       onConnectionsChange,
       onNotesChange,
     ]

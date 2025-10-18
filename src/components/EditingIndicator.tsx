@@ -3,13 +3,13 @@ import './EditingIndicator.css';
 
 interface EditingIndicatorProps {
   isVisible: boolean;
-  userId?: string;
+  userLabel?: string;
   className?: string;
 }
 
 const EditingIndicator: React.FC<EditingIndicatorProps> = ({
   isVisible,
-  userId,
+  userLabel,
   className = '',
 }) => {
   if (!isVisible) return null;
@@ -17,7 +17,7 @@ const EditingIndicator: React.FC<EditingIndicatorProps> = ({
   return (
     <div
       className={`editing-indicator ${className}`}
-      title={`${userId ? `사용자 ${userId}` : '다른 사용자'}가 편집 중입니다`}
+      title={`${userLabel ?? '다른 사용자'}가 편집 중입니다`}
     >
       {/* 공구 아이콘 (wrench/tool icon) */}
       <div className="editing-icon">🔧</div>

@@ -22,6 +22,14 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(sessionName || `세션 ${sessionCode}`);
 
+  const sessionQuery = `?multiuser=true&session=${sessionCode}`;
+  const originUrl = `${window.location.origin}${sessionQuery}`;
+  const portSegment = window.location.port ? `:${window.location.port}` : '';
+  const networkUrl =
+    localIP && localIP !== 'localhost'
+      ? `${window.location.protocol}//${localIP}${portSegment}${sessionQuery}`
+      : null;
+
   useEffect(() => {
     generateQRCode();
     getLocalIP();
@@ -30,8 +38,7 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
 
   const generateQRCode = async () => {
     try {
-      const url = `${window.location.origin}?multiuser=true&session=${sessionCode}`;
-      const qrDataUrl = await QRCode.toDataURL(url, {
+      const qrDataUrl = await QRCode.toDataURL(originUrl, {
         width: 200,
         margin: 2,
         color: {
@@ -55,16 +62,28 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
     }
   };
 
-  const copySessionCode = () => {
-    navigator.clipboard.writeText(sessionCode);
-    // 간단한 피드백 (실제로는 toast 등을 사용할 수 있음)
-    alert('세션 코드가 복사되었습니다!');
+  const copyText = async (value: string, successMessage: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      alert(successMessage);
+    } catch (error) {
+      console.error('클립보드 복사 실패:', error);
+      alert('클립보드 복사에 실패했습니다.');
+    }
   };
 
-  const copyUrl = () => {
-    const url = `${window.location.origin}?multiuser=true&session=${sessionCode}`;
-    navigator.clipboard.writeText(url);
-    alert('접속 URL이 복사되었습니다!');
+  const copySessionCode = () => {
+    void copyText(sessionCode, '세션 코드가 복사되었습니다!');
+  };
+
+  const copyOriginUrl = () => {
+    void copyText(originUrl, '세션 공유 URL이 복사되었습니다!');
+  };
+
+  const copyNetworkUrl = () => {
+    if (networkUrl) {
+      void copyText(networkUrl, '같은 네트워크 접속 URL이 복사되었습니다!');
+    }
   };
 
   const handleSaveSessionName = async () => {
@@ -74,7 +93,8 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
     }
 
     try {
-      const FirebaseMultiUserService = (await import('../services/FirebaseMultiUserService')).default;
+      const FirebaseMultiUserService = (await import('../services/FirebaseMultiUserService'))
+        .default;
       await FirebaseMultiUserService.updateSessionName(sessionCode, editedName.trim());
       setIsEditingName(false);
       alert('세션 이름이 변경되었습니다!');
@@ -104,7 +124,7 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
               <input
                 type="text"
                 value={editedName}
-                onChange={(e) => setEditedName(e.target.value)}
+                onChange={e => setEditedName(e.target.value)}
                 placeholder="세션 이름을 입력하세요"
                 autoFocus
                 style={{
@@ -175,27 +195,32 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
           <h4>💻 수동 접속 방법</h4>
           <div className="connection-urls">
             <div className="url-item">
-              <span className="url-label">컴퓨터:</span>
+              <span className="url-label">현재 페이지:</span>
               <div className="url-display">
-                <code>http://localhost:5178?multiuser=true&session={sessionCode}</code>
-                <button onClick={copyUrl} className="copy-btn-small">
+                <code>{originUrl}</code>
+                <button onClick={copyOriginUrl} className="copy-btn-small">
                   📋
                 </button>
               </div>
             </div>
 
-            {localIP !== 'localhost' && (
+            {networkUrl && (
               <div className="url-item">
                 <span className="url-label">같은 네트워크:</span>
                 <div className="url-display">
-                  <code>
-                    http://{localIP}:5178?multiuser=true&session={sessionCode}
-                  </code>
-                  <button onClick={copyUrl} className="copy-btn-small">
+                  <code>{networkUrl}</code>
+                  <button onClick={copyNetworkUrl} className="copy-btn-small">
                     📋
                   </button>
                 </div>
               </div>
+            )}
+
+            {localIP === 'localhost' && (
+              <p className="manual-tip">
+                같은 네트워크 기기에서 접속하려면 위 주소의 <code>localhost</code>를 호스트 컴퓨터의
+                IP(예: <code>192.168.0.10</code>)로 바꿔 입력해주세요.
+              </p>
             )}
           </div>
         </div>
@@ -212,6 +237,9 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
             <li>
               <strong>세션 코드 입력:</strong> 메인 화면에서 "{sessionCode}" 입력
             </li>
+            <li>
+              <strong>링크 공유:</strong> 복사 버튼으로 얻은 URL을 메신저나 이메일로 전달
+            </li>
           </ol>
 
           <div className="tips">
@@ -219,6 +247,7 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
             <ul>
               <li>모든 기기가 같은 Wi-Fi에 연결되어 있어야 합니다</li>
               <li>세션은 2시간 후 자동으로 만료됩니다</li>
+              <li>원격 협업 시 호스트가 공유한 URL을 그대로 접속하면 인증이 간편합니다</li>
               <li>실시간으로 모든 변경사항이 동기화됩니다</li>
             </ul>
           </div>

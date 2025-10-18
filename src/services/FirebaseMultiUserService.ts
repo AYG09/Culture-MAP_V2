@@ -58,6 +58,7 @@ interface StickyNoteUpdate {
 interface EditingInfo {
   userId: string;
   userName?: string;
+  displayName?: string;
   timestamp: number;
 }
 
@@ -93,15 +94,70 @@ class FirebaseMultiUserService {
   private listeners: { [event: string]: Array<(...args: unknown[]) => void> } = {};
   private firebaseRefs: { [key: string]: DatabaseReference } = {};
   private userId: string;
+  private userDisplayName: string;
+
+  private static readonly ADJECTIVES = [
+    '푸른',
+    '맑은',
+    '따뜻한',
+    '조용한',
+    '빛나는',
+    '활기찬',
+    '상큼한',
+    '평온한',
+    '명랑한',
+    '단단한',
+    '유연한',
+    '단풍든',
+  ];
+
+  private static readonly NOUNS = [
+    '수달',
+    '고래',
+    '솔바람',
+    '별빛',
+    '노을',
+    '산들바람',
+    '단풍',
+    '하모니',
+    '여우',
+    '별똥별',
+    '파도',
+    '새벽빛',
+  ];
+
+  private static readonly usedDisplayNames = new Set<string>();
 
   constructor() {
     // 고유한 사용자 ID 생성
     this.userId = this.generateUserId();
+    this.userDisplayName = this.generateDisplayName();
     console.log('🔥 Firebase MultiUser Service initialized with user ID:', this.userId);
   }
 
   private generateUserId(): string {
     return 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  }
+
+  private generateDisplayName(): string {
+    const adjectives = FirebaseMultiUserService.ADJECTIVES;
+    const nouns = FirebaseMultiUserService.NOUNS;
+
+    const pickRandom = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const candidate = `${pickRandom(adjectives)} ${pickRandom(nouns)}`;
+      if (!FirebaseMultiUserService.usedDisplayNames.has(candidate)) {
+        FirebaseMultiUserService.usedDisplayNames.add(candidate);
+        return candidate;
+      }
+    }
+
+    const fallback = `${pickRandom(adjectives)} ${pickRandom(nouns)}-${Math.floor(
+      Math.random() * 90 + 10
+    )}`;
+    FirebaseMultiUserService.usedDisplayNames.add(fallback);
+    return fallback;
   }
 
   // 이벤트 리스너 등록 (기존 API 유지)
@@ -146,6 +202,7 @@ class FirebaseMultiUserService {
         users: {
           [this.userId]: {
             userId: this.userId,
+            displayName: this.userDisplayName,
             joinedAt: serverTimestamp(),
             isHost: true,
             isOnline: true,
@@ -208,6 +265,7 @@ class FirebaseMultiUserService {
       // 사용자 정보 등록
       set(userRef, {
         userId: this.userId,
+        displayName: this.userDisplayName,
         joinedAt: serverTimestamp(),
         isHost: isHost,
         isOnline: true,
@@ -216,6 +274,7 @@ class FirebaseMultiUserService {
       // 연결 해제 시 자동으로 offline 처리
       onDisconnect(userRef).set({
         userId: this.userId,
+        displayName: this.userDisplayName,
         isHost: isHost,
         isOnline: false,
         leftAt: serverTimestamp(),
@@ -294,10 +353,13 @@ class FirebaseMultiUserService {
     this.firebaseRefs.editing = editingRef;
 
     // 이전 편집 상태를 추적하여 시작/중지 이벤트 구분
-    let previousEditingData: Record<string, EditingInfo & { itemType: string }> = {};
+    type FirebaseEditingEntry = EditingInfo & { itemType: string };
+    let previousEditingData: Record<string, FirebaseEditingEntry> = {};
 
     onValue(editingRef, snapshot => {
-      const currentEditingData = snapshot.exists() ? snapshot.val() as Record<string, EditingInfo & { itemType: string }> : {};
+      const currentEditingData = snapshot.exists()
+        ? (snapshot.val() as Record<string, FirebaseEditingEntry>)
+        : {};
       
       // 새로 시작된 편집 감지
       Object.entries(currentEditingData).forEach(([itemId, editInfo]) => {
@@ -307,6 +369,7 @@ class FirebaseMultiUserService {
             itemId,
             itemType: editInfo.itemType,
             userId: editInfo.userId,
+            displayName: editInfo.displayName ?? editInfo.userName,
           });
         }
       });
@@ -319,6 +382,7 @@ class FirebaseMultiUserService {
             itemId,
             itemType: editInfo.itemType,
             userId: editInfo.userId,
+            displayName: editInfo.displayName ?? editInfo.userName,
           });
         }
       });
@@ -474,18 +538,19 @@ class FirebaseMultiUserService {
       const editingRef = ref(database, `sessions/${this.currentSession.code}/editing/${itemId}`);
       set(editingRef, {
         userId: this.userId,
+        displayName: this.userDisplayName,
         itemType,
         startedAt: serverTimestamp(),
       });
 
-      console.log('🔥 Firebase editing started:', itemId);
+      console.log('🔥 Firebase editing started:', { itemId, itemType, displayName: this.userDisplayName });
     } catch (error) {
       console.error('❌ Failed to start Firebase editing:', error);
     }
   }
 
   // 편집 완료 알림
-  stopEditing(itemId: string, _itemType?: 'note' | 'connection') {
+  stopEditing(itemId: string, itemType?: 'note' | 'connection') {
     if (!this.currentSession) {
       console.log('⚠️ No session - edited locally only');
       return;
@@ -495,7 +560,7 @@ class FirebaseMultiUserService {
       const editingRef = ref(database, `sessions/${this.currentSession.code}/editing/${itemId}`);
       remove(editingRef);
 
-      console.log('🔥 Firebase editing stopped:', itemId);
+      console.log('🔥 Firebase editing stopped:', { itemId, itemType });
     } catch (error) {
       console.error('❌ Failed to stop Firebase editing:', error);
     }
@@ -523,6 +588,11 @@ class FirebaseMultiUserService {
   // 현재 사용자 ID 가져오기
   getCurrentUserId(): string | null {
     return this.userId;
+  }
+
+  // 현재 사용자 표시 이름 가져오기
+  getCurrentUserDisplayName(): string {
+    return this.userDisplayName;
   }
 
   // 연결 상태 확인

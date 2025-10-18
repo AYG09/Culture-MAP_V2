@@ -46,9 +46,23 @@ const extractBasisDisplay = (basis?: string): string | undefined => {
 /**
  * 기존 NoteData를 React Flow Node로 변환
  */
+type ActiveLock = {
+  userId: string;
+  itemType: 'note' | 'connection';
+  displayName?: string;
+};
+
+interface ConversionOptions {
+  currentUserId?: string | null;
+  activeLock?: ActiveLock;
+  onEditStart?: (id: string) => boolean | void;
+  onEditEnd?: (id: string) => void;
+}
+
 export const convertNoteToFlowNode = (
   note: NoteData,
-  onUpdate: (id: string, content: string) => void
+  onUpdate: (id: string, content: string) => void,
+  options?: ConversionOptions
 ): Node => {
   // 층위에 따른 노드 타입 결정
   let nodeType: string;
@@ -59,7 +73,28 @@ export const convertNoteToFlowNode = (
     onUpdate(targetId, content);
   };
 
+  const handleEditStart = (id: string) => {
+    const targetId = id || note.id;
+    if (!options?.onEditStart) {
+      return undefined;
+    }
+    return options.onEditStart(targetId);
+  };
+
+  const handleEditEnd = (id: string) => {
+    const targetId = id || note.id;
+    options?.onEditEnd?.(targetId);
+  };
+
   const basisDisplay = extractBasisDisplay(note.basis);
+
+  const isLockedByOther = Boolean(
+    options?.activeLock &&
+      options.activeLock.itemType === 'note' &&
+      options.activeLock.userId !== (options.currentUserId ?? undefined)
+  );
+
+  const lockLabel = options?.activeLock?.displayName ?? options?.activeLock?.userId;
 
   const baseData = {
     content: note.text || '',
@@ -67,6 +102,10 @@ export const convertNoteToFlowNode = (
     frequency: note.perceptionIntensity, // ✅ 수정: perceptionIntensity를 frequency로 매핑
     category: undefined, // NoteData에는 없음
     onUpdate: handleUpdate,
+    onEditStart: options?.onEditStart ? handleEditStart : undefined,
+    onEditEnd: options?.onEditEnd ? handleEditEnd : undefined,
+    isLocked: isLockedByOther,
+    lockedBy: lockLabel,
   };
 
   switch (note.type) {
@@ -231,9 +270,22 @@ export const convertFlowEdgeToConnection = (edge: Edge): ConnectionData => {
 export const convertToFlowData = (
   notes: NoteData[],
   connections: ConnectionData[],
-  onNodeUpdate: (id: string, content: string) => void
+  onNodeUpdate: (id: string, content: string) => void,
+  options?: {
+    activeLocks?: Record<string, ActiveLock>;
+    onNodeEditStart?: (id: string) => boolean | void;
+    onNodeEditEnd?: (id: string) => void;
+    currentUserId?: string | null;
+  }
 ): { nodes: Node[]; edges: Edge[] } => {
-  const nodes = notes.map((note) => convertNoteToFlowNode(note, onNodeUpdate));
+  const nodes = notes.map((note) =>
+    convertNoteToFlowNode(note, onNodeUpdate, {
+      currentUserId: options?.currentUserId,
+      activeLock: options?.activeLocks?.[note.id],
+      onEditStart: options?.onNodeEditStart,
+      onEditEnd: options?.onNodeEditEnd,
+    })
+  );
   const edges = connections.map(convertConnectionToFlowEdge);
 
   return { nodes, edges };

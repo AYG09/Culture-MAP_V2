@@ -1,8 +1,9 @@
 // src/components/flow-nodes/BehaviorNode.tsx
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Handle, Position, NodeResizer, type NodeProps } from '@xyflow/react';
 import type { PerceptionIntensity } from '../../types/culture';
 import { FREQUENCY_LABELS } from '../../types/culture';
+import EditingIndicator from '../EditingIndicator';
 import './FlowNodes.css';
 
 export interface BehaviorNodeData {
@@ -13,12 +14,18 @@ export interface BehaviorNodeData {
   category?: string;
   frequency?: PerceptionIntensity; // 빈도 추가
   onUpdate: (id: string, content: string) => void;
-  onEdit?: () => void;
+  onEditStart?: (id: string) => boolean | void;
+  onEditEnd?: (id: string) => void;
+  isLocked?: boolean;
+  lockedBy?: string;
 }
 
 const BehaviorNode = ({ id, data, selected }: NodeProps & { data: BehaviorNodeData }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [content, setContent] = useState(data.content);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const isLockedByOther = Boolean(data.isLocked);
 
   useEffect(() => {
     if (!isEditing) {
@@ -26,28 +33,45 @@ const BehaviorNode = ({ id, data, selected }: NodeProps & { data: BehaviorNodeDa
     }
   }, [data.content, isEditing]);
 
+  useEffect(() => {
+    if (isEditing && isLockedByOther) {
+      setIsEditing(false);
+      data.onEditEnd?.(id);
+    }
+  }, [data, id, isEditing, isLockedByOther]);
+
   const handleDoubleClick = useCallback(() => {
+    if (isLockedByOther) {
+      return;
+    }
+
+    const canEdit = data.onEditStart ? data.onEditStart(id) !== false : true;
+    if (!canEdit) {
+      return;
+    }
+
     setIsEditing(true);
-    data.onEdit?.();
-  }, [data]);
+  }, [data, id, isLockedByOther]);
 
   const handleBlur = useCallback(() => {
     setIsEditing(false);
     if (content !== data.content) {
       data.onUpdate(id, content);
     }
+    data.onEditEnd?.(id);
   }, [content, data, id]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleBlur();
+      textareaRef.current?.blur();
     }
     if (e.key === 'Escape') {
       setContent(data.content);
       setIsEditing(false);
+      textareaRef.current?.blur();
     }
-  }, [data.content, handleBlur]);
+  }, [data.content]);
 
   const sentimentColors = {
     positive: '#3b82f6', // 파랑
@@ -74,9 +98,16 @@ const BehaviorNode = ({ id, data, selected }: NodeProps & { data: BehaviorNodeDa
 
   return (
     <div
-      className={`flow-node behavior-node ${data.sentiment} ${selected ? 'selected' : ''}`}
+      className={`flow-node behavior-node ${data.sentiment} ${selected ? 'selected' : ''} ${
+        isLockedByOther ? 'locked' : ''
+      }`}
       onDoubleClick={handleDoubleClick}
       style={{ border: `3px solid ${sentimentColors[data.sentiment]}` }}
+      title={
+        isLockedByOther
+          ? `다른 사용자가 편집 중입니다${data.lockedBy ? ` (${data.lockedBy})` : ''}`
+          : undefined
+      }
     >
       <NodeResizer
         minWidth={180}
@@ -122,6 +153,8 @@ const BehaviorNode = ({ id, data, selected }: NodeProps & { data: BehaviorNodeDa
             placeholder="행동을 입력하세요..."
             autoFocus
             className="node-textarea"
+            ref={textareaRef}
+            readOnly={isLockedByOther}
           />
         ) : (
           <div className="node-content">{data.content || '빈 노트'}</div>
@@ -147,6 +180,8 @@ const BehaviorNode = ({ id, data, selected }: NodeProps & { data: BehaviorNodeDa
         className="custom-handle"
         isConnectable={true}
       />
+
+  <EditingIndicator isVisible={isLockedByOther} userLabel={data.lockedBy} className="sticky-note" />
     </div>
   );
 };

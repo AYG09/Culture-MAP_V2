@@ -211,6 +211,13 @@
   background: #4b5563;
 }
 
+.manual-tip {
+  margin-top: 4px;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 /* 설명 섹션 */
 .instructions ol {
   padding-left: 20px;

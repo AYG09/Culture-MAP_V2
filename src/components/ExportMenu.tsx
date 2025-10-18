@@ -35,63 +35,87 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
     setIsExporting(true);
     setExportError(null);
 
+    let captureElement: HTMLElement | null = null;
+    let previousOverflow: string | null = null;
+
     try {
       // 실제 노드 경계 기반 동적 크기 계산
       const nodesBounds = getNodesBounds(nodes);
-      
-      // 층위 배경 레이블 영역을 고려한 패딩 (왼쪽 여유 공간 확보)
-      const PADDING_LEFT = 200;  // 왼쪽: 층위 레이블 공간 확보
-      const PADDING_RIGHT = 100;  // 오른쪽: 일반 여백
-      const PADDING_TOP = 100;    // 상단: 일반 여백
-      const PADDING_BOTTOM = 100; // 하단: 일반 여백
-      
-      const imageWidth = nodesBounds.width + PADDING_LEFT + PADDING_RIGHT;
-      const imageHeight = nodesBounds.height + PADDING_TOP + PADDING_BOTTOM;
 
-      // 노드들이 이미지 중앙에 오도록 viewport 계산
-      const transform = getViewportForBounds(
-        nodesBounds,
-        imageWidth,
-        imageHeight,
-        0.5, // minZoom
-        2,   // maxZoom
-        PADDING_LEFT / imageWidth  // 왼쪽 패딩 비율
-      );
+      // 층위 배경 레이블 영역을 고려한 패딩 (왼쪽 여유 공간 확보)
+      const PADDING_LEFT = 200; // 왼쪽: 층위 레이블 공간 확보
+      const PADDING_RIGHT = 100; // 오른쪽: 일반 여백
+      const PADDING_TOP = 100; // 상단: 일반 여백
+      const PADDING_BOTTOM = 100; // 하단: 일반 여백
 
       // 변경: viewport 대신 flowWrapperRef를 포함하는 부모 선택 (층위 배경 포함)
-      const captureElement = document.querySelector('[data-capture-root="true"]') as HTMLElement;
-      
+      captureElement = document.querySelector('[data-capture-root="true"]') as HTMLElement;
+
       if (!captureElement) {
         throw new Error('캡처할 영역을 찾을 수 없습니다.');
       }
 
+      const scrollWidth = captureElement.scrollWidth;
+      const scrollHeight = captureElement.scrollHeight;
+      const scrollLeft = captureElement.scrollLeft;
+      const scrollTop = captureElement.scrollTop;
+      const elementRect = captureElement.getBoundingClientRect();
+
+      // 노드 경계와 실제 DOM 크기를 모두 고려하여 최종 캔버스 크기 결정
+      const computedWidth = Math.ceil(
+        Math.max(nodesBounds.width + PADDING_LEFT + PADDING_RIGHT, scrollWidth, elementRect.width)
+      );
+      const computedHeight = Math.ceil(
+        Math.max(
+          nodesBounds.height + PADDING_TOP + PADDING_BOTTOM,
+          scrollHeight,
+          elementRect.height
+        )
+      );
+
+      // 노드들이 이미지 중앙에 오도록 viewport 계산
+      const transform = getViewportForBounds(
+        nodesBounds,
+        computedWidth,
+        computedHeight,
+        0.5, // minZoom
+        2, // maxZoom
+        PADDING_LEFT / computedWidth // 왼쪽 패딩 비율
+      );
+
+      // toPng로 넘기기 전 overflow를 잠시 해제하여 잘림을 방지
+      previousOverflow = captureElement.style.overflow;
+      captureElement.style.overflow = 'visible';
+
       // PNG 이미지 생성 (초고화질, 4K 디스플레이 지원)
       const dataUrl = await toPng(captureElement, {
         // 불필요한 UI 요소 제외 (MiniMap, Controls, 상단 바, 좌측 패널)
-        filter: (node) => {
+        filter: node => {
           if (!node?.classList) return true;
 
           // 제외할 클래스 목록
           const excludeClasses = [
             'react-flow__minimap',
             'react-flow__controls',
-            'culture-top-bar',      // 상단 바 제외
-            'left-panel',           // 좌측 AI 패널 제외
-            'no-print',             // no-print 클래스 제외
-            'layer-legend',         // Panel 범례 제외 (선택적)
+            'culture-top-bar', // 상단 바 제외
+            'left-panel', // 좌측 AI 패널 제외
+            'no-print', // no-print 클래스 제외
+            'layer-legend', // Panel 범례 제외 (선택적)
           ];
 
           return !excludeClasses.some(cls => node.classList.contains(cls));
         },
         backgroundColor: '#ffffff',
-        width: imageWidth,
-        height: imageHeight,
-        pixelRatio: 4,            // 초고화질 (4배 해상도, 4K 디스플레이 최적화)
-        cacheBust: true,          // 캐시 문제 방지
-        fontEmbedCSS: '',         // 폰트 임베딩 최적화
-        skipFonts: false,         // 폰트 정보 포함
+        width: computedWidth,
+        height: computedHeight,
+        pixelRatio: 4, // 초고화질 (4배 해상도, 4K 디스플레이 최적화)
+        cacheBust: true, // 캐시 문제 방지
+        fontEmbedCSS: '', // 폰트 임베딩 최적화
+        skipFonts: false, // 폰트 정보 포함
         style: {
-          transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.zoom})`,
+          transform: `translate(${transform.x - scrollLeft}px, ${transform.y - scrollTop}px) scale(${transform.zoom})`,
+          width: `${computedWidth}px`,
+          height: `${computedHeight}px`,
         },
       });
 
@@ -106,6 +130,9 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
       console.error('❌ PNG 내보내기 실패:', error);
       setExportError('이미지 내보내기에 실패했습니다.');
     } finally {
+      if (captureElement) {
+        captureElement.style.overflow = previousOverflow ?? '';
+      }
       setIsExporting(false);
     }
   };
@@ -197,7 +224,7 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
       };
 
       // 노드 데이터를 Excel 행으로 변환
-      const worksheetData = nodes.map((node) => ({
+      const worksheetData = nodes.map(node => ({
         ID: node.id,
         층위: getLayerName(node.type || ''),
         내용: (node.data as { content?: string }).content || '',
@@ -219,7 +246,7 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
         return acc;
       }, [] as number[]);
 
-      worksheet['!cols'] = maxWidths.map((w) => ({ wch: w }));
+      worksheet['!cols'] = maxWidths.map(w => ({ wch: w }));
 
       // 워크북 생성 및 시트 추가
       const workbook = XLSX.utils.book_new();

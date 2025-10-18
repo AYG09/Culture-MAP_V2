@@ -17,19 +17,19 @@ const extractPerceptionIntensity = (type: string): PerceptionIntensity => {
   if (type.includes('빈도多') || type.includes('빈도_多')) return 'high';
   if (type.includes('빈도中') || type.includes('빈도_中')) return 'medium';
   if (type.includes('빈도少') || type.includes('빈도_少')) return 'low';
-  
+
   // 레거시 형식: 집중/관심/언급 → high/medium/low 변환
   if (type.endsWith('_집중')) return 'high';
   if (type.endsWith('_관심')) return 'medium';
   if (type.endsWith('_언급')) return 'low';
-  
+
   return 'low'; // 기본값
 };
 
 // 타입 정규화 함수 (인식강도 suffix 처리 포함)
 const normalizeType = (type: string): string => {
   let typeWithoutIntensity = type;
-  
+
   // 신규 형식: 빈도多/中/少 제거
   if (type.includes('빈도多') || type.includes('빈도_多')) {
     typeWithoutIntensity = type.replace(/[_]?빈도[_]?多/g, '');
@@ -54,8 +54,33 @@ const normalizeType = (type: string): string => {
   return trimmedType;
 };
 
-// 메타데이터 끝부분 후보를 찾기 위한 기본 패턴 (말줄임표·마침표 허용)
-const metadataCandidateRegex = /\(([^()]*)\)\s*(?:[.·…ㆍ]*\s*)?$/;
+const extractTrailingMetadataSegments = (
+  line: string
+): { lineWithoutMetadata: string; metadataParts: string[] } => {
+  let workingLine = line.trimEnd();
+  const segments: string[] = [];
+
+  while (true) {
+    const match = workingLine.match(/\(([^()]*)\)\s*(?:[,·…ㆍ]*\s*)?$/);
+    if (!match) {
+      break;
+    }
+
+    const inner = match[1].trim();
+    workingLine = workingLine.slice(0, workingLine.length - match[0].length).trimEnd();
+
+    if (!inner) {
+      continue;
+    }
+
+    segments.unshift(inner);
+  }
+
+  return {
+    lineWithoutMetadata: workingLine.trim(),
+    metadataParts: segments,
+  };
+};
 
 // (저자, 이론, 연도) 혹은 (저자: ..., 이론: ..., 연도: ...) 형식을 정규화
 const normalizeMetadataBasis = (metadataInner: string): string | null => {
@@ -64,40 +89,70 @@ const normalizeMetadataBasis = (metadataInner: string): string | null => {
     return null;
   }
 
-  const legacyAuthor = trimmed.match(/저자:\s*([^,]+)/i);
-  const legacyTheory = trimmed.match(/이론:\s*([^,]+)/i);
-  const legacyYear = trimmed.match(/연도:\s*([^,)]+)/i);
+  const labelMap = new Map<string, string>();
+  const labelGlobalRegex =
+    /(저자|이론|연도|출처|개념|분류)\s*:\s*(.+?)(?:(?=,)|(?=·)|(?=ㆍ)|(?=\))|$)/gi;
+  let labelMatch: RegExpExecArray | null;
 
-  if (legacyAuthor && legacyTheory && legacyYear) {
-    const author = legacyAuthor[1].trim();
-    const theory = legacyTheory[1].trim();
-    const year = legacyYear[1].trim();
-    if (author && theory && year) {
-      return `${author}, ${theory}, ${year}`;
+  while ((labelMatch = labelGlobalRegex.exec(trimmed)) !== null) {
+    const label = labelMatch[1].trim();
+    const value = labelMatch[2].trim();
+    if (value) {
+      labelMap.set(label, value);
     }
   }
 
-  const parts = trimmed
-    .split(',')
-    .map(part => part.trim())
-    .filter(part => part.length > 0);
+  const author = labelMap.get('저자');
+  const theory = labelMap.get('이론');
+  const year = labelMap.get('연도');
 
-  if (parts.length === 3) {
-    return `${parts[0]}, ${parts[1]}, ${parts[2]}`;
+  if (author && theory && year) {
+    return `${author}, ${theory}, ${year}`;
   }
 
-  return null;
+  const source = labelMap.get('출처');
+  const concept = labelMap.get('개념');
+  const category = labelMap.get('분류');
+
+  if (source && concept && category) {
+    return `${source}, ${concept}, ${category}`;
+  }
+
+  if (labelMap.size > 0) {
+    const orderedValues = Array.from(labelMap.values())
+      .map(value => value.trim())
+      .filter(Boolean);
+
+    if (orderedValues.length > 0) {
+      return orderedValues.join(', ');
+    }
+  }
+
+  const sanitizedParts = trimmed
+    .split(',')
+    .map(part => part.replace(/^(저자|이론|연도|출처|개념|분류)\s*:\s*/i, '').trim())
+    .filter(part => part.length > 0);
+
+  if (sanitizedParts.length >= 3) {
+    return sanitizedParts.join(', ');
+  }
+
+  if (sanitizedParts.length > 0) {
+    return sanitizedParts.join(', ');
+  }
+
+  return trimmed;
 };
 
 export const parseAIOutput = (
   text: string
 ): { notes: NoteData[]; connections: ConnectionData[] } => {
   console.log('🔍 parseAIOutput 입력 텍스트:', text);
-  
+
   // 입력이 한 줄로 붙어있을 수 있으므로, 대괄호 기준으로 분리
   // 1. 먼저 줄바꿈으로 분리
   const rawLines = text.split('\n').filter(line => line.trim() !== '');
-  
+
   // 2. 각 라인에서 대괄호로 시작하는 항목들을 추가로 분리
   const lines: string[] = [];
   rawLines.forEach(rawLine => {
@@ -105,7 +160,7 @@ export const parseAIOutput = (
     const items = rawLine.split(/(?=\[)/).filter(item => item.trim() !== '');
     lines.push(...items);
   });
-  
+
   console.log('🔍 파싱할 라인 수:', lines.length);
   console.log('🔍 각 라인:', lines);
 
@@ -139,7 +194,7 @@ export const parseAIOutput = (
     if (accumulatingConnection) {
       accumulatingConnection += ' ' + line.trim();
       console.log(`🔍 연결선 누적 중: ${accumulatingConnection}`);
-      
+
       // 연결선 완성 조건: (직접) 또는 (간접) 또는 끝에 ]로 끝나는 경우
       if (line.includes('(직접)') || line.includes('(간접)') || line.trim().endsWith(']')) {
         pendingConnections.push(accumulatingConnection);
@@ -151,29 +206,14 @@ export const parseAIOutput = (
 
     // 2단계 파싱: 메타데이터 먼저 추출
     const trimmedLine = line.trimEnd();
-    let extractedMetadata: string | null = null;
-    let normalizedBasis: string | undefined;
-    let lineWithoutMetadata = trimmedLine;
+    const { lineWithoutMetadata, metadataParts } = extractTrailingMetadataSegments(trimmedLine);
+    const combinedMetadataInner = metadataParts.join(', ');
+    const normalizedMetadata = combinedMetadataInner
+      ? normalizeMetadataBasis(combinedMetadataInner)
+      : null;
+    const fallbackMetadata = combinedMetadataInner || undefined;
 
-    const metadataMatch = trimmedLine.match(metadataCandidateRegex);
-    if (metadataMatch) {
-      const candidateBody = metadataMatch[1].trim();
-      const normalized = normalizeMetadataBasis(candidateBody);
-
-      if (normalized) {
-        extractedMetadata = `(${candidateBody})`;
-        normalizedBasis = normalized;
-        lineWithoutMetadata = trimmedLine
-          .slice(0, trimmedLine.length - metadataMatch[0].length)
-          .trim();
-      }
-    }
-
-    if (!extractedMetadata) {
-      lineWithoutMetadata = trimmedLine.trim();
-    }
-
-    console.log(`🔍 메타데이터 추출:`, extractedMetadata);
+    console.log(`🔍 메타데이터 추출:`, metadataParts);
     console.log(`🔍 메타데이터 제거 후:`, lineWithoutMetadata);
 
     const nodeMatch = lineWithoutMetadata.match(nodeRegex);
@@ -191,12 +231,7 @@ export const parseAIOutput = (
       const trimmedContent = content.trim();
 
       // 메타데이터 파싱 (문자열로 저장)
-      let basis: string | undefined = normalizedBasis;
-
-      if (!basis && extractedMetadata) {
-        const rawInner = extractedMetadata.slice(1, -1).trim();
-        basis = normalizeMetadataBasis(rawInner) ?? rawInner;
-      }
+      const basis: string | undefined = normalizedMetadata ?? fallbackMetadata;
 
       if (layerIndex === undefined || !trimmedContent) {
         console.log(
@@ -236,8 +271,9 @@ export const parseAIOutput = (
         const closeBrackets = (line.match(/\]/g) || []).length;
         const openParens = (line.match(/\(/g) || []).length;
         const closeParens = (line.match(/\)/g) || []).length;
-        const hasMetadata = line.includes('저자:') || line.includes('이론:') || line.includes('연도:');
-        
+        const hasMetadata =
+          line.includes('저자:') || line.includes('이론:') || line.includes('연도:');
+
         console.warn(`❌ [파싱 실패] 라인 ${index + 1}:`, {
           line: line,
           length: line.length,
@@ -264,8 +300,8 @@ export const parseAIOutput = (
 
   // 2차: 층위별로 위치 계산 🔧 FIX: 결과가 최상층, 무형_레버가 최하층
   const layerTops: { [key: string]: number } = {
-    결과: 150,                       // Layer 1 - 제일 위 (가시적 요소)
-    행동: 150 + 150 + 150,           // Layer 2 - 관찰 행동
+    결과: 150, // Layer 1 - 제일 위 (가시적 요소)
+    행동: 150 + 150 + 150, // Layer 2 - 관찰 행동
     유형_레버: 150 + 2 * (150 + 150), // Layer 3 - 규범/가치
     무형_레버: 150 + 3 * (150 + 150), // Layer 4 - 제일 아래 (기본 가정)
   };
@@ -291,7 +327,7 @@ export const parseAIOutput = (
   Object.keys(nodesByLayer).forEach(layer => {
     const layerNodes = nodesByLayer[layer];
     const startX = 100;
-    
+
     layerNodes.forEach((node, index) => {
       node.position = {
         x: startX + index * (250 + 100), // 250px 간격 + 100px 패딩
@@ -305,14 +341,14 @@ export const parseAIOutput = (
     // 정규식 개선: 레가시 형식 (:: 실선/점선) 지원
     // 레가시: [무형_레버_언급] '사람 중심' (유지 및 강화) → [유형_레버_언급] 리더 (유지 및 강화) :: 실선
     // 신규: [간접연결] [무형_레버] (긍정) 내용 (저자: XXX) → [유형_레버] (긍정) 내용 (직접)
-    
+
     // 🔧 FIX: greedy 매칭으로 변경 ([^→]+ 사용)
     // 작은따옴표, 괄호 등 모든 문자를 → 전까지 매칭
     const legacyRegex =
       /\[(?<sourceType>[^\]]+)\]\s*(?<sourceContent>[^→]+)\s*\((?<sourceSentiment>[^)]+)\)\s*→\s*\[(?<targetType>[^\]]+)\]\s*(?<targetContent>[^:]+)\s*\((?<targetSentiment>[^)]+)\)\s*::\s*(?<relationType>실선|점선)/;
     const modernRegex =
       /\[(간접)?연결\]\s*\[(?<sourceType>[^\]]+)\]\s*\((?<sourceSentiment>[^)]+)\)\s*(?<sourceContent>.+?)(?:\s*\((?:저자|이론|연도):.*?\))?\s*→\s*\[(?<targetType>[^\]]+)\]\s*\((?<targetSentiment>[^)]+)\)\s*(?<targetContent>.+?)(?:\s*\((?:저자|이론|연도):.*?\))?\s*(?:\((?<relationType>직접|간접)\))?$/;
-    
+
     const connectionMatch = line.match(legacyRegex) || line.match(modernRegex);
 
     if (connectionMatch?.groups) {
@@ -367,8 +403,8 @@ export const parseAIOutput = (
         // dagre rankdir='BT'가 알아서 아래층을 밑에, 위층을 위에 배치함
         const newConnection: ConnectionData = {
           id: uuidv4(),
-          sourceId: sourceId,  // 하위층 (무형_레버 등)
-          targetId: targetId,  // 상위층 (유형_레버 등)
+          sourceId: sourceId, // 하위층 (무형_레버 등)
+          targetId: targetId, // 상위층 (유형_레버 등)
           isPositive: true, // 연결선 극성은 일단 '긍정'으로 고정
           relationType: relationType as 'direct' | 'indirect',
         };
