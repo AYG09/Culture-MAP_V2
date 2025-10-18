@@ -2,9 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css'; // Quill Snow 테마 CSS
 import { saveAs } from 'file-saver';
-import { jsPDF } from 'jspdf';
+import ExcelJS from 'exceljs';
 import { createDocxBlobFromHtml } from '../utils/htmlToDocx';
-import { ensurePdfFont, PDF_FONT_FAMILY_NAME } from '../utils/pdfFonts';
 import './ReportEditor.css';
 
 interface ReportEditorProps {
@@ -88,172 +87,105 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
   };
 
   /**
-   * PDF 문서로 내보내기
-   * HTML 렌더링 결과를 이미지로 변환하여 PDF 생성
+   * Excel 문서로 내보내기
+   * HTML을 파싱하여 Excel 셀에 텍스트 데이터 삽입
    */
-  const handleExportPDF = async () => {
-    const reportElement = document.querySelector('.report-content') as HTMLElement;
-    
-    if (!reportElement) {
-      alert('내보낼 콘텐츠가 없습니다. 먼저 보고서를 작성해주세요.');
+  const handleExportExcel = async () => {
+    if (!content) {
+      alert('내보낼 콘텐츠가 없습니다.');
       return;
     }
 
     setIsExporting(true);
 
-    const restoreCallbacks: Array<() => void> = [];
-
     try {
-      const applyTemporaryStyle = (element: HTMLElement, property: string, value: string) => {
-        const previousValue = element.style.getPropertyValue(property);
-        const previousPriority = element.style.getPropertyPriority(property);
-        restoreCallbacks.push(() => {
-          if (previousValue) {
-            element.style.setProperty(property, previousValue, previousPriority);
-          } else {
-            element.style.removeProperty(property);
+      // HTML을 파싱하여 텍스트 추출
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = content;
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Report');
+
+      // 기본 스타일 설정
+      worksheet.columns = [
+        { width: 80 } // A열 너비
+      ];
+
+      let currentRow = 1;
+
+      // HTML 요소를 순회하며 Excel 행으로 변환
+      const processNode = (node: Node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const text = node.textContent?.trim();
+          if (text) {
+            const cell = worksheet.getCell(`A${currentRow}`);
+            cell.value = text;
+            cell.alignment = { wrapText: true, vertical: 'top' };
+            currentRow++;
           }
-        });
-        element.style.setProperty(property, value);
-      };
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          const element = node as HTMLElement;
+          const tagName = element.tagName.toLowerCase();
 
-      const resetScrollTop = (element: HTMLElement) => {
-        const previous = element.scrollTop;
-        restoreCallbacks.push(() => {
-          element.scrollTop = previous;
-        });
-        element.scrollTop = 0;
-      };
-
-      const pdf = new jsPDF({
-        unit: 'pt',
-        format: 'a4',
-      });
-
-      // 1. PDF 폰트 등록 (VFS 기반, Identity-H 인코딩)
-      await ensurePdfFont(pdf);
-      pdf.setFont(PDF_FONT_FAMILY_NAME, 'normal');
-
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const horizontalMargin = 56; // 0.78in
-      const verticalMargin = 56;
-      const availableWidth = pageWidth - horizontalMargin * 2;
-
-      // 2. 컨테이너 스타일 완전히 해제하여 실제 콘텐츠 높이 측정
-      const viewerElement = reportElement.closest('.report-viewer') as HTMLElement | null;
-
-      if (viewerElement) {
-        applyTemporaryStyle(viewerElement, 'overflow', 'visible');
-        applyTemporaryStyle(viewerElement, 'overflow-y', 'visible');
-        applyTemporaryStyle(viewerElement, 'max-height', 'none');
-        applyTemporaryStyle(viewerElement, 'height', 'auto');
-        applyTemporaryStyle(viewerElement, 'min-height', 'auto');
-        resetScrollTop(viewerElement);
-      }
-
-      // reportElement도 제약 해제
-      applyTemporaryStyle(reportElement, 'height', 'auto');
-      applyTemporaryStyle(reportElement, 'max-height', 'none');
-
-      // 브라우저가 레이아웃 재계산하도록 강제 대기
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // 3. 실제 콘텐츠 크기 측정 (모든 제약 해제 후)
-      // MDN: scrollHeight = 스크롤 없이 모든 콘텐츠를 표시하는 데 필요한 최소 높이
-      const actualContentHeight = Math.max(
-        reportElement.scrollHeight,
-        reportElement.offsetHeight,
-        reportElement.clientHeight,
-        // documentElement까지 확인 (고전적 방법)
-        document.documentElement.scrollHeight,
-        document.documentElement.offsetHeight,
-        document.documentElement.clientHeight
-      );
-      const actualContentWidth = Math.max(
-        reportElement.scrollWidth,
-        reportElement.offsetWidth,
-        reportElement.clientWidth
-      );
-
-      console.log('📐 측정된 콘텐츠 크기:', {
-        height: actualContentHeight,
-        width: actualContentWidth,
-        scrollHeight: reportElement.scrollHeight,
-        offsetHeight: reportElement.offsetHeight,
-        clientHeight: reportElement.clientHeight,
-      });
-
-      // 4. pt -> px 변환 (96 DPI 기준)
-      const ptToPx = (value: number) => Math.round((value * 96) / 72);
-      
-      // windowWidth/Height는 실제 콘텐츠 크기를 반영
-      // 공식 문서: windowHeight는 Element.scrollHeight를 사용해야 함
-      const windowWidth = Math.max(actualContentWidth, ptToPx(availableWidth));
-      const windowHeight = actualContentHeight;
-
-      const htmlOptions: Parameters<typeof pdf.html>[1] = {
-        margin: [verticalMargin, horizontalMargin, verticalMargin, horizontalMargin],
-        autoPaging: 'text', // 텍스트가 페이지 경계에서 잘리지 않도록
-        width: availableWidth,
-        x: horizontalMargin,
-        y: verticalMargin,
-        html2canvas: {
-          scale: 0.8, // 낮은 scale로 캔버스 크기 제한 회피 (커뮤니티 권장)
-          useCORS: true,
-          windowWidth,
-          windowHeight,
-          scrollX: 0,
-          scrollY: 0,
-          backgroundColor: '#ffffff',
-          logging: true, // 디버깅용 로그 활성화
-          allowTaint: false,
-          foreignObjectRendering: false,
-          // 폰트 렌더링 개선
-          onclone: (clonedDoc: Document) => {
-            // 복제된 문서에서 @font-face 웹폰트 제거 (경고 방지)
-            const styleSheets = clonedDoc.styleSheets;
-            for (let i = 0; i < styleSheets.length; i++) {
-              try {
-                const sheet = styleSheets[i] as CSSStyleSheet;
-                if (!sheet.cssRules) continue;
-                
-                // @font-face 규칙 제거
-                for (let j = sheet.cssRules.length - 1; j >= 0; j--) {
-                  const rule = sheet.cssRules[j];
-                  if (rule instanceof CSSFontFaceRule) {
-                    sheet.deleteRule(j);
-                  }
-                }
-              } catch (e) {
-                // CORS 제한으로 접근 불가한 stylesheet는 무시
-                console.debug('Skipping inaccessible stylesheet', e);
-              }
+          // 제목 스타일 적용
+          if (tagName === 'h1' || tagName === 'h2' || tagName === 'h3') {
+            const text = element.textContent?.trim();
+            if (text) {
+              const cell = worksheet.getCell(`A${currentRow}`);
+              cell.value = text;
+              cell.font = {
+                bold: true,
+                size: tagName === 'h1' ? 16 : tagName === 'h2' ? 14 : 12
+              };
+              cell.alignment = { wrapText: true, vertical: 'top' };
+              currentRow++;
             }
-
-            // 복제된 문서에 시스템 폰트로 대체
-            const clonedElement = clonedDoc.querySelector('.report-content') as HTMLElement;
-            if (clonedElement) {
-              clonedElement.style.fontFamily = 'Arial, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif';
+          }
+          // 리스트 아이템
+          else if (tagName === 'li') {
+            const text = element.textContent?.trim();
+            if (text) {
+              const cell = worksheet.getCell(`A${currentRow}`);
+              cell.value = `• ${text}`;
+              cell.alignment = { wrapText: true, vertical: 'top', indent: 1 };
+              currentRow++;
             }
-          },
-        },
-      };
-
-      await pdf.html(reportElement, htmlOptions);
-
-      pdf.save(`report-${Date.now()}.pdf`);
-
-      console.log('✅ PDF 내보내기 완료');
-    } catch (error) {
-      console.error('❌ PDF 내보내기 실패:', error);
-      alert('PDF 내보내기에 실패했습니다.');
-    } finally {
-      while (restoreCallbacks.length > 0) {
-        const restore = restoreCallbacks.pop();
-        if (restore) {
-          restore();
+          }
+          // 단락
+          else if (tagName === 'p') {
+            const text = element.textContent?.trim();
+            if (text) {
+              const cell = worksheet.getCell(`A${currentRow}`);
+              cell.value = text;
+              cell.alignment = { wrapText: true, vertical: 'top' };
+              currentRow++;
+            }
+          }
+          // 하위 노드 재귀 처리 (ul, ol, div 등)
+          else if (tagName === 'ul' || tagName === 'ol' || tagName === 'div') {
+            element.childNodes.forEach(processNode);
+          }
+          // 기타 요소는 텍스트만 추출
+          else {
+            element.childNodes.forEach(processNode);
+          }
         }
-      }
+      };
+
+      tempDiv.childNodes.forEach(processNode);
+
+      // Excel 파일 생성 및 다운로드
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+      saveAs(blob, `report-${Date.now()}.xlsx`);
+
+      console.log('✅ Excel 내보내기 완료');
+    } catch (error) {
+      console.error('❌ Excel 내보내기 실패:', error);
+      alert('Excel 내보내기에 실패했습니다.');
+    } finally {
       setIsExporting(false);
     }
   };
@@ -302,12 +234,12 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
           </button>
           <button
             className="export-button"
-            onClick={handleExportPDF}
+            onClick={handleExportExcel}
             disabled={isExporting || !content}
             type="button"
-            title="PDF 문서로 다운로드"
+            title="Excel 파일로 다운로드"
           >
-            📋 PDF
+            � Excel
           </button>
         </div>
 
@@ -334,8 +266,6 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
               height: '100%',
               display: 'flex',
               flexDirection: 'column',
-              maxWidth: '650px', // A4 페이지 너비에 맞춤 (여백 포함)
-              margin: '0 auto',
             }}
           />
         </div>
