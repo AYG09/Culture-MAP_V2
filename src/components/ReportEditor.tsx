@@ -148,7 +148,6 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
       const horizontalMargin = 56; // 0.78in
       const verticalMargin = 56;
       const availableWidth = pageWidth - horizontalMargin * 2;
-      const deviceScale = window.devicePixelRatio > 1 ? Math.min(window.devicePixelRatio, 2) : 1;
 
       const viewerElement = reportElement.closest('.report-viewer') as HTMLElement | null;
 
@@ -160,9 +159,24 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
         resetScrollTop(viewerElement);
       }
 
+      // 실제 콘텐츠 크기를 정확히 측정 (스크롤 영역 포함)
+      const actualContentHeight = Math.max(
+        reportElement.scrollHeight,
+        reportElement.offsetHeight,
+        reportElement.clientHeight
+      );
+      const actualContentWidth = Math.max(
+        reportElement.scrollWidth,
+        reportElement.offsetWidth,
+        reportElement.clientWidth
+      );
+
+      // pt -> px 변환 (96 DPI 기준)
       const ptToPx = (value: number) => (value * 96) / 72;
-      const windowWidth = Math.max(reportElement.scrollWidth, ptToPx(availableWidth));
-      const windowHeight = Math.max(reportElement.scrollHeight, window.innerHeight);
+      
+      // windowWidth/Height는 실제 콘텐츠 크기를 반영
+      const windowWidth = Math.max(actualContentWidth, ptToPx(availableWidth));
+      const windowHeight = actualContentHeight;
 
       const htmlOptions: Parameters<typeof pdf.html>[1] = {
         margin: [verticalMargin, horizontalMargin, verticalMargin, horizontalMargin],
@@ -171,13 +185,14 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
         x: horizontalMargin,
         y: verticalMargin,
         html2canvas: {
-          scale: deviceScale,
+          scale: 0.95, // 1.0 이하로 조정하여 캔버스 크기 제한 회피
           useCORS: true,
           windowWidth,
           windowHeight,
-          scrollX: 0,
-          scrollY: 0,
+          scrollX: -window.scrollX,
+          scrollY: -window.scrollY,
           backgroundColor: '#ffffff',
+          logging: false,
         },
       };
 
