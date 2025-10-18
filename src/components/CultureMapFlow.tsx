@@ -29,6 +29,7 @@ import {
 } from './flow-nodes';
 import MobileGestureGuide from './MobileGestureGuide';
 import PromptGenerator from './PromptGenerator'; // 좌측 사이드메뉴 추가
+import { useIsMobile } from '../hooks/useResponsive'; // 반응형 훅 추가
 import ExportMenu from './ExportMenu'; // 컬쳐맵 내보내기 메뉴
 import ReportEditor from './ReportEditor'; // 보고서 편집기
 
@@ -149,9 +150,15 @@ const CultureMapFlow = ({
   // 세션 관리 모달 상태
   const [showSessionInfo, setShowSessionInfo] = useState(false);
   
+  // 반응형: 모바일 감지
+  const isMobile = useIsMobile();
+  
   // 사이드 패널 리사이즈 상태
   const [sidebarWidth, setSidebarWidth] = useState(380); // 초기 너비 280px → 380px
   const [isResizing, setIsResizing] = useState(false);
+  
+  // 모바일 사이드바 토글 상태
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const flowWrapperRef = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
@@ -1439,50 +1446,123 @@ const CultureMapFlow = ({
       {/* 컬쳐맵 탭 */}
       {activeTab === 'map' && (
         <>
-      {/* 왼쪽 사이드메뉴 (레거시 모드와 동일) */}
-      <div className="left-panel no-print" style={{ 
-        position: 'relative',
-        width: `${sidebarWidth}px`, 
-        minWidth: `${sidebarWidth}px`,
-        height: '100%',
-        overflowY: 'auto',
-        borderRight: '1px solid #e5e7eb',
-        backgroundColor: '#f9fafb',
-        wordBreak: 'keep-all',
-        wordWrap: 'break-word',
-        overflowWrap: 'break-word'
-      }}>
-        <PromptGenerator
-          mode={mode}
-          onGenerateMap={handleGenerateMapFromPrompt}
-          reportContent={reportContent}
-          onReportChange={handleReportChange}
-          onSwitchToReportTab={() => setActiveTab('report')}
-          onOpenAiPanel={handleOpenAiPanel}
-        />
-        
-        {/* 리사이즈 핸들 */}
-        <div
-          onMouseDown={handleMouseDown}
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: 0,
-            width: '5px',
-            height: '100%',
-            cursor: 'col-resize',
-            backgroundColor: isResizing ? '#3b82f6' : 'transparent',
-            transition: isResizing ? 'none' : 'background-color 0.2s',
-            zIndex: 10
-          }}
-          onMouseEnter={(e) => {
-            if (!isResizing) e.currentTarget.style.backgroundColor = '#e5e7eb';
-          }}
-          onMouseLeave={(e) => {
-            if (!isResizing) e.currentTarget.style.backgroundColor = 'transparent';
-          }}
-        />
-      </div>
+      {/* 왼쪽 사이드메뉴 - 데스크톱만 표시 */}
+      {!isMobile && (
+        <div className="left-panel no-print" style={{ 
+          position: 'relative',
+          width: `${sidebarWidth}px`, 
+          minWidth: `${sidebarWidth}px`,
+          height: '100%',
+          overflowY: 'auto',
+          borderRight: '1px solid #e5e7eb',
+          backgroundColor: '#f9fafb',
+          wordBreak: 'keep-all',
+          wordWrap: 'break-word',
+          overflowWrap: 'break-word'
+        }}>
+          <PromptGenerator
+            mode={mode}
+            onGenerateMap={handleGenerateMapFromPrompt}
+            reportContent={reportContent}
+            onReportChange={handleReportChange}
+            onSwitchToReportTab={() => setActiveTab('report')}
+            onOpenAiPanel={handleOpenAiPanel}
+          />
+          
+          {/* 리사이즈 핸들 */}
+          <div
+            onMouseDown={handleMouseDown}
+            style={{
+              position: 'absolute',
+              right: 0,
+              top: 0,
+              width: '5px',
+              height: '100%',
+              cursor: 'col-resize',
+              backgroundColor: isResizing ? '#3b82f6' : 'transparent',
+              transition: isResizing ? 'none' : 'background-color 0.2s',
+              zIndex: 10
+            }}
+            onMouseEnter={(e) => {
+              if (!isResizing) e.currentTarget.style.backgroundColor = '#e5e7eb';
+            }}
+            onMouseLeave={(e) => {
+              if (!isResizing) e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+          />
+        </div>
+      )}
+
+      {/* 모바일 사이드바 오버레이 */}
+      {isMobile && isMobileSidebarOpen && (
+        <>
+          {/* 배경 오버레이 */}
+          <div
+            onClick={() => setIsMobileSidebarOpen(false)}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              zIndex: 999,
+              animation: 'fadeIn 0.3s ease'
+            }}
+          />
+          
+          {/* 슬라이드 사이드바 */}
+          <div
+            className="mobile-sidebar-panel"
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '85%',
+              maxWidth: '320px',
+              height: '100%',
+              backgroundColor: '#f9fafb',
+              zIndex: 1000,
+              overflowY: 'auto',
+              boxShadow: '2px 0 8px rgba(0,0,0,0.15)',
+              animation: 'slideInLeft 0.3s ease'
+            }}
+          >
+            {/* 닫기 버튼 */}
+            <div style={{ 
+              padding: '16px',
+              borderBottom: '1px solid #e5e7eb',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>조직문화 분석기</h2>
+              <button
+                onClick={() => setIsMobileSidebarOpen(false)}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                  color: '#6b7280'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            
+            <PromptGenerator
+              mode={mode}
+              onGenerateMap={handleGenerateMapFromPrompt}
+              reportContent={reportContent}
+              onReportChange={handleReportChange}
+              onSwitchToReportTab={() => setActiveTab('report')}
+              onOpenAiPanel={handleOpenAiPanel}
+            />
+          </div>
+        </>
+      )}
 
       {/* 메인 React Flow 영역 */}
       <div 
@@ -1490,6 +1570,35 @@ const CultureMapFlow = ({
         data-capture-root="true"
         style={{ position: 'relative', flex: '1 1 0', overflow: 'hidden' }}
       >
+        {/* 모바일 햄버거 버튼 */}
+        {isMobile && (
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            style={{
+              position: 'absolute',
+              top: '16px',
+              left: '16px',
+              zIndex: 10,
+              width: '48px',
+              height: '48px',
+              borderRadius: '50%',
+              border: 'none',
+              backgroundColor: '#3b82f6',
+              color: 'white',
+              fontSize: '24px',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            ☰
+          </button>
+        )}
+        
         {/* 모바일 제스처 가이드 */}
         <MobileGestureGuide />
 
