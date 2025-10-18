@@ -147,16 +147,27 @@ export const parseAIOutput = (
       let basis: string | undefined = undefined;
 
       if (metadata) {
-        const authorMatch = metadata.match(/저자:\s*([^,]+)/);
-        const theoryMatch = metadata.match(/이론:\s*([^,]+)/);
-        const yearMatch = metadata.match(/연도:\s*([^,)]+)/);
-
-        if (authorMatch && theoryMatch && yearMatch) {
-          const author = authorMatch[1].trim();
-          const theory = theoryMatch[1].trim();
-          const year = yearMatch[1].trim();
-          // 간결한 형식: (저자, 이론, 연도)
+        // 신버전 형식: (xxx, yyy, zzz) 우선 파싱
+        const newFormatMatch = metadata.match(/^\(?([^,]+),\s*([^,]+),\s*(\d{4})\)?$/);
+        
+        if (newFormatMatch) {
+          const author = newFormatMatch[1].trim();
+          const theory = newFormatMatch[2].trim();
+          const year = newFormatMatch[3].trim();
           basis = `${author}, ${theory}, ${year}`;
+        } else {
+          // 구버전 형식: (저자: xxx, 이론: yyy, 연도: zzz) 폴백
+          const authorMatch = metadata.match(/저자:\s*([^,]+)/);
+          const theoryMatch = metadata.match(/이론:\s*([^,]+)/);
+          const yearMatch = metadata.match(/연도:\s*([^,)]+)/);
+
+          if (authorMatch && theoryMatch && yearMatch) {
+            const author = authorMatch[1].trim();
+            const theory = theoryMatch[1].trim();
+            const year = yearMatch[1].trim();
+            // 간결한 형식: (저자, 이론, 연도)
+            basis = `${author}, ${theory}, ${year}`;
+          }
         }
       }
 

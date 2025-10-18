@@ -98,10 +98,12 @@
 /* 노드 바디 */
 .node-body {
   margin-bottom: 8px;
+  container-type: inline-size; /* 본문 전용 container */
+  container-name: body-container; /* 명시적 네이밍 */
 }
 
 .node-content {
-  font-size: clamp(12px, 5cqi, 20px); /* ✅ 수정: 노드 크기에 비례하는 동적 크기 (최소 12px, 최대 20px) */
+  font-size: clamp(14px, 8cqi, 22px); /* ✅ 수정: 본문 독립 크기 제어 (최소 14px, 최대 22px) */
   line-height: 1.4;
   color: #1f2937;
   word-break: keep-all; /* 단어 단위 줄바꿈 */
@@ -156,7 +158,7 @@
 }
 
 .basis-tag {
-  font-size: clamp(8px, 3cqi, 11px); /* ✅ 노드 크기에 비례하는 동적 크기 */
+  font-size: clamp(9px, 2.5cqi, 10px); /* ✅ 이론적 근거 독립 크기 제어 (최소 9px, 최대 10px) */
   background: #fef3c7;
   color: #92400e;
   white-space: nowrap; /* ✅ 한 줄 고정 */
