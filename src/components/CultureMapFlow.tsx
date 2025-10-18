@@ -1753,10 +1753,10 @@ const CultureMapFlow = ({
         onNodeContextMenu={handleNodeContextMenu}
         onEdgeContextMenu={handleEdgeContextMenu}
         nodeTypes={nodeTypes}
-        fitView
+        fitView={!isMobile} // 모바일: fitView 비활성화 (전체 캔버스 자유 이동)
         minZoom={0.1}
         maxZoom={2}
-        defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+        defaultViewport={{ x: 0, y: 0, zoom: isMobile ? 0.5 : 0.8 }} // 모바일: 더 작은 줌으로 전체 보기
         proOptions={{ hideAttribution: true }}
         // 모바일/데스크톱 구분 제스처 설정
         panOnDrag={isMobile ? true : [1, 2]} // 모바일: 빈 공간 터치로 팬, 데스크톱: 중간/우클릭 팬
