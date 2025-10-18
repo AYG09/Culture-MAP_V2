@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css'; // Quill Snow 테마 CSS
-import { Document, Packer, Paragraph } from 'docx';
 import { saveAs } from 'file-saver';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
+import { createDocxBlobFromHtml } from '../utils/htmlToDocx';
 import './ReportEditor.css';
 
 interface ReportEditorProps {
@@ -75,28 +74,7 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
     setIsExporting(true);
 
     try {
-      // HTML을 Plain Text로 변환
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = content;
-      const plainText = tempDiv.innerText || tempDiv.textContent || '';
-
-      // 줄 단위로 분리하여 Paragraph 생성
-      const lines = plainText.split('\n').filter((line) => line.trim() !== '');
-      
-      const doc = new Document({
-        sections: [
-          {
-            children: lines.map(
-              (line) =>
-                new Paragraph({
-                  text: line,
-                })
-            ),
-          },
-        ],
-      });
-
-      const blob = await Packer.toBlob(doc);
+      const blob = await createDocxBlobFromHtml(content);
       saveAs(blob, `report-${Date.now()}.docx`);
 
       console.log('✅ Word 내보내기 완료');
@@ -123,24 +101,31 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
     setIsExporting(true);
 
     try {
-      const canvas = await html2canvas(reportElement, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-      });
-
-      const imgData = canvas.toDataURL('image/png');
-      const componentWidth = reportElement.scrollWidth;
-      const componentHeight = reportElement.scrollHeight;
-
       const pdf = new jsPDF({
-        orientation: 'p',
-        unit: 'px',
-        format: [componentWidth, componentHeight],
+        unit: 'pt',
+        format: 'a4',
       });
 
-      pdf.addImage(imgData, 'PNG', 0, 0, componentWidth, componentHeight);
-      pdf.save(`report-${Date.now()}.pdf`);
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const horizontalMargin = 56; // 0.78in
+      const verticalMargin = 56;
+      const availableWidth = pageWidth - horizontalMargin * 2;
+      const windowWidth = Math.max(reportElement.scrollWidth, availableWidth);
+
+      await pdf.html(reportElement, {
+        x: horizontalMargin,
+        y: verticalMargin,
+        margin: [verticalMargin, horizontalMargin, verticalMargin, horizontalMargin],
+        width: availableWidth,
+        windowWidth,
+        autoPaging: 'text',
+        html2canvas: {
+          scale: 1,
+        },
+        callback: (instance) => {
+          instance.save(`report-${Date.now()}.pdf`);
+        },
+      });
 
       console.log('✅ PDF 내보내기 완료');
     } catch (error) {
