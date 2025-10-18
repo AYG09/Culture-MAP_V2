@@ -101,7 +101,30 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
 
     setIsExporting(true);
 
+    const restoreCallbacks: Array<() => void> = [];
+
     try {
+      const applyTemporaryStyle = (element: HTMLElement, property: string, value: string) => {
+        const previousValue = element.style.getPropertyValue(property);
+        const previousPriority = element.style.getPropertyPriority(property);
+        restoreCallbacks.push(() => {
+          if (previousValue) {
+            element.style.setProperty(property, previousValue, previousPriority);
+          } else {
+            element.style.removeProperty(property);
+          }
+        });
+        element.style.setProperty(property, value);
+      };
+
+      const resetScrollTop = (element: HTMLElement) => {
+        const previous = element.scrollTop;
+        restoreCallbacks.push(() => {
+          element.scrollTop = previous;
+        });
+        element.scrollTop = 0;
+      };
+
       const pdf = new jsPDF({
         unit: 'pt',
         format: 'a4',
@@ -127,61 +150,52 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
       const availableWidth = pageWidth - horizontalMargin * 2;
       const deviceScale = window.devicePixelRatio > 1 ? Math.min(window.devicePixelRatio, 2) : 1;
 
-      const printContainer = document.createElement('div');
-      printContainer.style.position = 'fixed';
-      printContainer.style.left = '0';
-      printContainer.style.top = '0';
-      printContainer.style.width = `${availableWidth}px`;
-      printContainer.style.opacity = '0';
-      printContainer.style.pointerEvents = 'none';
-      printContainer.style.zIndex = '-1';
-      printContainer.style.backgroundColor = '#ffffff';
-      printContainer.style.boxSizing = 'border-box';
+      const viewerElement = reportElement.closest('.report-viewer') as HTMLElement | null;
 
-      const clonedContent = reportElement.cloneNode(true) as HTMLElement;
-      clonedContent.style.boxSizing = 'border-box';
-      clonedContent.style.width = '100%';
-
-      printContainer.appendChild(clonedContent);
-      document.body.appendChild(printContainer);
-
-      try {
-        const targetHeight = printContainer.scrollHeight + verticalMargin * 2;
-        const windowWidth = Math.max(clonedContent.scrollWidth, availableWidth);
-
-        const htmlOptions: Record<string, unknown> = {
-          x: horizontalMargin,
-          y: verticalMargin,
-          margin: [verticalMargin, horizontalMargin, verticalMargin, horizontalMargin],
-          width: availableWidth,
-          windowWidth,
-          autoPaging: 'text',
-          pagebreak: { mode: ['css', 'legacy'] },
-          html2canvas: {
-            scale: deviceScale,
-            useCORS: true,
-            windowWidth,
-            windowHeight: Math.max(targetHeight, window.innerHeight),
-            scrollX: 0,
-            scrollY: 0,
-            backgroundColor: '#ffffff',
-          },
-        };
-
-        const typedOptions = htmlOptions as unknown as Parameters<typeof pdf.html>[1];
-
-        await pdf.html(printContainer, typedOptions);
-
-        pdf.save(`report-${Date.now()}.pdf`);
-      } finally {
-        document.body.removeChild(printContainer);
+      if (viewerElement) {
+        applyTemporaryStyle(viewerElement, 'overflow', 'visible');
+        applyTemporaryStyle(viewerElement, 'overflow-y', 'visible');
+        applyTemporaryStyle(viewerElement, 'max-height', 'none');
+        applyTemporaryStyle(viewerElement, 'height', 'auto');
+        resetScrollTop(viewerElement);
       }
+
+      const ptToPx = (value: number) => (value * 96) / 72;
+      const windowWidth = Math.max(reportElement.scrollWidth, ptToPx(availableWidth));
+      const windowHeight = Math.max(reportElement.scrollHeight, window.innerHeight);
+
+      const htmlOptions: Parameters<typeof pdf.html>[1] = {
+        margin: [verticalMargin, horizontalMargin, verticalMargin, horizontalMargin],
+        autoPaging: 'text',
+        width: availableWidth,
+        x: horizontalMargin,
+        y: verticalMargin,
+        html2canvas: {
+          scale: deviceScale,
+          useCORS: true,
+          windowWidth,
+          windowHeight,
+          scrollX: 0,
+          scrollY: 0,
+          backgroundColor: '#ffffff',
+        },
+      };
+
+      await pdf.html(reportElement, htmlOptions);
+
+      pdf.save(`report-${Date.now()}.pdf`);
 
       console.log('✅ PDF 내보내기 완료');
     } catch (error) {
       console.error('❌ PDF 내보내기 실패:', error);
       alert('PDF 내보내기에 실패했습니다.');
     } finally {
+      while (restoreCallbacks.length > 0) {
+        const restore = restoreCallbacks.pop();
+        if (restore) {
+          restore();
+        }
+      }
       setIsExporting(false);
     }
   };
