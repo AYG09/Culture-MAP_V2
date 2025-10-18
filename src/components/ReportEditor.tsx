@@ -130,18 +130,8 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
         format: 'a4',
       });
 
+      // 1. PDF 폰트 등록 (VFS 기반, Identity-H 인코딩)
       await ensurePdfFont(pdf);
-      if ('fonts' in document && typeof document.fonts.load === 'function') {
-        try {
-          await Promise.all([
-            document.fonts.load(`400 16px "${PDF_FONT_FAMILY_NAME}"`),
-            document.fonts.load(`700 16px "${PDF_FONT_FAMILY_NAME}"`),
-          ]);
-          await document.fonts.ready;
-        } catch (fontError) {
-          console.warn('⚠️ PDF 폰트 사전 로드에 실패했습니다.', fontError);
-        }
-      }
       pdf.setFont(PDF_FONT_FAMILY_NAME, 'normal');
 
       const pageWidth = pdf.internal.pageSize.getWidth();
@@ -149,6 +139,7 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
       const verticalMargin = 56;
       const availableWidth = pageWidth - horizontalMargin * 2;
 
+      // 2. 컨테이너 스타일 완전히 해제하여 실제 콘텐츠 높이 측정
       const viewerElement = reportElement.closest('.report-viewer') as HTMLElement | null;
 
       if (viewerElement) {
@@ -156,14 +147,27 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
         applyTemporaryStyle(viewerElement, 'overflow-y', 'visible');
         applyTemporaryStyle(viewerElement, 'max-height', 'none');
         applyTemporaryStyle(viewerElement, 'height', 'auto');
+        applyTemporaryStyle(viewerElement, 'min-height', 'auto');
         resetScrollTop(viewerElement);
       }
 
-      // 실제 콘텐츠 크기를 정확히 측정 (스크롤 영역 포함)
+      // reportElement도 제약 해제
+      applyTemporaryStyle(reportElement, 'height', 'auto');
+      applyTemporaryStyle(reportElement, 'max-height', 'none');
+
+      // 브라우저가 레이아웃 재계산하도록 강제 대기
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // 3. 실제 콘텐츠 크기 측정 (모든 제약 해제 후)
+      // MDN: scrollHeight = 스크롤 없이 모든 콘텐츠를 표시하는 데 필요한 최소 높이
       const actualContentHeight = Math.max(
         reportElement.scrollHeight,
         reportElement.offsetHeight,
-        reportElement.clientHeight
+        reportElement.clientHeight,
+        // documentElement까지 확인 (고전적 방법)
+        document.documentElement.scrollHeight,
+        document.documentElement.offsetHeight,
+        document.documentElement.clientHeight
       );
       const actualContentWidth = Math.max(
         reportElement.scrollWidth,
@@ -171,28 +175,47 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
         reportElement.clientWidth
       );
 
-      // pt -> px 변환 (96 DPI 기준)
-      const ptToPx = (value: number) => (value * 96) / 72;
+      console.log('📐 측정된 콘텐츠 크기:', {
+        height: actualContentHeight,
+        width: actualContentWidth,
+        scrollHeight: reportElement.scrollHeight,
+        offsetHeight: reportElement.offsetHeight,
+        clientHeight: reportElement.clientHeight,
+      });
+
+      // 4. pt -> px 변환 (96 DPI 기준)
+      const ptToPx = (value: number) => Math.round((value * 96) / 72);
       
       // windowWidth/Height는 실제 콘텐츠 크기를 반영
+      // 공식 문서: windowHeight는 Element.scrollHeight를 사용해야 함
       const windowWidth = Math.max(actualContentWidth, ptToPx(availableWidth));
       const windowHeight = actualContentHeight;
 
       const htmlOptions: Parameters<typeof pdf.html>[1] = {
         margin: [verticalMargin, horizontalMargin, verticalMargin, horizontalMargin],
-        autoPaging: 'text',
+        autoPaging: 'text', // 텍스트가 페이지 경계에서 잘리지 않도록
         width: availableWidth,
         x: horizontalMargin,
         y: verticalMargin,
         html2canvas: {
-          scale: 0.95, // 1.0 이하로 조정하여 캔버스 크기 제한 회피
+          scale: 0.8, // 낮은 scale로 캔버스 크기 제한 회피 (커뮤니티 권장)
           useCORS: true,
           windowWidth,
           windowHeight,
-          scrollX: -window.scrollX,
-          scrollY: -window.scrollY,
+          scrollX: 0,
+          scrollY: 0,
           backgroundColor: '#ffffff',
-          logging: false,
+          logging: true, // 디버깅용 로그 활성화
+          allowTaint: false,
+          foreignObjectRendering: false,
+          // 폰트 렌더링 개선
+          onclone: (clonedDoc: Document) => {
+            // 복제된 문서에 폰트 스타일 강제 적용
+            const clonedElement = clonedDoc.querySelector('.report-content') as HTMLElement;
+            if (clonedElement) {
+              clonedElement.style.fontFamily = `"${PDF_FONT_FAMILY_NAME}", "Noto Sans KR", sans-serif`;
+            }
+          },
         },
       };
 
