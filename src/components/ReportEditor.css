@@ -131,6 +131,11 @@
   font-size: 15px;
   line-height: 1.8;
   min-height: 400px;
+  /* PDF 너비 맞춤: 자동 줄바꿈 */
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .editor-container .ql-editor.ql-blank::before {
@@ -154,6 +159,13 @@
   line-height: 1.7;
   color: #374151;
   font-family: 'NanumGothic', 'Noto Sans KR', 'Segoe UI', sans-serif;
+  /* PDF 출력용: 긴 단어 자동 줄바꿈 */
+  max-width: 650px;
+  margin: 0 auto;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .report-content h1 {

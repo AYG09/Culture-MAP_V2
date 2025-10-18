@@ -334,6 +334,8 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
               height: '100%',
               display: 'flex',
               flexDirection: 'column',
+              maxWidth: '650px', // A4 페이지 너비에 맞춤 (여백 포함)
+              margin: '0 auto',
             }}
           />
         </div>
