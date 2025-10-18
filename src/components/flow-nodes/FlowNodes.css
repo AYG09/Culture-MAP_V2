@@ -100,7 +100,7 @@
 }
 
 .node-content {
-  font-size: clamp(14px, 1.5vw, 18px); /* 동적 크기 */
+  font-size: 16px; /* 고정 크기로 변경 - 노드 크기 조정 자유롭게 */
   line-height: 1.4;
   color: #1f2937;
   word-break: keep-all; /* 단어 단위 줄바꿈 */
