@@ -652,6 +652,7 @@ const CultureMapFlow = ({
           onNodeEditStart: handleStartNodeEditing,
           onNodeEditEnd: handleStopNodeEditing,
           currentUserId: getCurrentUserId(),
+          includeFrequency: isConsultingMode,
         }
       );
 
@@ -671,7 +672,7 @@ const CultureMapFlow = ({
 
       parsedNotes.forEach((note, index) => {
         setTimeout(() => {
-          FirebaseMultiUserService.updateStickyNote({
+          const payload = {
             id: note.id,
             content: note.text || '',
             x: note.position.x,
@@ -681,7 +682,12 @@ const CultureMapFlow = ({
             type: note.type || 'sticky_note',
             width: note.width || 200,
             height: note.height || 120,
-          });
+            ...(isConsultingMode && note.perceptionIntensity
+              ? { frequency: note.perceptionIntensity }
+              : {}),
+          };
+
+          FirebaseMultiUserService.updateStickyNote(payload);
         }, index * 100); // 100ms 간격
       });
 
@@ -712,6 +718,7 @@ const CultureMapFlow = ({
     handleNodeContentUpdate,
     handleStartNodeEditing,
     handleStopNodeEditing,
+    isConsultingMode,
     onConnectionsChange,
     onNotesChange,
     setEdges,
@@ -751,6 +758,10 @@ const CultureMapFlow = ({
               return;
             }
 
+            const nodeFrequency = isConsultingMode
+              ? ((node.data as { frequency?: PerceptionIntensity | null }).frequency ?? undefined)
+              : undefined;
+
             FirebaseMultiUserService.updateStickyNote({
               id: node.id,
               content: (node.data as { content?: string }).content || '',
@@ -761,6 +772,7 @@ const CultureMapFlow = ({
               type: node.type || 'sticky_note',
               width: (node.width as number) || 200,
               height: (node.height as number) || 120,
+              ...(isConsultingMode && nodeFrequency ? { frequency: nodeFrequency } : {}),
             });
 
             console.log('📤 [React Flow] Firebase 노드 동기화:', {
@@ -776,7 +788,7 @@ const CultureMapFlow = ({
       const updatedData = convertFromFlowData(nodes, edges);
       onNotesChange(updatedData.notes);
     },
-    [getCurrentUserId, nodes, edges, onNodesChange, onNotesChange]
+    [getCurrentUserId, nodes, edges, isConsultingMode, onNodesChange, onNotesChange]
   );
 
   // ============================================================================
@@ -1163,6 +1175,11 @@ const CultureMapFlow = ({
             intangible_lever: 4,
           };
 
+          const updatedNode = updatedNodes.find((n) => n.id === node.id);
+          const updatedFrequency = isConsultingMode
+            ? ((updatedNode?.data as { frequency?: PerceptionIntensity | null })?.frequency ?? undefined)
+            : undefined;
+
           FirebaseMultiUserService.updateStickyNote({
             id: node.id,
             content: (node.data as { content?: string }).content || '',
@@ -1173,6 +1190,7 @@ const CultureMapFlow = ({
             type: node.type || 'sticky_note',
             width: (node.width as number) || 200,
             height: (node.height as number) || 120,
+            ...(isConsultingMode && updatedFrequency ? { frequency: updatedFrequency } : {}),
           });
         } else if (
           action === 'frequency_high' ||
@@ -1220,7 +1238,7 @@ const CultureMapFlow = ({
             type: node.type || 'sticky_note',
             width: (node.width as number) || 200,
             height: (node.height as number) || 120,
-            frequency: newFrequency,
+            ...(isConsultingMode ? { frequency: newFrequency } : {}),
           });
         }
       } else if (contextMenu.type === 'edge') {
@@ -1280,6 +1298,7 @@ const CultureMapFlow = ({
       handleStopNodeEditing,
       onConnectionsChange,
       onNotesChange,
+      isConsultingMode,
     ]
   );
 
@@ -1519,14 +1538,15 @@ const CultureMapFlow = ({
                   style={{
                     position: 'absolute',
                     top: '10px',
-                    left: '10px',
-                    padding: '6px 12px',
+                    left: '32px',
+                    padding: '6px 16px',
                     backgroundColor: 'rgba(255, 255, 255, 0.9)',
                     border: `2px solid ${bgColor.replace(String(layerOpacities[layer.index]), '0.5')}`,
                     borderRadius: '12px',
                     fontSize: '12px',
                     fontWeight: 'bold',
                     color: layer.color.replace('0.05', '0.8'),
+                    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.12)',
                     zIndex: -1, // 포스트잇 뒤로
                   }}
                 >

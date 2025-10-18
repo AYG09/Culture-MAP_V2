@@ -23,7 +23,7 @@ const extractPerceptionIntensity = (type: string): PerceptionIntensity => {
   if (type.endsWith('_관심')) return 'medium';
   if (type.endsWith('_언급')) return 'low';
 
-  return 'low'; // 기본값
+  return null; // 명시적 표기가 없으면 빈도 없음 처리
 };
 
 // 타입 정규화 함수 (인식강도 suffix 처리 포함)
@@ -167,6 +167,7 @@ export const parseAIOutput = (
   const notes: NoteData[] = [];
   const connections: ConnectionData[] = [];
   const noteContentToIdMap = new Map<string, string>();
+  const noteIdToNote = new Map<string, NoteData>();
   const pendingConnections: string[] = [];
   let accumulatingConnection = '';
 
@@ -262,8 +263,9 @@ export const parseAIOutput = (
         layer: (layerIndex + 1) as 1 | 2 | 3 | 4,
       };
 
-      notes.push(newNote);
-      noteContentToIdMap.set(trimmedContent, newNote.id);
+  notes.push(newNote);
+  noteContentToIdMap.set(trimmedContent, newNote.id);
+  noteIdToNote.set(newNote.id, newNote);
     } else {
       // 파싱 실패 케이스 - 상세 로깅
       if (process.env.NODE_ENV === 'development') {
@@ -391,6 +393,22 @@ export const parseAIOutput = (
       }
 
       if (sourceId && targetId) {
+        const sourceNote = noteIdToNote.get(sourceId);
+        const targetNote = noteIdToNote.get(targetId);
+
+        let resolvedSourceId = sourceId;
+        let resolvedTargetId = targetId;
+
+        if (sourceNote && targetNote) {
+          const sourceLayer = sourceNote.layer ?? 0;
+          const targetLayer = targetNote.layer ?? 0;
+
+          if (sourceLayer < targetLayer) {
+            resolvedSourceId = targetId;
+            resolvedTargetId = sourceId;
+          }
+        }
+
         // 레가시 형식: 실선=direct, 점선=indirect
         // 신규 형식: [간접연결] or (간접)
         let relationType = 'direct';
@@ -398,13 +416,11 @@ export const parseAIOutput = (
           relationType = 'indirect';
         }
 
-        // 🔧 FIX: Bottom-Up 연결 방향 (원래대로 유지)
-        // 레가시 형식: [무형_레버] → [유형_레버] (하위층 → 상위층)
-        // dagre rankdir='BT'가 알아서 아래층을 밑에, 위층을 위에 배치함
+        // 층위 간 연결은 항상 아래층(숫자 큰 layer)에서 위층으로 향하도록 강제한다
         const newConnection: ConnectionData = {
           id: uuidv4(),
-          sourceId: sourceId, // 하위층 (무형_레버 등)
-          targetId: targetId, // 상위층 (유형_레버 등)
+          sourceId: resolvedSourceId,
+          targetId: resolvedTargetId,
           isPositive: true, // 연결선 극성은 일단 '긍정'으로 고정
           relationType: relationType as 'direct' | 'indirect',
         };

@@ -43,7 +43,7 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
       const nodesBounds = getNodesBounds(nodes);
 
       // 층위 배경 레이블 영역을 고려한 패딩 (왼쪽 여유 공간 확보)
-      const PADDING_LEFT = 200; // 왼쪽: 층위 레이블 공간 확보
+  const PADDING_LEFT = 320; // 왼쪽: 층위 레이블 공간 추가 확보 (레이블 잘림 방지)
       const PADDING_RIGHT = 100; // 오른쪽: 일반 여백
       const PADDING_TOP = 100; // 상단: 일반 여백
       const PADDING_BOTTOM = 100; // 하단: 일반 여백

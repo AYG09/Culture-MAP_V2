@@ -57,6 +57,7 @@ interface ConversionOptions {
   activeLock?: ActiveLock;
   onEditStart?: (id: string) => boolean | void;
   onEditEnd?: (id: string) => void;
+  includeFrequency?: boolean;
 }
 
 export const convertNoteToFlowNode = (
@@ -87,6 +88,8 @@ export const convertNoteToFlowNode = (
   };
 
   const basisDisplay = extractBasisDisplay(note.basis);
+  const includeFrequency = options?.includeFrequency ?? true;
+  const frequencyValue = includeFrequency ? note.perceptionIntensity ?? null : undefined;
 
   const isLockedByOther = Boolean(
     options?.activeLock &&
@@ -99,7 +102,7 @@ export const convertNoteToFlowNode = (
   const baseData = {
     content: note.text || '',
     sentiment: note.sentiment || 'neutral',
-    frequency: note.perceptionIntensity, // ✅ 수정: perceptionIntensity를 frequency로 매핑
+  frequency: frequencyValue,
     category: undefined, // NoteData에는 없음
     onUpdate: handleUpdate,
     onEditStart: options?.onEditStart ? handleEditStart : undefined,
@@ -276,6 +279,7 @@ export const convertToFlowData = (
     onNodeEditStart?: (id: string) => boolean | void;
     onNodeEditEnd?: (id: string) => void;
     currentUserId?: string | null;
+    includeFrequency?: boolean;
   }
 ): { nodes: Node[]; edges: Edge[] } => {
   const nodes = notes.map((note) =>
@@ -284,6 +288,7 @@ export const convertToFlowData = (
       activeLock: options?.activeLocks?.[note.id],
       onEditStart: options?.onNodeEditStart,
       onEditEnd: options?.onNodeEditEnd,
+      includeFrequency: options?.includeFrequency,
     })
   );
   const edges = connections.map(convertConnectionToFlowEdge);

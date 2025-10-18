@@ -48,34 +48,18 @@ interface PromptGeneratorProps {
   onOpenAiPanel?: () => void;
 }
 
-const PromptGenerator: React.FC<PromptGeneratorProps> = ({ 
-  mode = 'workshop',
-  onGenerateMap,
-  reportContent,
-  onReportChange,
-  onSwitchToReportTab,
-  onOpenAiPanel
-}) => {
+const PromptGenerator: React.FC<PromptGeneratorProps> = ({ mode = 'workshop', ...rest }) => {
   return (
     <ConsultingContextProvider>
-      <PromptGeneratorInner
-        mode={mode}
-        onGenerateMap={onGenerateMap}
-        reportContent={reportContent}
-        onReportChange={onReportChange}
-        onSwitchToReportTab={onSwitchToReportTab}
-        onOpenAiPanel={onOpenAiPanel}
-      />
+      <PromptGeneratorInner mode={mode} {...rest} />
     </ConsultingContextProvider>
   );
 };
 
-const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({ 
+const PromptGeneratorInner: React.FC<PromptGeneratorProps> = ({
   mode = 'workshop',
-  onGenerateMap,
-  onReportChange,
   onSwitchToReportTab,
-  onOpenAiPanel
+  onOpenAiPanel,
 }) => {
   // ConsultingContext 사용
   const { toneAndManner, positivity, negativity, observationNote, koreanCulture } = useConsultingContext();
