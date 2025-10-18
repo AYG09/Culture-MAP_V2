@@ -1815,18 +1815,26 @@ const CultureMapFlow = ({
           </Panel>
         )}
 
-        {/* 상단 층위 관리 컨트롤 Panel */}
+        {/* 상단 층위 관리 컨트롤 Panel - 반응형 */}
         {showLayerControlPanel && (
-        <Panel position="top-center" className="layer-control-panel" style={{ 
-          display: 'flex', 
-          gap: '16px', 
-          alignItems: 'center',
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-          padding: '12px 20px',
-          borderRadius: '12px',
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-          border: '1px solid rgba(0, 0, 0, 0.05)',
-        }}>
+        <Panel 
+          position="top-center" 
+          className="layer-control-panel" 
+          style={{ 
+            display: 'flex', 
+            flexDirection: isMobile ? 'column' : 'row',
+            gap: isMobile ? '8px' : '16px', 
+            alignItems: isMobile ? 'stretch' : 'center',
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            padding: isMobile ? '10px' : '12px 20px',
+            borderRadius: '12px',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+            border: '1px solid rgba(0, 0, 0, 0.05)',
+            maxWidth: isMobile ? '90vw' : 'auto',
+            maxHeight: isMobile ? '80vh' : 'auto',
+            overflowY: isMobile ? 'auto' : 'visible',
+          }}
+        >
           {/* 닫기 버튼 */}
           <button
             onClick={() => setShowLayerControlPanel(false)}
@@ -1840,6 +1848,7 @@ const CultureMapFlow = ({
               cursor: 'pointer',
               transition: 'all 0.2s ease',
               lineHeight: 1,
+              alignSelf: isMobile ? 'flex-end' : 'center',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = '#f5f5f5';
@@ -1854,34 +1863,35 @@ const CultureMapFlow = ({
             ✕
           </button>
 
-          {/* 구분선 */}
-          <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />
+          {/* 구분선 (데스크톱만) */}
+          {!isMobile && <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />}
 
           {/* 층위 배경 표시 토글 */}
           <button
             onClick={() => setShowLayerBackground(!showLayerBackground)}
             style={{
-              padding: '6px 12px',
+              padding: isMobile ? '10px 14px' : '6px 12px',
               backgroundColor: showLayerBackground ? '#4CAF50' : '#f5f5f5',
               color: showLayerBackground ? 'white' : '#666',
               border: 'none',
               borderRadius: '6px',
-              fontSize: '12px',
+              fontSize: isMobile ? '13px' : '12px',
               fontWeight: '500',
               cursor: 'pointer',
               transition: 'all 0.2s ease',
               whiteSpace: 'nowrap',
+              width: isMobile ? '100%' : 'auto',
             }}
             title="층위 배경 표시/숨김"
           >
             {showLayerBackground ? '🎨 층위 표시' : '🚫 층위 숨김'}
           </button>
 
-          {/* 구분선 */}
-          <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />
+          {/* 구분선 (데스크톱만) */}
+          {!isMobile && <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />}
 
           {/* 층위 선택 드롭다운 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: '8px', width: isMobile ? '100%' : 'auto' }}>
             <label htmlFor="layer-select" style={{ fontSize: '12px', fontWeight: '500', color: '#666', whiteSpace: 'nowrap' }}>
               조절할 층위:
             </label>
@@ -1890,13 +1900,14 @@ const CultureMapFlow = ({
               value={selectedLayerIndex}
               onChange={(e) => setSelectedLayerIndex(Number(e.target.value))}
               style={{
-                padding: '6px 10px',
+                padding: isMobile ? '10px 12px' : '6px 10px',
                 borderRadius: '6px',
                 border: '1px solid #ddd',
-                fontSize: '12px',
+                fontSize: isMobile ? '13px' : '12px',
                 fontWeight: '500',
                 cursor: 'pointer',
                 backgroundColor: 'white',
+                width: isMobile ? '100%' : 'auto',
               }}
             >
               <option value={0}>📊 결과</option>
@@ -1906,11 +1917,11 @@ const CultureMapFlow = ({
             </select>
           </div>
 
-          {/* 구분선 */}
-          <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />
+          {/* 구분선 (데스크톱만) */}
+          {!isMobile && <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />}
 
           {/* 선택된 층위 높이 조절 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '220px' }}>
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: '10px', width: isMobile ? '100%' : 'auto', minWidth: isMobile ? 'auto' : '220px' }}>
             <label htmlFor="layer-height-input" style={{ fontSize: '12px', fontWeight: '500', color: '#666', whiteSpace: 'nowrap' }}>
               높이:
             </label>
@@ -1926,37 +1937,39 @@ const CultureMapFlow = ({
                 newHeights[selectedLayerIndex] = Number(e.target.value);
                 setLayerHeights(newHeights);
               }}
-              style={{ flex: 1, minWidth: '100px' }}
+              style={{ flex: 1, minWidth: isMobile ? 'auto' : '100px', width: isMobile ? '100%' : 'auto' }}
             />
-            <input
-              type="number"
-              min="100"
-              max="400"
-              step="20"
-              value={layerHeights[selectedLayerIndex]}
-              onChange={(e) => {
-                const value = Math.min(400, Math.max(100, Number(e.target.value)));
-                const newHeights = [...layerHeights];
-                newHeights[selectedLayerIndex] = value;
-                setLayerHeights(newHeights);
-              }}
-              style={{
-                width: '60px',
-                padding: '4px 8px',
-                borderRadius: '4px',
-                border: '1px solid #ddd',
-                fontSize: '12px',
-                textAlign: 'right',
-              }}
-            />
-            <span style={{ fontSize: '11px', color: '#999' }}>px</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <input
+                type="number"
+                min="100"
+                max="400"
+                step="20"
+                value={layerHeights[selectedLayerIndex]}
+                onChange={(e) => {
+                  const value = Math.min(400, Math.max(100, Number(e.target.value)));
+                  const newHeights = [...layerHeights];
+                  newHeights[selectedLayerIndex] = value;
+                  setLayerHeights(newHeights);
+                }}
+                style={{
+                  width: '60px',
+                  padding: isMobile ? '8px' : '4px 8px',
+                  borderRadius: '4px',
+                  border: '1px solid #ddd',
+                  fontSize: '12px',
+                  textAlign: 'right',
+                }}
+              />
+              <span style={{ fontSize: '11px', color: '#999' }}>px</span>
+            </div>
           </div>
 
-          {/* 구분선 */}
-          <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />
+          {/* 구분선 (데스크톱만) */}
+          {!isMobile && <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />}
 
           {/* 전체 투명도 슬라이더 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '180px' }}>
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: '10px', width: isMobile ? '100%' : 'auto', minWidth: isMobile ? 'auto' : '180px' }}>
             <label htmlFor="global-opacity" style={{ fontSize: '12px', fontWeight: '500', color: '#666', whiteSpace: 'nowrap' }}>
               투명도:
             </label>
@@ -1972,7 +1985,7 @@ const CultureMapFlow = ({
                 newOpacities[selectedLayerIndex] = Number(e.target.value);
                 setLayerOpacities(newOpacities);
               }}
-              style={{ flex: 1, minWidth: '80px' }}
+              style={{ flex: 1, minWidth: isMobile ? 'auto' : '80px', width: isMobile ? '100%' : 'auto' }}
             />
             <span style={{ fontSize: '11px', color: '#999', minWidth: '35px', textAlign: 'right' }}>
               {Math.round(layerOpacities[selectedLayerIndex] * 100)}%
