@@ -213,6 +213,19 @@
   transform: scale(1.2);
 }
 
+/* NodeResizer 핸들 크기 확대 */
+.node-resizer-handle {
+  width: 16px !important;
+  height: 16px !important;
+  border-radius: 3px !important;
+}
+
+.react-flow__resize-control.handle {
+  width: 16px !important;
+  height: 16px !important;
+  border-radius: 3px !important;
+}
+
 /* 반응형 */
 @media (max-width: 768px) {
   .flow-node {

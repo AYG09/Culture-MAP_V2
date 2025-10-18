@@ -73,6 +73,11 @@ const IntangibleLeverNode = ({ id, data, selected }: NodeProps & { data: Intangi
     return FREQUENCY_LABELS[frequency];
   };
 
+  // 디버깅: 빈도 데이터 확인
+  if (data.frequency) {
+    console.log('🔍 IntangibleLeverNode frequency:', data.frequency, '→', getFrequencyLabel(data.frequency));
+  }
+
   return (
     <div
       className={`flow-node intangible-lever-node ${data.sentiment} ${selected ? 'selected' : ''}`}
