@@ -1496,6 +1496,7 @@ const CultureMapFlow = ({
       {/* 층위 배경 레이어 (ReactFlow 외부) */}
       {showLayerBackground && (
         <div
+          data-layer-background-root="true"
           style={{
             position: 'absolute',
             top: 0,
@@ -1523,6 +1524,7 @@ const CultureMapFlow = ({
             
             return (
               <div
+                data-layer-capture="segment"
                 key={layer.name}
                 style={{
                   position: 'absolute',
@@ -1535,6 +1537,7 @@ const CultureMapFlow = ({
                 }}
               >
                 <div
+                  data-layer-capture="label"
                   style={{
                     position: 'absolute',
                     top: '10px',

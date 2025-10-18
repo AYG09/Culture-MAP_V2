@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { toPng } from 'html-to-image';
-import { getNodesBounds, getViewportForBounds, type ReactFlowInstance } from '@xyflow/react';
+import { getNodesBounds, type ReactFlowInstance } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -36,93 +36,127 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
     setExportError(null);
 
     let captureElement: HTMLElement | null = null;
-    let previousOverflow: string | null = null;
+    const restoreStyleCallbacks: Array<() => void> = [];
 
     try {
-      // 실제 노드 경계 기반 동적 크기 계산
-      const nodesBounds = getNodesBounds(nodes);
+      const reactFlowNodes = reactFlowInstance.getNodes();
+      if (!reactFlowNodes.length) {
+        throw new Error('React Flow 노드를 찾을 수 없습니다.');
+      }
 
-    // 층위 배경 레이블 영역을 고려한 패딩 (왼쪽 여유 공간 확보)
-    const PADDING_LEFT = 320; // 왼쪽: 층위 레이블 공간 추가 확보 (레이블 잘림 방지)
-      const PADDING_RIGHT = 100; // 오른쪽: 일반 여백
-      const PADDING_TOP = 100; // 상단: 일반 여백
-      const PADDING_BOTTOM = 100; // 하단: 일반 여백
-
-      // 변경: viewport 대신 flowWrapperRef를 포함하는 부모 선택 (층위 배경 포함)
+      const nodesBounds = getNodesBounds(reactFlowNodes);
       captureElement = document.querySelector('[data-capture-root="true"]') as HTMLElement;
 
       if (!captureElement) {
         throw new Error('캡처할 영역을 찾을 수 없습니다.');
       }
 
-      const scrollWidth = captureElement.scrollWidth;
-      const scrollHeight = captureElement.scrollHeight;
-      const scrollLeft = captureElement.scrollLeft;
-      const scrollTop = captureElement.scrollTop;
-      const elementRect = captureElement.getBoundingClientRect();
+      const viewportState = reactFlowInstance.getViewport();
+      const rootRect = captureElement.getBoundingClientRect();
 
-      const extendedBounds = {
-        x: nodesBounds.x - PADDING_LEFT,
-        y: nodesBounds.y - PADDING_TOP,
-        width: nodesBounds.width + PADDING_LEFT + PADDING_RIGHT,
-        height: nodesBounds.height + PADDING_TOP + PADDING_BOTTOM,
+      let minX = nodesBounds.x;
+      let minY = nodesBounds.y;
+      let maxX = nodesBounds.x + nodesBounds.width;
+      let maxY = nodesBounds.y + nodesBounds.height;
+
+      const layerElements = Array.from(
+        captureElement.querySelectorAll('[data-layer-capture]')
+      ) as HTMLElement[];
+
+      const applyRelativeBoundsToWorld = (element: HTMLElement) => {
+        const rect = element.getBoundingClientRect();
+        const relativeLeft = rect.left - rootRect.left;
+        const relativeTop = rect.top - rootRect.top;
+        const relativeRight = rect.right - rootRect.left;
+        const relativeBottom = rect.bottom - rootRect.top;
+
+        const worldLeft = (relativeLeft - viewportState.x) / viewportState.zoom;
+        const worldTop = (relativeTop - viewportState.y) / viewportState.zoom;
+        const worldRight = (relativeRight - viewportState.x) / viewportState.zoom;
+        const worldBottom = (relativeBottom - viewportState.y) / viewportState.zoom;
+
+        minX = Math.min(minX, worldLeft);
+        minY = Math.min(minY, worldTop);
+        maxX = Math.max(maxX, worldRight);
+        maxY = Math.max(maxY, worldBottom);
       };
 
-      // 노드 경계와 실제 DOM 크기를 모두 고려하여 최종 캔버스 크기 결정
-      const computedWidth = Math.ceil(
-        Math.max(extendedBounds.width, scrollWidth + PADDING_LEFT + PADDING_RIGHT, elementRect.width + PADDING_LEFT)
-      );
-      const computedHeight = Math.ceil(
-        Math.max(
-          extendedBounds.height,
-          scrollHeight + PADDING_TOP + PADDING_BOTTOM,
-          elementRect.height + PADDING_TOP
-        )
-      );
+      layerElements.forEach(applyRelativeBoundsToWorld);
 
-      // 노드들이 이미지 중앙에 오도록 viewport 계산
-      const transform = getViewportForBounds(
-        extendedBounds,
-        computedWidth,
-        computedHeight,
-        0.5, // minZoom
-        2, // maxZoom
-        0
-      );
+      const padding = {
+        top: 120,
+        right: 160,
+        bottom: 160,
+        left: 320,
+      };
 
-      // toPng로 넘기기 전 overflow를 잠시 해제하여 잘림을 방지
-      previousOverflow = captureElement.style.overflow;
-      captureElement.style.overflow = 'visible';
+      const paddedMinX = minX - padding.left;
+      const paddedMinY = minY - padding.top;
+      const paddedMaxX = maxX + padding.right;
+      const paddedMaxY = maxY + padding.bottom;
 
-      // PNG 이미지 생성 (초고화질, 4K 디스플레이 지원)
+      const exportWidth = Math.max(1, Math.ceil(paddedMaxX - paddedMinX));
+      const exportHeight = Math.max(1, Math.ceil(paddedMaxY - paddedMinY));
+
+      const translateX = -paddedMinX;
+      const translateY = -paddedMinY;
+
+      const viewportElement = captureElement.querySelector('.react-flow__viewport') as HTMLElement | null;
+      const backgroundRoot = captureElement.querySelector('[data-layer-background-root="true"]') as HTMLElement | null;
+      const reactFlowRoot = captureElement.querySelector('.react-flow') as HTMLElement | null;
+
+      const setTemporaryStyle = (element: HTMLElement | null, property: string, value: string) => {
+        if (!element) return;
+        const previousValue = element.style.getPropertyValue(property);
+        const hadValue = previousValue !== '';
+        restoreStyleCallbacks.push(() => {
+          if (hadValue) {
+            element.style.setProperty(property, previousValue);
+          } else {
+            element.style.removeProperty(property);
+          }
+        });
+        element.style.setProperty(property, value);
+      };
+
+      setTemporaryStyle(captureElement, 'overflow', 'visible');
+      setTemporaryStyle(captureElement, 'width', `${exportWidth}px`);
+      setTemporaryStyle(captureElement, 'height', `${exportHeight}px`);
+      setTemporaryStyle(captureElement, 'position', 'relative');
+
+      setTemporaryStyle(reactFlowRoot, 'width', `${exportWidth}px`);
+      setTemporaryStyle(reactFlowRoot, 'height', `${exportHeight}px`);
+
+      setTemporaryStyle(viewportElement, 'transform-origin', '0 0');
+      setTemporaryStyle(viewportElement, 'transform', `translate(${translateX}px, ${translateY}px) scale(1)`);
+
+      setTemporaryStyle(backgroundRoot, 'transform-origin', '0 0');
+      setTemporaryStyle(backgroundRoot, 'transform', `translate(${translateX}px, ${translateY}px)`);
+
       const dataUrl = await toPng(captureElement, {
-        // 불필요한 UI 요소 제외 (MiniMap, Controls, 상단 바, 좌측 패널)
         filter: node => {
           if (!node?.classList) return true;
 
-          // 제외할 클래스 목록
           const excludeClasses = [
             'react-flow__minimap',
             'react-flow__controls',
-            'culture-top-bar', // 상단 바 제외
-            'left-panel', // 좌측 AI 패널 제외
-            'no-print', // no-print 클래스 제외
-            'layer-legend', // Panel 범례 제외 (선택적)
+            'culture-top-bar',
+            'left-panel',
+            'no-print',
+            'layer-legend',
+            'mobile-gesture-guide-overlay',
           ];
 
           return !excludeClasses.some(cls => node.classList.contains(cls));
         },
         backgroundColor: '#ffffff',
-        width: computedWidth,
-        height: computedHeight,
-        pixelRatio: 4, // 초고화질 (4배 해상도, 4K 디스플레이 최적화)
-        cacheBust: true, // 캐시 문제 방지
-        fontEmbedCSS: '', // 폰트 임베딩 최적화
-        skipFonts: false, // 폰트 정보 포함
+        width: exportWidth,
+        height: exportHeight,
+        pixelRatio: 4,
+        cacheBust: true,
         style: {
-          transform: `translate(${transform.x - scrollLeft}px, ${transform.y - scrollTop}px) scale(${transform.zoom})`,
-          width: `${computedWidth}px`,
-          height: `${computedHeight}px`,
+          width: `${exportWidth}px`,
+          height: `${exportHeight}px`,
         },
       });
 
@@ -137,8 +171,11 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
       console.error('❌ PNG 내보내기 실패:', error);
       setExportError('이미지 내보내기에 실패했습니다.');
     } finally {
-      if (captureElement) {
-        captureElement.style.overflow = previousOverflow ?? '';
+      while (restoreStyleCallbacks.length > 0) {
+        const restore = restoreStyleCallbacks.pop();
+        if (restore) {
+          restore();
+        }
       }
       setIsExporting(false);
     }

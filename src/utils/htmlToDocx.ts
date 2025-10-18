@@ -37,6 +37,38 @@ const HEADING_MAP: Record<string, HeadingLevelValue> = {
 
 const domParser = new DOMParser();
 
+interface ConversionState {
+  numberingEntries: Map<string, typeof BULLET_LEVELS | typeof NUMBER_LEVELS>;
+  bulletCounter: number;
+  numberedCounter: number;
+}
+
+const MAX_LIST_LEVEL = 2;
+
+const createConversionState = (): ConversionState => ({
+  numberingEntries: new Map(),
+  bulletCounter: 0,
+  numberedCounter: 0,
+});
+
+const registerListReference = (state: ConversionState, type: 'bullet' | 'numbered'): string => {
+  if (type === 'bullet') {
+    state.bulletCounter += 1;
+    const reference = `${BULLET_REFERENCE}-${state.bulletCounter}`;
+    if (!state.numberingEntries.has(reference)) {
+      state.numberingEntries.set(reference, BULLET_LEVELS);
+    }
+    return reference;
+  }
+
+  state.numberedCounter += 1;
+  const reference = `${NUMBER_REFERENCE}-${state.numberedCounter}`;
+  if (!state.numberingEntries.has(reference)) {
+    state.numberingEntries.set(reference, NUMBER_LEVELS);
+  }
+  return reference;
+};
+
 const colorFromStyle = (styleValue: string): string | undefined => {
   if (!styleValue) {
     return undefined;
@@ -200,8 +232,10 @@ const buildParagraph = (
   runs: TextRun[],
   options: {
     heading?: HeadingLevelValue;
-    bulletLevel?: number;
-    numberedLevel?: number;
+    numbering?: {
+      reference: string;
+      level: number;
+    };
   } = {}
 ): Paragraph | null => {
   if (runs.length === 0) {
@@ -217,27 +251,23 @@ const buildParagraph = (
     paragraphOptions.heading = options.heading;
   }
 
-  if (typeof options.bulletLevel === 'number') {
+  if (options.numbering) {
     paragraphOptions.numbering = {
-      level: options.bulletLevel,
-      reference: BULLET_REFERENCE,
-    };
-  }
-
-  if (typeof options.numberedLevel === 'number') {
-    paragraphOptions.numbering = {
-      level: options.numberedLevel,
-      reference: NUMBER_REFERENCE,
+      level: options.numbering.level,
+      reference: options.numbering.reference,
     };
   }
 
   return new Paragraph(paragraphOptions as ConstructorParameters<typeof Paragraph>[0]);
 };
 
-const convertList = (element: HTMLElement, type: 'bullet' | 'numbered', level: number): Paragraph[] => {
+const convertList = (element: HTMLElement, type: 'bullet' | 'numbered', level: number, state: ConversionState): Paragraph[] => {
+  const reference = registerListReference(state, type);
+  const currentLevel = Math.min(level, MAX_LIST_LEVEL);
+
   return Array.from(element.children).flatMap((child) => {
     if (child.tagName.toUpperCase() !== 'LI') {
-      return convertNodeToParagraphs(child, level);
+      return convertNodeToParagraphs(child, state, level);
     }
 
     const listItem = child as HTMLElement;
@@ -252,8 +282,10 @@ const convertList = (element: HTMLElement, type: 'bullet' | 'numbered', level: n
       .flatMap((node) => createRunsFromNode(node, {}));
 
     const paragraph = buildParagraph(inlineRuns, {
-      bulletLevel: type === 'bullet' ? level : undefined,
-      numberedLevel: type === 'numbered' ? level : undefined,
+      numbering: {
+        reference,
+        level: currentLevel,
+      },
     });
 
     const nestedParagraphs = Array.from(listItem.children)
@@ -261,7 +293,12 @@ const convertList = (element: HTMLElement, type: 'bullet' | 'numbered', level: n
         const tag = childElement.tagName.toUpperCase();
         return tag === 'UL' || tag === 'OL';
       })
-      .flatMap((nestedList) => convertList(nestedList as HTMLElement, (nestedList.tagName.toUpperCase() === 'UL' ? 'bullet' : 'numbered'), level + 1));
+      .flatMap((nestedList) => convertList(
+        nestedList as HTMLElement,
+        nestedList.tagName.toUpperCase() === 'UL' ? 'bullet' : 'numbered',
+        level + 1,
+        state,
+      ));
 
     const paragraphs: Paragraph[] = [];
     if (paragraph) {
@@ -272,7 +309,7 @@ const convertList = (element: HTMLElement, type: 'bullet' | 'numbered', level: n
   });
 };
 
-const convertNodeToParagraphs = (node: Node, listLevel = 0): Paragraph[] => {
+const convertNodeToParagraphs = (node: Node, state: ConversionState, listLevel = 0): Paragraph[] => {
   if (node.nodeType === Node.TEXT_NODE) {
     const text = node.textContent ?? '';
     if (!text.trim()) {
@@ -294,11 +331,11 @@ const convertNodeToParagraphs = (node: Node, listLevel = 0): Paragraph[] => {
   const tag = element.tagName.toUpperCase();
 
   if (tag === 'UL') {
-    return convertList(element, 'bullet', listLevel);
+    return convertList(element, 'bullet', listLevel, state);
   }
 
   if (tag === 'OL') {
-    return convertList(element, 'numbered', listLevel);
+    return convertList(element, 'numbered', listLevel, state);
   }
 
   const runs = Array.from(element.childNodes).flatMap((child) => createRunsFromNode(child, {}));
@@ -318,29 +355,27 @@ const convertNodeToParagraphs = (node: Node, listLevel = 0): Paragraph[] => {
   return fallbackParagraph ? [fallbackParagraph] : [];
 };
 
-const buildParagraphsFromHtml = (html: string): Paragraph[] => {
+const buildParagraphsFromHtml = (html: string): { paragraphs: Paragraph[]; numbering: Array<{ reference: string; levels: typeof BULLET_LEVELS | typeof NUMBER_LEVELS }>; } => {
   const parsed = domParser.parseFromString(html, 'text/html');
   const body = parsed.body;
-  const paragraphs = Array.from(body.childNodes).flatMap((node) => convertNodeToParagraphs(node));
-  return paragraphs.length > 0 ? paragraphs : [new Paragraph('')];
+  const state = createConversionState();
+  const paragraphs = Array.from(body.childNodes).flatMap((node) => convertNodeToParagraphs(node, state));
+  const numbering = Array.from(state.numberingEntries.entries()).map(([reference, levels]) => ({
+    reference,
+    levels,
+  }));
+
+  return {
+    paragraphs: paragraphs.length > 0 ? paragraphs : [new Paragraph('')],
+    numbering,
+  };
 };
 
 export const createDocxBlobFromHtml = async (html: string): Promise<Blob> => {
-  const paragraphs = buildParagraphsFromHtml(html);
+  const { paragraphs, numbering } = buildParagraphsFromHtml(html);
 
   const document = new Document({
-    numbering: {
-      config: [
-        {
-          reference: BULLET_REFERENCE,
-          levels: BULLET_LEVELS,
-        },
-        {
-          reference: NUMBER_REFERENCE,
-          levels: NUMBER_LEVELS,
-        },
-      ],
-    },
+    numbering: numbering.length > 0 ? { config: numbering } : undefined,
     sections: [
       {
         children: paragraphs,

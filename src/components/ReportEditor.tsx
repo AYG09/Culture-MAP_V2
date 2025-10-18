@@ -4,6 +4,7 @@ import 'react-quill-new/dist/quill.snow.css'; // Quill Snow 테마 CSS
 import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import { createDocxBlobFromHtml } from '../utils/htmlToDocx';
+import { ensurePdfFont } from '../utils/pdfFonts';
 import './ReportEditor.css';
 
 interface ReportEditorProps {
@@ -106,6 +107,8 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
         format: 'a4',
       });
 
+      await ensurePdfFont(pdf);
+
       const pageWidth = pdf.internal.pageSize.getWidth();
       const horizontalMargin = 56; // 0.78in
       const verticalMargin = 56;
@@ -121,6 +124,7 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
         autoPaging: 'text',
         html2canvas: {
           scale: 1,
+          useCORS: true,
         },
         callback: (instance) => {
           instance.save(`report-${Date.now()}.pdf`);
