@@ -5,7 +5,6 @@ import Gateway from './components/Gateway';
 import type { PasswordType } from './services/GatewayAdminService';
 import SessionManager from './components/SessionManager';
 import CultureMapFlow from './components/CultureMapFlow';
-import WelcomeModal from './components/WelcomeModal';
 import FirebaseMultiUserService from './services/FirebaseMultiUserService';
 
 import type { ConnectionData, NoteData, NoteType } from './types/culture';
@@ -111,7 +110,6 @@ const mapFirebaseNoteToAppNote = (note: FirebaseStickyNoteUpdate): AppNote => {
 function App() {
   const [, setNotes] = useState<AppNote[]>([]);
   const [, setConnections] = useState<ConnectionData[]>([]);
-  const [showWelcomeModal, setShowWelcomeModal] = useState(true);
   const [showSessionManager, setShowSessionManager] = useState(false);
   const [pendingSessionCode, setPendingSessionCode] = useState<string | undefined>();
   const [passwordType, setPasswordType] = useState<PasswordType>('workshop');
@@ -313,8 +311,6 @@ function App() {
               onConnectionsChange={handleConnectionsChange}
               onNodeUpdate={handleNodeUpdate}
             />
-
-            <WelcomeModal isOpen={showWelcomeModal} onClose={() => setShowWelcomeModal(false)} />
           </div>
         </Router>
     </Gateway>
