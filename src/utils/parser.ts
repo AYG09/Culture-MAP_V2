@@ -54,6 +54,41 @@ const normalizeType = (type: string): string => {
   return trimmedType;
 };
 
+// 메타데이터 끝부분 후보를 찾기 위한 기본 패턴 (말줄임표·마침표 허용)
+const metadataCandidateRegex = /\(([^()]*)\)\s*(?:[.·…ㆍ]*\s*)?$/;
+
+// (저자, 이론, 연도) 혹은 (저자: ..., 이론: ..., 연도: ...) 형식을 정규화
+const normalizeMetadataBasis = (metadataInner: string): string | null => {
+  const trimmed = metadataInner.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const legacyAuthor = trimmed.match(/저자:\s*([^,]+)/i);
+  const legacyTheory = trimmed.match(/이론:\s*([^,]+)/i);
+  const legacyYear = trimmed.match(/연도:\s*([^,)]+)/i);
+
+  if (legacyAuthor && legacyTheory && legacyYear) {
+    const author = legacyAuthor[1].trim();
+    const theory = legacyTheory[1].trim();
+    const year = legacyYear[1].trim();
+    if (author && theory && year) {
+      return `${author}, ${theory}, ${year}`;
+    }
+  }
+
+  const parts = trimmed
+    .split(',')
+    .map(part => part.trim())
+    .filter(part => part.length > 0);
+
+  if (parts.length === 3) {
+    return `${parts[0]}, ${parts[1]}, ${parts[2]}`;
+  }
+
+  return null;
+};
+
 export const parseAIOutput = (
   text: string
 ): { notes: NoteData[]; connections: ConnectionData[] } => {
@@ -80,12 +115,6 @@ export const parseAIOutput = (
   const pendingConnections: string[] = [];
   let accumulatingConnection = '';
 
-  // 2단계 파싱 방식: 메타데이터를 먼저 추출한 후 나머지 파싱
-  // Step 1: 메타데이터 패턴 (역방향 매칭) - 신버전/구버전 모두 매칭
-  // 구버전: (저자: xxx, 이론: yyy, 연도: zzz)
-  // 신버전: (xxx, yyy, zzz)
-  const metadataPattern = /\((?:저자:\s*.+?,\s*이론:\s*.+?,\s*연도:\s*.+?|[^,)]+,\s*[^,)]+,\s*\d{4})\)$/;
-  
   // Step 2: 메타데이터 제거 후 노드 파싱 (content가 greedy)
   const nodeRegex = /^\[(?<type>[^\]]+)\]\s*\((?<sentiment>[^)]+)\)\s*(?<content>.+)$/i;
 
@@ -121,11 +150,28 @@ export const parseAIOutput = (
     }
 
     // 2단계 파싱: 메타데이터 먼저 추출
-    const metadataMatch = line.match(metadataPattern);
-    const extractedMetadata = metadataMatch ? metadataMatch[0] : null;
-    const lineWithoutMetadata = extractedMetadata 
-      ? line.replace(extractedMetadata, '').trim() 
-      : line;
+    const trimmedLine = line.trimEnd();
+    let extractedMetadata: string | null = null;
+    let normalizedBasis: string | undefined;
+    let lineWithoutMetadata = trimmedLine;
+
+    const metadataMatch = trimmedLine.match(metadataCandidateRegex);
+    if (metadataMatch) {
+      const candidateBody = metadataMatch[1].trim();
+      const normalized = normalizeMetadataBasis(candidateBody);
+
+      if (normalized) {
+        extractedMetadata = `(${candidateBody})`;
+        normalizedBasis = normalized;
+        lineWithoutMetadata = trimmedLine
+          .slice(0, trimmedLine.length - metadataMatch[0].length)
+          .trim();
+      }
+    }
+
+    if (!extractedMetadata) {
+      lineWithoutMetadata = trimmedLine.trim();
+    }
 
     console.log(`🔍 메타데이터 추출:`, extractedMetadata);
     console.log(`🔍 메타데이터 제거 후:`, lineWithoutMetadata);
@@ -135,7 +181,6 @@ export const parseAIOutput = (
 
     if (nodeMatch?.groups) {
       const { type, sentiment, content } = nodeMatch.groups;
-      const metadata = extractedMetadata;
 
       // 인식 강도 추출
       const perceptionIntensity = extractPerceptionIntensity(type);
@@ -146,31 +191,11 @@ export const parseAIOutput = (
       const trimmedContent = content.trim();
 
       // 메타데이터 파싱 (문자열로 저장)
-      let basis: string | undefined = undefined;
+      let basis: string | undefined = normalizedBasis;
 
-      if (metadata) {
-        // 신버전 형식: (xxx, yyy, zzz) 우선 파싱
-        const newFormatMatch = metadata.match(/^\(?([^,]+),\s*([^,]+),\s*(\d{4})\)?$/);
-        
-        if (newFormatMatch) {
-          const author = newFormatMatch[1].trim();
-          const theory = newFormatMatch[2].trim();
-          const year = newFormatMatch[3].trim();
-          basis = `${author}, ${theory}, ${year}`;
-        } else {
-          // 구버전 형식: (저자: xxx, 이론: yyy, 연도: zzz) 폴백
-          const authorMatch = metadata.match(/저자:\s*([^,]+)/);
-          const theoryMatch = metadata.match(/이론:\s*([^,]+)/);
-          const yearMatch = metadata.match(/연도:\s*([^,)]+)/);
-
-          if (authorMatch && theoryMatch && yearMatch) {
-            const author = authorMatch[1].trim();
-            const theory = theoryMatch[1].trim();
-            const year = yearMatch[1].trim();
-            // 간결한 형식: (저자, 이론, 연도)
-            basis = `${author}, ${theory}, ${year}`;
-          }
-        }
+      if (!basis && extractedMetadata) {
+        const rawInner = extractedMetadata.slice(1, -1).trim();
+        basis = normalizeMetadataBasis(rawInner) ?? rawInner;
       }
 
       if (layerIndex === undefined || !trimmedContent) {

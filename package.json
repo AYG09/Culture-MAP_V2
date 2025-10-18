@@ -14,7 +14,8 @@
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,css,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,css,md}\"",
-    "test:e2e": "npx playwright test"
+    "test:e2e": "npx playwright test",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@types/dagre": "^0.7.53",

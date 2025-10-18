@@ -8,6 +8,41 @@ import type {
   IntangibleLeverNodeData,
 } from '../components/flow-nodes';
 
+const extractBasisDisplay = (basis?: string): string | undefined => {
+  if (!basis) {
+    return undefined;
+  }
+
+  const inner = basis.trim().replace(/^\(/, '').replace(/\)$/, '').trim();
+  if (!inner) {
+    return undefined;
+  }
+
+  const legacyAuthor = inner.match(/저자:\s*([^,]+)/i);
+  const legacyTheory = inner.match(/이론:\s*([^,]+)/i);
+  const legacyYear = inner.match(/연도:\s*([^,)]+)/i);
+
+  if (legacyAuthor && legacyTheory && legacyYear) {
+    const author = legacyAuthor[1].trim();
+    const theory = legacyTheory[1].trim();
+    const year = legacyYear[1].trim();
+    if (author && theory && year) {
+      return `${author}, ${theory}, ${year}`;
+    }
+  }
+
+  const parts = inner
+    .split(',')
+    .map(part => part.trim())
+    .filter(part => part.length > 0);
+
+  if (parts.length === 3) {
+    return `${parts[0]}, ${parts[1]}, ${parts[2]}`;
+  }
+
+  return inner;
+};
+
 /**
  * 기존 NoteData를 React Flow Node로 변환
  */
@@ -24,35 +59,12 @@ export const convertNoteToFlowNode = (
     onUpdate(targetId, content);
   };
 
-  // basis 문자열에서 정보 추출
-  let author: string | undefined;
-  let theory: string | undefined;
-  let year: string | undefined;
-  
-  if (note.basis) {
-    // 새로운 형식: "(학자명, 이론명, 연도)" 파싱
-    const newFormatMatch = note.basis.match(/^\(?([^,]+),\s*([^,]+),\s*(\d{4})\)?$/);
-    if (newFormatMatch) {
-      author = newFormatMatch[1].trim();
-      theory = newFormatMatch[2].trim();
-      year = newFormatMatch[3].trim();
-    } else {
-      // 레거시 형식: "저자: XXX, 이론: YYY, 연도: ZZZZ"
-      const authorMatch = note.basis.match(/저자:\s*([^,]+)/);
-      const theoryMatch = note.basis.match(/이론:\s*([^,]+)/);
-      const yearMatch = note.basis.match(/연도:\s*([^,)]+)/);
-      
-      if (authorMatch) author = authorMatch[1].trim();
-      if (theoryMatch) theory = theoryMatch[1].trim();
-      if (yearMatch) year = yearMatch[1].trim();
-    }
-  }
+  const basisDisplay = extractBasisDisplay(note.basis);
 
   const baseData = {
     content: note.text || '',
     sentiment: note.sentiment || 'neutral',
     frequency: note.perceptionIntensity, // ✅ 수정: perceptionIntensity를 frequency로 매핑
-    source: author && year ? `${author} (${year})` : undefined, // 저자 (연도)
     category: undefined, // NoteData에는 없음
     onUpdate: handleUpdate,
   };
@@ -70,14 +82,14 @@ export const convertNoteToFlowNode = (
       nodeType = 'tangible_lever';
       nodeData = { 
         ...baseData, 
-        basis: theory // 이론명
+        basis: basisDisplay
       } as TangibleLeverNodeData;
       break;
     case '무형_레버':
       nodeType = 'intangible_lever';
       nodeData = { 
         ...baseData, 
-        basis: theory // 이론명
+        basis: basisDisplay
       } as IntangibleLeverNodeData;
       break;
     default:
@@ -131,22 +143,21 @@ export const convertFlowNodeToNote = (node: Node): NoteData => {
   }
 
   // basis 문자열 재구성
-  let basisString: string | undefined;
-  if ('basis' in data && data.basis) {
-    // theory만 있음
-    basisString = data.basis; // 이미 "이론명" 형태
-  }
-  if (data.source) {
-    // source에서 author, year 추출
-    const sourceMatch = data.source.match(/^(.+?)\s*\((\d{4})\)$/);
+  const typedData = data as Partial<{ basis?: string; source?: string }>;
+  const rawBasis = typeof typedData.basis === 'string' ? typedData.basis.trim() : undefined;
+
+  let basisString = rawBasis ? extractBasisDisplay(rawBasis) ?? rawBasis : undefined;
+
+  if (!basisString && typeof typedData.source === 'string') {
+    const sourceMatch = typedData.source.match(/^(.+?)\s*\(([^)]+)\)$/);
+
     if (sourceMatch) {
       const [, author, year] = sourceMatch;
-      if (basisString) {
-        // 새 형식: "학자명, 이론명, 연도"
-        basisString = `${author}, ${basisString}, ${year}`;
-      } else {
-        basisString = `${author}, ${year}`;
+      if (author && year) {
+        basisString = `${author.trim()}, ${year.trim()}`;
       }
+    } else {
+      basisString = typedData.source.trim();
     }
   }
 
