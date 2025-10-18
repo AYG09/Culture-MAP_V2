@@ -147,6 +147,9 @@ const CultureMapFlow = ({
   // 선택된 층위 (높이 조절용)
   const [selectedLayerIndex, setSelectedLayerIndex] = useState<number>(0);
   
+  // 층위 관리 패널 표시 여부
+  const [showLayerControlPanel, setShowLayerControlPanel] = useState(false);
+  
   // 세션 관리 모달 상태
   const [showSessionInfo, setShowSessionInfo] = useState(false);
   
@@ -1772,7 +1775,48 @@ const CultureMapFlow = ({
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
 
+        {/* 층위 관리 패널 토글 버튼 */}
+        {!showLayerControlPanel && (
+          <Panel position="top-center" style={{ 
+            backgroundColor: 'transparent',
+            padding: 0,
+            boxShadow: 'none',
+            border: 'none',
+          }}>
+            <button
+              onClick={() => setShowLayerControlPanel(true)}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                color: '#666',
+                border: '1px solid rgba(0, 0, 0, 0.1)',
+                borderRadius: '8px',
+                fontSize: '13px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 1)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
+                e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.1)';
+              }}
+              title="층위 관리 패널 열기"
+            >
+              📐 층위 관리
+            </button>
+          </Panel>
+        )}
+
         {/* 상단 층위 관리 컨트롤 Panel */}
+        {showLayerControlPanel && (
         <Panel position="top-center" className="layer-control-panel" style={{ 
           display: 'flex', 
           gap: '16px', 
@@ -1783,6 +1827,36 @@ const CultureMapFlow = ({
           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
           border: '1px solid rgba(0, 0, 0, 0.05)',
         }}>
+          {/* 닫기 버튼 */}
+          <button
+            onClick={() => setShowLayerControlPanel(false)}
+            style={{
+              padding: '4px 8px',
+              backgroundColor: 'transparent',
+              color: '#999',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '16px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              lineHeight: 1,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#f5f5f5';
+              e.currentTarget.style.color = '#666';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = '#999';
+            }}
+            title="층위 관리 패널 닫기"
+          >
+            ✕
+          </button>
+
+          {/* 구분선 */}
+          <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />
+
           {/* 층위 배경 표시 토글 */}
           <button
             onClick={() => setShowLayerBackground(!showLayerBackground)}
@@ -1905,6 +1979,7 @@ const CultureMapFlow = ({
             </span>
           </div>
         </Panel>
+        )}
 
         {/* Controls의 top 제거 - 기본 위치(top: 10px) 사용 */}
         <Controls style={{ left: 16, bottom: 'auto' }} />
