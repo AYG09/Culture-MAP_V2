@@ -1,166 +1,120 @@
-# 🔥 조직문화 분석기 - Firebase 웹서비스# 🔥 조직문화 분석기 - Firebase 버전
+# 🔥 조직문화 분석기 - Firebase 웹서비스
 
+> **Live Demo**: https://culturemapwithai.vercel.app/
 
+Firebase 기반의 실시간 협업 웹서비스입니다. 조직문화를 4층위 모델로 분석하고 시각화합니다.
 
-> **Live Demo**: https://culturemapwithai.vercel.app/Firebase 기반의 웹서비스 버전입니다. Socket.IO 대신 Firebase Realtime Database를 사용하여 실시간 멀티유저 협업을 지원합니다.
+---
 
+## ✨ 주요 특징
 
-
-Firebase 기반의 실시간 협업 웹서비스입니다. 조직문화를 4층위 모델로 분석하고 시각화합니다.## ✨ 주요 특징
-
-
-
----- **🌐 글로벌 웹서비스**: Vercel/Netlify 등에 배포 가능
-
-- **🔥 Firebase 실시간 동기화**: Socket.IO 대신 Firebase Realtime Database 사용
-
-## ✨ 주요 특징- **📱 모바일 지원**: 반응형 디자인으로 모든 기기에서 사용 가능
-
-- **🔐 사용자 인증**: Firebase Auth 지원 (선택사항)
-
-- 🌐 **웹 기반 서비스** - 어디서나 브라우저로 접속- **💾 클라우드 저장**: Firestore를 통한 영구 데이터 저장
-
+- 🌐 **웹 기반 서비스** - 어디서나 브라우저로 접속
 - 🔥 **Firebase 실시간 동기화** - Firebase Realtime Database 기반
-
-- 👥 **실시간 협업** - 여러 사용자가 동시에 컬쳐맵 편집## Expanding the ESLint configuration
-
-- 📱 **반응형 디자인** - 모바일/태블릿/데스크톱 지원
-
-- 🎨 **직관적 UI** - 드래그 & 드롭, 컨텍스트 메뉴If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
+- 👥 **실시간 협업** - 여러 사용자가 동시에 컬쳐맵 편집
+- 📱 **완전 반응형** - 모바일/태블릿/데스크톱 최적화
+- 🎨 **React Flow 기반** - 직관적인 노드 기반 에디터
 - 🤖 **AI 통합** - Google Gemini, Claude API 지원
+- 📊 **다양한 내보내기** - Excel, Word, 이미지 저장
+- 🎬 **비디오 인트로** - Gemini Veo3로 생성한 8초 오프닝
 
-```js
+---
 
----export default tseslint.config([
+## 🚀 빠른 시작
 
-  globalIgnores(['dist']),
-
-## 🚀 빠른 시작  {
-
-    files: ['**/*.{ts,tsx}'],
-
-### 1. 설치    extends: [
-
-      // Other configs...
+### 1. 설치
 
 ```bash
-
-npm install      // Remove tseslint.configs.recommended and replace with this
-
-```      ...tseslint.configs.recommendedTypeChecked,
-
-      // Alternatively, use this for stricter rules
-
-### 2. Firebase 설정      ...tseslint.configs.strictTypeChecked,
-
-      // Optionally, add this for stylistic rules
-
-`src/lib/firebase.ts` 파일에 Firebase 설정 추가:      ...tseslint.configs.stylisticTypeChecked,
-
-
-
-```typescript      // Other configs...
-
-const firebaseConfig = {    ],
-
-  apiKey: "YOUR_API_KEY",    languageOptions: {
-
-  authDomain: "YOUR_AUTH_DOMAIN",      parserOptions: {
-
-  databaseURL: "YOUR_DATABASE_URL",        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-
-  projectId: "YOUR_PROJECT_ID",        tsconfigRootDir: import.meta.dirname,
-
-  // ...      },
-
-};      // other options...
-
-```    },
-
-  },
-
-### 3. 개발 서버 실행]);
-
+npm install
 ```
 
+### 2. Firebase 설정
+
+`src/lib/firebase.ts` 파일에 Firebase 설정 추가:
+
+```typescript
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_AUTH_DOMAIN",
+  databaseURL: "YOUR_DATABASE_URL",
+  projectId: "YOUR_PROJECT_ID",
+  // ...
+};
+```
+
+### 3. 개발 서버 실행
+
 ```bash
-
-# Windows - 스크립트 실행 (권장)You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
+# Windows - 스크립트 실행 (권장)
 run-simple.bat
 
-```js
+# 또는 npm 명령어
+npm run dev
+```
 
-# 또는 npm 명령어// eslint.config.js
+브라우저에서 `http://localhost:5173` 자동 접속
 
-npm run devimport reactX from 'eslint-plugin-react-x';
+---
 
-```import reactDom from 'eslint-plugin-react-dom';
+## 📦 배포
 
+### Vercel (추천)
 
+```bash
+npm i -g vercel
+vercel --prod
+```
 
-브라우저에서 `http://localhost:5173` 자동 접속export default tseslint.config([
+### Netlify
 
-  globalIgnores(['dist']),
-
----  {
-
-    files: ['**/*.{ts,tsx}'],
-
-## 📦 배포    extends: [
-
-      // Other configs...
-
-### Vercel (추천)      // Enable lint rules for React
-
-      reactX.configs['recommended-typescript'],
-
-```bash      // Enable lint rules for React DOM
-
-npm i -g vercel      reactDom.configs.recommended,
-
-vercel --prod    ],
-
-```    languageOptions: {
-
-      parserOptions: {
-
-### Netlify        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-
-        tsconfigRootDir: import.meta.dirname,
-
-```bash      },
-
-npm i -g netlify-cli      // other options...
-
-npm run build    },
-
-netlify deploy --prod --dir=dist  },
-
-```]);
-
+```bash
+npm i -g netlify-cli
+npm run build
+netlify deploy --prod --dir=dist
 ```
 
 ---
 
 ## 🎯 사용 방법
 
-### 세션 생성
-1. "새 세션 만들기" 클릭
-2. 6자리 코드 생성 (예: `ABC123`)
-3. 팀원들에게 코드 공유
+### 🏠 게이트웨이
+- 비디오 인트로 재생 후 자동으로 게이트웨이 표시
+- "Skip" 버튼으로 인트로 건너뛰기 가능
+- 워크숍/컨설팅 모드 선택
 
-### 세션 참가
-1. "기존 세션 참가" 클릭
-2. 6자리 코드 입력
-3. 실시간 협업 시작
+### 🎬 워크숍 모드 (간편 협업)
+1. **세션 생성**: "새 세션 만들기" → 6자리 코드 생성 (예: `ABC123`)
+2. **팀원 초대**: 
+   - 🔗 버튼 클릭 → QR코드/URL/코드 공유
+   - 팀원들이 "기존 세션 참가"에서 코드 입력
+3. **실시간 협업**: 모든 변경사항 자동 동기화
 
-### 컬쳐맵 작업
-- **노트 추가**: 보드 우클릭
-- **노트 편집**: 더블클릭
-- **연결선 추가**: 우클릭 → 연결 시작
-- **저장/불러오기**: JSON/이미지 내보내기
+### 💼 컨설팅 모드 (전문가용)
+- 보고서 탭 추가 (React Quill 에디터)
+- 분석 결과를 Excel/Word로 내보내기
+- 세션 관리 기능 동일
+
+### 🗺️ 컬쳐맵 작업
+
+#### 데스크톱
+- **포스트잇 추가**: 빈 공간 우클릭 → 타입 선택
+- **포스트잇 편집**: 더블클릭
+- **포스트잇 이동**: 드래그
+- **연결선 추가**: 핸들 드래그 또는 우클릭 메뉴
+- **캔버스 이동**: 중간/우클릭 드래그 또는 스페이스바 + 드래그
+- **확대/축소**: 마우스 휠
+
+#### 모바일
+- **포스트잇 추가**: 우측 하단 ➕ FAB 버튼
+- **포스트잇 편집**: 더블탭
+- **포스트잇 이동**: 포스트잇 드래그
+- **캔버스 이동**: 빈 공간 드래그
+- **확대/축소**: 두 손가락 핀치
+- **사이드바 열기**: 좌측 상단 ☰ 햄버거 메뉴
+
+### 📊 데이터 관리
+- **저장**: 자동 Firebase 동기화 (수동 저장 불필요)
+- **내보내기**: Excel, Word, 이미지 형식 지원
+- **불러오기**: JSON 파일 import 지원
 
 ---
 
@@ -168,10 +122,13 @@ netlify deploy --prod --dir=dist  },
 
 | 분류 | 기술 |
 |------|------|
-| **Frontend** | React 19, TypeScript, Vite |
-| **Backend** | Firebase Realtime Database |
+| **Frontend** | React 19.1, TypeScript 5.8, Vite 7.0 |
+| **UI Library** | React Flow 12.8, Framer Motion 12.23 |
+| **Backend** | Firebase Realtime Database, Firestore |
+| **문서 생성** | ExcelJS 4.4, docx 8.5 |
+| **에디터** | React Quill 3.6 |
 | **AI/LLM** | Google Gemini, Claude API |
-| **Utils** | html2canvas, jsPDF, docx |
+| **배포** | Vercel, Netlify |
 
 ---
 
@@ -179,27 +136,71 @@ netlify deploy --prod --dir=dist  },
 
 ```
 ┌─────────────────────────────┐
-│ 결과 (Artifacts)            │ ← 가시적 요소
+│ 🎯 결과 (Artifacts)         │ ← 가시적 요소 (Layer 1)
 ├─────────────────────────────┤
-│ 행동 (Behaviors)            │ ← 관찰 행동
+│ 👥 행동 (Behaviors)         │ ← 관찰 행동 (Layer 2)
 ├─────────────────────────────┤
-│ 유형_레버 (Norms & Values)  │ ← 규범/가치
+│ 📋 유형 레버 (Norms/Values) │ ← 규범/가치 (Layer 3)
 ├─────────────────────────────┤
-│ 무형_레버 (Assumptions)     │ ← 기본 가정
+│ 💡 무형 레버 (Assumptions)  │ ← 기본 가정 (Layer 4)
 └─────────────────────────────┘
 ```
+
+---
+
+## 🎨 주요 기능
+
+### React Flow 에디터
+- ✅ 드래그 & 드롭 노드 편집
+- ✅ 자동 레이아웃 (Dagre 알고리즘)
+- ✅ 미니맵 네비게이션
+- ✅ 줌/팬 컨트롤
+- ✅ 컨텍스트 메뉴 (데스크톱)
+- ✅ 모바일 FAB 버튼 (모바일)
+
+### 실시간 협업
+- ✅ Firebase Realtime Database 동기화
+- ✅ 편집 중 잠금 (다른 사용자 충돌 방지)
+- ✅ 세션 코드 기반 참가
+- ✅ QR코드/URL 공유
+
+### 모바일 최적화
+- ✅ 반응형 레이아웃 (768px, 1024px 브레이크포인트)
+- ✅ 햄버거 메뉴 사이드바
+- ✅ FAB 버튼 (포스트잇 생성)
+- ✅ 터치 제스처 가이드
+- ✅ 핀치 줌 지원
+
+### AI 기능
+- ✅ PromptGenerator (AI 텍스트 일괄 생성)
+- ✅ 문화 진단 프롬프트 (Gemini/Claude)
+- ✅ 이론 기반 분석 프롬프트
+- ✅ 편향 분석 프롬프트
 
 ---
 
 ## 🔧 스크립트
 
 ```bash
-npm run dev      # 개발 서버
-npm run build    # 프로덕션 빌드
-npm run preview  # 빌드 미리보기
-npm run lint     # 코드 린팅
-npm run format   # 코드 포맷팅
+npm run dev          # 개발 서버
+npm run build        # 프로덕션 빌드
+npm run preview      # 빌드 미리보기
+npm run lint         # ESLint 검사
+npm run format       # Prettier 포맷팅
+npm run format:check # 포맷팅 검사만
+npm run type-check   # TypeScript 타입 체크
+npm run test:e2e     # Playwright E2E 테스트
 ```
+
+---
+
+## 📱 반응형 디자인
+
+| 디바이스 | 너비 | 특징 |
+|---------|------|------|
+| **모바일** | 0-767px | 햄버거 메뉴, FAB 버튼, 핀치 줌 |
+| **태블릿** | 768-1023px | 적응형 레이아웃 |
+| **데스크톱** | 1024px+ | 사이드바, 컨텍스트 메뉴 |
 
 ---
 
@@ -207,22 +208,39 @@ npm run format   # 코드 포맷팅
 
 | 문제 | 해결방법 |
 |------|---------|
-| Firebase 연결 오류 | Firebase 설정 파일 확인 |
-| 세션 참가 실패 | 세션 코드 재확인 (2시간 제한) |
-| 동기화 안됨 | 페이지 새로고침 |
+| **Firebase 연결 오류** | `src/lib/firebase.ts` 설정 확인 |
+| **세션 참가 실패** | 세션 코드 재확인 (대소문자 구분 없음) |
+| **동기화 안됨** | 페이지 새로고침 또는 Firebase 콘솔 확인 |
+| **모바일에서 포스트잇 생성 안됨** | ➕ FAB 버튼 사용 (우측 하단) |
+| **모바일에서 캔버스 이동 안됨** | 빈 공간(배경)을 드래그하세요 |
+| **린트 에러** | `npm run lint` 실행 후 수정 |
+| **타입 에러** | `npm run type-check` 실행 |
 
 ---
 
 ## 📝 라이선스
 
-PROPRIETARY © 2024 안영규 with AI Agent
+**PROPRIETARY** © 2024 안영규 with AI Agent
+
+모든 권리 보유. 무단 복제 및 배포 금지.
 
 ---
 
-## 🎉 더 알아보기
+## 📚 추가 문서
 
-- 📖 [멀티유저 가이드](./MULTIUSER_GUIDE.md)
-- 🧹 [클린업 플랜](./CLEANUP_PLAN.md)
+- 📖 [멀티유저 가이드](./MULTIUSER_GUIDE.md) - 세션 관리 상세 설명
+- 📱 [모바일 최적화 제안](./MOBILE_OPTIMIZATION_PROPOSAL.md) - 모바일 UX 개선 계획
+- 🔥 [Firebase 설정](./FIREBASE_SETUP.md) - Firebase 초기 설정 가이드
+- 🧪 [성능 테스트](./PERFORMANCE_TEST_REPORT.md) - React Flow 성능 측정
+- 🎨 [React Flow 마이그레이션](./REACTFLOW_MIGRATION_PROGRESS.md) - 레거시 → React Flow 전환 기록
+
+---
+
+## 🎉 기여자
+
+- **안영규** - 기획 및 개발
+- **AI Agent** - 코드 작성 및 최적화 지원
+- **Gemini Veo3** - 인트로 비디오 생성
 
 ---
 

@@ -1748,18 +1748,18 @@ const CultureMapFlow = ({
         maxZoom={2}
         defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
         proOptions={{ hideAttribution: true }}
-        // 모바일 터치 최적화
-        panOnDrag={[1, 2]} // 마우스 중간 버튼 또는 우클릭으로 팬 (onPaneContextMenu와 독립적으로 동작)
+        // 모바일/데스크톱 구분 제스처 설정
+        panOnDrag={isMobile ? true : [1, 2]} // 모바일: 빈 공간 터치로 팬, 데스크톱: 중간/우클릭 팬
         panOnScroll={false}
-        zoomOnScroll={true}
-        zoomOnPinch={true}
+        zoomOnScroll={!isMobile} // 모바일: 스크롤 줌 비활성화
+        zoomOnPinch={true} // 모바일: 핀치 줌만 활성화
         zoomOnDoubleClick={false}
         preventScrolling={true}
         // 모바일 제스처 및 다중 선택
-        selectionOnDrag={true} // 드래그로 영역 선택 활성화
-        panActivationKeyCode="Space" // 스페이스바로도 팬 가능
+        selectionOnDrag={!isMobile} // 모바일: 드래그 선택 비활성화 (노드 드래그와 충돌 방지)
+        panActivationKeyCode="Space" // 데스크톱: 스페이스바로 팬 가능
         // 성능 최적화
-        nodesDraggable={true}
+        nodesDraggable={true} // 노드 드래그는 항상 활성화
         nodesConnectable={true}
         elementsSelectable={true}
         onInit={setReactFlowInstance}

@@ -37,7 +37,7 @@ const MobileGestureGuide = () => {
           <div className="gesture-item">
             <div className="gesture-icon">👆</div>
             <div className="gesture-content">
-              <h3>한 손가락 드래그</h3>
+              <h3>빈 공간 드래그</h3>
               <p>캔버스 이동 (팬)</p>
             </div>
           </div>
@@ -45,40 +45,40 @@ const MobileGestureGuide = () => {
           <div className="gesture-item">
             <div className="gesture-icon">🤏</div>
             <div className="gesture-content">
-              <h3>핀치 제스처</h3>
+              <h3>두 손가락 핀치</h3>
               <p>확대/축소 (줌)</p>
             </div>
           </div>
 
           <div className="gesture-item">
-            <div className="gesture-icon">👇</div>
+            <div className="gesture-icon">➕</div>
             <div className="gesture-content">
-              <h3>노드 탭</h3>
-              <p>노드 선택</p>
+              <h3>우측 하단 FAB 버튼</h3>
+              <p>새 포스트잇 생성</p>
             </div>
           </div>
 
           <div className="gesture-item">
-            <div className="gesture-icon">✌️</div>
+            <div className="gesture-icon">✏️</div>
             <div className="gesture-content">
-              <h3>노드 더블탭</h3>
-              <p>편집 모드 진입</p>
+              <h3>포스트잇 더블탭</h3>
+              <p>내용 편집 모드 진입</p>
             </div>
           </div>
 
           <div className="gesture-item">
-            <div className="gesture-icon">👆</div>
+            <div className="gesture-icon">🎯</div>
             <div className="gesture-content">
-              <h3>노드 드래그</h3>
-              <p>노드 위치 이동</p>
+              <h3>포스트잇 드래그</h3>
+              <p>포스트잇 위치 이동</p>
             </div>
           </div>
 
           <div className="gesture-item">
-            <div className="gesture-icon">🔗</div>
+            <div className="gesture-icon">☰</div>
             <div className="gesture-content">
-              <h3>핸들 연결</h3>
-              <p>핸들을 드래그하여 노드 연결</p>
+              <h3>좌측 상단 햄버거 메뉴</h3>
+              <p>세션 관리 및 설정</p>
             </div>
           </div>
         </div>
@@ -86,9 +86,10 @@ const MobileGestureGuide = () => {
         <div className="gesture-tips">
           <h3>💡 팁</h3>
           <ul>
-            <li>좌측 상단 🔄 버튼으로 자동 정렬</li>
-            <li>우측 하단 컨트롤 패널로 줌 조절</li>
-            <li>미니맵으로 전체 구조 파악</li>
+            <li>☰ 메뉴에서 세션 정보/연결 가이드 확인</li>
+            <li>좌측 하단 컨트롤 패널로 줌 조절</li>
+            <li>우측 하단 미니맵으로 전체 구조 파악</li>
+            <li>포스트잇을 노드가 아닌 빈 공간에서 드래그하세요</li>
           </ul>
         </div>
 
