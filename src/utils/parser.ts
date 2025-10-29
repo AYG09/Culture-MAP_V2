@@ -61,13 +61,40 @@ const extractTrailingMetadataSegments = (
   const segments: string[] = [];
 
   while (true) {
-    const match = workingLine.match(/\(([^()]*)\)\s*(?:[,·…ㆍ]*\s*)?$/);
-    if (!match) {
+    // 중첩 괄호를 지원하기 위한 개선된 매칭 로직
+    let depth = 0;
+    let endPos = -1;
+    let startPos = -1;
+    
+    // 뒤에서부터 괄호 매칭
+    for (let i = workingLine.length - 1; i >= 0; i--) {
+      if (workingLine[i] === ')') {
+        if (depth === 0) {
+          endPos = i;
+        }
+        depth++;
+      } else if (workingLine[i] === '(') {
+        depth--;
+        if (depth === 0 && endPos !== -1) {
+          startPos = i;
+          break;
+        }
+      }
+    }
+    
+    // 매칭된 괄호가 없거나 불완전하면 종료
+    if (startPos === -1 || endPos === -1 || depth !== 0) {
+      break;
+    }
+    
+    // 괄호가 문자열 끝에 있는지 확인 (공백 및 구분자 허용)
+    const afterParen = workingLine.slice(endPos + 1).trim();
+    if (afterParen !== '' && !/^[,·…ㆍ\s]*$/.test(afterParen)) {
       break;
     }
 
-    const inner = match[1].trim();
-    workingLine = workingLine.slice(0, workingLine.length - match[0].length).trimEnd();
+    const inner = workingLine.slice(startPos + 1, endPos).trim();
+    workingLine = workingLine.slice(0, startPos).trimEnd();
 
     if (!inner) {
       continue;
@@ -90,15 +117,66 @@ const normalizeMetadataBasis = (metadataInner: string): string | null => {
   }
 
   const labelMap = new Map<string, string>();
-  const labelGlobalRegex =
-    /(저자|이론|연도|출처|개념|분류)\s*:\s*(.+?)(?:(?=,)|(?=·)|(?=ㆍ)|(?=\))|$)/gi;
-  let labelMatch: RegExpExecArray | null;
-
-  while ((labelMatch = labelGlobalRegex.exec(trimmed)) !== null) {
-    const label = labelMatch[1].trim();
-    const value = labelMatch[2].trim();
+  
+  // 개선된 파싱: 중첩 괄호를 고려한 수동 파싱
+  const labels = ['저자', '이론', '연도', '출처', '개념', '분류'];
+  let currentPos = 0;
+  
+  while (currentPos < trimmed.length) {
+    // 다음 레이블 찾기
+    let nextLabelPos = trimmed.length;
+    let foundLabel = '';
+    
+    for (const label of labels) {
+      const pattern = new RegExp(`${label}\\s*:`, 'i');
+      const match = pattern.exec(trimmed.slice(currentPos));
+      if (match && match.index < nextLabelPos) {
+        nextLabelPos = match.index;
+        foundLabel = label;
+      }
+    }
+    
+    if (!foundLabel) {
+      break;
+    }
+    
+    // 레이블 위치로 이동
+    currentPos += nextLabelPos;
+    
+    // "레이블:" 다음 위치
+    const colonMatch = trimmed.slice(currentPos).match(/^([^:]+):\s*/);
+    if (!colonMatch) {
+      break;
+    }
+    currentPos += colonMatch[0].length;
+    
+    // 값의 끝 찾기: 다음 레이블이나 구분자(,·ㆍ)까지
+    let valueEndPos = trimmed.length;
+    let parenDepth = 0;
+    
+    for (let i = currentPos; i < trimmed.length; i++) {
+      const char = trimmed[i];
+      
+      if (char === '(') {
+        parenDepth++;
+      } else if (char === ')') {
+        parenDepth--;
+      } else if (parenDepth === 0 && (char === ',' || char === '·' || char === 'ㆍ')) {
+        // 구분자 발견 (괄호 밖에서)
+        valueEndPos = i;
+        break;
+      }
+    }
+    
+    const value = trimmed.slice(currentPos, valueEndPos).trim();
     if (value) {
-      labelMap.set(label, value);
+      labelMap.set(foundLabel, value);
+    }
+    
+    // 구분자 건너뛰기
+    currentPos = valueEndPos;
+    while (currentPos < trimmed.length && /[,·ㆍ\s]/.test(trimmed[currentPos])) {
+      currentPos++;
     }
   }
 
