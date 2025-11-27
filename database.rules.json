@@ -1,28 +1,41 @@
 {
   "rules": {
-    ".read": true,
-    ".write": true,
+    ".read": false,
+    ".write": false,
+    
     "gateway": {
-      ".read": true,
-      ".write": true,
       "passwords": {
-        ".indexOn": ["sessionCode", "status", "type"]
+        ".read": true,
+        ".write": true,
+        ".indexOn": ["sessionCode", "status", "type"],
+        "$passwordId": {
+          ".validate": "newData.hasChildren(['password', 'type', 'createdAt', 'expiresAt', 'status']) && newData.child('password').isString() && newData.child('createdAt').isNumber() && newData.child('expiresAt').isNumber()"
+        }
       },
       "sessions": {
-        ".indexOn": ["isActive", "passwordId", "createdAt"]
+        ".read": true,
+        ".write": true,
+        ".indexOn": ["isActive", "passwordId", "createdAt"],
+        "$sessionCode": {
+          ".validate": "newData.hasChildren(['host', 'createdAt', 'isActive']) && newData.child('host').isString() && newData.child('createdAt').isNumber()"
+        }
       }
     },
+    
     "sessions": {
       ".read": true,
       ".write": true,
       ".indexOn": ["lastActivity", "createdAt", "host"],
       "$sessionCode": {
-        ".indexOn": ["host", "createdAt", "lastActivity"]
+        ".indexOn": ["host", "createdAt", "lastActivity"],
+        ".validate": "newData.hasChildren(['createdAt']) && newData.child('createdAt').isNumber()"
       }
     },
+    
     "metadata": {
       ".read": true,
-      ".write": true
+      ".write": true,
+      ".validate": "newData.hasChildren(['lastUpdated']) && newData.child('lastUpdated').isNumber()"
     }
   }
 }
