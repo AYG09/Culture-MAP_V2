@@ -5,16 +5,16 @@
     
     "gateway": {
       "passwords": {
-        ".read": true,
-        ".write": true,
+        ".read": "auth != null",
+        ".write": "auth != null",
         ".indexOn": ["sessionCode", "status", "type"],
         "$passwordId": {
           ".validate": "newData.hasChildren(['password', 'type', 'createdAt', 'expiresAt', 'status']) && newData.child('password').isString() && newData.child('createdAt').isNumber() && newData.child('expiresAt').isNumber()"
         }
       },
       "sessions": {
-        ".read": true,
-        ".write": true,
+        ".read": "auth != null",
+        ".write": "auth != null",
         ".indexOn": ["isActive", "passwordId", "createdAt"],
         "$sessionCode": {
           ".validate": "newData.hasChildren(['host', 'createdAt', 'isActive']) && newData.child('host').isString() && newData.child('createdAt').isNumber()"
@@ -23,8 +23,8 @@
     },
     
     "sessions": {
-      ".read": true,
-      ".write": true,
+      ".read": "auth != null",
+      ".write": "auth != null",
       ".indexOn": ["lastActivity", "createdAt", "host"],
       "$sessionCode": {
         ".indexOn": ["host", "createdAt", "lastActivity"],
@@ -33,8 +33,8 @@
     },
     
     "metadata": {
-      ".read": true,
-      ".write": true,
+      ".read": "auth != null",
+      ".write": "auth != null",
       ".validate": "newData.hasChildren(['lastUpdated']) && newData.child('lastUpdated').isNumber()"
     }
   }
