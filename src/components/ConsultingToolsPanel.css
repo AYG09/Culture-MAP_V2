@@ -1,0 +1,275 @@
+/* ConsultingToolsPanel.css - Premium Modern Design */
+
+.consulting-tools-panel {
+  background: linear-gradient(145deg, 
+    rgba(99, 102, 241, 0.08) 0%, 
+    rgba(139, 92, 246, 0.05) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  box-shadow: 
+    0 4px 24px rgba(99, 102, 241, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.consulting-tools-collapsed {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: linear-gradient(145deg, 
+    rgba(99, 102, 241, 0.06) 0%, 
+    rgba(139, 92, 246, 0.04) 100%);
+  border-radius: 12px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  color: #6366f1;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(99, 102, 241, 0.1);
+}
+
+.consulting-tools-collapsed:hover {
+  background: linear-gradient(145deg, 
+    rgba(99, 102, 241, 0.12) 0%, 
+    rgba(139, 92, 246, 0.08) 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+}
+
+.consulting-tools-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #4f46e5;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.collapse-btn {
+  background: rgba(99, 102, 241, 0.1);
+  border: none;
+  border-radius: 8px;
+  padding: 6px;
+  cursor: pointer;
+  color: #6366f1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.collapse-btn:hover {
+  background: rgba(99, 102, 241, 0.2);
+  transform: rotate(180deg);
+}
+
+/* 3개 스텝 그리드 (STEP 1 제거됨) */
+.consulting-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.step-wrapper {
+  position: relative;
+}
+
+.step-card {
+  width: 100%;
+  background: white;
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 12px;
+  padding: 14px 10px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: 64px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.step-card:hover:not(:disabled) {
+  background: linear-gradient(145deg, #f5f3ff 0%, #ede9fe 100%);
+  border-color: #8b5cf6;
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.2);
+}
+
+.step-card.expanded {
+  background: linear-gradient(145deg, #ede9fe 0%, #ddd6fe 100%);
+  border-color: #8b5cf6;
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.25);
+}
+
+.step-card.loading {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.step-card:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.step-name {
+  color: #7c3aed;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.step-desc {
+  color: #374151;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.expand-icon {
+  color: #8b5cf6;
+  margin-top: 2px;
+  transition: transform 0.2s ease;
+}
+
+.step-card.expanded .expand-icon {
+  transform: rotate(180deg);
+}
+
+/* 서브스텝 드롭다운 - 개선된 디자인 */
+.sub-steps {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 180px;
+  background: white;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 12px;
+  padding: 8px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 
+    0 10px 40px rgba(139, 92, 246, 0.2),
+    0 4px 12px rgba(0, 0, 0, 0.08);
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.sub-step-btn {
+  background: rgba(139, 92, 246, 0.04);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sub-step-btn:hover:not(:disabled) {
+  background: linear-gradient(145deg, #f5f3ff 0%, #ede9fe 100%);
+  border-color: rgba(139, 92, 246, 0.3);
+  transform: translateX(4px);
+}
+
+.sub-step-btn.loading {
+  opacity: 0.6;
+}
+
+.sub-step-name {
+  color: #7c3aed;
+  font-size: 0.75rem;
+  font-weight: 700;
+  min-width: 36px;
+  padding: 3px 6px;
+  background: rgba(139, 92, 246, 0.1);
+  border-radius: 4px;
+  text-align: center;
+}
+
+.sub-step-desc {
+  color: #374151;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.consulting-tools-hint {
+  margin-top: 12px;
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-align: center;
+  font-style: italic;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 반응형 - 모바일 */
+@media (max-width: 480px) {
+  .consulting-steps-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  
+  .step-card {
+    padding: 12px 8px;
+    min-height: 56px;
+  }
+  
+  .sub-steps {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    min-width: auto;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+  
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-40%);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(-50%);
+    }
+  }
+}

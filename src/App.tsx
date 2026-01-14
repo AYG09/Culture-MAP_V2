@@ -2,8 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
 
 import Gateway from './components/Gateway';
-import type { PasswordType } from './services/GatewayAdminService';
-import SessionManager from './components/SessionManager';
 import CultureMapFlow from './components/CultureMapFlow';
 import VideoSplash from './components/VideoSplash';
 import liveblocksService from './services/LiveblocksService';
@@ -47,8 +45,8 @@ const toNoteType = (remoteType?: string): NoteType =>
 const toRemoteType = (noteType: NoteType): string => NOTE_TYPE_TO_REMOTE[noteType];
 
 const mapLiveblocksNoteToAppNote = (note: StickyNoteData): AppNote => {
-  const text = note.content ?? '';
-  const sentiment = isSentiment(note.color) ? note.color : 'neutral';
+  const content = note.content ?? '';
+  const sentiment = isSentiment(note.sentiment) ? note.sentiment : 'neutral';
   const layer =
     note.layer >= TOP_LAYER_MIN && note.layer <= TOP_LAYER
       ? (note.layer as NoteData['layer'])
@@ -56,8 +54,7 @@ const mapLiveblocksNoteToAppNote = (note: StickyNoteData): AppNote => {
 
   return {
     id: note.id,
-    text,
-    content: text,
+    content,
     position: { x: note.x, y: note.y },
     width: note.width ?? 200,
     height: note.height ?? 120,
@@ -65,7 +62,7 @@ const mapLiveblocksNoteToAppNote = (note: StickyNoteData): AppNote => {
     sentiment,
     layer,
     perceptionIntensity: note.frequency,
-    basis: note.basis ? `${note.basis.author} (${note.basis.year}): ${note.basis.theory}` : undefined,
+    basis: note.basis, // 이미 string 타입
   };
 };
 
@@ -73,10 +70,6 @@ function App() {
   const [, setNotes] = useState<AppNote[]>([]);
   const [, setConnections] = useState<ConnectionData[]>([]);
   const [showVideoSplash, setShowVideoSplash] = useState(import.meta.env.VITE_SKIP_GATE !== 'true');
-  const [showSessionManager, setShowSessionManager] = useState(false);
-  const [pendingSessionCode, setPendingSessionCode] = useState<string | undefined>();
-  const [passwordType, setPasswordType] = useState<PasswordType>('workshop');
-  const [isAdmin, setIsAdmin] = useState(import.meta.env.VITE_SKIP_GATE === 'true');
   const [isLiveblocksInitialized, setIsLiveblocksInitialized] = useState(false);
 
   // AI 서비스 초기화 (BYOK)
@@ -84,7 +77,7 @@ function App() {
     aiService.initializeFromStorage();
   }, []);
 
-  // Liveblocks 초기화
+  // Liveblocks 초기화 (세션 연결은 Gateway에서 처리)
   useEffect(() => {
     const publicKey = import.meta.env.VITE_LIVEBLOCKS_PUBLIC_KEY;
     if (publicKey && !isLiveblocksInitialized) {
@@ -99,60 +92,20 @@ function App() {
     setShowVideoSplash(false);
   };
 
-  // Gateway 인증 완료 시 처리
-  const handleAuthenticated = useCallback(async (isAdmin: boolean, sessionCode?: string, passwordType?: PasswordType) => {
-    console.log('Gateway authenticated, admin:', isAdmin, 'sessionCode:', sessionCode, 'passwordType:', passwordType);
-
-    // passwordType 저장
-    setPasswordType(passwordType || 'workshop');
-
-    // 관리자 상태 저장
-    setIsAdmin(isAdmin);
-
-    // 관리자는 세션 관리자를 표시하지 않음 (AdminGateway에서 직접 처리)
-    if (isAdmin) {
-      console.log('✅ Admin authenticated - no session creation needed');
-      setShowSessionManager(false);
-      return;
-    }
-
-    if (sessionCode) {
-      // 세션 코드가 있으면 바로 해당 세션에 참가
-      setPendingSessionCode(sessionCode);
-      try {
-        await liveblocksService.joinSession(sessionCode, false);
-        setShowSessionManager(false);
-      } catch (error) {
-        console.error('❌ 세션 참가 실패:', error);
-        setShowSessionManager(true);
-      }
-    } else {
-      // 일반 비밀번호로 로그인한 경우 세션 관리자 표시
-      setShowSessionManager(true);
-    }
-  }, []);
-
-  // 세션 선택 완료 시 처리
-  const handleSessionJoined = useCallback(() => {
-    setShowSessionManager(false);
-    setPendingSessionCode(undefined);
+  // Gateway에서 세션 입장 시 처리 (새 인터페이스: sessionCode만 받음)
+  const handleAuthenticated = useCallback((sessionCode: string) => {
+    console.log('✅ 세션 입장 완료:', sessionCode);
+    // Gateway에서 이미 liveblocksService.joinSession() 호출했으므로
+    // 여기서는 추가 작업 필요 없음
   }, []);
 
   // 기존 세션 확인
   useEffect(() => {
     const existingSession = liveblocksService.getCurrentSession();
     if (existingSession) {
-      console.log('Existing session found:', existingSession);
+      console.log('📍 기존 세션 감지:', existingSession);
     }
   }, []);
-
-  // 관리자 상태 변경 시 SessionManager 강제 숨김
-  useEffect(() => {
-    if (isAdmin) {
-      console.log('🔧 Admin detected - forcing SessionManager to hide');
-      setShowSessionManager(false);
-    }
-  }, [isAdmin]);
 
   // Liveblocks 이벤트 리스너
   useEffect(() => {
@@ -207,16 +160,33 @@ function App() {
       })));
     };
 
-    liveblocksService.on('note-updated', handleNoteUpdated);
-    liveblocksService.on('note-deleted', handleNoteDeleted);
+    // IndexedDB 동기화 완료 시 초기 데이터 로드
+    const handleSyncComplete = () => {
+      console.log('📥 [App] Liveblocks IndexedDB 동기화 완료 - 초기 데이터 로드');
+      const allNotes = liveblocksService.getStickyNotes();
+      const allConnections = liveblocksService.getConnections();
+      setNotes(allNotes.map(mapLiveblocksNoteToAppNote));
+      setConnections(allConnections.map(conn => ({
+        id: conn.id,
+        sourceId: conn.sourceId,
+        targetId: conn.targetId,
+        relationType: conn.relationType as 'direct' | 'indirect',
+        isPositive: !!conn.isPositive,
+      })));
+    };
+
+    liveblocksService.on('sticky-note-updated', handleNoteUpdated);
+    liveblocksService.on('sticky-note-deleted', handleNoteDeleted);
     liveblocksService.on('connection-updated', handleConnectionUpdated);
     liveblocksService.on('connection-deleted', handleConnectionDeleted);
+    liveblocksService.on('sync-complete', handleSyncComplete);
 
     return () => {
-      liveblocksService.off('note-updated', handleNoteUpdated);
-      liveblocksService.off('note-deleted', handleNoteDeleted);
+      liveblocksService.off('sticky-note-updated', handleNoteUpdated);
+      liveblocksService.off('sticky-note-deleted', handleNoteDeleted);
       liveblocksService.off('connection-updated', handleConnectionUpdated);
       liveblocksService.off('connection-deleted', handleConnectionDeleted);
+      liveblocksService.off('sync-complete', handleSyncComplete);
     };
   }, []);
 
@@ -228,7 +198,7 @@ function App() {
         if (note.id !== id) {
           return note;
         }
-        updatedNote = { ...note, text: content, content };
+        updatedNote = { ...note, content };
         return updatedNote;
       })
     );
@@ -243,7 +213,7 @@ function App() {
       x: updatedNote.position.x,
       y: updatedNote.position.y,
       layer: updatedNote.layer,
-      color: updatedNote.sentiment,
+      sentiment: updatedNote.sentiment,
       type: toRemoteType(updatedNote.type),
       width: updatedNote.width,
       height: updatedNote.height,
@@ -258,8 +228,7 @@ function App() {
         return {
           ...(existing ?? {}),
           ...note,
-          text: note.text,
-          content: note.text,
+          content: note.content,
         };
       });
     });
@@ -278,16 +247,6 @@ function App() {
       {!showVideoSplash && (
         <Gateway onAuthenticated={handleAuthenticated}>
           <Router>
-            {/* 세션 관리자 모달 - 관리자가 아닐 때만 표시 */}
-            {!isAdmin && (
-              <SessionManager
-                showModal={showSessionManager}
-                onClose={handleSessionJoined}
-                initialSessionCode={pendingSessionCode}
-                passwordType={passwordType}
-              />
-            )}
-
             <div className="app-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
               <CultureMapFlow
                 onNotesChange={handleNotesChange}

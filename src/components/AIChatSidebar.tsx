@@ -2,9 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Paperclip, X, Sparkles, Loader2, FileText, Settings } from 'lucide-react';
 import { aiService } from '../services/AIService';
 import AIConfigModal from './AIConfigModal';
+import ConsultingToolsPanel from './ConsultingToolsPanel';
 import liveblocksService from '../services/LiveblocksService';
 import type { ChatMessage } from '../types/liveblocks';
 import type { NoteData, ConnectionData } from '../types/culture';
+import type { PasswordType } from '../services/GatewayAdminService';
 import './AIChatSidebar.css';
 
 interface AIChatSidebarProps {
@@ -12,13 +14,15 @@ interface AIChatSidebarProps {
     notes: NoteData[];
     connections: ConnectionData[];
     layerHeights?: number[];
+    passwordType?: PasswordType; // 모드 감지용
 }
 
 const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     onActionExecute,
     notes: _notes,
     connections: _connections,
-    layerHeights = [200, 200, 200, 200]
+    layerHeights = [200, 200, 200, 200],
+    passwordType
 }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [inputValue, setInputValue] = useState('');
@@ -39,7 +43,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
         let unsub: (() => void) | null = null;
         let retryCount = 0;
         const maxRetries = 10;
-        
+
         const setupSubscription = () => {
             // 이미 연결되어 있으면 구독 설정
             if (liveblocksService.isConnected()) {
@@ -48,7 +52,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
                     console.log('💬 [AIChatSidebar] Chat messages updated:', msgs.length);
                     setMessages(msgs);
                 });
-                
+
                 const initialMsgs = liveblocksService.getChatMessages();
                 if (initialMsgs.length > 0) {
                     setMessages(initialMsgs);
@@ -57,7 +61,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
             }
             return false;
         };
-        
+
         // 즉시 시도
         if (!setupSubscription()) {
             // 연결되지 않은 경우 폴링으로 재시도
@@ -70,7 +74,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
                     }
                 }
             }, 500);
-            
+
             return () => {
                 clearInterval(intervalId);
                 unsub?.();
@@ -126,26 +130,68 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
         if (!overrideText) setInputValue('');
         setIsLoading(true);
 
-        // 현재 맵 상태를 텍스트로 요약 (AI 컨텍스트용)
-        const contextString = `[현재 컬처맵 컨텍스트]
-- 노드 수: ${_notes.length}개
-- 노드 목록: ${_notes.map(n => `[${n.type}] ${n.text}`).join(', ')}
-- 연결 관계: ${_connections.map(c => {
-    const fromNode = _notes.find(n => n.id === c.from);
-    const toNode = _notes.find(n => n.id === c.to);
-    return `${fromNode?.text || '?'} -> ${toNode?.text || '?'}`;
-}).join(', ')}`;
+        // 현재 맵 상태를 AI가 이해할 수 있도록 상세하게 전달
+        // AI가 노드 ID를 알아야 create_connection 등에서 사용 가능
+        const layerNames: Record<number, string> = {
+            1: '결과(Result)',
+            2: '행동(Behavior)',
+            3: '유형레버(Tangible Lever)',
+            4: '무형레버(Intangible Lever)'
+        };
+
+        const nodesContext = _notes.length > 0
+            ? _notes.map(n => {
+                const layerName = layerNames[n.layer] || `Layer ${n.layer}`;
+                const sentiment = n.sentiment === 'positive' ? '긍정' : n.sentiment === 'negative' ? '부정' : '중립';
+                return `  - ID: "${n.id}", 층위: ${layerName}, 감정: ${sentiment}, 내용: "${n.content || '(내용 없음)'}"`;
+            }).join('\n')
+            : '  (노드 없음)';
+
+        const connectionsContext = _connections.length > 0
+            ? _connections.map(c => {
+                const fromNode = _notes.find(n => n.id === c.sourceId);
+                const toNode = _notes.find(n => n.id === c.targetId);
+                const relType = c.relationType === 'direct' ? '직접' : '간접';
+                const polarity = c.isPositive ? '긍정적' : '부정적';
+                return `  - "${fromNode?.content || c.sourceId}" → "${toNode?.content || c.targetId}" (${relType}, ${polarity})`;
+            }).join('\n')
+            : '  (연결 없음)';
+
+        const contextString = `[현재 컬처맵 상태]
+총 노드 수: ${_notes.length}개, 총 연결선 수: ${_connections.length}개
+
+📋 노드 목록:
+${nodesContext}
+
+🔗 연결 관계:
+${connectionsContext}
+
+💡 참고: create_connection 사용 시 위 노드 ID를 sourceId, targetId에 사용하세요.`;
 
         let fileUri: string | undefined;
         let mimeType: string | undefined;
 
         try {
             console.log('💬 [AIChatSidebar] Sending message:', currentText);
-            // 메시지 전송 시작
-            if (currentText.trim()) {
-                liveblocksService.sendChatMessage(currentText);
-            }
             
+            // 메시지 전송 - Liveblocks 연결 여부에 따라 분기
+            if (currentText.trim()) {
+                if (liveblocksService.isConnected()) {
+                    liveblocksService.sendChatMessage(currentText);
+                } else {
+                    // Liveblocks 미연결 시 로컬 상태에 사용자 메시지 추가
+                    console.log('📝 [AIChatSidebar] Adding user message to local state');
+                    setMessages(prev => [...prev, {
+                        id: `user-${Date.now()}`,
+                        role: 'user' as const,
+                        content: currentText,
+                        userName: '나',
+                        userColor: '#3b82f6',
+                        timestamp: Date.now()
+                    }]);
+                }
+            }
+
             // 파일 업로드 처리 (있는 경우 첫 번째 파일만)
             if (attachments.length > 0) {
                 try {
@@ -158,7 +204,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
                     setUploadProgress('업로드 실패');
                 }
             }
-            
+
             console.log('🤖 [AIChatSidebar] Requesting AI Stream...');
             // 스트리밍 시작
             const aiStream = aiService.sendChatMessageStream(
@@ -190,7 +236,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
                         aiMsgId = liveblocksService.startAiResponse();
                         console.log('🤖 [AIChatSidebar] AI Message ID created:', aiMsgId);
                         isFirstChunk = false;
-                        
+
                         // Liveblocks가 연결되지 않은 경우 로컬 상태로 폴백
                         if (!aiMsgId) {
                             console.warn('⚠️ [AIChatSidebar] Liveblocks not connected, using local state');
@@ -198,13 +244,15 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
                             aiMsgId = localMsgId;
                             setMessages(prev => [...prev, {
                                 id: localMsgId,
-                                role: 'assistant',
+                                role: 'assistant' as const,
                                 content: '',
+                                userName: 'AI Assistant',
+                                userColor: '#8b5cf6',
                                 timestamp: Date.now()
                             }]);
                         }
                     }
-                    
+
                     if (chunk.type === 'text') {
                         console.log('🤖 [AIChatSidebar] Received text chunk, fullText length:', chunk.fullText?.length);
                         // Liveblocks 연결 시
@@ -212,18 +260,35 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
                             liveblocksService.updateAiResponse(aiMsgId, chunk.fullText || '');
                         } else {
                             // 로컬 상태 업데이트
-                            setMessages(prev => prev.map(m => 
+                            setMessages(prev => prev.map(m =>
                                 m.id === aiMsgId ? { ...m, content: chunk.fullText || '' } : m
                             ));
                         }
                     } else if (chunk.type === 'actions') {
                         finalActions = chunk.actions || [];
-                        if (aiMsgId && !aiMsgId.startsWith('local-')) {
-                            liveblocksService.updateAiResponse(aiMsgId, undefined as any, finalActions);
+                        console.log('🎯 [AIChatSidebar] Actions received:', finalActions.length, 'items');
+
+                        // 설정에 따라 자동 실행 또는 수동 확인
+                        const autoExecute = aiService.getConfig()?.autoExecuteFunctionCalls ?? false;
+
+                        if (autoExecute && finalActions.length > 0) {
+                            // 자동 실행 모드: 즉시 onActionExecute 호출
+                            console.log('⚡ [AIChatSidebar] Auto-executing actions...');
+                            finalActions.forEach(action => onActionExecute(action));
+                            // 실행 완료 후 텍스트만 업데이트 (액션은 저장하지 않음 - 이미 실행됨)
+                            if (aiMsgId && !aiMsgId.startsWith('local-')) {
+                                liveblocksService.updateAiResponse(aiMsgId);
+                            }
                         } else {
-                            setMessages(prev => prev.map(m =>
-                                m.id === aiMsgId ? { ...m, suggestedActions: finalActions } : m
-                            ));
+                            // 수동 실행 모드: 메시지에 actions 저장하여 버튼 표시
+                            console.log('🛡️ [AIChatSidebar] Manual mode - storing actions for user confirmation');
+                            if (aiMsgId && !aiMsgId.startsWith('local-')) {
+                                liveblocksService.updateAiResponse(aiMsgId, undefined, finalActions);
+                            } else {
+                                setMessages(prev => prev.map(m =>
+                                    m.id === aiMsgId ? { ...m, suggestedActions: finalActions } : m
+                                ));
+                            }
                         }
                     }
                 }
@@ -268,6 +333,16 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
                 isOpen={isConfigOpen}
                 onClose={() => setIsConfigOpen(false)}
             />
+
+            {/* 컨설팅 모드에서만 분석 도구 패널 표시 */}
+            {passwordType === 'consulting' && (
+                <ConsultingToolsPanel
+                    onSelectPrompt={(prompt, stepName) => {
+                        console.log(`📋 [AIChatSidebar] Consulting prompt selected: ${stepName}`);
+                        handleSendMessage(prompt);
+                    }}
+                />
+            )}
 
             <div className="chat-messages">
                 {messages.length === 0 && (

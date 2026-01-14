@@ -137,6 +137,18 @@ class GatewayAdminService {
       return { isValid: true, isAdmin: true, passwordType: 'admin' };
     }
 
+    // 워크샵 기본 비밀번호 확인
+    const workshopPassword = import.meta.env.VITE_GATEWAY_WORKSHOP_PASSWORD;
+    if (workshopPassword && inputPassword === workshopPassword) {
+      return { isValid: true, isAdmin: false, passwordType: 'workshop' };
+    }
+
+    // 컨설팅 기본 비밀번호 확인
+    const consultingPassword = import.meta.env.VITE_GATEWAY_CONSULTING_PASSWORD;
+    if (consultingPassword && inputPassword === consultingPassword) {
+      return { isValid: true, isAdmin: false, passwordType: 'consulting' };
+    }
+
     // 임시 비밀번호 확인
     const passwords = this.getPasswords();
     const now = Date.now();

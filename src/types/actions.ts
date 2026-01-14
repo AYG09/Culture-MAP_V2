@@ -63,29 +63,29 @@ export interface CreateConnectionPayload {
 export const MAP_TOOL_DECLARATIONS = [
     {
         name: 'add_node',
-        description: '컬쳐맵에 새로운 포스트잇(노드)을 추가합니다.',
+        description: 'MUST call this function when user asks to add, create, or make new sticky notes or nodes on the culture map. Trigger words: 추가, 생성, 만들어, 노드, 포스트잇, 결과, 행동, 동인. Examples: "결과 노드 추가해줘", "행동 2개 만들어", "새로운 포스트잇 생성"',
         parametersJsonSchema: {
             type: 'object',
             properties: {
-                label: { type: 'string', description: '포스트잇 제목 (짧고 명확하게)' },
-                type: { type: 'string', enum: ['결과', '행동', '유형_레버', '무형_레버'], description: '데이브 그레이 모델의 층위 유형' },
-                layer: { type: 'number', enum: [1, 2, 3, 4], description: '층위 인덱스 (1:결과, 2:행동, 3:유형, 4:무형)' },
-                content: { type: 'string', description: '상세 설명/내용' },
-                sentiment: { type: 'string', enum: ['positive', 'negative', 'neutral'], description: '긍정/부정/중립 감성' },
-                intensity: { type: 'number', enum: [1, 2, 3, 4, 5], description: '인식 강도 (1=낮음, 5=높음)' }
+                label: { type: 'string', description: 'Title of the sticky note (short and clear, in Korean)' },
+                type: { type: 'string', enum: ['결과', '행동', '유형_레버', '무형_레버'], description: 'Layer type: 결과=Outcomes, 행동=Behaviors, 유형_레버=Tangible, 무형_레버=Intangible' },
+                layer: { type: 'number', enum: [1, 2, 3, 4], description: 'Layer index (1:결과, 2:행동, 3:유형, 4:무형)' },
+                content: { type: 'string', description: 'Detailed description (optional)' },
+                sentiment: { type: 'string', enum: ['positive', 'negative', 'neutral'], description: 'Sentiment of the node' },
+                intensity: { type: 'number', enum: [1, 2, 3, 4, 5], description: 'Perception intensity (1=low, 5=high)' }
             },
             required: ['label', 'type', 'layer']
         }
     },
     {
         name: 'update_node',
-        description: '기존 포스트잇의 내용을 수정합니다.',
+        description: 'MUST call when user wants to modify, edit, change, or update existing sticky notes. Trigger words: 수정, 변경, 고쳐, 바꿔, 업데이트. Examples: "노드 내용 수정해줘", "제목 변경"',
         parametersJsonSchema: {
             type: 'object',
             properties: {
-                id: { type: 'string', description: '수정할 노드 ID' },
-                label: { type: 'string', description: '새로운 제목' },
-                content: { type: 'string', description: '새로운 상세 내용' },
+                id: { type: 'string', description: 'ID of the node to modify' },
+                label: { type: 'string', description: 'New title' },
+                content: { type: 'string', description: 'New detailed content' },
                 sentiment: { type: 'string', enum: ['positive', 'negative', 'neutral'] }
             },
             required: ['id']
@@ -93,54 +93,69 @@ export const MAP_TOOL_DECLARATIONS = [
     },
     {
         name: 'delete_node',
-        description: '컬쳐맵에서 특정 포스트잇을 삭제합니다.',
+        description: 'MUST call when user wants to delete, remove, or clear sticky notes from the map. Trigger words: 삭제, 지워, 제거, 없애. Examples: "노드 삭제해줘", "포스트잇 지워"',
         parametersJsonSchema: {
             type: 'object',
             properties: {
-                id: { type: 'string', description: '삭제할 노드 ID' }
+                id: { type: 'string', description: 'ID of the node to delete' }
             },
             required: ['id']
         }
     },
     {
         name: 'create_connection',
-        description: '두 포스트잇 사이에 인과관계 또는 영향력 연결선(엣지)을 생성합니다.',
+        description: 'MUST call when user wants to connect, link, or draw lines between nodes. Trigger words: 연결, 선, 화살표, 관계, 인과. Examples: "두 노드 연결해줘", "관계 만들어"',
         parametersJsonSchema: {
             type: 'object',
             properties: {
-                sourceId: { type: 'string', description: '시작 노드 ID (예: 동인 노드)' },
-                targetId: { type: 'string', description: '끝 노드 ID (예: 행동 노드)' },
-                label: { type: 'string', description: '연결선의 의미 (예: 강화함, 유발함, 방해함)' }
+                sourceId: { type: 'string', description: 'Source node ID (e.g., driver node)' },
+                targetId: { type: 'string', description: 'Target node ID (e.g., behavior node)' },
+                label: { type: 'string', description: 'Connection meaning (e.g., 강화함, 유발함, 방해함)' }
             },
             required: ['sourceId', 'targetId']
         }
     },
     {
         name: 'auto_layout',
-        description: '컬쳐맵의 모든 포스트잇 배치를 현재 설정된 레이어 높이에 맞춰 자동으로 정렬합니다.',
+        description: 'Call when user wants to organize, arrange, or tidy up the map layout. Trigger words: 정렬, 정리, 배치. Examples: "맵 정렬해줘", "레이아웃 정리"',
         parametersJsonSchema: { type: 'object', properties: {} }
     },
     {
         name: 'adjust_layer_height',
-        description: '특정 층위(Layer)의 높이를 조절합니다. 공간이 부족할 때 레이어를 넓히는 용도로 사용합니다.',
+        description: 'Call when user wants to resize or adjust layer heights. Trigger words: 높이, 크기, 넓히기, 레이어. Examples: "레이어 높이 조절해줘", "공간 넓혀"',
         parametersJsonSchema: {
             type: 'object',
             properties: {
-                layer: { type: 'number', enum: [1, 2, 3, 4], description: '조절할 층위 인데스 (1:결과, 2:행동, 3:유형, 4:무형)' },
-                height: { type: 'number', description: '새로운 높이 (단위: px, 최소 100, 최대 600)' }
+                layer: { type: 'number', enum: [1, 2, 3, 4], description: 'Layer index (1:결과, 2:행동, 3:유형, 4:무형)' },
+                height: { type: 'number', description: 'New height in pixels (min: 100, max: 600)' }
             },
             required: ['layer', 'height']
         }
     },
     {
-        name: 'search_academic_theory',
-        description: '조직문화 전문가(Edgar Schein, Stephen Robbins, Cummings 등)의 학술적 이론 및 모델 근거를 검색합니다.',
+        name: 'load_academic_knowledge',
+        description: `Call this tool ONLY when deep academic/theoretical knowledge is truly needed.
+        
+When to call:
+- User asks about theories, frameworks, or academic concepts (샤인, 로빈스, 조직문화 이론 등)
+- User requests analysis from academic perspective (학술적 관점, 이론적 분석)
+- User asks about research, studies, or scholarly interpretations
+
+When NOT to call:
+- Simple greetings (안녕, 반가워)
+- Node creation/editing requests (노드 추가해줘, 수정해줘)
+- General conversation or questions about the program itself
+- Layout or UI related requests
+
+This loads relevant PDF documents which costs tokens, so use sparingly.`,
         parametersJsonSchema: {
             type: 'object',
             properties: {
-                topic: { type: 'string', description: '검색할 주제어나 저자명 (예: 샤인, 조직문화 3층위, 로빈스 효과성)' }
+                topic: { 
+                    type: 'string', 
+                    description: 'The academic topic to search for. Examples: "에드가 샤인 3계층 모델", "조직문화 변화관리", "로빈스 조직행동론"'
+                }
             },
             required: ['topic']
         }
-    }
-];
+    }];

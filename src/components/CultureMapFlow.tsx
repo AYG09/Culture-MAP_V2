@@ -189,7 +189,7 @@ const CultureMapFlow = ({
     try {
       switch (name) {
         case 'add_node': {
-          const newNodeId = `node-${Date.now()}`;
+          const newNodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
           const layerIndex = (args.layer || 2) - 1;
 
           // 현재 설정된 레이어 높이를 바탕으로 기본 Y 좌표 계산
@@ -199,34 +199,110 @@ const CultureMapFlow = ({
           }
           const defaultY = currentY + (layerHeights[layerIndex] / 2);
 
+          // [FIX] 노드 겹침 방지: 현재 레이어의 노드 수를 기반으로 X 좌표 분산
+          const existingNodesInLayer = nodes.filter(n => n.data?.layer === args.layer).length;
+          const baseX = 150 + (existingNodesInLayer * 220); // 각 노드 간 220px 간격
+          const x = args.x || baseX;
+          const y = args.y || defaultY + (Math.random() * 20 - 10);
+
+          // [FIX] 한국어 타입을 영어로 매핑
+          const typeMap: Record<string, string> = {
+            '결과': 'result',
+            '행동': 'behavior',
+            '유형_레버': 'tangible_lever',
+            '무형_레버': 'intangible_lever',
+            'result': 'result',
+            'behavior': 'behavior',
+            'tangible_lever': 'tangible_lever',
+            'intangible_lever': 'intangible_lever',
+          };
+          const nodeType = typeMap[args.type] || 'result';
+
+          const content = args.content || args.label || '새 노드';
+          const sentiment = args.sentiment === 'positive' ? 'positive' : (args.sentiment === 'negative' ? 'negative' : 'neutral');
+          const frequency = typeof args.intensity === 'number' ? INTENSITY_MAP.TO_STRING(args.intensity) : (args.intensity || '보통');
+
+          // 1. Liveblocks (DB/Sync) 업데이트
           liveblocksService.updateStickyNote({
             id: newNodeId,
-            content: args.content || args.label,
-            x: args.x || Math.random() * 800 + 100,
-            y: args.y || defaultY + (Math.random() * 40 - 20),
+            content,
+            x,
+            y,
             layer: args.layer || 2,
-            sentiment: args.sentiment === 'positive' ? 'positive' : (args.sentiment === 'negative' ? 'negative' : 'neutral'),
-            type: args.type,
-            frequency: typeof args.intensity === 'number' ? INTENSITY_MAP.TO_STRING(args.intensity) : args.intensity,
+            sentiment,
+            type: nodeType,
+            frequency,
           });
+
+          // 2. Local State (React Flow UI) 즉시 업데이트
+          const newNode: Node = {
+            id: newNodeId,
+            type: nodeType,
+            position: { x, y },
+            data: {
+              id: newNodeId,
+              content,
+              author: liveblocksService.getCurrentUserDisplayName(),
+              timestamp: Date.now(),
+              sentiment,
+              frequency,
+              type: nodeType,
+              layer: args.layer || 2,
+            },
+            draggable: true, // [FIX] 드래그 활성화
+          };
+
+          setNodes((nds) => nds.concat(newNode));
+          console.log('✅ [Action Bridge] New node added to UI:', newNodeId, 'type:', nodeType, 'layer:', args.layer);
           break;
         }
 
-        case 'update_node':
+        case 'update_node': {
           if (!args.id) break;
+          const sentiment = args.sentiment === 'positive' ? 'positive' : (args.sentiment === 'negative' ? 'negative' : 'neutral');
+          const frequency = typeof args.intensity === 'number' ? INTENSITY_MAP.TO_STRING(args.intensity) : args.intensity;
+          const content = args.content || args.label;
+
+          // 1. Liveblocks (DB/Sync) 업데이트
           liveblocksService.updateStickyNote({
             id: args.id,
-            content: args.content || args.label,
-            sentiment: args.sentiment === 'positive' ? 'positive' : (args.sentiment === 'negative' ? 'negative' : 'neutral'),
-            frequency: typeof args.intensity === 'number' ? INTENSITY_MAP.TO_STRING(args.intensity) : args.intensity,
-            // 필드가 있을 때만 업데이트 (Partial 대응)
+            content,
+            sentiment,
+            frequency,
             ...(args.layer ? { layer: args.layer } : {}),
             ...(args.type ? { type: args.type } : {}),
           });
+
+          // 2. Local State (React Flow UI) 즉시 업데이트
+          setNodes((nds) =>
+            nds.map((node) => {
+              if (node.id === args.id) {
+                return {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    ...(content ? { content } : {}),
+                    ...(sentiment ? { sentiment } : {}),
+                    ...(frequency ? { frequency } : {}),
+                    ...(args.type ? { type: args.type } : {}),
+                    ...(args.layer ? { layer: args.layer } : {}),
+                  },
+                };
+              }
+              return node;
+            })
+          );
+          console.log('✅ [Action Bridge] Node updated in UI:', args.id);
           break;
+        }
 
         case 'delete_node':
-          if (args.id) liveblocksService.deleteStickyNote(args.id);
+          if (args.id) {
+            liveblocksService.deleteStickyNote(args.id);
+            setNodes((nds) => nds.filter((node) => node.id !== args.id));
+            setEdges((eds) => eds.filter((edge) => edge.source !== args.id && edge.target !== args.id));
+            console.log('✅ [Action Bridge] Node deleted from UI:', args.id);
+          }
           break;
 
         case 'create_connection':
@@ -437,10 +513,10 @@ const CultureMapFlow = ({
   );
 
   // ============================================================================
-  // Firebase 실시간 리스너 등록
+  // Liveblocks 실시간 리스너 등록
   // ============================================================================
   useEffect(() => {
-    console.log('✅ [React Flow] Firebase 리스너 등록 시작');
+    console.log('✅ [React Flow] Liveblocks 리스너 등록 시작');
 
     // 타입 정의
     type StickyNoteUpdateEvent = {
@@ -475,7 +551,7 @@ const CultureMapFlow = ({
 
     // 다른 사용자의 노드 업데이트 수신
     const handleStickyNoteUpdated = (note: StickyNoteUpdateEvent) => {
-      console.log('📥 [React Flow] Firebase 노드 수신:', note.id);
+      console.log('📥 [React Flow] Liveblocks 노드 수신:', note.id);
 
       // 자신이 보낸 업데이트는 무시
       const isOwnUpdate = note.authorId === liveblocksService.getCurrentUserId();
@@ -540,7 +616,7 @@ const CultureMapFlow = ({
 
     // 다른 사용자의 노드 삭제 수신
     const handleStickyNoteDeleted = (data: StickyNoteDeleteEvent) => {
-      console.log('🗑️ [React Flow] Firebase 노드 삭제 수신:', data.noteId);
+      console.log('🗑️ [React Flow] Liveblocks 노드 삭제 수신:', data.noteId);
       setNodes((currentNodes) => currentNodes.filter((n) => n.id !== data.noteId));
       setEdges((currentEdges) =>
         currentEdges.filter((e) => e.source !== data.noteId && e.target !== data.noteId)
@@ -549,7 +625,7 @@ const CultureMapFlow = ({
 
     // 다른 사용자의 연결선 업데이트 수신
     const handleConnectionUpdated = (connection: ConnectionUpdateEvent) => {
-      console.log('🔗 [React Flow] Firebase 연결선 수신:', connection.id);
+      console.log('🔗 [React Flow] Liveblocks 연결선 수신:', connection.id);
 
       setEdges((currentEdges) => {
         const existingIndex = currentEdges.findIndex((e) => e.id === connection.id);
@@ -596,18 +672,18 @@ const CultureMapFlow = ({
 
     // 다른 사용자의 연결선 삭제 수신
     const handleConnectionDeleted = (data: ConnectionDeleteEvent) => {
-      console.log('🗑️ [React Flow] Firebase 연결선 삭제 수신:', data.connectionId);
+      console.log('🗑️ [React Flow] Liveblocks 연결선 삭제 수신:', data.connectionId);
       setEdges((currentEdges) => currentEdges.filter((e) => e.id !== data.connectionId));
     };
 
-    // Firebase 이벤트 리스너 등록 (타입 안전성을 위해 캐스팅)
+    // Liveblocks 이벤트 리스너 등록
     type EventHandler = (...args: unknown[]) => void;
     liveblocksService.on('sticky-note-updated', handleStickyNoteUpdated as EventHandler);
     liveblocksService.on('sticky-note-deleted', handleStickyNoteDeleted as EventHandler);
     liveblocksService.on('connection-updated', handleConnectionUpdated as EventHandler);
     liveblocksService.on('connection-deleted', handleConnectionDeleted as EventHandler);
 
-    console.log('✅ [React Flow] Firebase 리스너 등록 완료');
+    console.log('✅ [React Flow] Liveblocks 리스너 등록 완료');
 
     // Cleanup: 컴포넌트 언마운트 시 리스너 제거
     return () => {
@@ -615,7 +691,7 @@ const CultureMapFlow = ({
       liveblocksService.off('sticky-note-deleted', handleStickyNoteDeleted as EventHandler);
       liveblocksService.off('connection-updated', handleConnectionUpdated as EventHandler);
       liveblocksService.off('connection-deleted', handleConnectionDeleted as EventHandler);
-      console.log('🔌 [React Flow] Firebase 리스너 제거 완료');
+      console.log('🔌 [React Flow] Liveblocks 리스너 제거 완료');
     };
   }, [
     getCurrentUserId,
@@ -1415,7 +1491,7 @@ const CultureMapFlow = ({
             x: node.position.x,
             y: node.position.y,
             layer: layerMap[node.type || 'result'] || 1,
-            color: (node.data as { sentiment?: string }).sentiment || 'neutral',
+            sentiment: (node.data as { sentiment?: string }).sentiment || 'neutral',
             type: node.type || 'sticky_note',
             width: (node.width as number) || 200,
             height: (node.height as number) || 120,
@@ -1564,14 +1640,29 @@ const CultureMapFlow = ({
             const session = liveblocksService.getCurrentSession();
 
             return session ? (
-              <button
-                className="glass-button glass-button--accent"
-                type="button"
-                onClick={() => setShowSessionInfo(true)}
-                title="세션 관리 및 접속 안내"
-              >
-                🔗 세션 관리
-              </button>
+              <>
+                <button
+                  className="glass-button glass-button--accent"
+                  type="button"
+                  onClick={() => setShowSessionInfo(true)}
+                  title="세션 관리 및 접속 안내"
+                >
+                  🔗 세션 관리
+                </button>
+                <button
+                  className="glass-button"
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('세션에서 나가시겠습니까?\n\n작업 내용은 저장됩니다.')) {
+                      liveblocksService.leaveSession();
+                      window.location.reload();
+                    }
+                  }}
+                  title="세션 나가기"
+                >
+                  🚪 나가기
+                </button>
+              </>
             ) : (
               <span style={{ fontSize: '14px', color: '#6b7280' }}>세션 연결 중...</span>
             );
@@ -1634,6 +1725,7 @@ const CultureMapFlow = ({
                   notes={nodes.map(n => n.data as unknown as NoteData)}
                   connections={edges.map(e => e.data as unknown as ConnectionData)}
                   layerHeights={layerHeights}
+                  passwordType={mode}
                 />
 
                 {/* 리사이즈 핸들 */}
@@ -1724,6 +1816,7 @@ const CultureMapFlow = ({
                     notes={nodes.map(n => n.data as unknown as NoteData)}
                     connections={edges.map(e => e.data as unknown as ConnectionData)}
                     layerHeights={layerHeights}
+                    passwordType={mode}
                   />
                 </div>
               </>

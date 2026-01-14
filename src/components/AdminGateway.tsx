@@ -1,6 +1,6 @@
-// src/components/AdminGateway.tsx
+// src/components/AdminGateway.tsx - 단순화된 관리자 패널
 import { useState, useEffect } from 'react';
-import gatewayAdminService, { type GatewayPassword, type PasswordType } from '../services/GatewayAdminService';
+import { ArrowLeft, RefreshCw, Trash2, Users, Clock, Key, Save, Eye, EyeOff } from 'lucide-react';
 import liveblocksService from '../services/LiveblocksService';
 import './AdminGateway.css';
 
@@ -8,54 +8,62 @@ interface AdminGatewayProps {
   onBack: () => void;
 }
 
-type TabType = 'passwords' | 'sessions';
+interface SessionInfo {
+  code: string;
+  name: string;
+  userCount: number;
+  lastActivity: string;
+  createdAt: string;
+  type: string;
+}
 
 const AdminGateway = ({ onBack }: AdminGatewayProps) => {
-  const [activeTab, setActiveTab] = useState<TabType>('passwords');
-  const [passwords, setPasswords] = useState<GatewayPassword[]>([]);
-  const [sessions, setSessions] = useState<SessionMetadata[]>([]);
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [creating, setCreating] = useState(false);
+  
+  // 호스트 비밀번호 설정
+  const [hostPassword, setHostPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
 
-  // 새 비밀번호 폼 상태
-  const [newPassword, setNewPassword] = useState({
-    password: '',
-    description: '',
-    type: 'workshop' as PasswordType,  // 초기값: 워크샵 모드 (사용자가 명시적으로 선택하도록 유도)
-    expireHours: 24,
-    maxUses: '',
-    autoGenerate: false,
-  });
-
-  // 컴포넌트 마운트 시 데이터 로드
+  // 초기 로드
   useEffect(() => {
-    loadPasswords();
     loadSessions();
-
-    // 실시간 업데이트 리스닝
-    const unsubscribe = gatewayAdminService.onPasswordsChange((updatedPasswords) => {
-      setPasswords(updatedPasswords);
-      setLoading(false);
-    });
-
-    return () => {
-      unsubscribe();
-    };
+    loadHostPassword();
   }, []);
 
-  // 임시 비밀번호 목록 로드
-  const loadPasswords = async () => {
-    setLoading(true);
+  // 호스트 비밀번호 로드 (Liveblocks에서)
+  const loadHostPassword = async () => {
     try {
-      const allPasswords = await gatewayAdminService.getAllPasswords();
-      setPasswords(allPasswords);
-      setError('');
+      const saved = await liveblocksService.getHostPassword();
+      if (saved) {
+        setHostPassword(saved);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '비밀번호 목록을 불러올 수 없습니다.');
+      console.error('호스트 비밀번호 로드 실패:', err);
+    }
+  };
+
+  // 호스트 비밀번호 저장 (Liveblocks에)
+  const saveHostPassword = async () => {
+    if (!hostPassword.trim()) {
+      setSaveMessage('❌ 비밀번호를 입력하세요.');
+      return;
+    }
+    
+    setSaving(true);
+    setSaveMessage('');
+    try {
+      await liveblocksService.setHostPassword(hostPassword.trim());
+      setSaveMessage('✅ 저장되었습니다! (모든 사용자에게 적용됨)');
+      setTimeout(() => setSaveMessage(''), 5000);
+    } catch (err) {
+      console.error('호스트 비밀번호 저장 실패:', err);
+      setSaveMessage('❌ 저장 실패. 다시 시도해주세요.');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
@@ -63,8 +71,14 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
   const loadSessions = async () => {
     setLoading(true);
     try {
-      const allSessions = await liveblocksService.getActiveSessions(100);  // 최대 100개
-      setSessions(allSessions);
+      // localStorage에서 세션 목록 가져오기
+      const stored = localStorage.getItem('culture-map-sessions');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setSessions(parsed);
+      } else {
+        setSessions([]);
+      }
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : '세션 목록을 불러올 수 없습니다.');
@@ -74,440 +88,177 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
   };
 
   // 세션 삭제
-  const handleDeleteSession = async (code: string) => {
-    if (!window.confirm(`세션 "${code}"를 삭제하시겠습니까?\n(해당 세션의 비밀번호도 함께 삭제됩니다)`)) {
+  const handleDeleteSession = async (code: string, name: string) => {
+    if (!window.confirm(`세션 "${name}" (${code})을(를) 삭제하시겠습니까?`)) {
       return;
     }
 
     try {
-      // 1. 세션 코드와 연결된 비밀번호 먼저 삭제
-      await gatewayAdminService.deletePasswordBySessionCode(code);
+      // Liveblocks에서 세션 삭제 시도
+      try {
+        await liveblocksService.deleteSession(code);
+      } catch {
+        // Liveblocks 삭제 실패해도 로컬에서는 삭제
+        console.warn('Liveblocks 세션 삭제 실패 (무시)');
+      }
       
-      // 2. 세션 삭제
-      await liveblocksService.deleteSession(code);
+      // localStorage에서 세션 제거
+      const stored = localStorage.getItem('culture-map-sessions');
+      if (stored) {
+        const sessions = JSON.parse(stored);
+        const updated = sessions.filter((s: SessionInfo) => s.code !== code);
+        localStorage.setItem('culture-map-sessions', JSON.stringify(updated));
+      }
       
-      // 3. 목록 새로고침
+      // 목록 새로고침
       await loadSessions();
-      await loadPasswords();
     } catch (err) {
       setError(err instanceof Error ? err.message : '세션 삭제에 실패했습니다.');
     }
   };
 
-  // 새 비밀번호 생성
-  const handleCreatePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setCreating(true);
-    setError('');
-
-    try {
-      const passwordToUse = newPassword.autoGenerate
-        ? gatewayAdminService.generateRandomPassword()
-        : newPassword.password;
-
-      if (!passwordToUse) {
-        setError('비밀번호를 입력하거나 자동 생성을 선택하세요.');
-        setCreating(false);
-        return;
-      }
-
-      await gatewayAdminService.createPassword({
-        password: passwordToUse,
-        type: newPassword.type,  // 추가: 비밀번호 타입
-        description: newPassword.description || undefined,
-        expireHours: newPassword.expireHours,
-        maxUses: newPassword.maxUses ? parseInt(newPassword.maxUses) : undefined,
-      });
-
-      setShowCreateForm(false);
-      resetForm();
-      alert(`비밀번호가 생성되었습니다: ${passwordToUse}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '비밀번호 생성에 실패했습니다.');
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  // 비밀번호 삭제
-  const handleDeletePassword = async (id: string, password: string) => {
-    if (!window.confirm(`비밀번호 "${password}"를 삭제하시겠습니까?`)) {
+  // 모든 세션 삭제
+  const handleClearAllSessions = () => {
+    if (!window.confirm('모든 세션을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
       return;
     }
+    
+    localStorage.removeItem('culture-map-sessions');
+    setSessions([]);
+  };
 
+  // 시간 포맷
+  const formatTime = (dateStr: string): string => {
     try {
-      await gatewayAdminService.deletePassword(id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '비밀번호 삭제에 실패했습니다.');
-    }
-  };
-
-  // 폼 리셋
-  const resetForm = () => {
-    setNewPassword({
-      password: '',
-      description: '',
-      type: 'workshop' as PasswordType,  // 추가: 기본값
-      expireHours: 24,
-      maxUses: '',
-      autoGenerate: false,
-    });
-  };
-
-  // 자동 생성 토글
-  const handleAutoGenerateToggle = () => {
-    const autoGenerate = !newPassword.autoGenerate;
-    setNewPassword({
-      ...newPassword,
-      autoGenerate,
-      password: autoGenerate ? gatewayAdminService.generateRandomPassword() : '',
-    });
-  };
-
-  // 비밀번호 복사
-  const handleCopyPassword = async (password: string) => {
-    try {
-      await navigator.clipboard.writeText(password);
-      alert('비밀번호가 복사되었습니다!');
+      const date = new Date(dateStr);
+      return date.toLocaleString('ko-KR', { 
+        month: 'short', 
+        day: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
     } catch {
-      alert('복사에 실패했습니다. 수동으로 복사해주세요.');
+      return dateStr;
     }
-  };
-
-  // 시간 포맷팅
-  const formatTimeRemaining = (expiresAt: number): string => {
-    const now = Date.now();
-    const diff = expiresAt - now;
-
-    if (diff <= 0) return '만료됨';
-
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-
-    if (hours > 24) {
-      const days = Math.floor(hours / 24);
-      return `${days}일 ${hours % 24}시간`;
-    }
-
-    return `${hours}시간 ${minutes}분`;
-  };
-
-  // 사용 정보 포맷팅
-  const formatUsageInfo = (pwd: GatewayPassword): string => {
-    if (pwd.maxUses) {
-      return `${pwd.usedCount}/${pwd.maxUses}회`;
-    }
-    return `${pwd.usedCount}회`;
   };
 
   return (
     <div className="admin-gateway-container">
+      {/* 헤더 */}
       <div className="admin-header">
-        <div>
-          <h2>🔐 Gateway 관리자 패널</h2>
-          <p>임시 비밀번호와 세션을 생성하고 관리할 수 있습니다.</p>
-        </div>
         <button onClick={onBack} className="back-btn">
-          ← 뒤로 가기
+          <ArrowLeft size={20} />
+          뒤로 가기
         </button>
+        <div className="header-title">
+          <h2>⚙️ 관리자 설정</h2>
+          <p>호스트 비밀번호 및 세션을 관리합니다</p>
+        </div>
       </div>
 
       {error && (
-        <div className="admin-error-message">
+        <div className="admin-error">
           {error}
-          <button onClick={() => setError('')} className="error-close">
-            ×
-          </button>
+          <button onClick={() => setError('')}>×</button>
         </div>
       )}
 
-      {/* 탭 네비게이션 */}
-      <div className="admin-tabs">
-        <button
-          className={`tab-button ${activeTab === 'passwords' ? 'active' : ''}`}
-          onClick={() => setActiveTab('passwords')}
-        >
-          🔑 비밀번호 관리
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'sessions' ? 'active' : ''}`}
-          onClick={() => setActiveTab('sessions')}
-        >
-          📂 세션 관리
-        </button>
-      </div>
-
-      {/* 비밀번호 관리 탭 */}
-      {activeTab === 'passwords' && (
-        <>
-          {/* 새 비밀번호 생성 버튼 */}
-          <div className="admin-actions">
-            <button
-              onClick={() => setShowCreateForm(!showCreateForm)}
-              className="create-password-btn"
+      {/* 호스트 비밀번호 설정 섹션 */}
+      <section className="admin-section">
+        <h3><Key size={18} /> 호스트 비밀번호 설정</h3>
+        <p className="section-description">
+          새 세션 생성 시 필요한 호스트 비밀번호입니다. 
+          이 비밀번호를 아는 사람만 새로운 세션을 만들 수 있습니다.
+        </p>
+        
+        <div className="password-form">
+          <div className="password-input-group">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={hostPassword}
+              onChange={(e) => setHostPassword(e.target.value)}
+              placeholder="호스트 비밀번호 입력"
+              className="password-input"
+            />
+            <button 
+              type="button" 
+              className="toggle-visibility-btn"
+              onClick={() => setShowPassword(!showPassword)}
             >
-              {showCreateForm ? '취소' : '✨ 새 비밀번호 생성'}
-            </button>
-            <button onClick={loadPasswords} className="refresh-btn" disabled={loading}>
-              {loading ? '🔄 새로고침 중...' : '🔄 새로고침'}
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
-
-          {/* 비밀번호 생성 폼 */}
-          {showCreateForm && (
-        <div className="create-form-container">
-          <h3>새 임시 비밀번호 생성</h3>
-          <form onSubmit={handleCreatePassword} className="create-form">
-            <div className="form-row">
-              <div className="form-group">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={newPassword.autoGenerate}
-                    onChange={handleAutoGenerateToggle}
-                  />
-                  자동 생성
-                </label>
-              </div>
-            </div>
-
-            {!newPassword.autoGenerate ? (
-              <div className="form-group">
-                <label>비밀번호:</label>
-                <input
-                  type="text"
-                  value={newPassword.password}
-                  onChange={(e) => setNewPassword({ ...newPassword, password: e.target.value })}
-                  placeholder="비밀번호 입력"
-                  required
-                />
-              </div>
-            ) : (
-              <div className="form-group">
-                <label>생성된 비밀번호:</label>
-                <div className="generated-password">
-                  <code>{newPassword.password}</code>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setNewPassword({
-                        ...newPassword,
-                        password: gatewayAdminService.generateRandomPassword(),
-                      })
-                    }
-                    className="regenerate-btn"
-                  >
-                    🔄 다시 생성
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="form-group">
-              <label>설명:</label>
-              <input
-                type="text"
-                value={newPassword.description}
-                onChange={(e) => setNewPassword({ ...newPassword, description: e.target.value })}
-                placeholder="비밀번호 용도 설명 (선택사항)"
-              />
-            </div>
-
-            {/* 비밀번호 타입 선택 - 필수 선택 사항 */}
-            <div className="password-type-selector">
-              <h4>📌 비밀번호 타입 <span className="required">*</span></h4>
-              <p className="type-description">생성할 비밀번호의 용도를 선택하세요. 각 타입은 다른 권한을 가집니다.</p>
-              <div className="mode-options">
-                <label className={newPassword.type === 'workshop' ? 'selected' : ''}>
-                  <input
-                    type="radio"
-                    name="passwordType"
-                    value="workshop"
-                    checked={newPassword.type === 'workshop'}
-                    onChange={() => setNewPassword({ ...newPassword, type: 'workshop' })}
-                  />
-                  <span className="type-label">🎓 워크샵 모드</span>
-                  <span className="type-detail">포스트잇 기반 분석, 3단계 프롬프트</span>
-                </label>
-
-                <label className={newPassword.type === 'consulting' ? 'selected' : ''}>
-                  <input
-                    type="radio"
-                    name="passwordType"
-                    value="consulting"
-                    checked={newPassword.type === 'consulting'}
-                    onChange={() => setNewPassword({ ...newPassword, type: 'consulting' })}
-                  />
-                  <span className="type-label">💼 컨설팅 모드</span>
-                  <span className="type-detail">인터뷰 기반 분석, 6단계 프롬프트</span>
-                </label>
-
-                <label className={newPassword.type === 'admin' ? 'selected' : ''}>
-                  <input
-                    type="radio"
-                    name="passwordType"
-                    value="admin"
-                    checked={newPassword.type === 'admin'}
-                    onChange={() => setNewPassword({ ...newPassword, type: 'admin' })}
-                  />
-                  <span className="type-label">🔑 관리자 모드</span>
-                  <span className="type-detail">어드민 패널 접근 권한</span>
-                </label>
-              </div>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>유효 시간 (시간):</label>
-                <input
-                  type="number"
-                  value={newPassword.expireHours}
-                  onChange={(e) =>
-                    setNewPassword({ ...newPassword, expireHours: parseInt(e.target.value) })
-                  }
-                  min="1"
-                  max="8760"
-                />
-              </div>
-              <div className="form-group">
-                <label>최대 사용 횟수:</label>
-                <input
-                  type="number"
-                  value={newPassword.maxUses}
-                  onChange={(e) => setNewPassword({ ...newPassword, maxUses: e.target.value })}
-                  placeholder="무제한"
-                  min="1"
-                />
-              </div>
-            </div>
-
-            <div className="form-actions">
-              <button type="submit" disabled={creating} className="submit-btn">
-                {creating ? '⏳ 생성 중...' : '✅ 생성'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCreateForm(false);
-                  resetForm();
-                }}
-                className="cancel-btn"
-              >
-                취소
-              </button>
-            </div>
-          </form>
+          <button 
+            onClick={saveHostPassword} 
+            disabled={saving}
+            className="save-btn"
+          >
+            <Save size={16} />
+            {saving ? '저장 중...' : '저장'}
+          </button>
         </div>
-      )}
+        {saveMessage && <p className="save-message">{saveMessage}</p>}
+      </section>
 
-      {/* 비밀번호 목록 */}
-      <div className="passwords-container">
-        <h3>📋 임시 비밀번호 목록 ({passwords.length}개)</h3>
+      {/* 세션 관리 섹션 */}
+      <section className="admin-section">
+        <div className="section-header">
+          <h3><Users size={18} /> 세션 관리 ({sessions.length}개)</h3>
+          <div className="section-actions">
+            <button onClick={loadSessions} className="refresh-btn" disabled={loading}>
+              <RefreshCw size={16} className={loading ? 'spinning' : ''} />
+              새로고침
+            </button>
+            {sessions.length > 0 && (
+              <button onClick={handleClearAllSessions} className="clear-all-btn">
+                <Trash2 size={16} />
+                전체 삭제
+              </button>
+            )}
+          </div>
+        </div>
 
         {loading ? (
-          <div className="loading">⏳ 비밀번호 목록을 불러오는 중...</div>
-        ) : passwords.length === 0 ? (
-          <div className="no-passwords">등록된 임시 비밀번호가 없습니다.</div>
+          <div className="loading-state">
+            <RefreshCw size={24} className="spinning" />
+            <p>로딩 중...</p>
+          </div>
+        ) : sessions.length === 0 ? (
+          <div className="empty-state">
+            <p>등록된 세션이 없습니다.</p>
+            <p className="hint">Gateway에서 새 세션을 만들면 여기에 표시됩니다.</p>
+          </div>
         ) : (
-          <div className="passwords-list">
-            {passwords.map((pwd) => (
-              <div key={pwd.id} className={`password-item ${pwd.status}`}>
-                <div className="password-header">
-                  <div className="password-main">
-                    <code
-                      className="password-text"
-                      onClick={() => handleCopyPassword(pwd.password)}
-                      title="클릭하여 복사"
-                    >
-                      {pwd.password}
-                    </code>
-                    <span className={`status-badge ${pwd.status}`}>
-                      {pwd.status === 'active' ? '✅ 활성' : pwd.status === 'expired' ? '⏰ 만료' : '🚫 소진'}
-                    </span>
-                    <span className={`type-badge type-${pwd.type}`}>
-                      {pwd.type === 'workshop' ? '🎓 워크샵' : 
-                       pwd.type === 'consulting' ? '� 컨설팅' : '🔑 관리자'}
-                    </span>
+          <div className="sessions-list">
+            {sessions.map((session) => (
+              <div key={session.code} className="session-card">
+                <div className="session-main">
+                  <div className="session-name-row">
+                    <span className="session-name">{session.name || '이름 없음'}</span>
+                    <code className="session-code">{session.code}</code>
                   </div>
-                  <button
-                    onClick={() => handleDeletePassword(pwd.id, pwd.password)}
-                    className="delete-btn"
-                    title="삭제"
-                  >
-                    🗑️
-                  </button>
-                </div>
-
-                <div className="password-details">
-                  {pwd.description && <p className="description">{pwd.description}</p>}
-                  {pwd.sessionCode && (
-                    <p className="session-code">세션 코드: {pwd.sessionCode}</p>
-                  )}
-                  <div className="meta-info">
-                    <span>🕐 생성: {new Date(pwd.createdAt).toLocaleString()}</span>
-                    <span>⏰ 만료: {formatTimeRemaining(pwd.expiresAt)}</span>
-                    <span>📊 사용: {formatUsageInfo(pwd)}</span>
+                  <div className="session-meta">
+                    <span><Users size={14} /> {session.userCount || 0}명</span>
+                    <span><Clock size={14} /> {formatTime(session.lastActivity || session.createdAt)}</span>
                   </div>
                 </div>
+                <button 
+                  onClick={() => handleDeleteSession(session.code, session.name)}
+                  className="delete-session-btn"
+                  title="세션 삭제"
+                >
+                  <Trash2 size={18} />
+                </button>
               </div>
             ))}
           </div>
         )}
+      </section>
+
+      {/* 안내 */}
+      <div className="admin-footer">
+        <p>💡 <strong>팁:</strong> 호스트 비밀번호는 클라우드에 저장되어 모든 사용자가 공유합니다. 강사에게 이 비밀번호를 알려주세요.</p>
       </div>
-        </>
-      )}
-
-      {/* 세션 관리 탭 */}
-      {activeTab === 'sessions' && (
-        <>
-          <div className="admin-actions">
-            <button onClick={loadSessions} className="refresh-btn" disabled={loading}>
-              {loading ? '🔄 새로고침 중...' : '🔄 새로고침'}
-            </button>
-          </div>
-
-          <div className="sessions-container">
-            <h3>📂 활성 세션 목록 ({sessions.length}개)</h3>
-
-            {loading ? (
-              <div className="loading">⏳ 세션 목록을 불러오는 중...</div>
-            ) : sessions.length === 0 ? (
-              <div className="no-sessions">활성 세션이 없습니다.</div>
-            ) : (
-              <div className="sessions-list">
-                {sessions.map((session) => (
-                  <div key={session.code} className="session-item">
-                    <div className="session-header">
-                      <div className="session-main">
-                        <code className="session-code-text">{session.code}</code>
-                        <span className={`type-badge type-${session.type}`}>
-                          {session.type === 'workshop' ? '🎓 워크샵' : '💼 컨설팅'}
-                        </span>
-                        <span className="user-count">👥 {session.userCount}명</span>
-                      </div>
-                      <button
-                        onClick={() => handleDeleteSession(session.code)}
-                        className="delete-btn"
-                        title="세션 삭제"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-
-                    <div className="session-details">
-                      <p className="session-name">{session.name}</p>
-                      <div className="meta-info">
-                        <span>🕐 생성: {new Date(session.createdAt).toLocaleString()}</span>
-                        <span>⏰ 마지막 활동: {new Date(session.lastActivity).toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </>
-      )}
     </div>
   );
 };

@@ -97,7 +97,33 @@ const tools = [{
 
 ---
 
-## 🧠 Thinking Mode 설정
+## � 모델별 Function Calling 지원 여부 (2026.01 기준)
+
+> ⚠️ **중요**: 2.0 버전과 2.5 버전은 완전히 다릅니다!
+
+| 모델 | Function Calling | Parallel | Compositional | 권장 용도 |
+|------|------------------|----------|---------------|-----------|
+| **gemini-2.5-flash-lite** | ✅ | ✅ | ✅ | 저비용/고속 챗봇 **(기본 권장)** |
+| gemini-2.5-flash | ✅ | ✅ | ✅ | 균형 잡힌 성능 |
+| gemini-2.5-pro | ✅ | ✅ | ✅ | 복잡한 추론 |
+| gemini-3-flash | ✅ | ✅ | ✅ | 초고속 에이전틱 |
+| gemini-3-pro | ✅ | ✅ | ✅ | 플래그십 |
+| gemini-2.0-flash | ✅ | ✅ | ✅ | 2세대 표준 |
+| gemini-2.0-flash-lite | ❌ | ❌ | ❌ | **도구 사용 불가!** |
+| gemini-1.5-flash | ✅ | ✅ | ❌ | 레거시 호환 |
+
+### 🚨 흔한 실수: 2.0-flash-lite vs 2.5-flash-lite
+
+```
+❌ gemini-2.0-flash-lite → Function Calling 미지원 (도구 호출 불가!)
+✅ gemini-2.5-flash-lite → Function Calling 완벽 지원 (권장 모델)
+```
+
+버전 숫자 하나 차이로 도구 사용 가능 여부가 완전히 달라집니다.
+
+---
+
+## �🧠 Thinking Mode 설정
 
 ### Gemini 2.5 계열
 ```typescript

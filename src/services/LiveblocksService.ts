@@ -202,7 +202,7 @@ class LiveblocksService {
     /**
      * 특정 ID의 AI 메시지 내용을 업데이트합니다
      */
-    public updateAiResponse(id: string, content: string, functionCalls?: any[]): void {
+    public updateAiResponse(id: string, content?: string, functionCalls?: any[]): void {
         if (!this.yDoc) return;
         const messages = this.yDoc.getArray<ChatMessage>('chatMessages');
         const index = messages.toArray().findIndex(m => m.id === id);
@@ -210,8 +210,8 @@ class LiveblocksService {
             const current = messages.get(index);
             const updated: ChatMessage = {
                 ...current,
-                content,
-                suggestedActions: functionCalls || current.suggestedActions
+                content: content ?? current.content, // undefined면 기존 값 유지
+                suggestedActions: functionCalls ?? current.suggestedActions // undefined면 기존 값 유지
             };
             messages.delete(index);
             messages.insert(index, [updated]);
@@ -350,8 +350,154 @@ class LiveblocksService {
 
     private setupDataListeners(): void {
         if (!this.yDoc) return;
-        this.yDoc.getArray('nodes').observe(() => this.emit('notes-changed', this.yDoc!.getArray('nodes').toArray()));
-        this.yDoc.getArray('connections').observe(() => this.emit('connections-changed', this.yDoc!.getArray('connections').toArray()));
+        
+        // 노드 변경 감지 - 개별 노드마다 이벤트 발생
+        this.yDoc.getArray<StickyNoteData>('nodes').observe((event) => {
+            // 전체 목록 변경 이벤트
+            this.emit('notes-changed', this.yDoc!.getArray('nodes').toArray());
+            
+            // 개별 노드 변경 이벤트 (추가/수정)
+            event.changes.added.forEach((item) => {
+                const content = item.content as Y.AbstractType<unknown>;
+                if (content && 'toArray' in content) {
+                    const notes = content.toArray() as StickyNoteData[];
+                    notes.forEach((note: StickyNoteData) => {
+                        this.emit('sticky-note-updated', note);
+                    });
+                }
+            });
+            
+            // 삭제 이벤트
+            event.changes.deleted.forEach((item) => {
+                const content = item.content as Y.AbstractType<unknown>;
+                if (content && 'toArray' in content) {
+                    const notes = content.toArray() as StickyNoteData[];
+                    notes.forEach((note: StickyNoteData) => {
+                        this.emit('sticky-note-deleted', { noteId: note.id });
+                    });
+                }
+            });
+        });
+        
+        // 연결선 변경 감지 - 개별 연결선마다 이벤트 발생
+        this.yDoc.getArray<LBConnectionData>('connections').observe((event) => {
+            // 전체 목록 변경 이벤트
+            this.emit('connections-changed', this.yDoc!.getArray('connections').toArray());
+            
+            // 개별 연결선 변경 이벤트 (추가/수정)
+            event.changes.added.forEach((item) => {
+                const content = item.content as Y.AbstractType<unknown>;
+                if (content && 'toArray' in content) {
+                    const connections = content.toArray() as LBConnectionData[];
+                    connections.forEach((conn: LBConnectionData) => {
+                        this.emit('connection-updated', conn);
+                    });
+                }
+            });
+            
+            // 삭제 이벤트
+            event.changes.deleted.forEach((item) => {
+                const content = item.content as Y.AbstractType<unknown>;
+                if (content && 'toArray' in content) {
+                    const connections = content.toArray() as LBConnectionData[];
+                    connections.forEach((conn: LBConnectionData) => {
+                        this.emit('connection-deleted', { connectionId: conn.id });
+                    });
+                }
+            });
+        });
+    }
+
+    // ============================================
+    // 호스트 비밀번호 관리 (ADMIN-CONFIG Room 활용)
+    // ============================================
+    
+    private configDoc: Y.Doc | null = null;
+    private configProvider: LiveblocksYjsProvider | null = null;
+    private configLeave: (() => void) | null = null;
+
+    /**
+     * 관리자 설정 Room에 연결 (호스트 비밀번호 관리용)
+     */
+    private async connectToConfigRoom(): Promise<Y.Map<unknown>> {
+        if (!this.client) throw new Error('Liveblocks 클라이언트가 초기화되지 않았습니다.');
+        
+        // 이미 연결되어 있으면 기존 것 사용
+        if (this.configDoc) {
+            return this.configDoc.getMap<unknown>('adminConfig');
+        }
+        
+        this.configDoc = new Y.Doc();
+        const roomId = 'culturemap-admin-config';
+        
+        const { room, leave } = this.client.enterRoom(roomId, {
+            initialPresence: { cursor: null },
+        });
+        
+        this.configLeave = leave;
+        this.configProvider = new LiveblocksYjsProvider(room as any, this.configDoc);
+        
+        // 동기화 대기
+        await new Promise<void>((resolve) => {
+            const checkSync = () => {
+                if (this.configProvider?.synced) {
+                    resolve();
+                } else {
+                    setTimeout(checkSync, 100);
+                }
+            };
+            checkSync();
+        });
+        
+        return this.configDoc.getMap<unknown>('adminConfig');
+    }
+
+    /**
+     * 호스트 비밀번호 저장 (관리자만 사용)
+     */
+    public async setHostPassword(password: string): Promise<void> {
+        const config = await this.connectToConfigRoom();
+        config.set('hostPassword', password);
+        config.set('updatedAt', Date.now());
+        console.log('✅ 호스트 비밀번호 저장 완료');
+    }
+
+    /**
+     * 호스트 비밀번호 가져오기
+     */
+    public async getHostPassword(): Promise<string | null> {
+        const config = await this.connectToConfigRoom();
+        return (config.get('hostPassword') as string) || null;
+    }
+
+    /**
+     * 호스트 비밀번호 검증
+     */
+    public async validateHostPassword(inputPassword: string): Promise<boolean> {
+        const savedPassword = await this.getHostPassword();
+        if (!savedPassword) {
+            console.warn('⚠️ 호스트 비밀번호가 설정되지 않았습니다.');
+            return false;
+        }
+        return inputPassword === savedPassword;
+    }
+
+    /**
+     * 설정 Room 연결 해제
+     */
+    public disconnectConfigRoom(): void {
+        if (this.configProvider) {
+            this.configProvider.destroy();
+            this.configProvider = null;
+        }
+        if (this.configLeave) {
+            this.configLeave();
+            this.configLeave = null;
+        }
+        if (this.configDoc) {
+            this.configDoc.destroy();
+            this.configDoc = null;
+        }
     }
 }
 

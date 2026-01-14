@@ -7,7 +7,7 @@
  * - Tool Use (Function Calling) 지원
  */
 
-import { GoogleGenAI, createPartFromUri } from '@google/genai';
+import { GoogleGenAI, createPartFromUri, FunctionCallingConfigMode } from '@google/genai';
 import Anthropic from '@anthropic-ai/sdk';
 import { MAP_TOOL_DECLARATIONS } from '../types/actions';
 import { searchKnowledge } from '../data/academicKnowledge';
@@ -18,13 +18,16 @@ export interface AIConfig {
   provider: AIProvider;
   apiKey: string;
   modelName?: string;
+  autoExecuteFunctionCalls?: boolean; // true면 function call 자동 실행, false면 사용자 확인 후 실행
 }
 
 export interface FileMetadata {
   name: string;
+  displayName: string; // 원본 파일명
   uri: string;
   mimeType: string;
   state: string;
+  keywords?: string[]; // 키워드 (지능형 선택용)
 }
 
 /**
@@ -64,16 +67,16 @@ class AIService {
     try {
       const stored = localStorage.getItem('culture-map-ai-config');
       const defaultApiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      
+
       if (stored) {
         const config: AIConfig = JSON.parse(stored);
-        
+
         // API 키가 없거나 비어있는 경우 환경 변수에서 복구 시도
         if (!config.apiKey && defaultApiKey) {
-           config.apiKey = defaultApiKey;
-           console.log('📡 AI Service: Restored API Key from environment variables');
+          config.apiKey = defaultApiKey;
+          console.log('📡 AI Service: Restored API Key from environment variables');
         }
-        
+
         if (config.apiKey) {
           this.setConfig(config);
           console.log(`📡 AI Service initialized from storage: ${config.provider}`);
@@ -86,7 +89,7 @@ class AIService {
         this.setConfig({
           provider: 'gemini',
           apiKey: defaultApiKey,
-          modelName: 'gemini-2.5-flash-lite'
+          modelName: 'gemini-2.5-flash-lite'  // Function Calling 완벽 지원, 저비용/고속
         });
         console.log('📡 AI Service initialized from environment variables');
       }
@@ -112,7 +115,7 @@ class AIService {
   public startChat(history: any[] = []) {
     if (!this.geminiClient) throw new Error('Gemini API 설정을 먼저 완료해주세요.');
 
-    const modelName = this.currentConfig?.modelName || 'gemini-1.5-flash';
+    const modelName = this.currentConfig?.modelName || 'gemini-2.5-flash-lite';
     const isGemini3 = modelName.includes('gemini-3');
     const isGemini25 = modelName.includes('gemini-2.5');
 
@@ -127,7 +130,7 @@ class AIService {
     } else if (isGemini25) {
       // Gemini 2.5 사양: thinkingBudget 사용 (0은 비활성화, 양수는 토큰 예산)
       // E2E 테스트 및 일반 사용성 향상을 위해 1024 토큰으로 제한 (응답 지연 최소화)
-      thinkingConfig.thinkingBudget = 1024; 
+      thinkingConfig.thinkingBudget = 1024;
     } else {
       // Thinking 미지원 모델 (1.5 등)
       delete thinkingConfig.includeThoughts;
@@ -137,35 +140,36 @@ class AIService {
       model: modelName,
       config: {
         systemInstruction: `
-          조직문화 분석 전문가이자 데이브 그레이(Dave Gray)의 컬처맵(Culture Map) 모델 마스터로서 활동하세요.
-          
-          [대응 원칙]
-          - 사용자가 노드 추가, 수정, 삭제 등을 요청하면 반드시 제공된 도구(add_node, update_node 등)를 사용하여 실행하세요.
-          - 도구를 호출한 후에는 작업 내용을 간략히 설명하세요.
-          
-          [데이브 그레이 컬처맵 가이드라인]
-          1. 구조적 층위 및 공간 배치 (Top-to-Bottom):
-             - 맵은 4개의 층위로 구성되며, 각 층위의 실제 높이(px) 정보는 'canvasStructure.layerHeights'로 제공됩니다.
-             - Layer 1 (결과/Outcomes): 조직이 얻고자 하는 결과물. (Y축 시작점: 0)
-             - Layer 2 (행동/Behaviors): 결과에 직접적인 영향을 미치는 구성원들의 구체적 행동. (Y축 시작점: layerHeights[0])
-             - Layer 3 (유형 동인/Tangible Levers): 제도, 인프라, 프로세스 등 가시적 동인. (Y축 시작점: layerHeights[0] + layerHeights[1])
-             - Layer 4 (무형 동인/Intangible Levers): 가치관, 신념, 비공식 규칙 등 비가시적 동인. (Y축 시작점: layerHeights[0] + layerHeights[1] + layerHeights[2]) **최하단 배치**
-          
-          2. 논리적 흐름 및 연결 (Bottom-to-Top):
-             - **무형 동인(Layer 4) -> 유형 동인(Layer 3)**: 무형의 가치가 제도에 영향을 주는 흐름.
-             - **동인(Layer 3/4) -> 행동(Layer 2)**: 제도나 가치가 행동을 유발하는 흐름.
-             - **행동(Layer 2) -> 결과(Layer 1)**: 행동이 성과를 만드는 흐름.
-             - 인과관계의 선후관계에 맞춰 연결선(create_connection)을 생성하세요.
-          
-          3. 도구 활용 지침:
-             - 사용자의 질문에 답변할 때 학술적 근거가 필요하면 'search_academic_theory'를 사용하세요.
-             - 'canvasStructure'를 분석하여 노드가 특정 레이어에 너무 밀집되어 있거나 공간이 부족해 보이면 'adjust_layer_height'를 사용하여 공간을 확보하세요.
-             - 맵이 복잡해 보이면 'auto_layout'을 실행하여 전체를 정렬하세요. 노드를 추가/수정한 후에는 항상 'auto_layout'을 호출하여 층위 규격에 맞게 배치하는 것이 좋습니다.
+# Culture-MAP V2 AI 컨설턴트
+
+## 프로그램 소개
+Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론을 기반으로 한 **조직문화 진단 및 시각화 프로그램**입니다.
+
+### 핵심 기능
+- **4계층 문화 맵**: 결과(Outcomes) → 행동(Behaviors) → 유형 레버(Type Levers) → 무형 레버(Intangible Levers)
+- **노드 기반 시각화**: 각 레이어에 문화 요소를 노드로 추가하고 연결
+- **버크만 진단 통합**: 개인 성격 유형과 조직문화 연계 분석
+- **AI 컨설팅**: 학술 이론 기반 문화 진단 및 개선 전략 제안
+
+### 샤인 이론과의 연계
+- **Artifacts (인공물)** → 결과/행동 레이어
+- **Espoused Values (표방 가치)** → 유형 레버 레이어  
+- **Basic Assumptions (기본 가정)** → 무형 레버 레이어
+
+## 당신의 역할
+1. **문화 진단 전문가**: 샤인 이론, 로빈스 조직행동론 등 학술 지식 기반 분석
+2. **맵 편집 도우미**: 사용자 요청 시 노드 추가/수정/삭제 (도구 사용)
+3. **전략 컨설턴트**: 문화 변화 전략 및 실행 계획 제안
+
+## 도구 사용 규칙
+1. 노드 추가/수정 후 반드시 auto_layout 호출하여 정리
+2. 공간 부족 시 adjust_layer_height 호출
+3. 사용자가 명시적으로 노드 생성을 요청할 때만 도구 사용
         `,
         tools: [{ functionDeclarations: MAP_TOOL_DECLARATIONS as any }],
         toolConfig: {
           functionCallingConfig: {
-            mode: 'AUTO'
+            mode: FunctionCallingConfigMode.AUTO
           }
         },
         // thinkingConfig가 유효할 때만 포함
@@ -173,6 +177,9 @@ class AIService {
       },
       history: history as any
     });
+
+    console.log('🔧 [AIService] startChat: Model =', modelName, 'Tools count =', MAP_TOOL_DECLARATIONS.length);
+    console.log('🔧 [AIService] Tool names:', MAP_TOOL_DECLARATIONS.map((t: any) => t.name).join(', '));
 
     return this.chatSession;
   }
@@ -186,10 +193,14 @@ class AIService {
     }
 
     const parts: any[] = [{ text: prompt }];
-    this.academicFiles.forEach(file => {
-      parts.push(createPartFromUri(file.uri, file.mimeType));
-    });
+
+    // [토큰 최적화] PDF 자동 로드 제거 - AI가 load_academic_knowledge 도구로 필요시에만 로드
+    // 이제 AI가 동적으로 판단하여 학술 지식이 필요할 때만 도구를 호출합니다.
+    // 기존 자동 로드 로직은 selectRelevantFiles()로 이동되어 도구 호출 시 사용됩니다.
+
+    // 채팅창을 통해 직접 업로드된 파일 (버크만 레포트 등 참가자 자료)
     if (fileUri && mimeType) {
+      console.log('📄 [AIService] Including session participant data (uploaded file)');
       parts.push(createPartFromUri(fileUri, mimeType));
     }
 
@@ -197,7 +208,7 @@ class AIService {
     let streamResult;
     try {
       console.log('📡 [AIService] Calling sendMessageStream...');
-      
+
       // @google/genai v2.0 SDK: sendMessageStream는 { message: string | PartUnion[] } 형식 필요
       // 단일 텍스트만 있으면 문자열로, 파일 포함 시 parts 배열로 전달
       if (parts.length === 1 && parts[0].text) {
@@ -205,7 +216,7 @@ class AIService {
       } else {
         streamResult = await this.chatSession!.sendMessageStream({ message: parts });
       }
-      
+
       console.log('📡 [AIService] sendMessageStream request sent, waiting for chunks...');
     } catch (err) {
       console.error('❌ [AIService] Error starting stream:', err);
@@ -222,24 +233,28 @@ class AIService {
     try {
       for await (const chunk of streamResult) {
         chunkCount++;
-        
-        // chunk.text 접근 (v2.0 SDK 방식)
-        const chunkText = chunk.text || '';
-        
-        // candidates에서 추가 정보 추출 (사고 과정, 함수 호출 등)
+
+        // candidates에서 parts 직접 추출 (chunk.text 접근 시 SDK 내부 경고 방지)
         const candidates = (chunk as any).candidates;
         const parts = candidates?.[0]?.content?.parts || [];
-        
+
+        // parts에서 텍스트, 사고 과정, 함수 호출 분리 추출
+        let chunkText = '';
         for (const part of parts) {
           if (part.thought) {
+            // 사고 과정 (Thinking)
             const thoughtText = typeof part.thought === 'string' ? part.thought : part.text;
             if (thoughtText) {
               this.currentThoughts.push(thoughtText);
               yield { type: 'thought', content: thoughtText };
             }
           } else if (part.functionCall) {
-            console.log('🛠️ [AIService] Function Call detected in stream:', part.functionCall.name);
+            // 함수 호출 (Function Call)
+            console.log('🛠️ [AIService] Function Call detected:', part.functionCall.name, 'args:', JSON.stringify(part.functionCall.args));
             accumulatedFunctionCalls.push(part.functionCall);
+          } else if (part.text) {
+            // 일반 텍스트만 추출
+            chunkText += part.text;
           }
         }
 
@@ -254,10 +269,102 @@ class AIService {
       yield { type: 'text', content: '\n[심각한 스트리밍 오류가 발생했습니다. 잠시 후 다시 시도해주세요.]', fullText: fullText + '\n[Error]' };
     }
 
-    // 스트림 종료 후 툴 호출 정보가 있으면 마지막으로 전달
-    if (accumulatedFunctionCalls.length > 0) {
-      console.log('📡 [AIService] Dispatching accumulated function calls:', accumulatedFunctionCalls.length);
-      yield { type: 'actions', actions: accumulatedFunctionCalls };
+    // 내부 도구 (load_academic_knowledge, search_academic_theory)는 자동 처리, 나머지만 외부로 dispatch
+    const internalTools = ['search_academic_theory', 'load_academic_knowledge'];
+    const externalActions = accumulatedFunctionCalls.filter(fc => !internalTools.includes(fc.name));
+    const internalActions = accumulatedFunctionCalls.filter(fc => internalTools.includes(fc.name));
+
+    // 내부 도구 자동 처리 (학술 지식 검색 등)
+    for (const internalCall of internalActions) {
+      // [신규] AI가 동적으로 PDF 로드 요청
+      if (internalCall.name === 'load_academic_knowledge') {
+        const topic = internalCall.args?.topic || '';
+        console.log('📚 [AIService] AI requested academic knowledge:', topic);
+        
+        // PDF 선택 (AI가 제공한 topic 기반)
+        const selectedFile = this.selectRelevantFilesForTopic(topic);
+        
+        if (selectedFile) {
+          console.log('📚 [AIService] Loading PDF:', selectedFile.displayName);
+          
+          // PDF를 포함하여 후속 응답 생성
+          try {
+            const followUp = await this.chatSession!.sendMessage({
+              message: [
+                { text: `[시스템] "${topic}" 관련 학술 자료를 로드했습니다. 이 자료를 참고하여 답변해주세요.` },
+                createPartFromUri(selectedFile.uri, selectedFile.mimeType)
+              ]
+            });
+            
+            const followUpParts = followUp.response?.candidates?.[0]?.content?.parts || [];
+            for (const part of followUpParts) {
+              if (part.text) {
+                fullText += '\n\n' + part.text;
+                yield { type: 'text', content: '\n\n' + part.text, fullText };
+              } else if (part.functionCall && !internalTools.includes(part.functionCall.name)) {
+                externalActions.push(part.functionCall);
+              }
+            }
+          } catch (err) {
+            console.error('❌ [AIService] Error loading academic PDF:', err);
+            yield { type: 'text', content: '\n\n[학술 자료 로드 중 오류가 발생했습니다]', fullText: fullText + '\n\n[Error]' };
+          }
+        } else {
+          // PDF 없으면 하드코딩된 지식으로 폴백
+          console.log('📚 [AIService] No PDF found, falling back to static knowledge');
+          const knowledgeResult = searchKnowledge(topic);
+          
+          try {
+            const followUp = await this.chatSession!.sendMessage({
+              message: `[시스템] 관련 학술 지식: ${knowledgeResult}`
+            });
+            
+            const followUpParts = followUp.response?.candidates?.[0]?.content?.parts || [];
+            for (const part of followUpParts) {
+              if (part.text) {
+                fullText += '\n\n' + part.text;
+                yield { type: 'text', content: '\n\n' + part.text, fullText };
+              }
+            }
+          } catch (err) {
+            console.error('❌ [AIService] Error with fallback knowledge:', err);
+          }
+        }
+      }
+      // [레거시] 기존 search_academic_theory 호환
+      else if (internalCall.name === 'search_academic_theory') {
+        console.log('🔍 [AIService] Auto-handling internal tool: search_academic_theory');
+        const knowledgeResult = searchKnowledge(internalCall.args?.topic || '');
+
+        // 검색 결과를 AI에게 다시 전달하여 후속 응답 생성
+        try {
+          const followUp = await this.chatSession!.sendMessage([{
+            functionResponse: {
+              name: 'search_academic_theory',
+              response: { content: knowledgeResult }
+            }
+          }]);
+
+          // 후속 응답에서 텍스트와 function call 추출
+          const followUpParts = followUp.response?.candidates?.[0]?.content?.parts || [];
+          for (const part of followUpParts) {
+            if (part.text) {
+              fullText += '\n\n' + part.text;
+              yield { type: 'text', content: '\n\n' + part.text, fullText };
+            } else if (part.functionCall && !internalTools.includes(part.functionCall.name)) {
+              externalActions.push(part.functionCall);
+            }
+          }
+        } catch (err) {
+          console.error('❌ [AIService] Error processing internal tool response:', err);
+        }
+      }
+    }
+
+    // 맵 조작 도구만 외부로 dispatch
+    if (externalActions.length > 0) {
+      console.log('📡 [AIService] Dispatching external actions:', externalActions.map(a => a.name).join(', '));
+      yield { type: 'actions', actions: externalActions };
     }
   }
 
@@ -271,8 +378,9 @@ class AIService {
 
     const parts: any[] = [{ text: prompt }];
 
-    // 등록된 학술 지식 파일들을 컨텍스트로 추가
-    this.academicFiles.forEach(file => {
+    // 등록된 학술 지식 파일 중 관련성 높은 파일만 동적으로 추가
+    const selectedFiles = this.selectRelevantFiles(prompt, 1);
+    selectedFiles.forEach(file => {
       parts.push(createPartFromUri(file.uri, file.mimeType));
     });
 
@@ -405,12 +513,80 @@ class AIService {
 
     if (fileStatus.state === 'FAILED') throw new Error('PDF 파일 처리에 실패했습니다.');
 
+    // 파일명에서 키워드 추출
+    const keywords = this.extractKeywords(file.name);
+
     return {
       name: uploadedFile.name!,
+      displayName: file.name, // 원본 파일명 저장
       uri: uploadedFile.uri!,
       mimeType: uploadedFile.mimeType!,
       state: fileStatus.state!,
+      keywords,
     };
+  }
+
+  /**
+   * 파일명에서 키워드 추출
+   */
+  private extractKeywords(fileName: string): string[] {
+    const keywords: string[] = [];
+    const lowerName = fileName.toLowerCase();
+
+    // 주요 주제 키워드 매핑
+    const keywordMap: Record<string, string[]> = {
+      'berkman': ['버크만', 'berkman', '진단', '레포트', '성격', '유형'],
+      'organizational_behavior': ['로빈스', 'robbins', 'organizational', 'behavior', '조직행동', '행동'],
+      'edgar_schein': ['샤인', 'schein', 'culture', '문화', '리더십', 'leadership'],
+      'od_change': ['cummings', 'worley', 'organization development', 'od', '조직개발', '변화', 'change'],
+    };
+
+    for (const [, kws] of Object.entries(keywordMap)) {
+      if (kws.some(kw => lowerName.includes(kw))) {
+        keywords.push(...kws);
+      }
+    }
+
+    return [...new Set(keywords)];
+  }
+
+  /**
+      for (const keyword of keywords) {
+        if (lowerPrompt.includes(keyword.toLowerCase())) {
+          score += 10; // 키워드 매칭 시 점수 부여
+        }
+      }
+
+      // displayName에서 직접 매칭 확인
+      const displayName = (file.displayName || '').toLowerCase();
+      if (lowerPrompt.includes('버크만') && displayName.includes('버크만')) score += 20;
+      if (lowerPrompt.includes('문화') && displayName.includes('문화')) score += 15;
+      if (lowerPrompt.includes('샤인') && displayName.includes('샤인')) score += 20;
+      if (lowerPrompt.includes('조직') && displayName.includes('organizational')) score += 10;
+      if (lowerPrompt.includes('행동') && displayName.includes('behavior')) score += 10;
+      if (lowerPrompt.includes('변화') && displayName.includes('change')) score += 10;
+
+      return { file, score };
+    });
+
+    // 점수순 정렬 후 상위 N개만 선택 (점수가 0인 파일은 제외)
+    const selected = scoredFiles
+      .filter(sf => sf.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxFiles)
+      .map(sf => sf.file);
+
+    // 관련 파일이 없으면 가장 작은 파일 1개만 선택 (버크만 레포트 우선)
+    if (selected.length === 0 && this.academicFiles.length > 0) {
+      const berkmanFile = this.academicFiles.find(f =>
+        (f.displayName || f.name).toLowerCase().includes('버크만')
+      );
+      if (berkmanFile) {
+        return [berkmanFile];
+      }
+    }
+
+    return selected;
   }
 
   /**
@@ -435,6 +611,132 @@ class AIService {
   public removeAcademicFile(fileName: string) {
     this.academicFiles = this.academicFiles.filter(f => f.name !== fileName);
     localStorage.setItem('culture-map-academic-files', JSON.stringify(this.academicFiles));
+  }
+  /**
+   * 프롬프트와 관련된 파일만 선택 (지능형 선택)
+   * 1000페이지 제한(INVALID_ARGUMENT) 방지를 위해 최대 1개만 선택하도록 변경
+   * 
+   * [토큰 비용 최적화] 학술 지식이 필요한 질문에만 PDF 로드
+   */
+  private selectRelevantFiles(prompt: string, maxFiles: number = 1): FileMetadata[] {
+    if (this.academicFiles.length === 0) return [];
+
+    const lowerPrompt = prompt.toLowerCase();
+
+    // [1단계] 학술 지식이 필요한 질문인지 먼저 판단
+    // 단순 인사, 노드 생성 요청, 일반 대화에는 PDF 로드 안 함 (토큰 절약)
+    const academicKeywords = [
+      // 이론가/학자 이름
+      '샤인', 'schein', '에드가', 'edgar', '로빈스', 'robbins', 'cummings', 'worley',
+      // 학술 개념
+      '이론', '관점', '모델', '프레임워크', '원리', '원칙', '연구', '학술',
+      '인공물', 'artifact', '가정', 'assumption', '가치', 'value',
+      '조직문화', '조직행동', '리더십', '변화관리', 'od', '조직개발',
+      // 분석 요청
+      '분석', '진단', '평가', '해석', '설명', '비교', '적용',
+      '장점', '단점', '의미', '가치', '중요성', '시사점'
+    ];
+
+    const needsAcademicKnowledge = academicKeywords.some(kw => lowerPrompt.includes(kw));
+    
+    if (!needsAcademicKnowledge) {
+      console.log('📚 [AIService] No academic knowledge needed for this prompt - skipping PDF load');
+      return [];
+    }
+
+    // [2단계] 각 파일의 관련도 점수 계산
+    const scoredFiles = this.academicFiles.map(file => {
+      let score = 0;
+      const keywords = file.keywords || this.extractKeywords(file.displayName || file.name);
+
+      for (const keyword of keywords) {
+        if (lowerPrompt.includes(keyword.toLowerCase())) {
+          score += 10;
+        }
+      }
+
+      // displayName에서 직접 매칭 확인
+      const displayName = (file.displayName || '').toLowerCase();
+
+      // 사용자 지침 반영: '버크만'은 전문지식베이스가 아닌 채팅 업로드로 들어오므로 
+      // 전문지식베이스에서는 선택 우선순위를 낮춤 (중복 제거용)
+      if (displayName.includes('버크만')) score -= 50;
+
+      if (lowerPrompt.includes('샤인') && displayName.includes('샤인')) score += 30;
+      if (lowerPrompt.includes('에드가') && displayName.includes('에드가')) score += 20;
+      if (lowerPrompt.includes('로빈스') && displayName.includes('robbins')) score += 30;
+      if (lowerPrompt.includes('조직행동') && displayName.includes('behavior')) score += 20;
+      if (lowerPrompt.includes('문화') && displayName.includes('culture')) score += 10;
+      if (lowerPrompt.includes('개발') && (displayName.includes('development') || displayName.includes('change'))) score += 15;
+
+      return { file, score };
+    });
+
+    // 점수순 정렬 후 상위 N개 선택 (점수가 0보다 큰 것만)
+    const selected = scoredFiles
+      .filter(sf => sf.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxFiles)
+      .map(sf => sf.file);
+
+    // [토큰 최적화] 키워드 매칭 점수가 0이면 PDF 로드하지 않음
+    // 1단계에서 이미 학술 지식 필요 여부를 판단했으므로, 
+    // 점수가 0이면 특정 서적을 참조할 필요 없이 시스템 프롬프트로 충분
+    if (selected.length === 0) {
+      console.log('📚 [AIService] No specific academic file matched - using system knowledge only');
+      return [];
+    }
+
+    return selected;
+  }
+
+  /**
+   * AI 도구 호출용: 주제 기반 PDF 선택 (단일 파일 반환)
+   * AI가 load_academic_knowledge 도구를 호출할 때 사용
+   */
+  private selectRelevantFilesForTopic(topic: string): FileMetadata | null {
+    if (this.academicFiles.length === 0) return null;
+
+    const lowerTopic = topic.toLowerCase();
+
+    // 주제별 파일 매칭 (AI가 전달한 topic 기반)
+    const scoredFiles = this.academicFiles.map(file => {
+      let score = 0;
+      const displayName = (file.displayName || file.name).toLowerCase();
+
+      // 에드가 샤인 관련
+      if ((lowerTopic.includes('샤인') || lowerTopic.includes('schein') || lowerTopic.includes('에드가')) &&
+          (displayName.includes('샤인') || displayName.includes('schein') || displayName.includes('culture'))) {
+        score += 50;
+      }
+
+      // 로빈스 조직행동론 관련
+      if ((lowerTopic.includes('로빈스') || lowerTopic.includes('robbins') || lowerTopic.includes('조직행동')) &&
+          (displayName.includes('robbins') || displayName.includes('behavior') || displayName.includes('organizational'))) {
+        score += 50;
+      }
+
+      // 조직개발/변화관리 관련
+      if ((lowerTopic.includes('변화') || lowerTopic.includes('개발') || lowerTopic.includes('od') || lowerTopic.includes('change')) &&
+          (displayName.includes('change') || displayName.includes('development') || displayName.includes('cummings'))) {
+        score += 50;
+      }
+
+      // 버크만은 제외 (별도 채팅 업로드로 처리)
+      if (displayName.includes('버크만')) score -= 100;
+
+      // 일반 키워드 매칭
+      const keywords = file.keywords || [];
+      for (const kw of keywords) {
+        if (lowerTopic.includes(kw.toLowerCase())) score += 10;
+      }
+
+      return { file, score };
+    });
+
+    // 최고 점수 파일 반환
+    const best = scoredFiles.filter(sf => sf.score > 0).sort((a, b) => b.score - a.score)[0];
+    return best?.file || null;
   }
 
   /**
@@ -485,12 +787,13 @@ class AIService {
 
   public getAvailableGeminiModels(): string[] {
     return [
-      'gemini-3-flash-thinking',
-      'gemini-3-flash',
-      'gemini-3-pro',
-      'gemini-2.5-pro',
-      'gemini-2.5-flash',
-      'gemini-2.5-flash-lite'
+      'gemini-1.5-flash',        // 100만 토큰, Function Calling 지원
+      'gemini-2.0-flash',        // 100만 토큰, Function Calling 지원
+      'gemini-2.5-flash',        // 100만 토큰, Function Calling 지원, 추론 강화
+      'gemini-2.5-flash-lite',   // 100만 토큰, Function Calling 지원, 저비용/고속
+      'gemini-3-flash-thinking', // Thinking 지원
+      'gemini-3-flash',          // 20만 토큰, 초고속 에이전틱
+      'gemini-3-pro',            // 100만 토큰, 플래그십
     ];
   }
 }

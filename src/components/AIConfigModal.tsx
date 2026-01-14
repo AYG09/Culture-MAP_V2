@@ -13,6 +13,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
     const [provider, setProvider] = useState<AIProvider>(currentConfig?.provider || 'gemini');
     const [apiKey, setApiKey] = useState(currentConfig?.apiKey || '');
     const [modelName, setModelName] = useState(currentConfig?.modelName || (provider === 'gemini' ? 'gemini-3-flash-thinking' : 'claude-3-5-sonnet-20241022'));
+    const [autoExecute, setAutoExecute] = useState(currentConfig?.autoExecuteFunctionCalls || false);
     const [isSaved, setIsSaved] = useState(false);
     const [showKey, setShowKey] = useState(false);
 
@@ -32,7 +33,8 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
         const newConfig: AIConfig = {
             provider,
             apiKey: apiKey.trim(),
-            modelName: modelName.trim()
+            modelName: modelName.trim(),
+            autoExecuteFunctionCalls: autoExecute
         };
         aiService.setConfig(newConfig);
         setIsSaved(true);
@@ -166,6 +168,28 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                         </p>
                     </div>
 
+                    {/* AI 액션 자동 실행 설정 */}
+                    <div className="config-section">
+                        <label className="section-label">AI 액션 실행 모드</label>
+                        <div className="toggle-row">
+                            <span className="toggle-label">
+                                {autoExecute ? '🚀 자동 실행' : '✋ 수동 확인'}
+                            </span>
+                            <button
+                                className={`toggle-switch ${autoExecute ? 'active' : ''}`}
+                                onClick={() => setAutoExecute(!autoExecute)}
+                                type="button"
+                            >
+                                <span className="toggle-knob" />
+                            </button>
+                        </div>
+                        <p className="help-text">
+                            {autoExecute
+                                ? '⚡ AI가 제안하는 노드 추가/수정이 즉시 캔버스에 반영됩니다.'
+                                : '🛡️ AI 제안을 확인 후 "캔버스에 적용" 버튼을 눌러야 반영됩니다.'}
+                        </p>
+                    </div>
+
                     {/* 전문가 지식 베이스 섹션 (Gemini 전용) */}
                     {provider === 'gemini' && (
                         <div className="academic-section">
@@ -182,7 +206,9 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                                     <div key={idx} className="file-item">
                                         <div className="file-info">
                                             <FileText size={14} />
-                                            <span className="file-name">{file.name.replace('files/', '')}</span>
+                                            <span className="file-name" title={file.displayName || file.name}>
+                                                {file.displayName || file.name.replace('files/', '')}
+                                            </span>
                                         </div>
                                         <button className="remove-file-btn" onClick={() => handleRemoveFile(file.name)}>
                                             <Trash2 size={14} />
