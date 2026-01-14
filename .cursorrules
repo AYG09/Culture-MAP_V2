@@ -1,0 +1,25 @@
+# Culture-MAP V2 AI Coding Agent Rules
+
+All AI agents (Copilot, Cursor, etc.) working on this project MUST follow the workflows and skills defined in the `.agent/` directory.
+
+## 🛠 Required Workflows
+
+1. **MCP Workflow** ([.agent/workflows/MCP.md](.agent/workflows/MCP.md)):
+   - Before starting any task, perform deep analysis using Sequential Thinking.
+   - Always verify SDK/library best practices using Context7 and Tavily.
+   - Do NOT trust existing code patterns; verify against 2025/2026 documentation.
+
+2. **Doc-Guided Optimization** ([.agent/skills/doc-guided-optimization/SKILL.md](.agent/skills/doc-guided-optimization/SKILL.md)):
+   - Prioritize performance (React rendering, Liveblocks sync).
+   - Use latest Gemini models (e.g., `gemini-2.5-flash-lite`).
+   - Implement "Thinking" capabilities for complex reasoning.
+
+3. **SDK Version Check** ([.agent/skills/sdk-version-check/SKILL.md](.agent/skills/sdk-version-check/SKILL.md)):
+   - Verify if libraries are deprecated (e.g., use `@google/genai` instead of `@google/generative-ai`).
+
+## 📋 Operational Rules
+
+- Always break down tasks into an `implementation_plan.md`.
+- Use `mcp_context7` for documentation queries before `mcp_tavily`.
+- When modifying AI logic, ensure the `thinkingBudget` or `thinkingLevel` is correctly set based on the model version.
+- Use atomic commits and task-based progress tracking.

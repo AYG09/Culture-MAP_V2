@@ -2,8 +2,8 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './playwright',
-  /* 테스트 실행 시간 제한 */
-  timeout: 30 * 1000,
+  /* 테스트 실행 시간 제한 - AI 응답 시간을 고려하여 상향 */
+  timeout: 120 * 1000,
   expect: {
     /**
      * expect()의 최대 대기 시간.
@@ -17,7 +17,7 @@ export default defineConfig({
   /* 리포터 설정 */
   reporter: 'html',
   webServer: {
-    command: 'npm run dev',
+    command: 'npm run dev > server-log.txt 2>&1',
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,

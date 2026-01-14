@@ -180,6 +180,44 @@ class LiveblocksService {
         messages.push([newMessage]);
     }
 
+    /**
+     * AI의 초기 빈 메시지를 생성하고 ID를 반환합니다 (스트리밍 용)
+     */
+    public startAiResponse(): string {
+        if (!this.yDoc) return '';
+        const messages = this.yDoc.getArray<ChatMessage>('chatMessages');
+        const id = `ai-stream-${Date.now()}`;
+        const newMessage: ChatMessage = {
+            id,
+            role: 'assistant',
+            content: '',
+            userName: 'AI Assistant',
+            userColor: '#8b5cf6',
+            timestamp: Date.now()
+        };
+        messages.push([newMessage]);
+        return id;
+    }
+
+    /**
+     * 특정 ID의 AI 메시지 내용을 업데이트합니다
+     */
+    public updateAiResponse(id: string, content: string, functionCalls?: any[]): void {
+        if (!this.yDoc) return;
+        const messages = this.yDoc.getArray<ChatMessage>('chatMessages');
+        const index = messages.toArray().findIndex(m => m.id === id);
+        if (index !== -1) {
+            const current = messages.get(index);
+            const updated: ChatMessage = {
+                ...current,
+                content,
+                suggestedActions: functionCalls || current.suggestedActions
+            };
+            messages.delete(index);
+            messages.insert(index, [updated]);
+        }
+    }
+
     public getChatMessages(): ChatMessage[] {
         if (!this.yDoc) return [];
         return this.yDoc.getArray<ChatMessage>('chatMessages').toArray();

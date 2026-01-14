@@ -117,13 +117,7 @@ const SessionManager: React.FC<SessionManagerProps> = ({
 
     try {
       const upperCode = sessionCode.toUpperCase();
-      const isValid = await liveblocksService.validateSession(upperCode);
-
-      if (!isValid) {
-        setError('유효하지 않은 세션 코드입니다.');
-        return;
-      }
-
+      // validateSession 대신 joinSession을 직접 호출하여 존재 여부 확인 (room 입장 시 실패하면 catch로 이동)
       await liveblocksService.joinSession(upperCode, false);
 
       const sessionData = {
@@ -137,7 +131,7 @@ const SessionManager: React.FC<SessionManagerProps> = ({
       onSessionJoined?.(upperCode, false);
       onClose?.();
     } catch (err) {
-      setError('세션 참가에 실패했습니다.');
+      setError('세션 참가에 실패했습니다. 코드를 확인해주세요.');
       console.error('Failed to join session:', err);
     } finally {
       setIsValidating(false);

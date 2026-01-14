@@ -34,17 +34,50 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isLoading, uploadProgress]);
 
+    // Liveblocks 채팅 메시지 구독 - 세션 연결 후 재구독 필요
     useEffect(() => {
-        const unsub = liveblocksService.onChatMessages((msgs) => {
-            setMessages(msgs);
-        });
-
-        const initialMsgs = liveblocksService.getChatMessages();
-        if (initialMsgs.length > 0) {
-            setMessages(initialMsgs);
+        let unsub: (() => void) | null = null;
+        let retryCount = 0;
+        const maxRetries = 10;
+        
+        const setupSubscription = () => {
+            // 이미 연결되어 있으면 구독 설정
+            if (liveblocksService.isConnected()) {
+                console.log('🔗 [AIChatSidebar] Setting up Liveblocks chat subscription');
+                unsub = liveblocksService.onChatMessages((msgs) => {
+                    console.log('💬 [AIChatSidebar] Chat messages updated:', msgs.length);
+                    setMessages(msgs);
+                });
+                
+                const initialMsgs = liveblocksService.getChatMessages();
+                if (initialMsgs.length > 0) {
+                    setMessages(initialMsgs);
+                }
+                return true;
+            }
+            return false;
+        };
+        
+        // 즉시 시도
+        if (!setupSubscription()) {
+            // 연결되지 않은 경우 폴링으로 재시도
+            const intervalId = setInterval(() => {
+                retryCount++;
+                if (setupSubscription() || retryCount >= maxRetries) {
+                    clearInterval(intervalId);
+                    if (retryCount >= maxRetries) {
+                        console.warn('⚠️ [AIChatSidebar] Liveblocks connection timeout, using local mode');
+                    }
+                }
+            }, 500);
+            
+            return () => {
+                clearInterval(intervalId);
+                unsub?.();
+            };
         }
 
-        return () => unsub();
+        return () => unsub?.();
     }, []);
 
     // 맵 상태 분석 기반 동적 제안 리스트 생성
@@ -93,52 +126,110 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
         if (!overrideText) setInputValue('');
         setIsLoading(true);
 
+        // 현재 맵 상태를 텍스트로 요약 (AI 컨텍스트용)
+        const contextString = `[현재 컬처맵 컨텍스트]
+- 노드 수: ${_notes.length}개
+- 노드 목록: ${_notes.map(n => `[${n.type}] ${n.text}`).join(', ')}
+- 연결 관계: ${_connections.map(c => {
+    const fromNode = _notes.find(n => n.id === c.from);
+    const toNode = _notes.find(n => n.id === c.to);
+    return `${fromNode?.text || '?'} -> ${toNode?.text || '?'}`;
+}).join(', ')}`;
+
+        let fileUri: string | undefined;
+        let mimeType: string | undefined;
+
         try {
+            console.log('💬 [AIChatSidebar] Sending message:', currentText);
             // 메시지 전송 시작
             if (currentText.trim()) {
                 liveblocksService.sendChatMessage(currentText);
             }
-
-            let fileUri: string | undefined;
-            let mimeType: string | undefined;
-
+            
+            // 파일 업로드 처리 (있는 경우 첫 번째 파일만)
             if (attachments.length > 0) {
-                setUploadProgress('파일 분석 중...');
-                const metadata = await aiService.uploadPDF(attachments[0]);
-                fileUri = metadata.uri;
-                mimeType = metadata.mimeType;
-                setUploadProgress(null);
-            }
-
-            // 현재 맵 상태를 요약하여 컨텍스트로 생성
-            const mapContext = {
-                notes: _notes.map(n => ({
-                    id: n.id,
-                    content: n.content, // text -> content
-                    type: n.type,
-                    layer: n.layer,
-                    sentiment: n.sentiment,
-                    intensity: n.perceptionIntensity
-                })),
-                connections: _connections.map(c => ({
-                    sourceId: c.sourceId,
-                    targetId: c.targetId,
-                    description: c.description || c.relationType,
-                    isPositive: c.isPositive
-                })),
-                canvasStructure: {
-                    layerHeights,
-                    totalHeight: layerHeights.reduce((a, b) => a + b, 0)
+                try {
+                    setUploadProgress('파일 업로드 중...');
+                    const metadata = await aiService.uploadPDF(attachments[0]);
+                    fileUri = metadata.uri;
+                    mimeType = metadata.mimeType;
+                } catch (uploadErr) {
+                    console.error('File upload failed:', uploadErr);
+                    setUploadProgress('업로드 실패');
                 }
-            };
-            const contextString = `[Current Map State]\n${JSON.stringify(mapContext, null, 2)}\n\n[Instruction] 위 맵 상태를 참고하여 사용자의 요청을 수행하세요. 기존 노드는 가급적 유지하고 필요할 때만 추가/수정/삭제하세요.`;
-
-            const response = await aiService.sendChatMessage(
-                `${contextString}\n\n[User Message]\n${currentText || '첨부된 파일을 분석해주세요.'}`,
+            }
+            
+            console.log('🤖 [AIChatSidebar] Requesting AI Stream...');
+            // 스트리밍 시작
+            const aiStream = aiService.sendChatMessageStream(
+                `${contextString}\n\n[사용자 메시지]\n${currentText || '첨부된 파일을 분석해주세요.'}`,
                 fileUri,
                 mimeType
             );
-            liveblocksService.sendAiResponse(response.text, response.functionCalls);
+
+            let aiMsgId = '';
+            let finalActions: any[] = [];
+            let isFirstChunk = true;
+
+            // 30초 타임아웃 설정 (응답 지연 시 무한 로딩 방지)
+            const responseTimeout = setTimeout(() => {
+                if (isFirstChunk) {
+                    console.warn('⌛ [AIChatSidebar] AI Response Timeout (30s)');
+                    setIsLoading(false);
+                    const timeoutId = liveblocksService.startAiResponse();
+                    liveblocksService.updateAiResponse(timeoutId, 'AI 응답이 30초 이상 지연되어 연결을 중단했습니다. 인터넷 연결을 확인하거나 Gemini API 할당량을 확인해주세요.');
+                }
+            }, 30000);
+
+            try {
+                for await (const chunk of aiStream) {
+                    if (isFirstChunk) {
+                        console.log('🤖 [AIChatSidebar] AI First chunk received!');
+                        clearTimeout(responseTimeout);
+                        setIsLoading(false); // 스트리밍이 시작되면 일반 로딩 인디케이터 숨김
+                        aiMsgId = liveblocksService.startAiResponse();
+                        console.log('🤖 [AIChatSidebar] AI Message ID created:', aiMsgId);
+                        isFirstChunk = false;
+                        
+                        // Liveblocks가 연결되지 않은 경우 로컬 상태로 폴백
+                        if (!aiMsgId) {
+                            console.warn('⚠️ [AIChatSidebar] Liveblocks not connected, using local state');
+                            const localMsgId = `local-ai-${Date.now()}`;
+                            aiMsgId = localMsgId;
+                            setMessages(prev => [...prev, {
+                                id: localMsgId,
+                                role: 'assistant',
+                                content: '',
+                                timestamp: Date.now()
+                            }]);
+                        }
+                    }
+                    
+                    if (chunk.type === 'text') {
+                        console.log('🤖 [AIChatSidebar] Received text chunk, fullText length:', chunk.fullText?.length);
+                        // Liveblocks 연결 시
+                        if (aiMsgId && !aiMsgId.startsWith('local-')) {
+                            liveblocksService.updateAiResponse(aiMsgId, chunk.fullText || '');
+                        } else {
+                            // 로컬 상태 업데이트
+                            setMessages(prev => prev.map(m => 
+                                m.id === aiMsgId ? { ...m, content: chunk.fullText || '' } : m
+                            ));
+                        }
+                    } else if (chunk.type === 'actions') {
+                        finalActions = chunk.actions || [];
+                        if (aiMsgId && !aiMsgId.startsWith('local-')) {
+                            liveblocksService.updateAiResponse(aiMsgId, undefined as any, finalActions);
+                        } else {
+                            setMessages(prev => prev.map(m =>
+                                m.id === aiMsgId ? { ...m, suggestedActions: finalActions } : m
+                            ));
+                        }
+                    }
+                }
+            } finally {
+                clearTimeout(responseTimeout);
+            }
 
         } catch (error: any) {
             console.error('Chat error:', error);

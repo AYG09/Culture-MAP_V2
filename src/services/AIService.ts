@@ -63,20 +63,30 @@ class AIService {
   public initializeFromStorage() {
     try {
       const stored = localStorage.getItem('culture-map-ai-config');
+      const defaultApiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      
       if (stored) {
         const config: AIConfig = JSON.parse(stored);
-        this.setConfig(config);
-        console.log(`📡 AI Service initialized from storage: ${config.provider}`);
-        return;
+        
+        // API 키가 없거나 비어있는 경우 환경 변수에서 복구 시도
+        if (!config.apiKey && defaultApiKey) {
+           config.apiKey = defaultApiKey;
+           console.log('📡 AI Service: Restored API Key from environment variables');
+        }
+        
+        if (config.apiKey) {
+          this.setConfig(config);
+          console.log(`📡 AI Service initialized from storage: ${config.provider}`);
+          return;
+        }
       }
 
       // 저장된 설정이 없으면 환경 변수에서 기본값 로드
-      const defaultApiKey = import.meta.env.VITE_GEMINI_API_KEY;
       if (defaultApiKey) {
         this.setConfig({
           provider: 'gemini',
           apiKey: defaultApiKey,
-          modelName: 'gemini-3-flash-thinking'
+          modelName: 'gemini-2.5-flash-lite'
         });
         console.log('📡 AI Service initialized from environment variables');
       }
@@ -102,8 +112,9 @@ class AIService {
   public startChat(history: any[] = []) {
     if (!this.geminiClient) throw new Error('Gemini API 설정을 먼저 완료해주세요.');
 
-    const modelName = this.currentConfig?.modelName || 'gemini-3-flash-thinking';
+    const modelName = this.currentConfig?.modelName || 'gemini-1.5-flash';
     const isGemini3 = modelName.includes('gemini-3');
+    const isGemini25 = modelName.includes('gemini-2.5');
 
     // 세대별 추론 설정 구성
     const thinkingConfig: any = {
@@ -111,11 +122,15 @@ class AIService {
     };
 
     if (isGemini3) {
-      // Gemini 3.0 사양: thinkingLevel 사용
-      thinkingConfig.thinkingLevel = 'high';
+      // Gemini 3.0 사양: thinkingLevel 사용 (대문자 권장)
+      thinkingConfig.thinkingLevel = 'HIGH';
+    } else if (isGemini25) {
+      // Gemini 2.5 사양: thinkingBudget 사용 (0은 비활성화, 양수는 토큰 예산)
+      // E2E 테스트 및 일반 사용성 향상을 위해 1024 토큰으로 제한 (응답 지연 최소화)
+      thinkingConfig.thinkingBudget = 1024; 
     } else {
-      // Gemini 2.5 사양: thinkingBudget 사용 (-1은 동적 추론)
-      thinkingConfig.thinkingBudget = 16000;
+      // Thinking 미지원 모델 (1.5 등)
+      delete thinkingConfig.includeThoughts;
     }
 
     this.chatSession = this.geminiClient.chats.create({
@@ -123,6 +138,10 @@ class AIService {
       config: {
         systemInstruction: `
           조직문화 분석 전문가이자 데이브 그레이(Dave Gray)의 컬처맵(Culture Map) 모델 마스터로서 활동하세요.
+          
+          [대응 원칙]
+          - 사용자가 노드 추가, 수정, 삭제 등을 요청하면 반드시 제공된 도구(add_node, update_node 등)를 사용하여 실행하세요.
+          - 도구를 호출한 후에는 작업 내용을 간략히 설명하세요.
           
           [데이브 그레이 컬처맵 가이드라인]
           1. 구조적 층위 및 공간 배치 (Top-to-Bottom):
@@ -144,8 +163,13 @@ class AIService {
              - 맵이 복잡해 보이면 'auto_layout'을 실행하여 전체를 정렬하세요. 노드를 추가/수정한 후에는 항상 'auto_layout'을 호출하여 층위 규격에 맞게 배치하는 것이 좋습니다.
         `,
         tools: [{ functionDeclarations: MAP_TOOL_DECLARATIONS as any }],
-        // Gemini 추론 구성 (세대별 분기 적용)
-        thinkingConfig: thinkingConfig
+        toolConfig: {
+          functionCallingConfig: {
+            mode: 'AUTO'
+          }
+        },
+        // thinkingConfig가 유효할 때만 포함
+        ...(Object.keys(thinkingConfig).length > 0 ? { thinkingConfig } : {})
       },
       history: history as any
     });
@@ -154,14 +178,98 @@ class AIService {
   }
 
   /**
-   * 챗봇 메시지 전송
+   * 챗봇 메시지 전송 (스트리밍 버전)
    */
-  public async sendChatMessage(message: string, fileUri?: string, mimeType?: string) {
+  public async *sendChatMessageStream(prompt: string, fileUri?: string, mimeType?: string) {
     if (!this.chatSession) {
       this.startChat();
     }
 
-    const parts: any[] = [message];
+    const parts: any[] = [{ text: prompt }];
+    this.academicFiles.forEach(file => {
+      parts.push(createPartFromUri(file.uri, file.mimeType));
+    });
+    if (fileUri && mimeType) {
+      parts.push(createPartFromUri(fileUri, mimeType));
+    }
+
+    // 스트리밍 세션 시작
+    let streamResult;
+    try {
+      console.log('📡 [AIService] Calling sendMessageStream...');
+      
+      // @google/genai v2.0 SDK: sendMessageStream는 { message: string | PartUnion[] } 형식 필요
+      // 단일 텍스트만 있으면 문자열로, 파일 포함 시 parts 배열로 전달
+      if (parts.length === 1 && parts[0].text) {
+        streamResult = await this.chatSession!.sendMessageStream({ message: parts[0].text });
+      } else {
+        streamResult = await this.chatSession!.sendMessageStream({ message: parts });
+      }
+      
+      console.log('📡 [AIService] sendMessageStream request sent, waiting for chunks...');
+    } catch (err) {
+      console.error('❌ [AIService] Error starting stream:', err);
+      throw err;
+    }
+
+    this.currentThoughts = [];
+    let fullText = '';
+    let accumulatedFunctionCalls: any[] = [];
+    let chunkCount = 0;
+
+    // 스트림 반복 처리
+    // @google/genai v2.0 SDK: sendMessageStream 반환값 자체가 AsyncIterable (stream 속성 없음)
+    try {
+      for await (const chunk of streamResult) {
+        chunkCount++;
+        
+        // chunk.text 접근 (v2.0 SDK 방식)
+        const chunkText = chunk.text || '';
+        
+        // candidates에서 추가 정보 추출 (사고 과정, 함수 호출 등)
+        const candidates = (chunk as any).candidates;
+        const parts = candidates?.[0]?.content?.parts || [];
+        
+        for (const part of parts) {
+          if (part.thought) {
+            const thoughtText = typeof part.thought === 'string' ? part.thought : part.text;
+            if (thoughtText) {
+              this.currentThoughts.push(thoughtText);
+              yield { type: 'thought', content: thoughtText };
+            }
+          } else if (part.functionCall) {
+            console.log('🛠️ [AIService] Function Call detected in stream:', part.functionCall.name);
+            accumulatedFunctionCalls.push(part.functionCall);
+          }
+        }
+
+        if (chunkText) {
+          fullText += chunkText;
+          yield { type: 'text', content: chunkText, fullText };
+        }
+      }
+      console.log(`✅ [AIService] Stream completed successfully. Total chunks: ${chunkCount}`);
+    } catch (streamErr) {
+      console.error('❌ [AIService] Error during stream iteration:', streamErr);
+      yield { type: 'text', content: '\n[심각한 스트리밍 오류가 발생했습니다. 잠시 후 다시 시도해주세요.]', fullText: fullText + '\n[Error]' };
+    }
+
+    // 스트림 종료 후 툴 호출 정보가 있으면 마지막으로 전달
+    if (accumulatedFunctionCalls.length > 0) {
+      console.log('📡 [AIService] Dispatching accumulated function calls:', accumulatedFunctionCalls.length);
+      yield { type: 'actions', actions: accumulatedFunctionCalls };
+    }
+  }
+
+  /**
+   * 챗봇 메시지 전송
+   */
+  public async sendChatMessage(prompt: string, fileUri?: string, mimeType?: string) {
+    if (!this.chatSession) {
+      this.startChat();
+    }
+
+    const parts: any[] = [{ text: prompt }];
 
     // 등록된 학술 지식 파일들을 컨텍스트로 추가
     this.academicFiles.forEach(file => {
@@ -172,31 +280,59 @@ class AIService {
       parts.push(createPartFromUri(fileUri, mimeType));
     }
 
-    const result = await this.chatSession!.sendMessage({
-      message: parts
-    });
+    // @google/genai v2.0 SDK: simple string is safest for chat if no attachments
+    let result;
+    if (parts.length === 1 && parts[0].text) {
+      result = await this.chatSession!.sendMessage(parts[0].text);
+    } else {
+      result = await this.chatSession!.sendMessage({
+        parts: parts
+      });
+    }
+
+    // v2.0 SDK에서 응답 객체 가져오기
+    const response = await result.response;
+    const candidate = response.candidates?.[0];
+    const responseParts = candidate?.content?.parts || [];
+
+    console.log('📡 AI Raw Result Parts Count:', responseParts.length);
 
     // 사고 과정(Thought) 및 텍스트 분리 파싱
     this.currentThoughts = [];
     let text = '';
 
-    // SDK@google/genai v2.0+ 에서는 파트별로 접근 가능
-    if (result.parts) {
-      result.parts.forEach((part: any) => {
-        if (part.thought) {
-          this.currentThoughts.push(part.thought);
-          console.log('🧠 AI Thought:', part.thought);
+    responseParts.forEach((part: any) => {
+      // 'thought: true'이거나 'thought' 필드가 있는 경우 사고 과정으로 분류
+      if (part.thought) {
+        const thoughtText = typeof part.thought === 'string' ? part.thought : part.text;
+        if (thoughtText) {
+          this.currentThoughts.push(thoughtText);
+          console.log('🧠 AI Thought:', thoughtText);
         }
-        if (part.text) {
-          text += part.text;
-        }
-      });
-    } else {
-      text = result.text || '';
-    }
+      } else if (part.text) {
+        // 일반 대화 텍스트만 누적
+        text += part.text;
+      }
+    });
 
     // 툴 호출 여부 확인
-    let functionCalls = result.functionCalls;
+    let functionCalls = responseParts
+      .filter((p: any) => p.functionCall)
+      .map((p: any) => p.functionCall);
+
+    // 만약 functionCalls가 비어있다면 파트에서 수동 추출 시도
+    if (!functionCalls || functionCalls.length === 0) {
+      if ((result as any).parts) {
+        functionCalls = (result as any).parts
+          .filter((p: any) => p.functionCall)
+          .map((p: any) => p.functionCall);
+      }
+    }
+
+    // 만약 텍스트가 없고 툴 호출만 있다면 기본 텍스트 제공
+    if (!text && functionCalls && functionCalls.length > 0) {
+      text = "요청하신 작업을 위한 도구 실행을 준비 중입니다.";
+    }
 
     // 학술 지식 검색 도구가 호출된 경우 자동 처리
     if (functionCalls && functionCalls.length > 0) {
@@ -206,20 +342,18 @@ class AIService {
         const knowledgeResult = searchKnowledge(academicSearch.args.topic);
 
         // 검색 결과를 도구 출력으로 다시 AI에게 전송
-        const toolResponse = await this.chatSession!.sendMessage({
-          message: [
-            {
-              functionResponse: {
-                name: 'search_academic_theory',
-                response: { content: knowledgeResult }
-              }
+        const toolResponse = await this.chatSession!.sendMessage([
+          {
+            functionResponse: {
+              name: 'search_academic_theory',
+              response: { content: knowledgeResult }
             }
-          ]
-        });
+          }
+        ]);
 
         // 최종 답변 업데이트
         text = toolResponse.text || '';
-        functionCalls = toolResponse.functionCalls || [];
+        functionCalls = toolResponse.functionCalls as any || [];
       }
     }
 
