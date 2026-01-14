@@ -32,6 +32,25 @@ Sequential Thinking, Tavily, Context7 MCP를 활용한 체계적 개발 워크�
 3. **Sequential Thinking** 사용 - 복잡한 문제 분석
    - `mcp_sequential-thinking_sequentialthinking`
 
+### 1-2b. ⚠️ SDK API 호출 오류 발생 시 필수 점검
+> **중요**: SDK 호출 오류가 발생하면 **절대 추측하지 말 것**. 반드시 Context7로 최신 문서 확인.
+
+**공통 오류 패턴 및 대응:**
+
+| 오류 메시지 | 원인 | 해결 방법 |
+|-------------|------|-----------|
+| `ContentUnion is required` | API 파라미터 형식 불일치 | Context7로 올바른 파라미터 구조 확인 |
+| `Cannot read properties of undefined` | 반환값 구조 변경 | 최신 예제 코드에서 반환값 접근 방식 확인 |
+| `is not a function` | SDK 메서드명 변경 | 공식 문서에서 현재 메서드명 확인 |
+
+**SDK 오류 디버깅 절차:**
+1. 오류 스택트레이스에서 SDK 내부 함수명 확인
+2. Context7에서 해당 함수의 최신 시그니처 조회
+3. 기존 코드와 공식 문서 예제 비교
+4. 차이점 발견 시 공식 문서 패턴으로 수정
+
+**Skill 참조**: `.agent/skills/google-genai-sdk/SKILL.md` (Gemini SDK 전용 가이드)
+
 ### 1-3. 역할/작업 정의
 - 사용자가 비개발자임을 고려하여 누락된 필수 작업 식별
 - 기술적 요구사항을 구체적으로 정의

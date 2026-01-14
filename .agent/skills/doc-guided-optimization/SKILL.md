@@ -42,12 +42,24 @@ description: 라이브러리 공식 문서와 베스트 프랙티스를 기반�
 ## 📝 주요 라이브러리 최적화 팁 (2025)
 
 ### 1. @google/genai (Gemini)
-- **모델 선택**: `gemini-3-flash` (최신, 속도/비용 최적화), `gemini-3-pro` (복잡한 추론)
-- **Thinking 모델**: `gemini-3-flash-thinking` 모델을 통해 고도화된 추론 가능
-  - **Thinking Budget**: `thinkingBudget` 파라미터를 통해 추론 깊이 조절 (0~24576, 기본값 16,000 이상 권장)
-- **Thought Signatures**: 응답 본문(`text`) 외에 `thought` 파트를 분리하여 사고 과정을 캡처할 수 있음
+
+> ⚠️ **중요**: 상세 사용 가이드는 `.agent/skills/google-genai-sdk/SKILL.md` 참조
+
+- **모델 선택**: `gemini-2.5-flash-lite` (기본), `gemini-3-flash` (최신)
+- **Chat API 호출**:
+  - `sendMessage({ message: string })` - 단일 텍스트
+  - `sendMessageStream({ message: string | PartUnion[] })` - 스트리밍
+  - ❌ **주의**: `{ parts: [...] }` 형식 사용 금지 (ContentUnion 오류 발생)
+- **스트리밍 반환값**: 반환값 자체가 AsyncIterable (`.stream` 속성 없음)
+  ```typescript
+  const result = await chat.sendMessageStream({ message: 'Hi' });
+  for await (const chunk of result) { console.log(chunk.text); }
+  ```
+- **Thinking 모델 설정**:
+  - Gemini 2.x: `thinkingBudget: 1024` (테스트), `thinkingBudget: 8192` (프로덕션)
+  - Gemini 3.x: `thinkingLevel: 'HIGH'`
+- **Tool Calling**: `parametersJsonSchema` 사용 (구 `parameters` 아님)
 - **세션 관리**: `chats.create()`로 세션을 유지하여 컨텍스트 토큰 절약
-- **Tools (Function Calling)**: Gemini 3.0 계열은 강력한 도구 활용 능력을 갖춤
 - **File API**: `ai.files.upload()`로 대형 컨텍스트 처리
 
 ### 2. Liveblocks & Yjs
