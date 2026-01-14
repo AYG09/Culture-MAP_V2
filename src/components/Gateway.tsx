@@ -22,22 +22,22 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
   const checkExistingAuth = useCallback(() => {
     try {
       const storedAuth = localStorage.getItem('gateway-auth-token');
-      
+
       if (storedAuth) {
         const authData = JSON.parse(storedAuth);
-        
+
         // 만료 확인 (24시간)
         if (Date.now() > authData.expiresAt) {
           localStorage.removeItem('gateway-auth-token');
         } else {
           setIsAuth(true);
           setIsAdmin(authData.isAdmin);
-          
+
           // 관리자 인증이 저장되어 있으면 자동으로 패널 표시
           if (authData.isAdmin) {
             setShowAdminPanel(true);
           }
-          
+
           if (onAuthenticated) {
             onAuthenticated(authData.isAdmin, undefined, authData.passwordType);  // 추가: passwordType 전달
           }
@@ -53,13 +53,22 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
 
   // 컴포넌트 마운트시 기존 인증 확인
   useEffect(() => {
-    checkExistingAuth();
-  }, [checkExistingAuth]);
+    if (import.meta.env.VITE_SKIP_GATE === 'true') {
+      setIsAuth(true);
+      setIsAdmin(true);
+      setIsLoading(false);
+      if (onAuthenticated) {
+        onAuthenticated(true, undefined, 'workshop');
+      }
+    } else {
+      checkExistingAuth();
+    }
+  }, [checkExistingAuth, onAuthenticated]);
 
   // 비밀번호 제출
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!password.trim()) {
       setError('비밀번호를 입력해주세요.');
       return;
@@ -89,12 +98,12 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
 
         setIsAuth(true);
         setIsAdmin(result.isAdmin);
-        
+
         // 관리자 로그인 시 자동으로 관리자 패널 표시
         if (result.isAdmin) {
           setShowAdminPanel(true);
         }
-        
+
         const sessionCode = isSessionCode ? password.toUpperCase() : undefined;
         setPassword('');
 
@@ -134,7 +143,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
   };
 
   // 로딩 중
-  if (isLoading) {
+  if (isLoading && import.meta.env.VITE_SKIP_GATE !== 'true') {
     return (
       <div className="gateway-container">
         <div className="gateway-loading">
@@ -146,7 +155,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
   }
 
   // 인증되지 않음 - 로그인 폼 표시
-  if (!isAuth) {
+  if (!isAuth && import.meta.env.VITE_SKIP_GATE !== 'true') {
     return (
       <div className="gateway-container">
         <div className="gateway-form">
@@ -257,6 +266,29 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
     );
   }
 
+  // 인증됨 또는 우회 모드 - 일반 사용자 (메인 앱 표시)
+  if (import.meta.env.VITE_SKIP_GATE === 'true' || (isAuth && !isAdmin)) {
+    return (
+      <div className="gateway-authenticated">
+        {/* 인증된 사용자를 위한 헤더 */}
+        <div className="gateway-auth-header">
+          <div className="auth-status">
+            <span className="auth-indicator"></span>
+            <span className="auth-text">{import.meta.env.VITE_SKIP_GATE === 'true' ? '개발 모드 우회' : '인증됨'}</span>
+          </div>
+          <div className="auth-actions">
+            <button onClick={handleLogout} className="logout-button" title="로그아웃">
+              로그아웃
+            </button>
+          </div>
+        </div>
+
+        {/* 메인 애플리케이션 */}
+        <div className="gateway-main-content">{children}</div>
+      </div>
+    );
+  }
+
   // 인증됨 - 관리자인 경우 AdminGateway만 표시 (children 렌더링 안 함)
   if (isAuth && isAdmin) {
     if (showAdminPanel) {
@@ -289,28 +321,6 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
     );
   }
 
-  // 인증됨 - 일반 사용자 (메인 앱 표시)
-  if (isAuth) {
-    return (
-      <div className="gateway-authenticated">
-        {/* 인증된 사용자를 위한 헤더 */}
-        <div className="gateway-auth-header">
-          <div className="auth-status">
-            <span className="auth-indicator"></span>
-            <span className="auth-text">인증됨</span>
-          </div>
-          <div className="auth-actions">
-            <button onClick={handleLogout} className="logout-button" title="로그아웃">
-              로그아웃
-            </button>
-          </div>
-        </div>
-
-        {/* 메인 애플리케이션 */}
-        <div className="gateway-main-content">{children}</div>
-      </div>
-    );
-  }
 
   // 여기에 도달하면 안 됨
   return null;

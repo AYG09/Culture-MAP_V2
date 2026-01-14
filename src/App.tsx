@@ -7,6 +7,7 @@ import SessionManager from './components/SessionManager';
 import CultureMapFlow from './components/CultureMapFlow';
 import VideoSplash from './components/VideoSplash';
 import liveblocksService from './services/LiveblocksService';
+import aiService from './services/AIService';
 
 import type { ConnectionData, NoteData, NoteType } from './types/culture';
 import type { StickyNoteData, ConnectionData as LBConnectionData } from './types/liveblocks';
@@ -71,12 +72,17 @@ const mapLiveblocksNoteToAppNote = (note: StickyNoteData): AppNote => {
 function App() {
   const [, setNotes] = useState<AppNote[]>([]);
   const [, setConnections] = useState<ConnectionData[]>([]);
-  const [showVideoSplash, setShowVideoSplash] = useState(true);
+  const [showVideoSplash, setShowVideoSplash] = useState(import.meta.env.VITE_SKIP_GATE !== 'true');
   const [showSessionManager, setShowSessionManager] = useState(false);
   const [pendingSessionCode, setPendingSessionCode] = useState<string | undefined>();
   const [passwordType, setPasswordType] = useState<PasswordType>('workshop');
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(import.meta.env.VITE_SKIP_GATE === 'true');
   const [isLiveblocksInitialized, setIsLiveblocksInitialized] = useState(false);
+
+  // AI 서비스 초기화 (BYOK)
+  useEffect(() => {
+    aiService.initializeFromStorage();
+  }, []);
 
   // Liveblocks 초기화
   useEffect(() => {
@@ -175,10 +181,10 @@ function App() {
         const index = prev.findIndex(item => item.id === conn.id);
         const mapped: ConnectionData = {
           id: conn.id,
-          sourceId: conn.source,
-          targetId: conn.target,
-          relationType: conn.relationType,
-          isPositive: conn.isPositive,
+          sourceId: conn.sourceId,
+          targetId: conn.targetId,
+          relationType: conn.relationType as 'direct' | 'indirect',
+          isPositive: !!conn.isPositive,
         };
         if (index >= 0) {
           const next = [...prev];
@@ -194,10 +200,10 @@ function App() {
       const allConnections = liveblocksService.getConnections();
       setConnections(allConnections.map(conn => ({
         id: conn.id,
-        sourceId: conn.source,
-        targetId: conn.target,
-        relationType: conn.relationType,
-        isPositive: conn.isPositive,
+        sourceId: conn.sourceId,
+        targetId: conn.targetId,
+        relationType: conn.relationType as 'direct' | 'indirect',
+        isPositive: !!conn.isPositive,
       })));
     };
 

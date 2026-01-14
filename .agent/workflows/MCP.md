@@ -15,12 +15,14 @@ Sequential Thinking, Tavily, Context7 MCP를 활용한 체계적 개발 워크�
 - `list_dir`와 `view_file_outline`으로 프로젝트 구조 파악
 - 핵심 파일 및 의존성 확인
 
-### 1-1b. SDK/라이브러리 버전 검증 ⚠️ 필수
+### 1-1b. SDK/라이브러리 및 문서 기반 최적화 ⚠️ 필수
 // turbo
-- **기존 코드를 신뢰하지 말 것** - 반드시 최신 문서와 대조
-- Skill 참조: `.agent/skills/sdk-version-check/SKILL.md`
-- 외부 API/SDK 사용 코드는 deprecated 여부 확인
-- 특히 AI/ML SDK는 빠르게 변화하므로 주의
+- **기존 코드를 신뢰하지 말 것** - 반드시 최신 공식 문서와 대조하여 최적의 패턴 확인
+- **Skill 참조**: 
+  - `.agent/skills/sdk-version-check/SKILL.md` (버전 및 Depreation 체크)
+  - `.agent/skills/doc-guided-optimization/SKILL.md` (최신 패턴 및 성능 최적화)
+- 외부 API/SDK 사용 코드는 최신 권장 사항(Best Practices) 준수 여부 확인
+- 특히 실시간 협업(Liveblocks) 및 AI SDK는 릴리즈 주기가 빠르므로 2025 하반기 기준 최신 문서 필독
 
 ### 1-2. MCP 기반 분석 (순서 중요)
 1. **Context7** 먼저 사용 - 관련 라이브러리/프레임워크 문서 조회

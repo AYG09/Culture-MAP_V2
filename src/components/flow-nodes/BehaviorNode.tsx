@@ -98,9 +98,8 @@ const BehaviorNode = ({ id, data, selected }: NodeProps & { data: BehaviorNodeDa
 
   return (
     <div
-      className={`flow-node behavior-node ${data.sentiment} ${selected ? 'selected' : ''} ${
-        isLockedByOther ? 'locked' : ''
-      }`}
+      className={`flow-node behavior-node ${data.sentiment} ${selected ? 'selected' : ''} ${isLockedByOther ? 'locked' : ''
+        }`}
       onDoubleClick={handleDoubleClick}
       style={{ border: `3px solid ${sentimentColors[data.sentiment]}` }}
       title={
@@ -118,9 +117,9 @@ const BehaviorNode = ({ id, data, selected }: NodeProps & { data: BehaviorNodeDa
       />
       <div className="node-header">
         <span className="layer-badge">행동</span>
-        <span 
-          className="sentiment-badge" 
-          style={{ 
+        <span
+          className="sentiment-badge"
+          style={{
             backgroundColor: sentimentColors[data.sentiment],
             color: 'white',
             padding: '2px 8px',
@@ -133,8 +132,8 @@ const BehaviorNode = ({ id, data, selected }: NodeProps & { data: BehaviorNodeDa
           {sentimentLabels[data.sentiment]}
         </span>
         {data.frequency && (
-          <span 
-            className="frequency-badge" 
+          <span
+            className="frequency-badge"
             style={{ backgroundColor: frequencyColors[data.frequency] }}
           >
             {getFrequencyLabel(data.frequency)}
@@ -181,7 +180,7 @@ const BehaviorNode = ({ id, data, selected }: NodeProps & { data: BehaviorNodeDa
         isConnectable={true}
       />
 
-  <EditingIndicator isVisible={isLockedByOther} userLabel={data.lockedBy} className="sticky-note" />
+      <EditingIndicator isVisible={isLockedByOther} userLabel={data.lockedBy} className="sticky-note" />
     </div>
   );
 };

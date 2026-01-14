@@ -136,6 +136,22 @@ export const FREQUENCY_LABELS: Record<Exclude<PerceptionIntensity, null>, string
 };
 
 /**
+ * AI 강도(1~5)와 시스템 강도(low/medium/high) 매핑
+ */
+export const INTENSITY_MAP = {
+  TO_STRING: (val: number): PerceptionIntensity => {
+    if (val >= 4) return 'high';
+    if (val >= 2) return 'medium';
+    return 'low';
+  },
+  TO_NUMBER: (val: PerceptionIntensity): number => {
+    if (val === 'high') return 5;
+    if (val === 'medium') return 3;
+    return 1;
+  }
+};
+
+/**
  * 애플리케이션 모드
  * - workshop: 워크샵 모드 (포스트잇 기반, 빈도 기능 숨김)
  * - consulting: 컨설팅 모드 (인터뷰 분석 기반, 빈도 기능 활성화)
@@ -152,17 +168,17 @@ export type NoteType = '결과' | '행동' | '유형_레버' | '무형_레버' |
  */
 export interface NoteData {
   id: string;
-  text: string;
+  content: string; // text -> content로 통일
   position: { x: number; y: number };
   width?: number;
   height?: number;
   type: NoteType;
   sentiment: 'positive' | 'negative' | 'neutral';
-  perceptionIntensity?: PerceptionIntensity; // 구성원 인식 강도 (집중/관심/언급)
-  frequency?: PerceptionIntensity; // 컨설팅 모드: 인터뷰 빈도 (빈도多/中/少)
-  basis?: string; // 이론적 근거 (저자, 이론, 연도) - 문자열 형식
+  perceptionIntensity?: PerceptionIntensity;
+  frequency?: PerceptionIntensity;
+  basis?: string;
   layer: 1 | 2 | 3 | 4;
-  connections?: string[]; // 연결된 노트들의 ID
+  connections?: string[];
 }
 
 /**
@@ -376,11 +392,11 @@ export interface ComprehensiveAnalysisReport {
   };
   organizationDiagnosis: {
     overallState:
-      | 'crisis'
-      | 'problem_focused'
-      | 'hybrid_transition'
-      | 'growth_oriented'
-      | 'excellence';
+    | 'crisis'
+    | 'problem_focused'
+    | 'hybrid_transition'
+    | 'growth_oriented'
+    | 'excellence';
     confidence: number;
     reasoning: string[];
     dominantNarrative: string;

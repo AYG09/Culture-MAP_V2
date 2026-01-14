@@ -65,7 +65,7 @@ const extractTrailingMetadataSegments = (
     let depth = 0;
     let endPos = -1;
     let startPos = -1;
-    
+
     // 뒤에서부터 괄호 매칭
     for (let i = workingLine.length - 1; i >= 0; i--) {
       if (workingLine[i] === ')') {
@@ -81,12 +81,12 @@ const extractTrailingMetadataSegments = (
         }
       }
     }
-    
+
     // 매칭된 괄호가 없거나 불완전하면 종료
     if (startPos === -1 || endPos === -1 || depth !== 0) {
       break;
     }
-    
+
     // 괄호가 문자열 끝에 있는지 확인 (공백 및 구분자 허용)
     const afterParen = workingLine.slice(endPos + 1).trim();
     if (afterParen !== '' && !/^[,·…ㆍ\s]*$/.test(afterParen)) {
@@ -117,16 +117,16 @@ const normalizeMetadataBasis = (metadataInner: string): string | null => {
   }
 
   const labelMap = new Map<string, string>();
-  
+
   // 개선된 파싱: 중첩 괄호를 고려한 수동 파싱
   const labels = ['저자', '이론', '연도', '출처', '개념', '분류'];
   let currentPos = 0;
-  
+
   while (currentPos < trimmed.length) {
     // 다음 레이블 찾기
     let nextLabelPos = trimmed.length;
     let foundLabel = '';
-    
+
     for (const label of labels) {
       const pattern = new RegExp(`${label}\\s*:`, 'i');
       const match = pattern.exec(trimmed.slice(currentPos));
@@ -135,28 +135,28 @@ const normalizeMetadataBasis = (metadataInner: string): string | null => {
         foundLabel = label;
       }
     }
-    
+
     if (!foundLabel) {
       break;
     }
-    
+
     // 레이블 위치로 이동
     currentPos += nextLabelPos;
-    
+
     // "레이블:" 다음 위치
     const colonMatch = trimmed.slice(currentPos).match(/^([^:]+):\s*/);
     if (!colonMatch) {
       break;
     }
     currentPos += colonMatch[0].length;
-    
+
     // 값의 끝 찾기: 다음 레이블이나 구분자(,·ㆍ)까지
     let valueEndPos = trimmed.length;
     let parenDepth = 0;
-    
+
     for (let i = currentPos; i < trimmed.length; i++) {
       const char = trimmed[i];
-      
+
       if (char === '(') {
         parenDepth++;
       } else if (char === ')') {
@@ -167,12 +167,12 @@ const normalizeMetadataBasis = (metadataInner: string): string | null => {
         break;
       }
     }
-    
+
     const value = trimmed.slice(currentPos, valueEndPos).trim();
     if (value) {
       labelMap.set(foundLabel, value);
     }
-    
+
     // 구분자 건너뛰기
     currentPos = valueEndPos;
     while (currentPos < trimmed.length && /[,·ㆍ\s]/.test(trimmed[currentPos])) {
@@ -330,20 +330,20 @@ export const parseAIOutput = (
 
       const newNote: NoteData = {
         id: uuidv4(),
-        text: trimmedContent,
-        position: { x: 0, y: 0 }, // 임시 위치 - 아래에서 계산됨
+        content: trimmedContent, // text -> content
+        position: { x: 0, y: 0 },
         width: 200,
         height: 120,
-        type: normalizedType as NoteType, // 타입 단언
+        type: normalizedType as NoteType,
         sentiment: sentimentValue,
-        perceptionIntensity: perceptionIntensity, // 인식 강도 필드 추가
-        basis: basis, // 이론적 근거 필드 추가
+        perceptionIntensity: perceptionIntensity,
+        basis: basis,
         layer: (layerIndex + 1) as 1 | 2 | 3 | 4,
       };
 
-  notes.push(newNote);
-  noteContentToIdMap.set(trimmedContent, newNote.id);
-  noteIdToNote.set(newNote.id, newNote);
+      notes.push(newNote);
+      noteContentToIdMap.set(trimmedContent, newNote.id);
+      noteIdToNote.set(newNote.id, newNote);
     } else {
       // 파싱 실패 케이스 - 상세 로깅
       if (process.env.NODE_ENV === 'development') {

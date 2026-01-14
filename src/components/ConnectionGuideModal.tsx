@@ -19,28 +19,22 @@ const ConnectionGuideModal: React.FC<ConnectionGuideModalProps> = ({ sessionCode
       const currentPort = window.location.port;
       const currentPath = window.location.pathname;
 
-      // Firebase 모드가 아닌 경우에만 서버에서 네트워크 정보 가져오기 시도
-      const isFirebaseMode = import.meta.env.MODE === 'firebase';
-      if (!isFirebaseMode) {
-        try {
-          const response = await fetch('/api/network-info');
-          if (response.ok) {
-            const data = await response.json();
-            console.log('서버에서 네트워크 정보 받음:', data);
-            setNetworkUrl(data.multiuserUrl);
-            setIsLoading(false);
-            return;
-          }
-        } catch (error) {
-          console.log('서버 API 호출 실패, 클라이언트에서 IP 감지 시도:', error);
+      // API 호출 시도 (네트워크 정보 가져오기)
+      try {
+        const response = await fetch('/api/network-info');
+        if (response.ok) {
+          const data = await response.json();
+          console.log('서버에서 네트워크 정보 받음:', data);
+          setNetworkUrl(data.multiuserUrl);
+          setIsLoading(false);
+          return;
         }
+      } catch (error) {
+        console.log('서버 API 호출 실패, 클라이언트에서 IP 감지 시도:', error);
       }
 
-      // Firebase 모드에서는 간단한 URL 처리, 그 외에는 클라이언트에서 IP 감지
-      if (isFirebaseMode) {
-        // Firebase 모드에서는 현재 URL 기반으로 간단하게 처리
-        setNetworkUrl(`${window.location.origin}${currentPath}?multiuser=true`);
-      } else if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
+      // 폴백: 클라이언트에서 IP 감지
+      if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
         // WebRTC를 사용해 로컬 IP 감지 시도
         try {
           const localIp = await getLocalIP();
@@ -54,7 +48,7 @@ const ConnectionGuideModal: React.FC<ConnectionGuideModalProps> = ({ sessionCode
           setNetworkUrl(`${window.location.origin}${currentPath}?multiuser=true`);
         }
       } else {
-        // 이미 IP 주소인 경우
+        // 이미 IP 주소이거나 도메인인 경우
         setNetworkUrl(`${window.location.origin}${currentPath}?multiuser=true`);
       }
 

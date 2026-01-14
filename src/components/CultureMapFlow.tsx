@@ -29,13 +29,14 @@ import {
   IntangibleLeverNode,
 } from './flow-nodes';
 import MobileGestureGuide from './MobileGestureGuide';
-import PromptGenerator from './PromptGenerator'; // 좌측 사이드메뉴 추가
+import AIChatSidebar from './AIChatSidebar'; // 좌측 사이드메뉴 (AI 챗봇)
 import { useIsMobile } from '../hooks/useResponsive'; // 반응형 훅 추가
 import ExportMenu from './ExportMenu'; // 컬쳐맵 내보내기 메뉴
 import ReportEditor from './ReportEditor'; // 보고서 편집기
 
 // 타입
 import type { NoteData, ConnectionData, PerceptionIntensity } from '../types/culture';
+import { INTENSITY_MAP } from '../types/culture';
 import type { ConnectionData as LBConnectionData } from '../types/liveblocks';
 
 // 유틸리티
@@ -179,6 +180,89 @@ const CultureMapFlow = ({
 
   const [collaborationLocks, setCollaborationLocks] = useState<Record<string, CollaborationLock>>({});
   const collaborationLocksRef = useRef<Record<string, CollaborationLock>>({});
+
+  // AI 액션 실행 핸들러
+  const handleAiAction = useCallback((action: any) => {
+    console.log('🤖 [Action Bridge] AI 액션 실행:', action);
+    const { name, args } = action;
+
+    try {
+      switch (name) {
+        case 'add_node': {
+          const newNodeId = `node-${Date.now()}`;
+          const layerIndex = (args.layer || 2) - 1;
+
+          // 현재 설정된 레이어 높이를 바탕으로 기본 Y 좌표 계산
+          let currentY = 0;
+          for (let i = 0; i < layerIndex; i++) {
+            currentY += layerHeights[i];
+          }
+          const defaultY = currentY + (layerHeights[layerIndex] / 2);
+
+          liveblocksService.updateStickyNote({
+            id: newNodeId,
+            content: args.content || args.label,
+            x: args.x || Math.random() * 800 + 100,
+            y: args.y || defaultY + (Math.random() * 40 - 20),
+            layer: args.layer || 2,
+            sentiment: args.sentiment === 'positive' ? 'positive' : (args.sentiment === 'negative' ? 'negative' : 'neutral'),
+            type: args.type,
+            frequency: typeof args.intensity === 'number' ? INTENSITY_MAP.TO_STRING(args.intensity) : args.intensity,
+          });
+          break;
+        }
+
+        case 'update_node':
+          if (!args.id) break;
+          liveblocksService.updateStickyNote({
+            id: args.id,
+            content: args.content || args.label,
+            sentiment: args.sentiment === 'positive' ? 'positive' : (args.sentiment === 'negative' ? 'negative' : 'neutral'),
+            frequency: typeof args.intensity === 'number' ? INTENSITY_MAP.TO_STRING(args.intensity) : args.intensity,
+            // 필드가 있을 때만 업데이트 (Partial 대응)
+            ...(args.layer ? { layer: args.layer } : {}),
+            ...(args.type ? { type: args.type } : {}),
+          });
+          break;
+
+        case 'delete_node':
+          if (args.id) liveblocksService.deleteStickyNote(args.id);
+          break;
+
+        case 'create_connection':
+          liveblocksService.updateConnection({
+            id: `conn-${Date.now()}`,
+            sourceId: args.sourceId || args.source,
+            targetId: args.targetId || args.target,
+            relationType: 'direct',
+            isPositive: true,
+          });
+          break;
+
+        case 'auto_layout':
+          handleAutoLayout();
+          break;
+
+        case 'adjust_layer_height': {
+          if (args.layer && args.height) {
+            const layerIndex = args.layer - 1;
+            const newHeights = [...layerHeights];
+            newHeights[layerIndex] = Math.min(600, Math.max(100, args.height));
+            setLayerHeights(newHeights);
+
+            // 높이 변경 후 자동으로 레이아웃 재정렬하여 노드들 위치 보정
+            setTimeout(() => handleAutoLayout(), 100);
+          }
+          break;
+        }
+
+        default:
+          console.warn('⚠️ 알 수 없는 AI 액션:', name);
+      }
+    } catch (err) {
+      console.error('❌ AI 액션 실행 실패:', err);
+    }
+  }, []);
 
   useEffect(() => {
     collaborationLocksRef.current = collaborationLocks;
@@ -695,11 +779,11 @@ const CultureMapFlow = ({
         setTimeout(() => {
           const payload = {
             id: note.id,
-            content: note.text || '',
+            content: note.content || '',
             x: note.position.x,
             y: note.position.y,
             layer: note.layer || 1,
-            color: note.sentiment || 'neutral',
+            sentiment: note.sentiment || 'neutral',
             type: note.type || 'sticky_note',
             width: note.width || 200,
             height: note.height || 120,
@@ -740,11 +824,41 @@ const CultureMapFlow = ({
     handleStartNodeEditing,
     handleStopNodeEditing,
     isConsultingMode,
-    onConnectionsChange,
-    onNotesChange,
-    setEdges,
     setNodes,
+    setEdges,
+    onNotesChange,
+    onConnectionsChange
   ]);
+
+  // 자동 레이아웃 실행 핸들러
+  const handleAutoLayout = useCallback(() => {
+    console.log('📐 [React Flow] 자동 레이아웃 실행');
+
+    // 현재 노드와 엣지 데이터를 NoteData/ConnectionData로 역변환하여 레이아웃 계산
+    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+      nodes,
+      edges,
+      layerHeights // 현재 설정된 층위 높이 반영
+    );
+
+    setNodes(layoutedNodes);
+    setEdges(layoutedEdges);
+
+    // Firebase 동기화 (레이아웃된 좌표 저장)
+    layoutedNodes.forEach((node) => {
+      const currentData = node.data as any;
+      liveblocksService.updateStickyNote({
+        id: node.id,
+        x: node.position.x,
+        y: node.position.y,
+        content: currentData.content,
+        layer: (node.type === 'result' ? 1 : node.type === 'behavior' ? 2 : node.type === 'tangible_lever' ? 3 : 4),
+        sentiment: currentData.sentiment || 'neutral'
+      });
+    });
+
+    alert('컬처맵이 데이브 그레이 모델 구조에 맞춰 정렬되었습니다.');
+  }, [nodes, edges, layerHeights, setNodes, setEdges]);
 
   // ============================================================================
   // 노드 변경 핸들러 + Firebase 동기화
@@ -789,7 +903,7 @@ const CultureMapFlow = ({
               x: change.position.x,
               y: change.position.y,
               layer: layer,
-              color: (node.data as { sentiment?: string }).sentiment || 'neutral',
+              sentiment: (node.data as { sentiment?: string }).sentiment || 'neutral',
               type: node.type || 'sticky_note',
               width: (node.width as number) || 200,
               height: (node.height as number) || 120,
@@ -924,21 +1038,10 @@ const CultureMapFlow = ({
     [edges, nodes, setEdges, onConnectionsChange]
   );
 
-  // ============================================================================
-  // 자동 레이아웃
-  // ============================================================================
-  const handleAutoLayout = useCallback(() => {
-    const layouted = getLayoutedElements(nodes, edges, layerHeights);
-    setNodes(layouted.nodes);
-    setEdges(layouted.edges);
-  }, [nodes, edges, layerHeights, setNodes, setEdges]);
 
   // ============================================================================
   // AI 일괄 생성 패널 열기
   // ============================================================================
-  const handleOpenAiPanel = useCallback(() => {
-    setShowAiInput(true);
-  }, []);
 
   // ============================================================================
   // 선택 변경 핸들러
@@ -1062,7 +1165,7 @@ const CultureMapFlow = ({
       x: newNode.position.x,
       y: newNode.position.y,
       layer: layerMap[nodeType],
-      color: 'neutral',
+      sentiment: 'neutral',
       type: nodeType,
       width: 200,
       height: 120,
@@ -1138,7 +1241,7 @@ const CultureMapFlow = ({
           x: nodePosition.x,
           y: nodePosition.y,
           layer: layerMap[nodeType] || 1,
-          color: 'neutral',
+          sentiment: 'neutral',
           type: nodeType,
           width: 200,
           height: 120,
@@ -1264,7 +1367,7 @@ const CultureMapFlow = ({
             x: node.position.x,
             y: node.position.y,
             layer: layerMap[node.type || 'result'] || 1,
-            color: action,
+            sentiment: action,
             type: node.type || 'sticky_note',
             width: (node.width as number) || 200,
             height: (node.height as number) || 120,
@@ -1381,12 +1484,6 @@ const CultureMapFlow = ({
   );
 
   // PromptGenerator에서 맵 생성 (AI 텍스트 파싱)
-  const handleGenerateMapFromPrompt = useCallback((data: { notes: NoteData[]; connections: ConnectionData[] }) => {
-    // PromptGenerator는 parseAIOutput을 거쳐 이미 파싱된 데이터를 전달
-    // 하지만 우리는 handleRenderFromText를 사용하여 일관성 유지
-    console.log('📊 PromptGenerator에서 맵 생성 요청:', data);
-    alert('PromptGenerator의 맵 생성 기능은 "AI 일괄 생성" 버튼을 사용해주세요.');
-  }, []);
 
   // 렌더링 시점 로그
   console.log('🎨 [Render] contextMenu state:', contextMenu);
@@ -1532,13 +1629,11 @@ const CultureMapFlow = ({
                 wordWrap: 'break-word',
                 overflowWrap: 'break-word'
               }}>
-                <PromptGenerator
-                  mode={mode}
-                  onGenerateMap={handleGenerateMapFromPrompt}
-                  reportContent={reportContent}
-                  onReportChange={handleReportChange}
-                  onSwitchToReportTab={() => setActiveTab('report')}
-                  onOpenAiPanel={handleOpenAiPanel}
+                <AIChatSidebar
+                  onActionExecute={handleAiAction}
+                  notes={nodes.map(n => n.data as unknown as NoteData)}
+                  connections={edges.map(e => e.data as unknown as ConnectionData)}
+                  layerHeights={layerHeights}
                 />
 
                 {/* 리사이즈 핸들 */}
@@ -1624,13 +1719,11 @@ const CultureMapFlow = ({
                     </button>
                   </div>
 
-                  <PromptGenerator
-                    mode={mode}
-                    onGenerateMap={handleGenerateMapFromPrompt}
-                    reportContent={reportContent}
-                    onReportChange={handleReportChange}
-                    onSwitchToReportTab={() => setActiveTab('report')}
-                    onOpenAiPanel={handleOpenAiPanel}
+                  <AIChatSidebar
+                    onActionExecute={handleAiAction}
+                    notes={nodes.map(n => n.data as unknown as NoteData)}
+                    connections={edges.map(e => e.data as unknown as ConnectionData)}
+                    layerHeights={layerHeights}
                   />
                 </div>
               </>
@@ -1677,6 +1770,7 @@ const CultureMapFlow = ({
               <ReactFlow
                 nodes={nodes}
                 edges={edges}
+                onlyRenderVisibleElements={true}
                 onNodesChange={handleNodesChange}
                 onEdgesChange={handleEdgesChange}
                 onConnect={onConnect}

@@ -93,17 +93,17 @@ export const convertNoteToFlowNode = (
 
   const isLockedByOther = Boolean(
     options?.activeLock &&
-      options.activeLock.itemType === 'note' &&
-      options.activeLock.userId !== (options.currentUserId ?? undefined)
+    options.activeLock.itemType === 'note' &&
+    options.activeLock.userId !== (options.currentUserId ?? undefined)
   );
 
   const lockLabel = options?.activeLock?.displayName ?? options?.activeLock?.userId;
 
   const baseData = {
-    content: note.text || '',
+    content: note.content || '', // text -> content
     sentiment: note.sentiment || 'neutral',
-  frequency: frequencyValue,
-    category: undefined, // NoteData에는 없음
+    frequency: frequencyValue,
+    category: undefined,
     onUpdate: handleUpdate,
     onEditStart: options?.onEditStart ? handleEditStart : undefined,
     onEditEnd: options?.onEditEnd ? handleEditEnd : undefined,
@@ -122,15 +122,15 @@ export const convertNoteToFlowNode = (
       break;
     case '유형_레버':
       nodeType = 'tangible_lever';
-      nodeData = { 
-        ...baseData, 
+      nodeData = {
+        ...baseData,
         basis: basisDisplay
       } as TangibleLeverNodeData;
       break;
     case '무형_레버':
       nodeType = 'intangible_lever';
-      nodeData = { 
-        ...baseData, 
+      nodeData = {
+        ...baseData,
         basis: basisDisplay
       } as IntangibleLeverNodeData;
       break;
@@ -205,11 +205,11 @@ export const convertFlowNodeToNote = (node: Node): NoteData => {
 
   return {
     id: node.id,
-    text: data.content,
+    content: data.content, // text -> content
     type: noteType,
     layer: layerIndex,
     sentiment: data.sentiment,
-    perceptionIntensity: data.frequency as PerceptionIntensity, // ✅ 수정: frequency를 perceptionIntensity로 복원
+    perceptionIntensity: data.frequency as PerceptionIntensity,
     position: { x: node.position.x, y: node.position.y },
     basis: basisString,
     width: 200,
