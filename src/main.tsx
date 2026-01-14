@@ -4,22 +4,23 @@ import MultiUserApp from './components/MultiUserApp.tsx';
 import './index.css';
 import 'react-quill-new/dist/quill.snow.css'; // React Quill New 스타일
 import ErrorBoundary from './components/ErrorBoundary.tsx';
-import authService from './services/AuthService';
+import liveblocksService from './services/LiveblocksService';
 
-// Firebase 앱 초기화 (Auth 포함)
+// Liveblocks 앱 초기화
 async function initializeApp() {
-  console.log('🔥 Firebase 웹서비스 초기화...');
-  
-  // 익명 인증 초기화 (보안 규칙 충족을 위해 필수)
+  console.log('🔗 Liveblocks 웹서비스 초기화...');
+
+  // Liveblocks 클라이언트 초기화
   try {
-    const user = await authService.initializeAuth();
-    if (user) {
-      console.log('✅ Firebase Auth 준비 완료');
+    const publicKey = import.meta.env.VITE_LIVEBLOCKS_PUBLIC_KEY;
+    if (publicKey) {
+      liveblocksService.initialize(publicKey);
+      console.log('✅ Liveblocks 준비 완료');
     } else {
-      console.warn('⚠️ Firebase Auth 초기화 실패 - 일부 기능이 제한될 수 있습니다');
+      console.warn('⚠️ Liveblocks API 키가 설정되지 않음 - 협업 기능 비활성화');
     }
   } catch (error) {
-    console.error('❌ Firebase Auth 오류:', error);
+    console.error('❌ Liveblocks 초기화 오류:', error);
   }
 
   ReactDOM.createRoot(document.getElementById('root')!).render(

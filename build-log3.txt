@@ -1,0 +1,36 @@
+
+> org_culture_analyzer_web@1.0.0 build
+> vite build
+
+[36mvite v7.1.10 [32mbuilding for production...[36m[39m
+transforming...
+[32m??[39m 1498 modules transformed.
+rendering chunks...
+[esbuild css minify]
+??[WARNING] Expected "}" to go with "{" [css-syntax-error]
+
+    <stdin>:6552:0:
+      6552 ??
+           ??^
+           ??}
+
+  The unbalanced "{" is here:
+
+    <stdin>:6057:14:
+      6057 ??.left-panel * {
+           ??              ^
+
+
+computing gzip size...
+[2mdist/[22m[32mindex.html                     [39m[1m[2m    0.76 kB[22m[1m[22m[2m ??gzip:   0.44 kB[22m
+[2mdist/[22m[35massets/index-CXKJNgp8.css      [39m[1m[2m  125.74 kB[22m[1m[22m[2m ??gzip:  21.37 kB[22m
+[2mdist/[22m[36massets/ui-BKrj-4V8.js          [39m[1m[2m    0.89 kB[22m[1m[22m[2m ??gzip:   0.48 kB[22m
+[2mdist/[22m[36massets/vendor-BzrpNAyj.js      [39m[1m[2m   11.92 kB[22m[1m[22m[2m ??gzip:   4.25 kB[22m
+[2mdist/[22m[36massets/liveblocks-IlbvL8tC.js  [39m[1m[2m  250.80 kB[22m[1m[22m[2m ??gzip:  78.31 kB[22m
+[2mdist/[22m[36massets/index-Bw7SywED.js       [39m[1m[33m2,462.39 kB[39m[22m[2m ??gzip: 749.19 kB[22m
+
+(!) Some chunks are larger than 1000 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+[32m??built in 10.34s[39m

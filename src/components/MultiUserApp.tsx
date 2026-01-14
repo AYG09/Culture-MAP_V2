@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import App from '../App';
 import SessionManager from './SessionManager';
-import FirebaseMultiUserService from '../services/FirebaseMultiUserService';
+import liveblocksService from '../services/LiveblocksService';
 
 const MultiUserApp: React.FC = () => {
   const [sessionActive, setSessionActive] = useState(false);
   const [showIPAccessNotice, setShowIPAccessNotice] = useState(false);
 
   const syncSessionStateFromService = useCallback(() => {
-    const currentSession = FirebaseMultiUserService.getCurrentSession();
+    const currentSession = liveblocksService.getCurrentSession();
 
     if (!currentSession) {
       return false;
@@ -65,24 +65,24 @@ const MultiUserApp: React.FC = () => {
     const handleUserLeft: GenericEventHandler = (...args) => {
       const [payload] = args;
       const data = (payload as UserCountPayload) ?? { userCount: 0 };
-      if (!FirebaseMultiUserService.isConnected()) {
+      if (!liveblocksService.isConnected()) {
         setSessionActive(false);
       }
 
       console.log('👤 User left - total users:', data.userCount);
     };
 
-    FirebaseMultiUserService.on('session-data', handleSessionData);
-    FirebaseMultiUserService.on('user-joined', handleUserJoined);
-    FirebaseMultiUserService.on('user-left', handleUserLeft);
+    liveblocksService.on('session-data', handleSessionData);
+    liveblocksService.on('user-joined', handleUserJoined);
+    liveblocksService.on('user-left', handleUserLeft);
 
     return () => {
       if (noticeTimeout) {
         window.clearTimeout(noticeTimeout);
       }
-      FirebaseMultiUserService.off('session-data', handleSessionData);
-      FirebaseMultiUserService.off('user-joined', handleUserJoined);
-      FirebaseMultiUserService.off('user-left', handleUserLeft);
+      liveblocksService.off('session-data', handleSessionData);
+      liveblocksService.off('user-joined', handleUserJoined);
+      liveblocksService.off('user-left', handleUserLeft);
     };
   }, [syncSessionStateFromService]);
 

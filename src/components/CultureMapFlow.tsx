@@ -36,15 +36,15 @@ import ReportEditor from './ReportEditor'; // 보고서 편집기
 
 // 타입
 import type { NoteData, ConnectionData, PerceptionIntensity } from '../types/culture';
-import type { FirebaseConnection } from '../services/FirebaseMultiUserService';
+import type { ConnectionData as LBConnectionData } from '../types/liveblocks';
 
 // 유틸리티
 import { convertToFlowData, convertFromFlowData } from '../utils/flowDataConverter';
 import { getLayoutedElements } from '../utils/flowAutoLayout';
 import { parseAIOutput } from '../utils/parser';
 
-// Firebase 서비스
-import FirebaseMultiUserService from '../services/FirebaseMultiUserService';
+// Liveblocks 서비스
+import liveblocksService from '../services/LiveblocksService';
 import SessionInfoPanel from './SessionInfoPanel';
 
 import './CultureMapFlow.css';
@@ -99,7 +99,7 @@ const CultureMapFlow = ({
   onNodeUpdate,
 }: CultureMapFlowProps) => {
   // 세션 타입 기반 모드 결정
-  const currentSession = FirebaseMultiUserService.getCurrentSession();
+  const currentSession = liveblocksService.getCurrentSession();
   const mode = (currentSession?.type || 'workshop') as 'workshop' | 'consulting';
   const isConsultingMode = mode === 'consulting';
 
@@ -122,10 +122,10 @@ const CultureMapFlow = ({
   // 보고서 내용 변경 핸들러 (컨설팅 모드에서만 Firebase에 저장)
   const handleReportChange = useCallback((content: string) => {
     setReportContent(content);
-    
+
     // 컨설팅 모드에서만 Firebase에 저장
     if (isConsultingMode) {
-      FirebaseMultiUserService.updateReportContent(content);
+      liveblocksService.updateReportContent(content);
     }
   }, [isConsultingMode]);
 
@@ -133,7 +133,7 @@ const CultureMapFlow = ({
   useEffect(() => {
     if (!isConsultingMode) return;
 
-    const unsubscribe = FirebaseMultiUserService.onReportContent((content) => {
+    const unsubscribe = liveblocksService.onReportContent((content) => {
       setReportContent(content);
     });
 
@@ -144,33 +144,33 @@ const CultureMapFlow = ({
   const [layerHeights, setLayerHeights] = useState<number[]>([100, 100, 100, 100]); // [결과, 행동, 유형, 무형]
   const [layerOpacities, setLayerOpacities] = useState<number[]>([0.05, 0.05, 0.05, 0.05]); // 층위별 투명도
   const [showLayerBackground, setShowLayerBackground] = useState(true);
-  
+
   // 선택된 층위 (높이 조절용, null = 선택 없음)
   const [selectedLayerIndex, setSelectedLayerIndex] = useState<number | null>(0);
-  
+
   // translateExtent 동적 계산 (층위 높이 변경 시 자동 업데이트)
   const totalHeight = layerHeights.reduce((sum, height) => sum + height, 0);
   const translateExtent: [[number, number], [number, number]] = [
     [-100, -100],  // 좌상단 여유 공간
     [3200, totalHeight + 100],  // 우하단 (가로 3200px, 세로는 총 층위 높이 + 여유)
   ];
-  
+
   // 층위 관리 패널 표시 여부
   const [showLayerControlPanel, setShowLayerControlPanel] = useState(false);
-  
+
   // 세션 관리 모달 상태
   const [showSessionInfo, setShowSessionInfo] = useState(false);
-  
+
   // 반응형: 모바일 감지
   const isMobile = useIsMobile();
-  
+
   // 사이드 패널 리사이즈 상태
   const [sidebarWidth, setSidebarWidth] = useState(380); // 초기 너비 280px → 380px
   const [isResizing, setIsResizing] = useState(false);
-  
+
   // 모바일 사이드바 토글 상태
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  
+
   // 모바일 포스트잇 생성 모달 상태
   const [showMobileAddMenu, setShowMobileAddMenu] = useState(false);
 
@@ -184,12 +184,12 @@ const CultureMapFlow = ({
     collaborationLocksRef.current = collaborationLocks;
   }, [collaborationLocks]);
 
-  const getCurrentUserId = useCallback(() => FirebaseMultiUserService.getCurrentUserId() ?? 'local-user', []);
+  const getCurrentUserId = useCallback(() => liveblocksService.getCurrentUserId() ?? 'local-user', []);
 
   const handleStartNodeEditing = useCallback(
     (nodeId: string) => {
       const userId = getCurrentUserId();
-      const displayName = FirebaseMultiUserService.getCurrentUserDisplayName();
+      const displayName = liveblocksService.getCurrentUserDisplayName();
       const existingLock = collaborationLocksRef.current[nodeId];
 
       if (existingLock && existingLock.userId !== userId) {
@@ -219,8 +219,8 @@ const CultureMapFlow = ({
         });
       };
 
-      if (FirebaseMultiUserService.isConnected()) {
-        FirebaseMultiUserService.startEditing(nodeId, 'note');
+      if (liveblocksService.isConnected()) {
+        liveblocksService.startEditing(nodeId, 'note');
       }
 
       registerLocalLock();
@@ -233,10 +233,10 @@ const CultureMapFlow = ({
   const handleStopNodeEditing = useCallback(
     (nodeId: string) => {
       const userId = getCurrentUserId();
-      const displayName = FirebaseMultiUserService.getCurrentUserDisplayName();
+      const displayName = liveblocksService.getCurrentUserDisplayName();
 
-      if (FirebaseMultiUserService.isConnected()) {
-        FirebaseMultiUserService.stopEditing(nodeId, 'note');
+      if (liveblocksService.isConnected()) {
+        liveblocksService.stopEditing(nodeId, 'note');
       }
 
       setCollaborationLocks(prev => {
@@ -272,7 +272,7 @@ const CultureMapFlow = ({
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing) return;
-      
+
       // 최소 280px, 최대 600px로 제한
       const newWidth = Math.min(Math.max(e.clientX, 280), 600);
       setSidebarWidth(newWidth);
@@ -285,7 +285,7 @@ const CultureMapFlow = ({
     if (isResizing) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
-      
+
       // 리사이징 중 텍스트 선택 방지
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
@@ -394,7 +394,7 @@ const CultureMapFlow = ({
       console.log('📥 [React Flow] Firebase 노드 수신:', note.id);
 
       // 자신이 보낸 업데이트는 무시
-      const isOwnUpdate = note.authorId === FirebaseMultiUserService.getCurrentUserId();
+      const isOwnUpdate = note.authorId === liveblocksService.getCurrentUserId();
       if (isOwnUpdate) return;
 
       setNodes((currentNodes) => {
@@ -416,8 +416,8 @@ const CultureMapFlow = ({
         const currentUserId = getCurrentUserId();
         const isLockedByOther = Boolean(
           activeLock &&
-            activeLock.itemType === 'note' &&
-            activeLock.userId !== currentUserId
+          activeLock.itemType === 'note' &&
+          activeLock.userId !== currentUserId
         );
 
         const previousContent = (existingData as { content?: string }).content ?? '';
@@ -518,19 +518,19 @@ const CultureMapFlow = ({
 
     // Firebase 이벤트 리스너 등록 (타입 안전성을 위해 캐스팅)
     type EventHandler = (...args: unknown[]) => void;
-    FirebaseMultiUserService.on('sticky-note-updated', handleStickyNoteUpdated as EventHandler);
-    FirebaseMultiUserService.on('sticky-note-deleted', handleStickyNoteDeleted as EventHandler);
-    FirebaseMultiUserService.on('connection-updated', handleConnectionUpdated as EventHandler);
-    FirebaseMultiUserService.on('connection-deleted', handleConnectionDeleted as EventHandler);
+    liveblocksService.on('sticky-note-updated', handleStickyNoteUpdated as EventHandler);
+    liveblocksService.on('sticky-note-deleted', handleStickyNoteDeleted as EventHandler);
+    liveblocksService.on('connection-updated', handleConnectionUpdated as EventHandler);
+    liveblocksService.on('connection-deleted', handleConnectionDeleted as EventHandler);
 
     console.log('✅ [React Flow] Firebase 리스너 등록 완료');
 
     // Cleanup: 컴포넌트 언마운트 시 리스너 제거
     return () => {
-      FirebaseMultiUserService.off('sticky-note-updated', handleStickyNoteUpdated as EventHandler);
-      FirebaseMultiUserService.off('sticky-note-deleted', handleStickyNoteDeleted as EventHandler);
-      FirebaseMultiUserService.off('connection-updated', handleConnectionUpdated as EventHandler);
-      FirebaseMultiUserService.off('connection-deleted', handleConnectionDeleted as EventHandler);
+      liveblocksService.off('sticky-note-updated', handleStickyNoteUpdated as EventHandler);
+      liveblocksService.off('sticky-note-deleted', handleStickyNoteDeleted as EventHandler);
+      liveblocksService.off('connection-updated', handleConnectionUpdated as EventHandler);
+      liveblocksService.off('connection-deleted', handleConnectionDeleted as EventHandler);
       console.log('🔌 [React Flow] Firebase 리스너 제거 완료');
     };
   }, [
@@ -598,12 +598,12 @@ const CultureMapFlow = ({
 
     type EventHandler = (...args: unknown[]) => void;
 
-    FirebaseMultiUserService.on('editing-started', handleEditingStarted as EventHandler);
-    FirebaseMultiUserService.on('editing-stopped', handleEditingStopped as EventHandler);
+    liveblocksService.on('editing-started', handleEditingStarted as EventHandler);
+    liveblocksService.on('editing-stopped', handleEditingStopped as EventHandler);
 
     return () => {
-      FirebaseMultiUserService.off('editing-started', handleEditingStarted as EventHandler);
-      FirebaseMultiUserService.off('editing-stopped', handleEditingStopped as EventHandler);
+      liveblocksService.off('editing-started', handleEditingStarted as EventHandler);
+      liveblocksService.off('editing-stopped', handleEditingStopped as EventHandler);
     };
   }, []);
 
@@ -708,14 +708,14 @@ const CultureMapFlow = ({
               : {}),
           };
 
-          FirebaseMultiUserService.updateStickyNote(payload);
+          liveblocksService.updateStickyNote(payload);
         }, index * 100); // 100ms 간격
       });
 
       parsedConnections.forEach((connection, index) => {
         setTimeout(
           () => {
-            FirebaseMultiUserService.updateConnection(connection as FirebaseConnection);
+            liveblocksService.updateConnection(connection as LBConnectionData);
           },
           parsedNotes.length * 100 + index * 50
         );
@@ -771,8 +771,8 @@ const CultureMapFlow = ({
             const currentUserId = getCurrentUserId();
             const isLockedByOther = Boolean(
               activeLock &&
-                activeLock.itemType === 'note' &&
-                activeLock.userId !== currentUserId
+              activeLock.itemType === 'note' &&
+              activeLock.userId !== currentUserId
             );
 
             if (isLockedByOther) {
@@ -783,7 +783,7 @@ const CultureMapFlow = ({
               ? ((node.data as { frequency?: PerceptionIntensity | null }).frequency ?? undefined)
               : undefined;
 
-            FirebaseMultiUserService.updateStickyNote({
+            liveblocksService.updateStickyNote({
               id: node.id,
               content: (node.data as { content?: string }).content || '',
               x: change.position.x,
@@ -824,7 +824,7 @@ const CultureMapFlow = ({
         if (change.type === 'remove') {
           const edge = edges.find((e) => e.id === change.id);
           if (edge) {
-            FirebaseMultiUserService.deleteConnection(edge.id);
+            liveblocksService.deleteConnection(edge.id);
             console.log('🗑️ [React Flow] Firebase 연결선 삭제:', edge.id);
           }
         }
@@ -903,7 +903,7 @@ const CultureMapFlow = ({
       setEdges((eds) => addEdge(newEdge, eds));
 
       // Firebase 실시간 동기화
-      FirebaseMultiUserService.updateConnection({
+      liveblocksService.updateConnection({
         id: newEdge.id,
         sourceId: params.source!,
         targetId: params.target!,
@@ -1014,7 +1014,7 @@ const CultureMapFlow = ({
       targetId: node.id,
     });
   }, []);
-  
+
   // 모바일용 포스트잇 생성 함수
   const handleMobileAddNote = useCallback((nodeType: 'result' | 'behavior' | 'tangible_lever' | 'intangible_lever') => {
     if (!reactFlowInstance) return;
@@ -1056,7 +1056,7 @@ const CultureMapFlow = ({
     onNotesChange(updatedNotes);
 
     // Firebase 동기화
-    FirebaseMultiUserService.updateStickyNote({
+    liveblocksService.updateStickyNote({
       id: newNodeId,
       content: '새 노트',
       x: newNode.position.x,
@@ -1132,7 +1132,7 @@ const CultureMapFlow = ({
           intangible_lever: 4,
         };
 
-        FirebaseMultiUserService.updateStickyNote({
+        liveblocksService.updateStickyNote({
           id: newNodeId,
           content: '새 노트',
           x: nodePosition.x,
@@ -1169,7 +1169,7 @@ const CultureMapFlow = ({
           );
           onNotesChange(updatedNotes);
           onConnectionsChange(updatedConnections);
-          FirebaseMultiUserService.deleteStickyNote(contextMenu.targetId!);
+          liveblocksService.deleteStickyNote(contextMenu.targetId!);
         } else if (action === 'positive' || action === 'negative' || action === 'neutral') {
           // 색상 변경 + Firebase 동기화 + 연결선 색상 재계산
           const updatedNodes = nodes.map((n) =>
@@ -1209,7 +1209,7 @@ const CultureMapFlow = ({
               isPositive = true;
             }
 
-            FirebaseMultiUserService.updateConnection({
+            liveblocksService.updateConnection({
               id: e.id,
               sourceId: e.source,
               targetId: e.target,
@@ -1258,7 +1258,7 @@ const CultureMapFlow = ({
             ? ((updatedNode?.data as { frequency?: PerceptionIntensity | null })?.frequency ?? undefined)
             : undefined;
 
-          FirebaseMultiUserService.updateStickyNote({
+          liveblocksService.updateStickyNote({
             id: node.id,
             content: (node.data as { content?: string }).content || '',
             x: node.position.x,
@@ -1306,7 +1306,7 @@ const CultureMapFlow = ({
             intangible_lever: 4,
           };
 
-          FirebaseMultiUserService.updateStickyNote({
+          liveblocksService.updateStickyNote({
             id: node.id,
             content: (node.data as { content?: string }).content || '',
             x: node.position.x,
@@ -1330,20 +1330,20 @@ const CultureMapFlow = ({
 
           const { connections: updatedConnections } = convertFromFlowData(nodes, updatedEdges);
           onConnectionsChange(updatedConnections);
-          FirebaseMultiUserService.deleteConnection(contextMenu.targetId!);
+          liveblocksService.deleteConnection(contextMenu.targetId!);
         } else if (action === 'direct' || action === 'indirect') {
           // 점선/실선 전환 + Firebase 동기화
           const updatedEdges = edges.map((e) =>
             e.id === contextMenu.targetId
               ? {
-                  ...e,
-                  animated: false, // 애니메이션은 사용하지 않음
-                  style: {
-                    ...e.style,
-                    strokeDasharray: action === 'indirect' ? '5 5' : undefined,
-                  },
-                  data: { ...e.data, relationType: action },
-                }
+                ...e,
+                animated: false, // 애니메이션은 사용하지 않음
+                style: {
+                  ...e.style,
+                  strokeDasharray: action === 'indirect' ? '5 5' : undefined,
+                },
+                data: { ...e.data, relationType: action },
+              }
               : e
           );
 
@@ -1352,7 +1352,7 @@ const CultureMapFlow = ({
           const { connections: updatedConnections } = convertFromFlowData(nodes, updatedEdges);
           onConnectionsChange(updatedConnections);
 
-          FirebaseMultiUserService.updateConnection({
+          liveblocksService.updateConnection({
             id: edge.id,
             sourceId: edge.source,
             targetId: edge.target,
@@ -1392,10 +1392,10 @@ const CultureMapFlow = ({
   console.log('🎨 [Render] contextMenu state:', contextMenu);
 
   return (
-    <div className="culture-map-flow-wrapper" style={{ 
-      display: 'flex', 
-      flexDirection: 'column', 
-      width: '100%', 
+    <div className="culture-map-flow-wrapper" style={{
+      display: 'flex',
+      flexDirection: 'column',
+      width: '100%',
       height: '100vh',  // 뷰포트 기준 고정 (아코디언 펼쳐도 높이 변하지 않음)
       overflow: 'hidden' // 자식 요소가 부모를 넘치지 못하게
     }}>
@@ -1406,7 +1406,7 @@ const CultureMapFlow = ({
             <span role="img" aria-label="map icon">🗺️</span>
             조직문화 분석기
           </h1>
-          
+
           {/* 탭 전환 버튼 */}
           <div className="tab-buttons">
             <button
@@ -1424,39 +1424,39 @@ const CultureMapFlow = ({
               📄 보고서
             </button>
           </div>
-          
+
           <button
             className="glass-circle-button"
             type="button"
             onClick={() => {
               const helpText = isMobile
                 ? '🗺️ 모바일 사용법\n\n' +
-                  '➕ 포스트잇 생성: 우측 하단 FAB 버튼\n' +
-                  '✏️ 포스트잇 편집: 더블탭\n' +
-                  '🎯 포스트잇 이동: 드래그\n' +
-                  '🔗 연결선 생성: 핸들 드래그\n' +
-                  '🌐 캔버스 이동: 빈 공간 드래그\n' +
-                  '🤏 확대/축소: 두 손가락 핀치\n' +
-                  '☰ 메뉴: 좌측 상단 햄버거 버튼'
+                '➕ 포스트잇 생성: 우측 하단 FAB 버튼\n' +
+                '✏️ 포스트잇 편집: 더블탭\n' +
+                '🎯 포스트잇 이동: 드래그\n' +
+                '🔗 연결선 생성: 핸들 드래그\n' +
+                '🌐 캔버스 이동: 빈 공간 드래그\n' +
+                '🤏 확대/축소: 두 손가락 핀치\n' +
+                '☰ 메뉴: 좌측 상단 햄버거 버튼'
                 : '🗺️ 데스크톱 사용법\n\n' +
-                  '📌 포스트잇 생성: 빈 캔버스 우클릭\n' +
-                  '✏️ 포스트잇 편집: 더블클릭\n' +
-                  '🔗 연결선 생성: 핸들 드래그 또는 우클릭 메뉴\n' +
-                  '🎨 속성 변경: 포스트잇/연결선 우클릭\n' +
-                  '🌐 캔버스 이동: 중간/우클릭 드래그\n' +
-                  '🔍 확대/축소: 마우스 휠\n' +
-                  '🤖 AI 생성: "AI 일괄 생성" 버튼';
-              
+                '📌 포스트잇 생성: 빈 캔버스 우클릭\n' +
+                '✏️ 포스트잇 편집: 더블클릭\n' +
+                '🔗 연결선 생성: 핸들 드래그 또는 우클릭 메뉴\n' +
+                '🎨 속성 변경: 포스트잇/연결선 우클릭\n' +
+                '🌐 캔버스 이동: 중간/우클릭 드래그\n' +
+                '🔍 확대/축소: 마우스 휠\n' +
+                '🤖 AI 생성: "AI 일괄 생성" 버튼';
+
               alert(helpText);
             }}
           >
             ?
           </button>
         </div>
-        
+
         <div className="top-bar-right">
           {/* 컬쳐맵 내보내기 메뉴 */}
-          <ExportMenu 
+          <ExportMenu
             reactFlowInstance={reactFlowInstance}
             nodes={nodes}
             edges={edges}
@@ -1464,8 +1464,8 @@ const CultureMapFlow = ({
 
           {/* 세션 정보 */}
           {(() => {
-            const session = FirebaseMultiUserService.getCurrentSession();
-            
+            const session = liveblocksService.getCurrentSession();
+
             return session ? (
               <button
                 className="glass-button glass-button--accent"
@@ -1479,7 +1479,7 @@ const CultureMapFlow = ({
               <span style={{ fontSize: '14px', color: '#6b7280' }}>세션 연결 중...</span>
             );
           })()}
-          
+
           {/* Clear All 버튼 */}
           <button
             className="glass-button glass-button--danger"
@@ -1491,12 +1491,12 @@ const CultureMapFlow = ({
                 setEdges([]);
                 onNotesChange([]);
                 onConnectionsChange([]);
-                
+
                 // Firebase에서도 삭제
                 nodes.forEach((node) => {
-                  FirebaseMultiUserService.deleteStickyNote(node.id);
+                  liveblocksService.deleteStickyNote(node.id);
                 });
-                
+
                 console.log('🗑️ [React Flow] 전체 삭제 완료');
               }
             }}
@@ -1505,553 +1505,553 @@ const CultureMapFlow = ({
           </button>
         </div>
       </div>
-      
+
       {/* 메인 컨텐츠 영역 */}
-      <div className="culture-map-flow-container" style={{ 
-        display: 'flex', 
-        width: '100%', 
-        flex: 1, 
+      <div className="culture-map-flow-container" style={{
+        display: 'flex',
+        width: '100%',
+        flex: 1,
         minHeight: 0,
         overflow: 'hidden' // 자식(left-panel, flowWrapperRef)이 부모 높이 초과 방지
       }}>
-      
-      {/* 컬쳐맵 탭 */}
-      {activeTab === 'map' && (
-        <>
-      {/* 왼쪽 사이드메뉴 - 데스크톱만 표시 */}
-      {!isMobile && (
-        <div className="left-panel no-print" style={{ 
-          position: 'relative',
-          width: `${sidebarWidth}px`, 
-          minWidth: `${sidebarWidth}px`,
-          height: '100%',
-          overflowY: 'auto',
-          borderRight: '1px solid #e5e7eb',
-          backgroundColor: '#f9fafb',
-          wordBreak: 'keep-all',
-          wordWrap: 'break-word',
-          overflowWrap: 'break-word'
-        }}>
-          <PromptGenerator
-            mode={mode}
-            onGenerateMap={handleGenerateMapFromPrompt}
-            reportContent={reportContent}
-            onReportChange={handleReportChange}
-            onSwitchToReportTab={() => setActiveTab('report')}
-            onOpenAiPanel={handleOpenAiPanel}
-          />
-          
-          {/* 리사이즈 핸들 */}
-          <div
-            onMouseDown={handleMouseDown}
-            style={{
-              position: 'absolute',
-              right: 0,
-              top: 0,
-              width: '5px',
-              height: '100%',
-              cursor: 'col-resize',
-              backgroundColor: isResizing ? '#3b82f6' : 'transparent',
-              transition: isResizing ? 'none' : 'background-color 0.2s',
-              zIndex: 10
-            }}
-            onMouseEnter={(e) => {
-              if (!isResizing) e.currentTarget.style.backgroundColor = '#e5e7eb';
-            }}
-            onMouseLeave={(e) => {
-              if (!isResizing) e.currentTarget.style.backgroundColor = 'transparent';
-            }}
-          />
-        </div>
-      )}
 
-      {/* 모바일 사이드바 오버레이 */}
-      {isMobile && isMobileSidebarOpen && (
-        <>
-          {/* 배경 오버레이 */}
-          <div
-            onClick={() => setIsMobileSidebarOpen(false)}
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              zIndex: 999,
-              animation: 'fadeIn 0.3s ease'
-            }}
-          />
-          
-          {/* 슬라이드 사이드바 */}
-          <div
-            className="mobile-sidebar-panel"
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              width: '85%',
-              maxWidth: '320px',
-              height: '100%',
-              backgroundColor: '#f9fafb',
-              zIndex: 1000,
-              overflowY: 'auto',
-              boxShadow: '2px 0 8px rgba(0,0,0,0.15)',
-              animation: 'slideInLeft 0.3s ease'
-            }}
-          >
-            {/* 닫기 버튼 */}
-            <div style={{ 
-              padding: '16px',
-              borderBottom: '1px solid #e5e7eb',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>조직문화 분석기</h2>
-              <button
-                onClick={() => setIsMobileSidebarOpen(false)}
-                style={{
-                  border: 'none',
-                  background: 'none',
-                  fontSize: '24px',
-                  cursor: 'pointer',
-                  padding: '4px 8px',
-                  color: '#6b7280'
-                }}
-              >
-                ✕
-              </button>
-            </div>
-            
-            <PromptGenerator
-              mode={mode}
-              onGenerateMap={handleGenerateMapFromPrompt}
-              reportContent={reportContent}
-              onReportChange={handleReportChange}
-              onSwitchToReportTab={() => setActiveTab('report')}
-              onOpenAiPanel={handleOpenAiPanel}
-            />
-          </div>
-        </>
-      )}
+        {/* 컬쳐맵 탭 */}
+        {activeTab === 'map' && (
+          <>
+            {/* 왼쪽 사이드메뉴 - 데스크톱만 표시 */}
+            {!isMobile && (
+              <div className="left-panel no-print" style={{
+                position: 'relative',
+                width: `${sidebarWidth}px`,
+                minWidth: `${sidebarWidth}px`,
+                height: '100%',
+                overflowY: 'auto',
+                borderRight: '1px solid #e5e7eb',
+                backgroundColor: '#f9fafb',
+                wordBreak: 'keep-all',
+                wordWrap: 'break-word',
+                overflowWrap: 'break-word'
+              }}>
+                <PromptGenerator
+                  mode={mode}
+                  onGenerateMap={handleGenerateMapFromPrompt}
+                  reportContent={reportContent}
+                  onReportChange={handleReportChange}
+                  onSwitchToReportTab={() => setActiveTab('report')}
+                  onOpenAiPanel={handleOpenAiPanel}
+                />
 
-      {/* 메인 React Flow 영역 */}
-      <div 
-        ref={flowWrapperRef}
-        data-capture-root="true"
-        style={{ position: 'relative', flex: '1 1 0', overflow: 'hidden' }}
-      >
-        {/* 모바일 햄버거 버튼 */}
-        {isMobile && (
-          <button
-            onClick={() => setIsMobileSidebarOpen(true)}
-            style={{
-              position: 'absolute',
-              top: '16px',
-              left: '16px',
-              zIndex: 10,
-              width: '48px',
-              height: '48px',
-              borderRadius: '50%',
-              border: 'none',
-              backgroundColor: '#3b82f6',
-              color: 'white',
-              fontSize: '24px',
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.2s ease'
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            ☰
-          </button>
-        )}
-        
-        {/* 모바일 제스처 가이드 */}
-        <MobileGestureGuide />
+                {/* 리사이즈 핸들 */}
+                <div
+                  onMouseDown={handleMouseDown}
+                  style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 0,
+                    width: '5px',
+                    height: '100%',
+                    cursor: 'col-resize',
+                    backgroundColor: isResizing ? '#3b82f6' : 'transparent',
+                    transition: isResizing ? 'none' : 'background-color 0.2s',
+                    zIndex: 10
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isResizing) e.currentTarget.style.backgroundColor = '#e5e7eb';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isResizing) e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                />
+              </div>
+            )}
 
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={handleNodesChange}
-        onEdgesChange={handleEdgesChange}
-        onConnect={onConnect}
-        onNodeClick={handleNodeClick}
-        onNodeDoubleClick={handleNodeDoubleClick}
-        onSelectionChange={handleSelectionChange}
-        onPaneContextMenu={handlePaneContextMenu}
-        onNodeContextMenu={handleNodeContextMenu}
-        onEdgeContextMenu={handleEdgeContextMenu}
-        nodeTypes={nodeTypes}
-        fitView={!isMobile} // 모바일: fitView 비활성화 (전체 캔버스 자유 이동)
-        minZoom={0.1}
-        maxZoom={2}
-        defaultViewport={{ x: 0, y: 0, zoom: isMobile ? 0.5 : 0.8 }} // 모바일: 더 작은 줌으로 전체 보기
-        translateExtent={translateExtent} // 팬(이동) 범위 제한: 가로 3200px, 세로는 층위 높이 합
-        proOptions={{ hideAttribution: true }}
-        // 모바일/데스크톱 구분 제스처 설정
-        panOnDrag={isMobile ? true : [1, 2]} // 모바일: 빈 공간 터치로 팬, 데스크톱: 중간/우클릭 팬
-        panOnScroll={false}
-        zoomOnScroll={!isMobile} // 모바일: 스크롤 줌 비활성화
-        zoomOnPinch={true} // 모바일: 핀치 줌만 활성화
-        zoomOnDoubleClick={false}
-        preventScrolling={true}
-        // 모바일 제스처 및 다중 선택
-        selectionOnDrag={!isMobile} // 모바일: 드래그 선택 비활성화 (노드 드래그와 충돌 방지)
-        panActivationKeyCode="Space" // 데스크톱: 스페이스바로 팬 가능
-        // 성능 최적화
-        nodesDraggable={true} // 노드 드래그는 항상 활성화
-        nodesConnectable={true}
-        elementsSelectable={true}
-        onInit={setReactFlowInstance}
-      >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+            {/* 모바일 사이드바 오버레이 */}
+            {isMobile && isMobileSidebarOpen && (
+              <>
+                {/* 배경 오버레이 */}
+                <div
+                  onClick={() => setIsMobileSidebarOpen(false)}
+                  style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                    zIndex: 999,
+                    animation: 'fadeIn 0.3s ease'
+                  }}
+                />
 
-        {/* 층위 배경 레이어 (ViewportPortal 사용 - transform 적용됨) */}
-        {showLayerBackground && (
-          <ViewportPortal>
-            <div
-              data-layer-background-root="true"
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '10000px', // 충분히 큰 크기
-                height: '10000px',
-                pointerEvents: 'none',
-                zIndex: -1, // 포스트잇 뒤로
-              }}
-            >
-              {/* 배경층들 - 개별 높이 적용 */}
-              {[
-                { name: '결과', color: 'rgba(255, 107, 107, OPACITY)', index: 0 },
-                { name: '행동', color: 'rgba(78, 205, 196, OPACITY)', index: 1 },
-                { name: '유형 레버', color: 'rgba(149, 225, 211, OPACITY)', index: 2 },
-                { name: '무형 레버', color: 'rgba(255, 230, 109, OPACITY)', index: 3 },
-              ].map((layer) => {
-                // 각 층위의 Y 좌표 계산 (이전 층위들의 높이 합산)
-                let y = 0;
-                for (let i = 0; i < layer.index; i++) {
-                  y += layerHeights[i];
-                }
-                
-                const bgColor = layer.color.replace('OPACITY', String(layerOpacities[layer.index]));
-                
-                return (
-                  <div
-                    data-layer-capture="segment"
-                    key={layer.name}
-                    style={{
-                      position: 'absolute',
-                      transform: `translate(0px, ${y}px)`, // ViewportPortal에서는 transform 사용
-                      left: 0,
-                      width: '100%',
-                      height: `${layerHeights[layer.index]}px`,
-                      backgroundColor: bgColor,
-                      borderBottom: layer.index < 3 ? `2px dashed ${bgColor.replace(String(layerOpacities[layer.index]), '0.3')}` : 'none',
-                    }}
-                  >
-                    <div
-                      data-layer-capture="label"
-                      onClick={() => {
-                        // 이미 선택된 라벨을 다시 클릭하면 선택 해제 및 패널 닫기
-                        if (selectedLayerIndex === layer.index) {
-                          setSelectedLayerIndex(null); // 선택 해제
-                          setShowLayerControlPanel(false); // 패널 닫기
-                        } else {
-                          // 다른 라벨 클릭 시 선택 변경 및 패널 열기
-                          setSelectedLayerIndex(layer.index);
-                          setShowLayerControlPanel(true);
-                        }
+                {/* 슬라이드 사이드바 */}
+                <div
+                  className="mobile-sidebar-panel"
+                  style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '85%',
+                    maxWidth: '320px',
+                    height: '100%',
+                    backgroundColor: '#f9fafb',
+                    zIndex: 1000,
+                    overflowY: 'auto',
+                    boxShadow: '2px 0 8px rgba(0,0,0,0.15)',
+                    animation: 'slideInLeft 0.3s ease'
+                  }}
+                >
+                  {/* 닫기 버튼 */}
+                  <div style={{
+                    padding: '16px',
+                    borderBottom: '1px solid #e5e7eb',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>조직문화 분석기</h2>
+                    <button
+                      onClick={() => setIsMobileSidebarOpen(false)}
+                      style={{
+                        border: 'none',
+                        background: 'none',
+                        fontSize: '24px',
+                        cursor: 'pointer',
+                        padding: '4px 8px',
+                        color: '#6b7280'
                       }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <PromptGenerator
+                    mode={mode}
+                    onGenerateMap={handleGenerateMapFromPrompt}
+                    reportContent={reportContent}
+                    onReportChange={handleReportChange}
+                    onSwitchToReportTab={() => setActiveTab('report')}
+                    onOpenAiPanel={handleOpenAiPanel}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* 메인 React Flow 영역 */}
+            <div
+              ref={flowWrapperRef}
+              data-capture-root="true"
+              style={{ position: 'relative', flex: '1 1 0', overflow: 'hidden' }}
+            >
+              {/* 모바일 햄버거 버튼 */}
+              {isMobile && (
+                <button
+                  onClick={() => setIsMobileSidebarOpen(true)}
+                  style={{
+                    position: 'absolute',
+                    top: '16px',
+                    left: '16px',
+                    zIndex: 10,
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '50%',
+                    border: 'none',
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    fontSize: '24px',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  ☰
+                </button>
+              )}
+
+              {/* 모바일 제스처 가이드 */}
+              <MobileGestureGuide />
+
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={handleNodesChange}
+                onEdgesChange={handleEdgesChange}
+                onConnect={onConnect}
+                onNodeClick={handleNodeClick}
+                onNodeDoubleClick={handleNodeDoubleClick}
+                onSelectionChange={handleSelectionChange}
+                onPaneContextMenu={handlePaneContextMenu}
+                onNodeContextMenu={handleNodeContextMenu}
+                onEdgeContextMenu={handleEdgeContextMenu}
+                nodeTypes={nodeTypes}
+                fitView={!isMobile} // 모바일: fitView 비활성화 (전체 캔버스 자유 이동)
+                minZoom={0.1}
+                maxZoom={2}
+                defaultViewport={{ x: 0, y: 0, zoom: isMobile ? 0.5 : 0.8 }} // 모바일: 더 작은 줌으로 전체 보기
+                translateExtent={translateExtent} // 팬(이동) 범위 제한: 가로 3200px, 세로는 층위 높이 합
+                proOptions={{ hideAttribution: true }}
+                // 모바일/데스크톱 구분 제스처 설정
+                panOnDrag={isMobile ? true : [1, 2]} // 모바일: 빈 공간 터치로 팬, 데스크톱: 중간/우클릭 팬
+                panOnScroll={false}
+                zoomOnScroll={!isMobile} // 모바일: 스크롤 줌 비활성화
+                zoomOnPinch={true} // 모바일: 핀치 줌만 활성화
+                zoomOnDoubleClick={false}
+                preventScrolling={true}
+                // 모바일 제스처 및 다중 선택
+                selectionOnDrag={!isMobile} // 모바일: 드래그 선택 비활성화 (노드 드래그와 충돌 방지)
+                panActivationKeyCode="Space" // 데스크톱: 스페이스바로 팬 가능
+                // 성능 최적화
+                nodesDraggable={true} // 노드 드래그는 항상 활성화
+                nodesConnectable={true}
+                elementsSelectable={true}
+                onInit={setReactFlowInstance}
+              >
+                <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+
+                {/* 층위 배경 레이어 (ViewportPortal 사용 - transform 적용됨) */}
+                {showLayerBackground && (
+                  <ViewportPortal>
+                    <div
+                      data-layer-background-root="true"
                       style={{
                         position: 'absolute',
-                        top: '10px',
-                        left: '32px',
-                        padding: '6px 16px',
-                        backgroundColor: selectedLayerIndex === layer.index ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.9)',
-                        border: `2px solid ${selectedLayerIndex === layer.index ? bgColor.replace(String(layerOpacities[layer.index]), '0.8') : bgColor.replace(String(layerOpacities[layer.index]), '0.5')}`,
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        color: layer.color.replace('0.05', '0.8'),
-                        boxShadow: selectedLayerIndex === layer.index ? '0 4px 12px rgba(0, 0, 0, 0.2)' : '0 2px 6px rgba(0, 0, 0, 0.12)',
+                        top: 0,
+                        left: 0,
+                        width: '10000px', // 충분히 큰 크기
+                        height: '10000px',
+                        pointerEvents: 'none',
+                        zIndex: -1, // 포스트잇 뒤로
+                      }}
+                    >
+                      {/* 배경층들 - 개별 높이 적용 */}
+                      {[
+                        { name: '결과', color: 'rgba(255, 107, 107, OPACITY)', index: 0 },
+                        { name: '행동', color: 'rgba(78, 205, 196, OPACITY)', index: 1 },
+                        { name: '유형 레버', color: 'rgba(149, 225, 211, OPACITY)', index: 2 },
+                        { name: '무형 레버', color: 'rgba(255, 230, 109, OPACITY)', index: 3 },
+                      ].map((layer) => {
+                        // 각 층위의 Y 좌표 계산 (이전 층위들의 높이 합산)
+                        let y = 0;
+                        for (let i = 0; i < layer.index; i++) {
+                          y += layerHeights[i];
+                        }
+
+                        const bgColor = layer.color.replace('OPACITY', String(layerOpacities[layer.index]));
+
+                        return (
+                          <div
+                            data-layer-capture="segment"
+                            key={layer.name}
+                            style={{
+                              position: 'absolute',
+                              transform: `translate(0px, ${y}px)`, // ViewportPortal에서는 transform 사용
+                              left: 0,
+                              width: '100%',
+                              height: `${layerHeights[layer.index]}px`,
+                              backgroundColor: bgColor,
+                              borderBottom: layer.index < 3 ? `2px dashed ${bgColor.replace(String(layerOpacities[layer.index]), '0.3')}` : 'none',
+                            }}
+                          >
+                            <div
+                              data-layer-capture="label"
+                              onClick={() => {
+                                // 이미 선택된 라벨을 다시 클릭하면 선택 해제 및 패널 닫기
+                                if (selectedLayerIndex === layer.index) {
+                                  setSelectedLayerIndex(null); // 선택 해제
+                                  setShowLayerControlPanel(false); // 패널 닫기
+                                } else {
+                                  // 다른 라벨 클릭 시 선택 변경 및 패널 열기
+                                  setSelectedLayerIndex(layer.index);
+                                  setShowLayerControlPanel(true);
+                                }
+                              }}
+                              style={{
+                                position: 'absolute',
+                                top: '10px',
+                                left: '32px',
+                                padding: '6px 16px',
+                                backgroundColor: selectedLayerIndex === layer.index ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.9)',
+                                border: `2px solid ${selectedLayerIndex === layer.index ? bgColor.replace(String(layerOpacities[layer.index]), '0.8') : bgColor.replace(String(layerOpacities[layer.index]), '0.5')}`,
+                                borderRadius: '12px',
+                                fontSize: '12px',
+                                fontWeight: 'bold',
+                                color: layer.color.replace('0.05', '0.8'),
+                                boxShadow: selectedLayerIndex === layer.index ? '0 4px 12px rgba(0, 0, 0, 0.2)' : '0 2px 6px rgba(0, 0, 0, 0.12)',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                                pointerEvents: 'auto', // 라벨만 클릭 가능
+                              }}
+                              className="nopan nodrag"
+                              title={selectedLayerIndex === layer.index ? "다시 클릭하여 선택 해제 및 패널 닫기" : "클릭하여 이 층위 선택 및 높이 조절"}
+                            >
+                              {selectedLayerIndex === layer.index ? '📌 ' : ''}{layer.name}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </ViewportPortal>
+                )}
+
+                {/* 층위 관리 패널 토글 버튼 */}
+                {!showLayerControlPanel && (
+                  <Panel position="top-center" style={{
+                    backgroundColor: 'transparent',
+                    padding: 0,
+                    boxShadow: 'none',
+                    border: 'none',
+                  }}>
+                    <button
+                      onClick={() => setShowLayerControlPanel(true)}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        color: '#666',
+                        border: '1px solid rgba(0, 0, 0, 0.1)',
+                        borderRadius: '8px',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 1)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
+                        e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.1)';
+                      }}
+                      title="층위 관리 패널 열기"
+                    >
+                      📐 층위 관리
+                    </button>
+                  </Panel>
+                )}
+
+                {/* 상단 층위 관리 컨트롤 Panel - 반응형 */}
+                {showLayerControlPanel && (
+                  <Panel
+                    position="top-center"
+                    className="layer-control-panel"
+                    style={{
+                      display: 'flex',
+                      flexDirection: isMobile ? 'column' : 'row',
+                      gap: isMobile ? '8px' : '16px',
+                      alignItems: isMobile ? 'stretch' : 'center',
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      padding: isMobile ? '10px' : '12px 20px',
+                      borderRadius: '12px',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                      border: '1px solid rgba(0, 0, 0, 0.05)',
+                      maxWidth: isMobile ? '90vw' : 'auto',
+                      maxHeight: isMobile ? '80vh' : 'auto',
+                      overflowY: isMobile ? 'auto' : 'visible',
+                    }}
+                  >
+                    {/* 닫기 버튼 */}
+                    <button
+                      onClick={() => setShowLayerControlPanel(false)}
+                      style={{
+                        padding: '4px 8px',
+                        backgroundColor: 'transparent',
+                        color: '#999',
+                        border: 'none',
+                        borderRadius: '4px',
+                        fontSize: '16px',
                         cursor: 'pointer',
                         transition: 'all 0.2s ease',
-                        pointerEvents: 'auto', // 라벨만 클릭 가능
+                        lineHeight: 1,
+                        alignSelf: isMobile ? 'flex-end' : 'center',
                       }}
-                      className="nopan nodrag"
-                      title={selectedLayerIndex === layer.index ? "다시 클릭하여 선택 해제 및 패널 닫기" : "클릭하여 이 층위 선택 및 높이 조절"}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#f5f5f5';
+                        e.currentTarget.style.color = '#666';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.color = '#999';
+                      }}
+                      title="층위 관리 패널 닫기"
                     >
-                      {selectedLayerIndex === layer.index ? '📌 ' : ''}{layer.name}
+                      ✕
+                    </button>
+
+                    {/* 구분선 (데스크톱만) */}
+                    {!isMobile && <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />}
+
+                    {/* 층위 배경 표시 토글 */}
+                    <button
+                      onClick={() => setShowLayerBackground(!showLayerBackground)}
+                      style={{
+                        padding: isMobile ? '10px 14px' : '6px 12px',
+                        backgroundColor: showLayerBackground ? '#4CAF50' : '#f5f5f5',
+                        color: showLayerBackground ? 'white' : '#666',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: isMobile ? '13px' : '12px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        whiteSpace: 'nowrap',
+                        width: isMobile ? '100%' : 'auto',
+                      }}
+                      title="층위 배경 표시/숨김"
+                    >
+                      {showLayerBackground ? '🎨 층위 표시' : '🚫 층위 숨김'}
+                    </button>
+
+                    {/* 구분선 (데스크톱만) */}
+                    {!isMobile && <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />}
+
+                    {/* 층위 선택 드롭다운 */}
+                    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: '8px', width: isMobile ? '100%' : 'auto' }}>
+                      <label htmlFor="layer-select" style={{ fontSize: '12px', fontWeight: '500', color: '#666', whiteSpace: 'nowrap' }}>
+                        조절할 층위:
+                      </label>
+                      <select
+                        id="layer-select"
+                        value={selectedLayerIndex ?? 0}
+                        onChange={(e) => setSelectedLayerIndex(Number(e.target.value))}
+                        style={{
+                          padding: isMobile ? '10px 12px' : '6px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid #ddd',
+                          fontSize: isMobile ? '13px' : '12px',
+                          fontWeight: '500',
+                          cursor: 'pointer',
+                          backgroundColor: 'white',
+                          width: isMobile ? '100%' : 'auto',
+                        }}
+                      >
+                        <option value={0}>📊 결과</option>
+                        <option value={1}>🎬 행동</option>
+                        <option value={2}>🔧 유형 레버</option>
+                        <option value={3}>💡 무형 레버</option>
+                      </select>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </ViewportPortal>
-        )}
 
-        {/* 층위 관리 패널 토글 버튼 */}
-        {!showLayerControlPanel && (
-          <Panel position="top-center" style={{ 
-            backgroundColor: 'transparent',
-            padding: 0,
-            boxShadow: 'none',
-            border: 'none',
-          }}>
-            <button
-              onClick={() => setShowLayerControlPanel(true)}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                color: '#666',
-                border: '1px solid rgba(0, 0, 0, 0.1)',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: '500',
-                cursor: 'pointer',
-                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 1)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
-                e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.1)';
-              }}
-              title="층위 관리 패널 열기"
-            >
-              📐 층위 관리
-            </button>
-          </Panel>
-        )}
+                    {/* 구분선 (데스크톱만) */}
+                    {!isMobile && <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />}
 
-        {/* 상단 층위 관리 컨트롤 Panel - 반응형 */}
-        {showLayerControlPanel && (
-        <Panel 
-          position="top-center" 
-          className="layer-control-panel" 
-          style={{ 
-            display: 'flex', 
-            flexDirection: isMobile ? 'column' : 'row',
-            gap: isMobile ? '8px' : '16px', 
-            alignItems: isMobile ? 'stretch' : 'center',
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            padding: isMobile ? '10px' : '12px 20px',
-            borderRadius: '12px',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-            border: '1px solid rgba(0, 0, 0, 0.05)',
-            maxWidth: isMobile ? '90vw' : 'auto',
-            maxHeight: isMobile ? '80vh' : 'auto',
-            overflowY: isMobile ? 'auto' : 'visible',
-          }}
-        >
-          {/* 닫기 버튼 */}
-          <button
-            onClick={() => setShowLayerControlPanel(false)}
-            style={{
-              padding: '4px 8px',
-              backgroundColor: 'transparent',
-              color: '#999',
-              border: 'none',
-              borderRadius: '4px',
-              fontSize: '16px',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              lineHeight: 1,
-              alignSelf: isMobile ? 'flex-end' : 'center',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#f5f5f5';
-              e.currentTarget.style.color = '#666';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.color = '#999';
-            }}
-            title="층위 관리 패널 닫기"
-          >
-            ✕
-          </button>
+                    {/* 선택된 층위 높이 조절 */}
+                    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: '10px', width: isMobile ? '100%' : 'auto', minWidth: isMobile ? 'auto' : '220px' }}>
+                      <label htmlFor="layer-height-input" style={{ fontSize: '12px', fontWeight: '500', color: '#666', whiteSpace: 'nowrap' }}>
+                        높이:
+                      </label>
+                      <input
+                        type="range"
+                        id="layer-height-input"
+                        min="100"
+                        max="600"
+                        step="20"
+                        value={layerHeights[selectedLayerIndex ?? 0]}
+                        onChange={(e) => {
+                          if (selectedLayerIndex === null) return;
+                          const newHeights = [...layerHeights];
+                          newHeights[selectedLayerIndex] = Number(e.target.value);
+                          setLayerHeights(newHeights);
+                        }}
+                        style={{ flex: 1, minWidth: isMobile ? 'auto' : '100px', width: isMobile ? '100%' : 'auto' }}
+                      />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input
+                          type="number"
+                          min="100"
+                          max="600"
+                          step="20"
+                          value={layerHeights[selectedLayerIndex ?? 0]}
+                          onChange={(e) => {
+                            if (selectedLayerIndex === null) return;
+                            const value = Math.min(600, Math.max(100, Number(e.target.value)));
+                            const newHeights = [...layerHeights];
+                            newHeights[selectedLayerIndex] = value;
+                            setLayerHeights(newHeights);
+                          }}
+                          style={{
+                            width: '60px',
+                            padding: isMobile ? '8px' : '4px 8px',
+                            borderRadius: '4px',
+                            border: '1px solid #ddd',
+                            fontSize: '12px',
+                            textAlign: 'right',
+                          }}
+                        />
+                        <span style={{ fontSize: '11px', color: '#999' }}>px</span>
+                      </div>
+                    </div>
 
-          {/* 구분선 (데스크톱만) */}
-          {!isMobile && <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />}
+                    {/* 구분선 (데스크톱만) */}
+                    {!isMobile && <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />}
 
-          {/* 층위 배경 표시 토글 */}
-          <button
-            onClick={() => setShowLayerBackground(!showLayerBackground)}
-            style={{
-              padding: isMobile ? '10px 14px' : '6px 12px',
-              backgroundColor: showLayerBackground ? '#4CAF50' : '#f5f5f5',
-              color: showLayerBackground ? 'white' : '#666',
-              border: 'none',
-              borderRadius: '6px',
-              fontSize: isMobile ? '13px' : '12px',
-              fontWeight: '500',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              whiteSpace: 'nowrap',
-              width: isMobile ? '100%' : 'auto',
-            }}
-            title="층위 배경 표시/숨김"
-          >
-            {showLayerBackground ? '🎨 층위 표시' : '🚫 층위 숨김'}
-          </button>
+                    {/* 전체 투명도 슬라이더 */}
+                    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: '10px', width: isMobile ? '100%' : 'auto', minWidth: isMobile ? 'auto' : '180px' }}>
+                      <label htmlFor="global-opacity" style={{ fontSize: '12px', fontWeight: '500', color: '#666', whiteSpace: 'nowrap' }}>
+                        투명도:
+                      </label>
+                      <input
+                        type="range"
+                        id="global-opacity"
+                        min="0"
+                        max="0.2"
+                        step="0.01"
+                        value={layerOpacities[selectedLayerIndex ?? 0]}
+                        onChange={(e) => {
+                          if (selectedLayerIndex === null) return;
+                          const newOpacities = [...layerOpacities];
+                          newOpacities[selectedLayerIndex] = Number(e.target.value);
+                          setLayerOpacities(newOpacities);
+                        }}
+                        style={{ flex: 1, minWidth: isMobile ? 'auto' : '80px', width: isMobile ? '100%' : 'auto' }}
+                      />
+                      <span style={{ fontSize: '11px', color: '#999', minWidth: '35px', textAlign: 'right' }}>
+                        {Math.round(layerOpacities[selectedLayerIndex ?? 0] * 100)}%
+                      </span>
+                    </div>
+                  </Panel>
+                )}
 
-          {/* 구분선 (데스크톱만) */}
-          {!isMobile && <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />}
+                {/* Controls의 top 제거 - 기본 위치(top: 10px) 사용 */}
+                <Controls style={{ left: 16, bottom: 'auto' }} />
+                <MiniMap
+                  nodeStrokeWidth={3}
+                  zoomable
+                  pannable
+                  nodeColor={(node) => {
+                    const data = node.data as { sentiment?: string };
+                    const sentiment = data.sentiment || 'neutral';
 
-          {/* 층위 선택 드롭다운 */}
-          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: '8px', width: isMobile ? '100%' : 'auto' }}>
-            <label htmlFor="layer-select" style={{ fontSize: '12px', fontWeight: '500', color: '#666', whiteSpace: 'nowrap' }}>
-              조절할 층위:
-            </label>
-            <select
-              id="layer-select"
-              value={selectedLayerIndex ?? 0}
-              onChange={(e) => setSelectedLayerIndex(Number(e.target.value))}
-              style={{
-                padding: isMobile ? '10px 12px' : '6px 10px',
-                borderRadius: '6px',
-                border: '1px solid #ddd',
-                fontSize: isMobile ? '13px' : '12px',
-                fontWeight: '500',
-                cursor: 'pointer',
-                backgroundColor: 'white',
-                width: isMobile ? '100%' : 'auto',
-              }}
-            >
-              <option value={0}>📊 결과</option>
-              <option value={1}>🎬 행동</option>
-              <option value={2}>🔧 유형 레버</option>
-              <option value={3}>💡 무형 레버</option>
-            </select>
-          </div>
+                    // sentiment에 따른 색상 반환
+                    if (sentiment === 'positive') return '#10b981'; // 녹색
+                    if (sentiment === 'negative') return '#ef4444'; // 빨강
+                    return '#6b7280'; // 회색 (중립)
+                  }}
+                  style={{
+                    backgroundColor: '#f8f9fa',
+                  }}
+                />
+              </ReactFlow>
+            </div> {/* 메인 React Flow 영역 닫기 */}
+          </>
+        )} {/* 컬쳐맵 탭 닫기 */}
 
-          {/* 구분선 (데스크톱만) */}
-          {!isMobile && <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />}
-
-          {/* 선택된 층위 높이 조절 */}
-          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: '10px', width: isMobile ? '100%' : 'auto', minWidth: isMobile ? 'auto' : '220px' }}>
-            <label htmlFor="layer-height-input" style={{ fontSize: '12px', fontWeight: '500', color: '#666', whiteSpace: 'nowrap' }}>
-              높이:
-            </label>
-            <input
-              type="range"
-              id="layer-height-input"
-              min="100"
-              max="600"
-              step="20"
-              value={layerHeights[selectedLayerIndex ?? 0]}
-              onChange={(e) => {
-                if (selectedLayerIndex === null) return;
-                const newHeights = [...layerHeights];
-                newHeights[selectedLayerIndex] = Number(e.target.value);
-                setLayerHeights(newHeights);
-              }}
-              style={{ flex: 1, minWidth: isMobile ? 'auto' : '100px', width: isMobile ? '100%' : 'auto' }}
+        {/* 보고서 탭 */}
+        {activeTab === 'report' && (
+          <div style={{ width: '100%', height: '100%', overflow: 'auto', padding: '24px' }}>
+            <ReportEditor
+              initialContent={reportContent}
+              onSave={handleReportChange}
             />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <input
-                type="number"
-                min="100"
-                max="600"
-                step="20"
-                value={layerHeights[selectedLayerIndex ?? 0]}
-                onChange={(e) => {
-                  if (selectedLayerIndex === null) return;
-                  const value = Math.min(600, Math.max(100, Number(e.target.value)));
-                  const newHeights = [...layerHeights];
-                  newHeights[selectedLayerIndex] = value;
-                  setLayerHeights(newHeights);
-                }}
-                style={{
-                  width: '60px',
-                  padding: isMobile ? '8px' : '4px 8px',
-                  borderRadius: '4px',
-                  border: '1px solid #ddd',
-                  fontSize: '12px',
-                  textAlign: 'right',
-                }}
-              />
-              <span style={{ fontSize: '11px', color: '#999' }}>px</span>
-            </div>
           </div>
-
-          {/* 구분선 (데스크톱만) */}
-          {!isMobile && <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />}
-
-          {/* 전체 투명도 슬라이더 */}
-          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: '10px', width: isMobile ? '100%' : 'auto', minWidth: isMobile ? 'auto' : '180px' }}>
-            <label htmlFor="global-opacity" style={{ fontSize: '12px', fontWeight: '500', color: '#666', whiteSpace: 'nowrap' }}>
-              투명도:
-            </label>
-            <input
-              type="range"
-              id="global-opacity"
-              min="0"
-              max="0.2"
-              step="0.01"
-              value={layerOpacities[selectedLayerIndex ?? 0]}
-              onChange={(e) => {
-                if (selectedLayerIndex === null) return;
-                const newOpacities = [...layerOpacities];
-                newOpacities[selectedLayerIndex] = Number(e.target.value);
-                setLayerOpacities(newOpacities);
-              }}
-              style={{ flex: 1, minWidth: isMobile ? 'auto' : '80px', width: isMobile ? '100%' : 'auto' }}
-            />
-            <span style={{ fontSize: '11px', color: '#999', minWidth: '35px', textAlign: 'right' }}>
-              {Math.round(layerOpacities[selectedLayerIndex ?? 0] * 100)}%
-            </span>
-          </div>
-        </Panel>
         )}
 
-        {/* Controls의 top 제거 - 기본 위치(top: 10px) 사용 */}
-        <Controls style={{ left: 16, bottom: 'auto' }} />
-        <MiniMap
-          nodeStrokeWidth={3}
-          zoomable
-          pannable
-          nodeColor={(node) => {
-            const data = node.data as { sentiment?: string };
-            const sentiment = data.sentiment || 'neutral';
-            
-            // sentiment에 따른 색상 반환
-            if (sentiment === 'positive') return '#10b981'; // 녹색
-            if (sentiment === 'negative') return '#ef4444'; // 빨강
-            return '#6b7280'; // 회색 (중립)
-          }}
-          style={{
-            backgroundColor: '#f8f9fa',
-          }}
-        />
-      </ReactFlow>
-      </div> {/* 메인 React Flow 영역 닫기 */}
-      </>
-      )} {/* 컬쳐맵 탭 닫기 */}
-      
-      {/* 보고서 탭 */}
-      {activeTab === 'report' && (
-        <div style={{ width: '100%', height: '100%', overflow: 'auto', padding: '24px' }}>
-          <ReportEditor 
-            initialContent={reportContent}
-            onSave={handleReportChange}
-          />
-        </div>
-      )}
-      
       </div> {/* culture-map-flow-container 닫기 */}
 
       {/* AI 일괄 생성 입력 패널 */}
@@ -2139,7 +2139,7 @@ const CultureMapFlow = ({
               <button onClick={() => handleContextMenuAction('negative')}>
                 ❌ 부정으로 변경
               </button>
-              
+
               {/* 컨설팅 모드일 때만 빈도 설정 표시 */}
               {isConsultingMode && (
                 <>
@@ -2159,7 +2159,7 @@ const CultureMapFlow = ({
                   </button>
                 </>
               )}
-              
+
               <hr />
               <button onClick={() => handleContextMenuAction('delete')}>🗑️ 삭제</button>
             </>
@@ -2179,7 +2179,7 @@ const CultureMapFlow = ({
           )}
         </div>
       )}
-      
+
       {/* 모바일 포스트잇 추가 FAB 버튼 */}
       {isMobile && activeTab === 'map' && (
         <button
@@ -2330,10 +2330,10 @@ const CultureMapFlow = ({
 
       {/* 세션 정보 모달 */}
       {showSessionInfo && (() => {
-        const session = FirebaseMultiUserService.getCurrentSession();
+        const session = liveblocksService.getCurrentSession();
         return session ? (
-          <div 
-            className="connection-guide-overlay" 
+          <div
+            className="connection-guide-overlay"
             onClick={() => setShowSessionInfo(false)}
             style={{
               position: 'fixed',

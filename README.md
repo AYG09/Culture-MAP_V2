@@ -1,21 +1,22 @@
-# 🔥 조직문화 분석기 - Firebase 웹서비스
+# 🎯 Culture-MAP v2 - 조직문화 분석기
 
 > **Live Demo**: https://culturemapwithai.vercel.app/
 
-Firebase 기반의 실시간 협업 웹서비스입니다. 조직문화를 4층위 모델로 분석하고 시각화합니다.
+Liveblocks + Yjs 기반의 실시간 협업 웹서비스입니다. 조직문화를 4층위 모델로 분석하고 시각화합니다.
 
 ---
 
 ## ✨ 주요 특징
 
 - 🌐 **웹 기반 서비스** - 어디서나 브라우저로 접속
-- 🔥 **Firebase 실시간 동기화** - Firebase Realtime Database 기반
+- 🔗 **Liveblocks 실시간 동기화** - CRDT 기반 충돌 없는 동기화
+- 💾 **오프라인 지원** - IndexedDB 로컬 저장
 - 👥 **실시간 협업** - 여러 사용자가 동시에 컬쳐맵 편집
 - 📱 **완전 반응형** - 모바일/태블릿/데스크톱 최적화
 - 🎨 **React Flow 기반** - 직관적인 노드 기반 에디터
-- 🤖 **AI 통합** - Google Gemini, Claude API 지원
+- 🤖 **AI 통합** - Google Gemini (PDF RAG), Claude API 지원
 - 📊 **다양한 내보내기** - Excel, Word, 이미지 저장
-- 🎬 **비디오 인트로** - Gemini Veo3로 생성한 8초 오프닝
+- 📋 **버크만 분석** - PDF 진단 리포트 AI 분석
 
 ---
 

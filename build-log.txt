@@ -1,0 +1,11 @@
+[36mvite v7.1.10 [32mbuilding for production...[36m[39m
+transforming...
+[32m??[39m 1498 modules transformed.
+??[39m Build failed in 6.25s
+error during build:
+Could not resolve entry module "firebase/app".
+    at getRollupError (file:///C:/Users/winte/Desktop/Culture-MAP/node_modules/rollup/dist/es/shared/parseAst.js:401:41)
+    at error (file:///C:/Users/winte/Desktop/Culture-MAP/node_modules/rollup/dist/es/shared/parseAst.js:397:42)
+    at ModuleLoader.loadEntryModule (file:///C:/Users/winte/Desktop/Culture-MAP/node_modules/rollup/dist/es/shared/node-entry.js:21444:20)
+    at async Promise.all (index 0)
+    at async Promise.all (index 0)

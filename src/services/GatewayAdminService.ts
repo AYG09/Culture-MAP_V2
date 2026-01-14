@@ -1,16 +1,5 @@
 // src/services/GatewayAdminService.ts
-import { database } from '../lib/firebase';
-import {
-  ref,
-  push,
-  set,
-  onValue,
-  off,
-  remove,
-  update,
-  get,
-} from 'firebase/database';
-import type { DatabaseReference } from 'firebase/database';
+// Firebase 대신 localStorage를 사용하는 간소화된 버전
 
 // 비밀번호 타입: 워크샵, 컨설팅, 관리자
 export type PasswordType = 'admin' | 'workshop' | 'consulting';
@@ -18,7 +7,7 @@ export type PasswordType = 'admin' | 'workshop' | 'consulting';
 export interface GatewayPassword {
   id: string;
   password: string;
-  type: PasswordType;  // 변경: 'admin' | 'session' → PasswordType
+  type: PasswordType;
   sessionCode?: string;
   description?: string;
   createdAt: number;
@@ -36,14 +25,38 @@ export interface SessionInfo {
   isActive: boolean;
 }
 
-class GatewayAdminService {
-  private passwordsRef: DatabaseReference;
-  private sessionsRef: DatabaseReference;
+const STORAGE_KEY_PASSWORDS = 'gateway_passwords';
+const STORAGE_KEY_SESSIONS = 'gateway_sessions';
 
+class GatewayAdminService {
   constructor() {
-    this.passwordsRef = ref(database, 'gateway/passwords');
-    this.sessionsRef = ref(database, 'gateway/sessions');
-    console.log('🔐 Gateway Admin Service initialized');
+    console.log('🔐 Gateway Admin Service initialized (localStorage mode)');
+  }
+
+  private getPasswords(): Record<string, Omit<GatewayPassword, 'id'>> {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY_PASSWORDS);
+      return data ? JSON.parse(data) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private savePasswords(passwords: Record<string, Omit<GatewayPassword, 'id'>>): void {
+    localStorage.setItem(STORAGE_KEY_PASSWORDS, JSON.stringify(passwords));
+  }
+
+  private getSessions(): Record<string, Omit<SessionInfo, 'code'>> {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY_SESSIONS);
+      return data ? JSON.parse(data) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private saveSessions(sessions: Record<string, Omit<SessionInfo, 'code'>>): void {
+    localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
   }
 
   /**
@@ -51,7 +64,7 @@ class GatewayAdminService {
    */
   async createPassword(options: {
     password: string;
-    type?: PasswordType;  // 변경: 'admin' | 'session' → PasswordType
+    type?: PasswordType;
     sessionCode?: string;
     description?: string;
     expireHours?: number;
@@ -66,25 +79,25 @@ class GatewayAdminService {
       maxUses,
     } = options;
 
-    const newPasswordRef = push(this.passwordsRef);
-    const passwordId = newPasswordRef.key!;
-
+    const passwordId = `pwd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const now = Date.now();
     const expiresAt = now + expireHours * 60 * 60 * 1000;
 
     const passwordData: Omit<GatewayPassword, 'id'> = {
       password,
       type,
-      ...(sessionCode && { sessionCode }), // sessionCode가 있을 때만 포함
-      ...(description && { description }), // description이 있을 때만 포함
+      ...(sessionCode && { sessionCode }),
+      ...(description && { description }),
       createdAt: now,
       expiresAt,
-      ...(maxUses && { maxUses }), // maxUses가 있을 때만 포함
+      ...(maxUses && { maxUses }),
       usedCount: 0,
       status: 'active',
     };
 
-    await set(newPasswordRef, passwordData);
+    const passwords = this.getPasswords();
+    passwords[passwordId] = passwordData;
+    this.savePasswords(passwords);
 
     console.log('✅ Password created:', passwordId);
     return {
@@ -99,7 +112,7 @@ class GatewayAdminService {
   async createSessionPassword(sessionCode: string, expireHours = 24): Promise<string> {
     const result = await this.createPassword({
       password: sessionCode,
-      type: 'workshop',  // 변경: 'session' → 'workshop' (기본 모드)
+      type: 'workshop',
       sessionCode,
       description: `세션 ${sessionCode} 자동 생성 비밀번호`,
       expireHours,
@@ -116,7 +129,7 @@ class GatewayAdminService {
     isValid: boolean;
     isAdmin: boolean;
     passwordId?: string;
-    passwordType?: PasswordType;  // 추가: 비밀번호 타입 반환
+    passwordType?: PasswordType;
   }> {
     // 관리자 비밀번호 확인
     const adminPassword = import.meta.env.VITE_GATEWAY_ADMIN_PASSWORD || 'excadmin';
@@ -125,12 +138,7 @@ class GatewayAdminService {
     }
 
     // 임시 비밀번호 확인
-    const snapshot = await get(this.passwordsRef);
-    if (!snapshot.exists()) {
-      return { isValid: false, isAdmin: false };
-    }
-
-    const passwords = snapshot.val() as Record<string, Omit<GatewayPassword, 'id'>>;
+    const passwords = this.getPasswords();
     const now = Date.now();
 
     for (const [id, pwd] of Object.entries(passwords)) {
@@ -150,14 +158,13 @@ class GatewayAdminService {
         // 사용 횟수 증가
         await this.incrementPasswordUsage(id);
 
-        // Firebase에서 조회한 비밀번호도 type이 'admin'이면 isAdmin: true 반환
         const isAdmin = pwd.type === 'admin';
 
-        return { 
-          isValid: true, 
+        return {
+          isValid: true,
           isAdmin,
           passwordId: id,
-          passwordType: pwd.type,  // 추가: 비밀번호 타입 반환
+          passwordType: pwd.type,
         };
       }
     }
@@ -169,23 +176,18 @@ class GatewayAdminService {
    * 비밀번호 사용 횟수 증가
    */
   private async incrementPasswordUsage(passwordId: string): Promise<void> {
-    const passwordRef = ref(database, `gateway/passwords/${passwordId}`);
-    const snapshot = await get(passwordRef);
+    const passwords = this.getPasswords();
+    const pwd = passwords[passwordId];
 
-    if (snapshot.exists()) {
-      const pwd = snapshot.val() as Omit<GatewayPassword, 'id'>;
-      const newUsedCount = pwd.usedCount + 1;
+    if (pwd) {
+      pwd.usedCount += 1;
 
-      const updates: Partial<GatewayPassword> = {
-        usedCount: newUsedCount,
-      };
-
-      // 최대 사용 횟수에 도달하면 상태 변경
-      if (pwd.maxUses && newUsedCount >= pwd.maxUses) {
-        updates.status = 'exhausted';
+      if (pwd.maxUses && pwd.usedCount >= pwd.maxUses) {
+        pwd.status = 'exhausted';
       }
 
-      await update(passwordRef, updates);
+      passwords[passwordId] = pwd;
+      this.savePasswords(passwords);
     }
   }
 
@@ -196,30 +198,24 @@ class GatewayAdminService {
     passwordId: string,
     status: 'active' | 'expired' | 'exhausted'
   ): Promise<void> {
-    const passwordRef = ref(database, `gateway/passwords/${passwordId}`);
-    await update(passwordRef, { status });
+    const passwords = this.getPasswords();
+    if (passwords[passwordId]) {
+      passwords[passwordId].status = status;
+      this.savePasswords(passwords);
+    }
   }
 
   /**
    * 모든 비밀번호 가져오기
    */
   async getAllPasswords(): Promise<GatewayPassword[]> {
-    const snapshot = await get(this.passwordsRef);
-
-    if (!snapshot.exists()) {
-      return [];
-    }
-
-    const passwords = snapshot.val() as Record<string, Omit<GatewayPassword, 'id'>>;
+    const passwords = this.getPasswords();
     const now = Date.now();
-
-    // 배열로 변환하고 만료된 비밀번호 상태 업데이트
     const result: GatewayPassword[] = [];
 
     for (const [id, pwd] of Object.entries(passwords)) {
       const password: GatewayPassword = { id, ...pwd };
 
-      // 만료 확인
       if (password.status === 'active' && password.expiresAt < now) {
         password.status = 'expired';
         await this.updatePasswordStatus(id, 'expired');
@@ -228,7 +224,6 @@ class GatewayAdminService {
       result.push(password);
     }
 
-    // 최신순 정렬
     return result.sort((a, b) => b.createdAt - a.createdAt);
   }
 
@@ -236,63 +231,28 @@ class GatewayAdminService {
    * 비밀번호 삭제
    */
   async deletePassword(passwordId: string): Promise<void> {
-    const passwordRef = ref(database, `gateway/passwords/${passwordId}`);
-    await remove(passwordRef);
+    const passwords = this.getPasswords();
+    delete passwords[passwordId];
+    this.savePasswords(passwords);
     console.log('🗑️ Password deleted:', passwordId);
   }
 
   /**
-   * 세션 코드로 비밀번호 삭제
-   */
-  async deletePasswordBySessionCode(sessionCode: string): Promise<void> {
-    const snapshot = await get(this.passwordsRef);
-
-    if (!snapshot.exists()) {
-      return;
-    }
-
-    const passwords = snapshot.val() as Record<string, Omit<GatewayPassword, 'id'>>;
-
-    for (const [id, pwd] of Object.entries(passwords)) {
-      if (pwd.sessionCode === sessionCode) {
-        await this.deletePassword(id);
-        console.log(`🗑️ Session password deleted for: ${sessionCode}`);
-      }
-    }
-  }
-
-  /**
-   * 비밀번호 변경 실시간 리스닝
+   * 비밀번호 변경 리스닝 (폴링 방식으로 시뮬레이션)
    */
   onPasswordsChange(callback: (passwords: GatewayPassword[]) => void): () => void {
-    const unsubscribe = onValue(this.passwordsRef, async (snapshot) => {
-      if (!snapshot.exists()) {
-        callback([]);
-        return;
-      }
+    const checkPasswords = async () => {
+      const passwords = await this.getAllPasswords();
+      callback(passwords);
+    };
 
-      const passwords = snapshot.val() as Record<string, Omit<GatewayPassword, 'id'>>;
-      const now = Date.now();
+    // 초기 호출
+    void checkPasswords();
 
-      const result: GatewayPassword[] = [];
+    // 5초마다 폴링
+    const intervalId = setInterval(checkPasswords, 5000);
 
-      for (const [id, pwd] of Object.entries(passwords)) {
-        const password: GatewayPassword = { id, ...pwd };
-
-        // 만료 확인
-        if (password.status === 'active' && password.expiresAt < now) {
-          password.status = 'expired';
-          await this.updatePasswordStatus(id, 'expired');
-        }
-
-        result.push(password);
-      }
-
-      // 최신순 정렬
-      callback(result.sort((a, b) => b.createdAt - a.createdAt));
-    });
-
-    return () => off(this.passwordsRef, 'value', unsubscribe);
+    return () => clearInterval(intervalId);
   }
 
   /**
@@ -303,16 +263,16 @@ class GatewayAdminService {
     host: string,
     passwordId: string
   ): Promise<void> {
-    const sessionRef = ref(database, `gateway/sessions/${sessionCode}`);
+    const sessions = this.getSessions();
 
-    const sessionData: Omit<SessionInfo, 'code'> = {
+    sessions[sessionCode] = {
       host,
       createdAt: Date.now(),
       passwordId,
       isActive: true,
     };
 
-    await set(sessionRef, sessionData);
+    this.saveSessions(sessions);
     console.log('📝 Session registered:', sessionCode);
   }
 
@@ -320,16 +280,14 @@ class GatewayAdminService {
    * 세션 종료
    */
   async endSession(sessionCode: string): Promise<void> {
-    const sessionRef = ref(database, `gateway/sessions/${sessionCode}`);
-    const snapshot = await get(sessionRef);
+    const sessions = this.getSessions();
+    const session = sessions[sessionCode];
 
-    if (snapshot.exists()) {
-      const session = snapshot.val() as Omit<SessionInfo, 'code'>;
+    if (session) {
+      session.isActive = false;
+      sessions[sessionCode] = session;
+      this.saveSessions(sessions);
 
-      // 세션 비활성화
-      await update(sessionRef, { isActive: false });
-
-      // 연동된 비밀번호 삭제
       if (session.passwordId) {
         await this.deletePassword(session.passwordId);
       }
@@ -342,13 +300,7 @@ class GatewayAdminService {
    * 모든 세션 가져오기
    */
   async getAllSessions(): Promise<(SessionInfo & { code: string })[]> {
-    const snapshot = await get(this.sessionsRef);
-
-    if (!snapshot.exists()) {
-      return [];
-    }
-
-    const sessions = snapshot.val() as Record<string, Omit<SessionInfo, 'code'>>;
+    const sessions = this.getSessions();
 
     return Object.entries(sessions).map(([code, session]) => ({
       code,

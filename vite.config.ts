@@ -19,20 +19,18 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          firebase: ['firebase/app', 'firebase/database', 'firebase/firestore', 'firebase/auth'],
           vendor: ['react', 'react-dom'],
-          ui: ['uuid', 'dompurify']
+          liveblocks: ['@liveblocks/client', '@liveblocks/yjs', 'yjs'],
+          ui: ['uuid']
         },
       },
       external: []
     },
   },
   optimizeDeps: {
-    include: ['firebase/app', 'firebase/database', 'firebase/firestore', 'firebase/auth']
+    include: ['@liveblocks/client', '@liveblocks/yjs', 'yjs', 'y-indexeddb']
   },
   define: {
-    __FIREBASE_MODE__: true,
     __APP_VERSION__: JSON.stringify(process.env.npm_package_version || '1.0.0')
   }
 });
-

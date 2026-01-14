@@ -1,7 +1,7 @@
 // src/components/AdminGateway.tsx
 import { useState, useEffect } from 'react';
 import gatewayAdminService, { type GatewayPassword, type PasswordType } from '../services/GatewayAdminService';
-import FirebaseMultiUserService, { type SessionMetadata } from '../services/FirebaseMultiUserService';
+import liveblocksService from '../services/LiveblocksService';
 import './AdminGateway.css';
 
 interface AdminGatewayProps {
@@ -63,7 +63,7 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
   const loadSessions = async () => {
     setLoading(true);
     try {
-      const allSessions = await FirebaseMultiUserService.getActiveSessions(100);  // 최대 100개
+      const allSessions = await liveblocksService.getActiveSessions(100);  // 최대 100개
       setSessions(allSessions);
       setError('');
     } catch (err) {
@@ -84,7 +84,7 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
       await gatewayAdminService.deletePasswordBySessionCode(code);
       
       // 2. 세션 삭제
-      await FirebaseMultiUserService.deleteSession(code);
+      await liveblocksService.deleteSession(code);
       
       // 3. 목록 새로고침
       await loadSessions();

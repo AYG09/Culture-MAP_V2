@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import FirebaseMultiUserService, { type SessionMetadata } from '../services/FirebaseMultiUserService';
+import liveblocksService from '../services/LiveblocksService';
 import type { PasswordType } from '../services/GatewayAdminService';
+import type { SessionType } from '../types/liveblocks';
 import { formatRelativeTime } from '../utils/timeFormat';
 import './SessionManager.css';
 
@@ -12,14 +13,13 @@ interface SessionManagerProps {
   passwordType?: PasswordType;
 }
 
-const SessionManager: React.FC<SessionManagerProps> = ({ 
+const SessionManager: React.FC<SessionManagerProps> = ({
   showModal: externalShowModal,
   onClose,
   initialSessionCode,
   onSessionJoined,
-  passwordType = 'workshop'  // 기본값 workshop
+  passwordType = 'workshop'
 }) => {
-  // externalShowModal이 명시적으로 전달되면 그 값을 사용, 그렇지 않으면 false
   const [showModal, setShowModal] = useState(externalShowModal ?? false);
   const [sessionCode, setSessionCode] = useState(initialSessionCode || '');
   const [isCreating, setIsCreating] = useState(false);
@@ -31,8 +31,6 @@ const SessionManager: React.FC<SessionManagerProps> = ({
     connectedUsers: number;
     name?: string;
   } | null>(null);
-  const [activeSessions, setActiveSessions] = useState<SessionMetadata[]>([]);
-  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [sessionName, setSessionName] = useState('');
 
   // externalShowModal 변경 시 showModal 동기화
@@ -46,63 +44,37 @@ const SessionManager: React.FC<SessionManagerProps> = ({
   useEffect(() => {
     if (initialSessionCode && !currentSession) {
       setSessionCode(initialSessionCode);
-      // 자동 참가는 사용자가 명시적으로 버튼을 클릭하도록 유도
     }
   }, [initialSessionCode, currentSession]);
 
   useEffect(() => {
-    // 멀티유저 서비스 이벤트 리스너 등록
-    const handleUserJoined = (...args: unknown[]) => {
-      const data = args[0] as { userCount: number };
-      console.log('👋 User joined:', data);
-      setCurrentSession(prev => (prev ? { ...prev, connectedUsers: data.userCount } : null));
+    // Liveblocks 서비스 이벤트 리스너 등록
+    const handleUserJoined = (data: unknown) => {
+      const userData = data as { userId: string; userName?: string };
+      console.log('👋 User joined:', userData);
+      const session = liveblocksService.getCurrentSession();
+      if (session) {
+        setCurrentSession(prev => prev ? { ...prev, connectedUsers: session.connectedUsers } : null);
+      }
     };
 
-    const handleUserLeft = (...args: unknown[]) => {
-      const data = args[0] as { userCount: number };
-      console.log('👋 User left:', data);
-      setCurrentSession(prev => (prev ? { ...prev, connectedUsers: data.userCount } : null));
+    const handleUserLeft = (data: unknown) => {
+      const userData = data as { userId: string };
+      console.log('👋 User left:', userData);
+      const session = liveblocksService.getCurrentSession();
+      if (session) {
+        setCurrentSession(prev => prev ? { ...prev, connectedUsers: session.connectedUsers } : null);
+      }
     };
 
-    const handleError = (...args: unknown[]) => {
-      const error = args[0] as { message?: string };
-      setError(error.message || 'An error occurred');
-    };
-
-    FirebaseMultiUserService.on('user-joined', handleUserJoined);
-    FirebaseMultiUserService.on('user-left', handleUserLeft);
-    FirebaseMultiUserService.on('error', handleError);
+    liveblocksService.on('user-joined', handleUserJoined);
+    liveblocksService.on('user-left', handleUserLeft);
 
     return () => {
-      FirebaseMultiUserService.off('user-joined', handleUserJoined);
-      FirebaseMultiUserService.off('user-left', handleUserLeft);
-      FirebaseMultiUserService.off('error', handleError);
+      liveblocksService.off('user-joined', handleUserJoined);
+      liveblocksService.off('user-left', handleUserLeft);
     };
   }, []);
-
-  // 활성 세션 목록 로드
-  useEffect(() => {
-    if (!showModal) return;
-    
-    setIsLoadingSessions(true);
-    
-    // passwordType을 sessionType으로 변환하여 해당 타입의 세션만 조회
-    const sessionType = passwordType === 'admin' ? 'consulting' : passwordType;
-    
-    // 실시간 리스너 설정
-    const unsubscribe = FirebaseMultiUserService.onActiveSessions(
-      (sessions) => {
-        setActiveSessions(sessions);
-        setIsLoadingSessions(false);
-      },
-      10,
-      sessionType  // 세션 타입 필터링 추가
-    );
-
-    return () => {
-      unsubscribe();
-    };
-  }, [showModal, passwordType]);
 
   const createSession = async () => {
     setIsCreating(true);
@@ -111,9 +83,9 @@ const SessionManager: React.FC<SessionManagerProps> = ({
     try {
       const name = sessionName.trim() || undefined;
       // passwordType을 sessionType으로 변환 (admin은 consulting으로 처리)
-      const sessionType = passwordType === 'admin' ? 'consulting' : passwordType;
-      const code = await FirebaseMultiUserService.createSession(name, sessionType);
-      FirebaseMultiUserService.joinSession(code, true);
+      const sessionType: SessionType = passwordType === 'admin' ? 'consulting' : passwordType as SessionType;
+
+      const code = await liveblocksService.createSession(name, sessionType);
 
       const sessionData = {
         code,
@@ -144,23 +116,25 @@ const SessionManager: React.FC<SessionManagerProps> = ({
     setError('');
 
     try {
-      const isValid = await FirebaseMultiUserService.validateSession(sessionCode.toUpperCase());
+      const upperCode = sessionCode.toUpperCase();
+      const isValid = await liveblocksService.validateSession(upperCode);
+
       if (!isValid) {
         setError('유효하지 않은 세션 코드입니다.');
         return;
       }
 
-      FirebaseMultiUserService.joinSession(sessionCode.toUpperCase(), false);
+      await liveblocksService.joinSession(upperCode, false);
 
       const sessionData = {
-        code: sessionCode.toUpperCase(),
+        code: upperCode,
         isHost: false,
         connectedUsers: 1,
       };
 
       setCurrentSession(sessionData);
       setShowModal(false);
-      onSessionJoined?.(sessionCode.toUpperCase(), false);
+      onSessionJoined?.(upperCode, false);
       onClose?.();
     } catch (err) {
       setError('세션 참가에 실패했습니다.');
@@ -170,32 +144,7 @@ const SessionManager: React.FC<SessionManagerProps> = ({
     }
   };
 
-  const joinActiveSession = async (code: string) => {
-    setIsValidating(true);
-    setError('');
-
-    try {
-      FirebaseMultiUserService.joinSession(code, false);
-
-      const sessionData = {
-        code,
-        isHost: false,
-        connectedUsers: 1,
-      };
-
-      setCurrentSession(sessionData);
-      setShowModal(false);
-      onSessionJoined?.(code, false);
-      onClose?.();
-    } catch (err) {
-      setError('세션 참가에 실패했습니다.');
-      console.error('Failed to join session:', err);
-    } finally {
-      setIsValidating(false);
-    }
-  };
-
-  // 세션 참가 후에는 모달만 표시 (상단 세션 박스 제거)
+  // 세션 참가 후에는 모달만 표시
   if (!showModal) {
     return null;
   }
@@ -246,48 +195,12 @@ const SessionManager: React.FC<SessionManagerProps> = ({
           </div>
         </div>
 
-        {/* 활성 세션 목록 */}
-        {activeSessions.length > 0 && (
-          <div className="active-sessions">
-            <h3>🔥 활성 세션 목록</h3>
-            <p className="sessions-subtitle">최근 2시간 이내 활동한 세션</p>
-            <div className="sessions-list">
-              {isLoadingSessions ? (
-                <div className="loading">로딩 중...</div>
-              ) : (
-                activeSessions.map(session => (
-                  <div key={session.code} className="session-item">
-                    <div className="session-item-header">
-                      <span className="session-item-name">{session.name}</span>
-                      <span className="session-item-code">{session.code}</span>
-                    </div>
-                    <div className="session-item-meta">
-                      <span className="session-item-users">👥 {session.userCount}명</span>
-                      <span className="session-item-time">
-                        {session.lastActivity
-                          ? formatRelativeTime(session.lastActivity)
-                          : formatRelativeTime(session.createdAt)}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => joinActiveSession(session.code)}
-                      className="session-item-join-btn"
-                      disabled={isValidating}
-                    >
-                      참가하기
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-
         <div className="session-info-text">
           <p>
             💡 <strong>팁:</strong> 세션 코드를 공유하면 누구나 참가할 수 있습니다.
           </p>
-          <p>🔄 실시간으로 스티키 노트, 분석 데이터, 프로젝트가 동기화됩니다.</p>
+          <p>🔄 실시간으로 스티키 노트와 분석 데이터가 동기화됩니다.</p>
+          <p>💾 오프라인에서도 작업하고 나중에 동기화할 수 있습니다.</p>
         </div>
       </div>
     </div>

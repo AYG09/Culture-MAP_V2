@@ -1,11 +1,11 @@
 {
-  "name": "org_culture_analyzer_web",
+  "name": "culture-map-v2",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "author": "안영규 with AI Agent",
-  "description": "조직문화 분석기 - Firebase 기반 웹서비스",
-  "copyright": "© 2024 안영규 with AI Agent. All rights reserved.",
+  "description": "조직문화 분석기 v2 - Liveblocks 기반 실시간 협업",
+  "copyright": "© 2024-2026 안영규 with AI Agent. All rights reserved.",
   "license": "PROPRIETARY",
   "scripts": {
     "dev": "vite --force",
@@ -18,6 +18,11 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.33.1",
+    "@google/genai": "^1.35.0",
+    "@liveblocks/client": "^3.12.1",
+    "@liveblocks/react": "^3.12.1",
+    "@liveblocks/yjs": "^3.12.1",
     "@types/dagre": "^0.7.53",
     "@types/qrcode": "^1.5.5",
     "@types/quill": "^2.0.14",
@@ -29,12 +34,13 @@
     "docx": "^8.5.0",
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
-    "firebase": "^12.1.0",
     "framer-motion": "^12.23.24",
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
     "html2pdf.js": "^0.12.1",
     "jspdf": "^2.5.1",
+    "lucide-react": "^0.471.0",
+    "pdfjs-dist": "^4.10.38",
     "qrcode": "^1.5.4",
     "quill": "^2.0.3",
     "react": "^19.1.0",
@@ -42,7 +48,10 @@
     "react-quill-new": "^3.6.0",
     "react-router-dom": "^7.7.0",
     "uuid": "^11.1.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "y-indexeddb": "^9.0.0",
+    "y-webrtc": "^10.3.0",
+    "yjs": "^13.6.23"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",

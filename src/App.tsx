@@ -6,9 +6,10 @@ import type { PasswordType } from './services/GatewayAdminService';
 import SessionManager from './components/SessionManager';
 import CultureMapFlow from './components/CultureMapFlow';
 import VideoSplash from './components/VideoSplash';
-import FirebaseMultiUserService from './services/FirebaseMultiUserService';
+import liveblocksService from './services/LiveblocksService';
 
 import type { ConnectionData, NoteData, NoteType } from './types/culture';
+import type { StickyNoteData, ConnectionData as LBConnectionData } from './types/liveblocks';
 
 import './App.css';
 
@@ -18,21 +19,6 @@ const TOP_LAYER_MIN = 1;
 type AppNote = NoteData & {
   content?: string;
 };
-
-interface FirebaseStickyNoteUpdate {
-  id: string;
-  content?: string;
-  text?: string;
-  x: number;
-  y: number;
-  layer: number;
-  color?: string;
-  type?: string;
-  width?: number;
-  height?: number;
-  concept?: NoteData['perceptionIntensity'];
-  basis?: string | { author?: string; year?: number; theory?: string };
-}
 
 type Sentiment = NoteData['sentiment'];
 
@@ -59,34 +45,8 @@ const toNoteType = (remoteType?: string): NoteType =>
 
 const toRemoteType = (noteType: NoteType): string => NOTE_TYPE_TO_REMOTE[noteType];
 
-const normalizeBasis = (
-  basis: FirebaseStickyNoteUpdate['basis']
-): string | undefined => {
-  if (!basis) {
-    return undefined;
-  }
-
-  if (typeof basis === 'string') {
-    return basis;
-  }
-
-  const parts: string[] = [];
-
-  if (basis.author) {
-    parts.push(`저자: ${basis.author}`);
-  }
-  if (basis.theory) {
-    parts.push(`이론: ${basis.theory}`);
-  }
-  if (basis.year) {
-    parts.push(`연도: ${basis.year}`);
-  }
-
-  return parts.length > 0 ? parts.join(', ') : undefined;
-};
-
-const mapFirebaseNoteToAppNote = (note: FirebaseStickyNoteUpdate): AppNote => {
-  const text = note.content ?? note.text ?? '';
+const mapLiveblocksNoteToAppNote = (note: StickyNoteData): AppNote => {
+  const text = note.content ?? '';
   const sentiment = isSentiment(note.color) ? note.color : 'neutral';
   const layer =
     note.layer >= TOP_LAYER_MIN && note.layer <= TOP_LAYER
@@ -103,8 +63,8 @@ const mapFirebaseNoteToAppNote = (note: FirebaseStickyNoteUpdate): AppNote => {
     type: toNoteType(note.type),
     sentiment,
     layer,
-    perceptionIntensity: note.concept,
-    basis: normalizeBasis(note.basis),
+    perceptionIntensity: note.frequency,
+    basis: note.basis ? `${note.basis.author} (${note.basis.year}): ${note.basis.theory}` : undefined,
   };
 };
 
@@ -115,7 +75,18 @@ function App() {
   const [showSessionManager, setShowSessionManager] = useState(false);
   const [pendingSessionCode, setPendingSessionCode] = useState<string | undefined>();
   const [passwordType, setPasswordType] = useState<PasswordType>('workshop');
-  const [isAdmin, setIsAdmin] = useState(false);  // 추가: 관리자 상태 추적
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isLiveblocksInitialized, setIsLiveblocksInitialized] = useState(false);
+
+  // Liveblocks 초기화
+  useEffect(() => {
+    const publicKey = import.meta.env.VITE_LIVEBLOCKS_PUBLIC_KEY;
+    if (publicKey && !isLiveblocksInitialized) {
+      liveblocksService.initialize(publicKey);
+      setIsLiveblocksInitialized(true);
+      console.log('🔗 Liveblocks 초기화 완료');
+    }
+  }, [isLiveblocksInitialized]);
 
   // VideoSplash 완료 처리
   const handleSplashComplete = () => {
@@ -123,27 +94,32 @@ function App() {
   };
 
   // Gateway 인증 완료 시 처리
-  const handleAuthenticated = useCallback((isAdmin: boolean, sessionCode?: string, passwordType?: PasswordType) => {
+  const handleAuthenticated = useCallback(async (isAdmin: boolean, sessionCode?: string, passwordType?: PasswordType) => {
     console.log('Gateway authenticated, admin:', isAdmin, 'sessionCode:', sessionCode, 'passwordType:', passwordType);
-    
+
     // passwordType 저장
     setPasswordType(passwordType || 'workshop');
-    
+
     // 관리자 상태 저장
     setIsAdmin(isAdmin);
-    
+
     // 관리자는 세션 관리자를 표시하지 않음 (AdminGateway에서 직접 처리)
     if (isAdmin) {
       console.log('✅ Admin authenticated - no session creation needed');
       setShowSessionManager(false);
       return;
     }
-    
+
     if (sessionCode) {
       // 세션 코드가 있으면 바로 해당 세션에 참가
       setPendingSessionCode(sessionCode);
-      FirebaseMultiUserService.joinSession(sessionCode, false);
-      setShowSessionManager(false);
+      try {
+        await liveblocksService.joinSession(sessionCode, false);
+        setShowSessionManager(false);
+      } catch (error) {
+        console.error('❌ 세션 참가 실패:', error);
+        setShowSessionManager(true);
+      }
     } else {
       // 일반 비밀번호로 로그인한 경우 세션 관리자 표시
       setShowSessionManager(true);
@@ -156,9 +132,9 @@ function App() {
     setPendingSessionCode(undefined);
   }, []);
 
+  // 기존 세션 확인
   useEffect(() => {
-    // 자동 세션 생성 제거 - SessionManager에서 처리
-    const existingSession = FirebaseMultiUserService.getCurrentSession();
+    const existingSession = liveblocksService.getCurrentSession();
     if (existingSession) {
       console.log('Existing session found:', existingSession);
     }
@@ -172,9 +148,10 @@ function App() {
     }
   }, [isAdmin]);
 
+  // Liveblocks 이벤트 리스너
   useEffect(() => {
-    const handleStickyNoteUpdated = (note: FirebaseStickyNoteUpdate) => {
-      const normalized = mapFirebaseNoteToAppNote(note);
+    const handleNoteUpdated = (note: unknown) => {
+      const normalized = mapLiveblocksNoteToAppNote(note as StickyNoteData);
       setNotes(prev => {
         const index = prev.findIndex(item => item.id === normalized.id);
         if (index >= 0) {
@@ -186,67 +163,54 @@ function App() {
       });
     };
 
-    const handleStickyNoteDeleted = (data: { noteId: string }) => {
-      setNotes(prev => prev.filter(note => note.id !== data.noteId));
-      setConnections(prev =>
-        prev.filter(connection =>
-          connection.sourceId !== data.noteId && connection.targetId !== data.noteId
-        )
-      );
+    const handleNoteDeleted = () => {
+      // 노드 삭제 시 전체 목록 새로고침
+      const allNotes = liveblocksService.getStickyNotes();
+      setNotes(allNotes.map(mapLiveblocksNoteToAppNote));
     };
 
-    const handleConnectionUpdated = (connection: ConnectionData) => {
+    const handleConnectionUpdated = (connection: unknown) => {
+      const conn = connection as LBConnectionData;
       setConnections(prev => {
-        const index = prev.findIndex(item => item.id === connection.id);
+        const index = prev.findIndex(item => item.id === conn.id);
+        const mapped: ConnectionData = {
+          id: conn.id,
+          sourceId: conn.source,
+          targetId: conn.target,
+          relationType: conn.relationType,
+          isPositive: conn.isPositive,
+        };
         if (index >= 0) {
           const next = [...prev];
-          next[index] = { ...prev[index], ...connection };
+          next[index] = { ...prev[index], ...mapped };
           return next;
         }
-        return [...prev, connection];
+        return [...prev, mapped];
       });
     };
 
-    const handleConnectionDeleted = (data: { connectionId: string }) => {
-      setConnections(prev => prev.filter(connection => connection.id !== data.connectionId));
+    const handleConnectionDeleted = () => {
+      // 연결선 삭제 시 전체 목록 새로고침
+      const allConnections = liveblocksService.getConnections();
+      setConnections(allConnections.map(conn => ({
+        id: conn.id,
+        sourceId: conn.source,
+        targetId: conn.target,
+        relationType: conn.relationType,
+        isPositive: conn.isPositive,
+      })));
     };
 
-    type EventHandler = (...args: unknown[]) => void;
-
-    FirebaseMultiUserService.on(
-      'sticky-note-updated',
-      handleStickyNoteUpdated as EventHandler
-    );
-    FirebaseMultiUserService.on(
-      'sticky-note-deleted',
-      handleStickyNoteDeleted as EventHandler
-    );
-    FirebaseMultiUserService.on(
-      'connection-updated',
-      handleConnectionUpdated as EventHandler
-    );
-    FirebaseMultiUserService.on(
-      'connection-deleted',
-      handleConnectionDeleted as EventHandler
-    );
+    liveblocksService.on('note-updated', handleNoteUpdated);
+    liveblocksService.on('note-deleted', handleNoteDeleted);
+    liveblocksService.on('connection-updated', handleConnectionUpdated);
+    liveblocksService.on('connection-deleted', handleConnectionDeleted);
 
     return () => {
-      FirebaseMultiUserService.off(
-        'sticky-note-updated',
-        handleStickyNoteUpdated as EventHandler
-      );
-      FirebaseMultiUserService.off(
-        'sticky-note-deleted',
-        handleStickyNoteDeleted as EventHandler
-      );
-      FirebaseMultiUserService.off(
-        'connection-updated',
-        handleConnectionUpdated as EventHandler
-      );
-      FirebaseMultiUserService.off(
-        'connection-deleted',
-        handleConnectionDeleted as EventHandler
-      );
+      liveblocksService.off('note-updated', handleNoteUpdated);
+      liveblocksService.off('note-deleted', handleNoteDeleted);
+      liveblocksService.off('connection-updated', handleConnectionUpdated);
+      liveblocksService.off('connection-deleted', handleConnectionDeleted);
     };
   }, []);
 
@@ -267,7 +231,7 @@ function App() {
       return;
     }
 
-    FirebaseMultiUserService.updateStickyNote({
+    liveblocksService.updateStickyNote({
       id: updatedNote.id,
       content,
       x: updatedNote.position.x,
@@ -310,8 +274,8 @@ function App() {
           <Router>
             {/* 세션 관리자 모달 - 관리자가 아닐 때만 표시 */}
             {!isAdmin && (
-              <SessionManager 
-                showModal={showSessionManager} 
+              <SessionManager
+                showModal={showSessionManager}
                 onClose={handleSessionJoined}
                 initialSessionCode={pendingSessionCode}
                 passwordType={passwordType}

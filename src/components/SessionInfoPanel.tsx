@@ -93,11 +93,10 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
     }
 
     try {
-      const FirebaseMultiUserService = (await import('../services/FirebaseMultiUserService'))
-        .default;
-      await FirebaseMultiUserService.updateSessionName(sessionCode, editedName.trim());
+      // TODO: Liveblocks에서 세션 이름 변경 기능 구현 필요
+      // 현재는 로컬에서만 변경
       setIsEditingName(false);
-      alert('세션 이름이 변경되었습니다!');
+      alert('세션 이름이 변경되었습니다! (로컬 변경)');
     } catch (error) {
       console.error('세션 이름 변경 실패:', error);
       alert('세션 이름 변경에 실패했습니다.');
@@ -248,7 +247,7 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
               <li>인터넷 연결만 있으면 전 세계 어디서나 접속 가능합니다</li>
               <li>로컬 네트워크(같은 Wi-Fi)에서는 더 빠른 속도로 접속할 수 있습니다</li>
               <li>세션 코드 또는 URL 공유 시 즉시 참가 가능합니다</li>
-              <li>실시간으로 모든 변경사항이 Firebase를 통해 동기화됩니다</li>
+              <li>실시간으로 모든 변경사항이 Liveblocks를 통해 동기화됩니다</li>
               <li>편집 중인 포스트잇은 자동으로 잠금되어 충돌을 방지합니다</li>
             </ul>
           </div>
