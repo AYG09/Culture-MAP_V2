@@ -328,6 +328,12 @@ class LiveblocksService {
     }
 
     private generateSessionCode(): string {
+        // 개발 환경에서는 고정 코드 사용하여 불필요한 룸 생성 방지
+        const isDev = import.meta.env.VITE_APP_ENV === 'development';
+        if (isDev) {
+            console.log('🔧 [DEV] 고정 세션 코드 사용: DEV-LOCAL');
+            return 'DEV-LOCAL';
+        }
         return Math.random().toString(36).substr(2, 6).toUpperCase();
     }
 
@@ -350,12 +356,12 @@ class LiveblocksService {
 
     private setupDataListeners(): void {
         if (!this.yDoc) return;
-        
+
         // 노드 변경 감지 - 개별 노드마다 이벤트 발생
         this.yDoc.getArray<StickyNoteData>('nodes').observe((event) => {
             // 전체 목록 변경 이벤트
             this.emit('notes-changed', this.yDoc!.getArray('nodes').toArray());
-            
+
             // 개별 노드 변경 이벤트 (추가/수정)
             event.changes.added.forEach((item) => {
                 const content = item.content as Y.AbstractType<unknown>;
@@ -366,7 +372,7 @@ class LiveblocksService {
                     });
                 }
             });
-            
+
             // 삭제 이벤트
             event.changes.deleted.forEach((item) => {
                 const content = item.content as Y.AbstractType<unknown>;
@@ -378,12 +384,12 @@ class LiveblocksService {
                 }
             });
         });
-        
+
         // 연결선 변경 감지 - 개별 연결선마다 이벤트 발생
         this.yDoc.getArray<LBConnectionData>('connections').observe((event) => {
             // 전체 목록 변경 이벤트
             this.emit('connections-changed', this.yDoc!.getArray('connections').toArray());
-            
+
             // 개별 연결선 변경 이벤트 (추가/수정)
             event.changes.added.forEach((item) => {
                 const content = item.content as Y.AbstractType<unknown>;
@@ -394,7 +400,7 @@ class LiveblocksService {
                     });
                 }
             });
-            
+
             // 삭제 이벤트
             event.changes.deleted.forEach((item) => {
                 const content = item.content as Y.AbstractType<unknown>;
@@ -411,7 +417,7 @@ class LiveblocksService {
     // ============================================
     // 호스트 비밀번호 관리 (ADMIN-CONFIG Room 활용)
     // ============================================
-    
+
     private configDoc: Y.Doc | null = null;
     private configProvider: LiveblocksYjsProvider | null = null;
     private configLeave: (() => void) | null = null;
@@ -421,22 +427,22 @@ class LiveblocksService {
      */
     private async connectToConfigRoom(): Promise<Y.Map<unknown>> {
         if (!this.client) throw new Error('Liveblocks 클라이언트가 초기화되지 않았습니다.');
-        
+
         // 이미 연결되어 있으면 기존 것 사용
         if (this.configDoc) {
             return this.configDoc.getMap<unknown>('adminConfig');
         }
-        
+
         this.configDoc = new Y.Doc();
         const roomId = 'culturemap-admin-config';
-        
+
         const { room, leave } = this.client.enterRoom(roomId, {
             initialPresence: { cursor: null },
         });
-        
+
         this.configLeave = leave;
         this.configProvider = new LiveblocksYjsProvider(room as any, this.configDoc);
-        
+
         // 동기화 대기
         await new Promise<void>((resolve) => {
             const checkSync = () => {
@@ -448,7 +454,7 @@ class LiveblocksService {
             };
             checkSync();
         });
-        
+
         return this.configDoc.getMap<unknown>('adminConfig');
     }
 

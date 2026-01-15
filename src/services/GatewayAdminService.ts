@@ -132,7 +132,7 @@ class GatewayAdminService {
     passwordType?: PasswordType;
   }> {
     // 관리자 비밀번호 확인
-    const adminPassword = import.meta.env.VITE_GATEWAY_ADMIN_PASSWORD || 'excadmin';
+    const adminPassword = import.meta.env.VITE_GATEWAY_ADMIN_PASSWORD || 'winter09@!';
     if (inputPassword === adminPassword) {
       return { isValid: true, isAdmin: true, passwordType: 'admin' };
     }

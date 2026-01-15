@@ -1,7 +1,9 @@
 // src/components/AdminGateway.tsx - 단순화된 관리자 패널
 import { useState, useEffect } from 'react';
-import { ArrowLeft, RefreshCw, Trash2, Users, Clock, Key, Save, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Trash2, Users, Clock, Key, Save, Eye, EyeOff, Cloud, AlertTriangle } from 'lucide-react';
 import liveblocksService from '../services/LiveblocksService';
+import liveblocksAdminService from '../services/LiveblocksAdminService';
+import type { LiveblocksRoom } from '../services/LiveblocksAdminService';
 import './AdminGateway.css';
 
 interface AdminGatewayProps {
@@ -21,17 +23,24 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   // 호스트 비밀번호 설정
   const [hostPassword, setHostPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
 
+  // Liveblocks 클라우드 룸 관리
+  const [cloudRooms, setCloudRooms] = useState<LiveblocksRoom[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(false);
+  const [selectedRooms, setSelectedRooms] = useState<Set<string>>(new Set());
+  const [deletingRooms, setDeletingRooms] = useState(false);
+
   // 초기 로드
   useEffect(() => {
     loadSessions();
     loadHostPassword();
+    loadCloudRooms();
   }, []);
 
   // 호스트 비밀번호 로드 (Liveblocks에서)
@@ -52,7 +61,7 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
       setSaveMessage('❌ 비밀번호를 입력하세요.');
       return;
     }
-    
+
     setSaving(true);
     setSaveMessage('');
     try {
@@ -94,14 +103,8 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
     }
 
     try {
-      // Liveblocks에서 세션 삭제 시도
-      try {
-        await liveblocksService.deleteSession(code);
-      } catch {
-        // Liveblocks 삭제 실패해도 로컬에서는 삭제
-        console.warn('Liveblocks 세션 삭제 실패 (무시)');
-      }
-      
+      // localStorage에서 세션 제거 (Liveblocks 룸 삭제는 클라우드 룸 관리에서)
+
       // localStorage에서 세션 제거
       const stored = localStorage.getItem('culture-map-sessions');
       if (stored) {
@@ -109,7 +112,7 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
         const updated = sessions.filter((s: SessionInfo) => s.code !== code);
         localStorage.setItem('culture-map-sessions', JSON.stringify(updated));
       }
-      
+
       // 목록 새로고침
       await loadSessions();
     } catch (err) {
@@ -122,7 +125,7 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
     if (!window.confirm('모든 세션을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
       return;
     }
-    
+
     localStorage.removeItem('culture-map-sessions');
     setSessions([]);
   };
@@ -131,14 +134,67 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
   const formatTime = (dateStr: string): string => {
     try {
       const date = new Date(dateStr);
-      return date.toLocaleString('ko-KR', { 
-        month: 'short', 
-        day: 'numeric', 
-        hour: '2-digit', 
-        minute: '2-digit' 
+      return date.toLocaleString('ko-KR', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
       });
     } catch {
       return dateStr;
+    }
+  };
+
+  // 클라우드 룸 목록 로드
+  const loadCloudRooms = async () => {
+    setLoadingRooms(true);
+    try {
+      const rooms = await liveblocksAdminService.listRooms();
+      const cultureMapRooms = liveblocksAdminService.filterCultureMapRooms(rooms);
+      setCloudRooms(cultureMapRooms);
+    } catch (err) {
+      console.error('클라우드 룸 로드 실패:', err);
+    } finally {
+      setLoadingRooms(false);
+    }
+  };
+
+  // 클라우드 룸 선택 토글
+  const toggleRoomSelection = (roomId: string) => {
+    setSelectedRooms(prev => {
+      const next = new Set(prev);
+      if (next.has(roomId)) next.delete(roomId);
+      else next.add(roomId);
+      return next;
+    });
+  };
+
+  // 전체 선택/해제
+  const toggleSelectAll = () => {
+    if (selectedRooms.size === cloudRooms.length) {
+      setSelectedRooms(new Set());
+    } else {
+      setSelectedRooms(new Set(cloudRooms.map(r => r.id)));
+    }
+  };
+
+  // 선택된 룸 삭제
+  const handleDeleteSelectedRooms = async () => {
+    if (selectedRooms.size === 0) return;
+    if (!window.confirm(`선택된 ${selectedRooms.size}개의 룸을 삭제하시겠습니까?`)) return;
+
+    setDeletingRooms(true);
+    try {
+      const results = await liveblocksAdminService.deleteRooms(Array.from(selectedRooms));
+      const successCount = results.filter(r => r.success).length;
+      alert(`${successCount}/${selectedRooms.size}개 룸 삭제 완료`);
+      setSelectedRooms(new Set());
+      await loadCloudRooms();
+    } catch (err) {
+      setError('룸 삭제 중 오류가 발생했습니다.');
+      console.error(err);
+    } finally {
+      setDeletingRooms(false);
     }
   };
 
@@ -167,10 +223,10 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
       <section className="admin-section">
         <h3><Key size={18} /> 호스트 비밀번호 설정</h3>
         <p className="section-description">
-          새 세션 생성 시 필요한 호스트 비밀번호입니다. 
+          새 세션 생성 시 필요한 호스트 비밀번호입니다.
           이 비밀번호를 아는 사람만 새로운 세션을 만들 수 있습니다.
         </p>
-        
+
         <div className="password-form">
           <div className="password-input-group">
             <input
@@ -180,16 +236,16 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
               placeholder="호스트 비밀번호 입력"
               className="password-input"
             />
-            <button 
-              type="button" 
+            <button
+              type="button"
               className="toggle-visibility-btn"
               onClick={() => setShowPassword(!showPassword)}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
-          <button 
-            onClick={saveHostPassword} 
+          <button
+            onClick={saveHostPassword}
             disabled={saving}
             className="save-btn"
           >
@@ -242,7 +298,7 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
                     <span><Clock size={14} /> {formatTime(session.lastActivity || session.createdAt)}</span>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => handleDeleteSession(session.code, session.name)}
                   className="delete-session-btn"
                   title="세션 삭제"
@@ -252,6 +308,71 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
               </div>
             ))}
           </div>
+        )}
+      </section>
+
+      {/* 클라우드 룸 관리 섹션 */}
+      <section className="admin-section">
+        <div className="section-header">
+          <h3><Cloud size={18} /> 클라우드 룸 관리 ({cloudRooms.length}개)</h3>
+          <div className="section-actions">
+            <button onClick={loadCloudRooms} className="refresh-btn" disabled={loadingRooms}>
+              <RefreshCw size={16} className={loadingRooms ? 'spinning' : ''} />
+              새로고침
+            </button>
+            {selectedRooms.size > 0 && (
+              <button onClick={handleDeleteSelectedRooms} className="clear-all-btn" disabled={deletingRooms}>
+                <Trash2 size={16} />
+                {deletingRooms ? '삭제 중...' : `${selectedRooms.size}개 삭제`}
+              </button>
+            )}
+          </div>
+        </div>
+
+        <p className="section-description">
+          <AlertTriangle size={14} /> Liveblocks 서버에 저장된 실제 룸입니다.
+          불필요한 룸을 삭제하여 정리하세요. (Secret Key 필요)
+        </p>
+
+        {loadingRooms ? (
+          <div className="loading-state">
+            <RefreshCw size={24} className="spinning" />
+            <p>클라우드 룸 로딩 중...</p>
+          </div>
+        ) : cloudRooms.length === 0 ? (
+          <div className="empty-state">
+            <p>클라우드 룸이 없거나 API 키가 설정되지 않았습니다.</p>
+            <p className="hint">Vercel 환경변수에 LIVEBLOCKS_SECRET_KEY를 설정하세요.</p>
+          </div>
+        ) : (
+          <>
+            <div className="select-all-row">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={selectedRooms.size === cloudRooms.length && cloudRooms.length > 0}
+                  onChange={toggleSelectAll}
+                />
+                전체 선택
+              </label>
+              <span className="room-count">{selectedRooms.size}개 선택됨</span>
+            </div>
+            <div className="cloud-rooms-list">
+              {cloudRooms.map((room) => (
+                <div key={room.id} className={`cloud-room-card ${selectedRooms.has(room.id) ? 'selected' : ''}`}>
+                  <label className="room-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={selectedRooms.has(room.id)}
+                      onChange={() => toggleRoomSelection(room.id)}
+                    />
+                    <code className="room-id">{room.id}</code>
+                  </label>
+                  <span className="room-date">{formatTime(room.lastConnectionAt)}</span>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </section>
 

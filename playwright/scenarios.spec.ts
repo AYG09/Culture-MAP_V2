@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 
-const ADMIN_PASSWORD = 'excadmin';
+const ADMIN_PASSWORD = 'winter09@!';
 const WORKSHOP_PASSWORD = 'TEST_WORKSHOP_123';
 
 async function skipSplash(page: Page) {
@@ -62,7 +62,7 @@ test.describe('Culture-MAP V2 Full Scenarios', () => {
 
         // 2. 관리자 로그인 시 자동으로 AdminGateway 표시됨
         await expect(page.locator('.admin-gateway-container')).toBeVisible({ timeout: 10000 });
-        
+
         // Create Workshop Password
         await page.locator('.create-password-btn').click();
         await page.locator('input[placeholder="비밀번호 입력"]').fill(WORKSHOP_PASSWORD);
