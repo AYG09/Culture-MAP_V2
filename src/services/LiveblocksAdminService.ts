@@ -74,10 +74,13 @@ class LiveblocksAdminService {
     }
 
     /**
-     * Culture-MAP 관련 룸만 필터링 (v2, admin-config, 구버전 모두 포함)
+     * Culture-MAP 관련 룸만 필터링 (v2, 구버전 포함, admin-config 제외)
      */
     filterCultureMapRooms(rooms: LiveblocksRoom[]): LiveblocksRoom[] {
-        return rooms.filter((room) => room.id.startsWith('culturemap'));
+        return rooms.filter((room) =>
+            room.id.startsWith('culturemap') &&
+            room.id !== 'culturemap-admin-config'
+        );
     }
 
     /**

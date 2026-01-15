@@ -23,13 +23,13 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // 모달 상태
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-  
+
   // 입력 상태
   const [newSessionName, setNewSessionName] = useState('');
   const [hostPassword, setHostPassword] = useState('');
@@ -40,17 +40,20 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
 
   // 초기화
   useEffect(() => {
-    const skipGate = import.meta.env.VITE_SKIP_GATE;
-    console.log('🚪 [Gateway] VITE_SKIP_GATE 값:', skipGate, '타입:', typeof skipGate);
-    
-    if (skipGate === 'true') {
-      console.log('🚪 [Gateway] 개발 모드 - 자동 연결');
-      handleDevModeAutoJoin();
-    } else {
-      console.log('🚪 [Gateway] 일반 모드 - 세션 목록 로드');
-      loadSessions();
-      setIsLoading(false);
-    }
+    const init = async () => {
+      const skipGate = import.meta.env.VITE_SKIP_GATE;
+      console.log('🚪 [Gateway] VITE_SKIP_GATE 값:', skipGate, '타입:', typeof skipGate);
+
+      if (skipGate === 'true') {
+        console.log('🚪 [Gateway] 개발 모드 - 자동 연결');
+        await handleDevModeAutoJoin();
+      } else {
+        console.log('🚪 [Gateway] 일반 모드 - 세션 목록 로드');
+        await loadSessions();
+        setIsLoading(false);
+      }
+    };
+    init();
   }, []);
 
   const handleDevModeAutoJoin = async () => {
@@ -64,13 +67,29 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
     setIsLoading(false);
   };
 
-  const loadSessions = () => {
-    const stored = localStorage.getItem('culture-map-sessions');
-    if (stored) {
-      try {
-        setSessions(JSON.parse(stored));
-      } catch {
-        setSessions([]);
+  const loadSessions = async () => {
+    try {
+      // Liveblocks 세션 레지스트리에서 로드
+      const registrySessions = await liveblocksService.getSessionRegistry();
+      const formattedSessions = registrySessions.map(s => ({
+        code: s.code,
+        name: s.name,
+        userCount: 0,
+        lastActivity: new Date(s.createdAt).toLocaleString('ko-KR'),
+        isActive: true
+      }));
+      setSessions(formattedSessions);
+      console.log('📋 세션 레지스트리 로드:', formattedSessions.length, '개');
+    } catch (err) {
+      console.error('세션 레지스트리 로드 실패:', err);
+      // 폴백: localStorage에서 로드
+      const stored = localStorage.getItem('culture-map-sessions');
+      if (stored) {
+        try {
+          setSessions(JSON.parse(stored));
+        } catch {
+          setSessions([]);
+        }
       }
     }
   };
@@ -90,7 +109,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
     try {
       // 호스트 비밀번호 검증 (Liveblocks 설정 Room에서 가져옴)
       const isValid = await liveblocksService.validateHostPassword(hostPassword);
-      
+
       if (!isValid) {
         setError('잘못된 호스트 비밀번호입니다. 관리자에게 문의하세요.');
         setIsSubmitting(false);
@@ -98,7 +117,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
       }
 
       const code = await liveblocksService.createSession(newSessionName || '새 세션', 'workshop');
-      
+
       saveSession({
         code,
         name: newSessionName || '새 세션',
@@ -146,7 +165,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
     try {
       // 환경변수에서 관리자 비밀번호 가져와서 비교
       const envAdminPassword = import.meta.env.VITE_GATEWAY_ADMIN_PASSWORD || 'admin';
-      
+
       if (adminPassword === envAdminPassword) {
         setShowAdminModal(false);
         setShowAdminPanel(true);
@@ -195,8 +214,8 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
             <h1 className="gateway-title">🏢 조직문화 분석기</h1>
             <p className="gateway-subtitle">Culture-MAP</p>
           </div>
-          <button 
-            className="admin-icon-btn" 
+          <button
+            className="admin-icon-btn"
             onClick={() => setShowAdminModal(true)}
             title="관리자"
           >
@@ -250,7 +269,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
                     <span className="session-time"><Clock size={14} /> {session.lastActivity}</span>
                   </div>
                 </div>
-                <button 
+                <button
                   className="session-join-btn"
                   onClick={() => {
                     setSessionCode(session.code);
@@ -312,7 +331,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
                   value={sessionCode}
                   onChange={(e) => setSessionCode(e.target.value.toUpperCase())}
                   placeholder="6자리 코드 입력"
-                  maxLength={6}
+                  maxLength={20}
                   autoFocus
                   style={{ textTransform: 'uppercase', letterSpacing: '0.2em', textAlign: 'center', fontSize: '1.5rem' }}
                 />
@@ -320,7 +339,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
               {error && <div className="error-message">{error}</div>}
               <div className="modal-actions">
                 <button type="button" className="btn-cancel" onClick={() => setShowJoinModal(false)}>취소</button>
-                <button type="submit" className="btn-primary" disabled={isSubmitting || sessionCode.length < 6}>{isSubmitting ? '입장 중...' : '입장'}</button>
+                <button type="submit" className="btn-primary" disabled={isSubmitting || sessionCode.length < 3}>{isSubmitting ? '입장 중...' : '입장'}</button>
               </div>
             </form>
           </div>

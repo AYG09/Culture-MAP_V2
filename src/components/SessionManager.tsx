@@ -180,7 +180,7 @@ const SessionManager: React.FC<SessionManagerProps> = ({
                 value={sessionCode}
                 onChange={e => setSessionCode(e.target.value.toUpperCase())}
                 onKeyPress={e => e.key === 'Enter' && joinSession()}
-                maxLength={6}
+                maxLength={20}
               />
               <button onClick={joinSession} disabled={isValidating} className="join-btn">
                 {isValidating ? '확인 중...' : '참가'}

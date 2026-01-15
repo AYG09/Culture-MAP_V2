@@ -68,6 +68,8 @@ class LiveblocksService {
     public async createSession(sessionName?: string, sessionType: SessionType = 'workshop'): Promise<string> {
         const code = this.generateSessionCode();
         await this.joinSession(code, true, sessionName, sessionType);
+        // 세션 레지스트리에 등록
+        await this.registerSession(code, sessionName || `세션 ${code}`, sessionType);
         return code;
     }
 
@@ -246,9 +248,13 @@ class LiveblocksService {
     // ============================================
 
     public updateStickyNote(note: Partial<StickyNoteData> & { id: string }): void {
-        if (!this.yDoc) return;
+        if (!this.yDoc) {
+            console.warn('⚠️ [Liveblocks] updateStickyNote: yDoc이 없음');
+            return;
+        }
         const nodes = this.yDoc.getArray<StickyNoteData>('nodes');
         const index = this.findNodeIndex(note.id);
+        console.log('📝 [Liveblocks] updateStickyNote:', { id: note.id, index, nodesLength: nodes.length });
         this.yDoc.transact(() => {
             const existing = index >= 0 ? nodes.get(index) : {};
             const fullNote: StickyNoteData = {
@@ -260,6 +266,7 @@ class LiveblocksService {
             if (index >= 0) { nodes.delete(index, 1); nodes.insert(index, [fullNote]); }
             else { nodes.push([fullNote]); }
         });
+        console.log('✅ [Liveblocks] updateStickyNote 완료:', note.id);
     }
 
     public deleteStickyNote(noteId: string): void {
@@ -503,6 +510,73 @@ class LiveblocksService {
         if (this.configDoc) {
             this.configDoc.destroy();
             this.configDoc = null;
+        }
+    }
+
+    // ==================== 세션 레지스트리 ====================
+    // 세션 정보: { code, name, type, createdAt, createdBy }
+
+
+    /**
+     * 세션을 레지스트리에 등록
+     */
+    public async registerSession(code: string, name: string, type: SessionType): Promise<void> {
+        const config = await this.connectToConfigRoom();
+        let sessions = config.get('sessions') as Map<string, unknown> | undefined;
+
+        if (!sessions) {
+            sessions = new Map();
+            config.set('sessions', sessions);
+        }
+
+        const sessionData = {
+            code,
+            name,
+            type,
+            createdAt: Date.now(),
+            createdBy: this.displayName
+        };
+
+        // Y.Map에 세션 추가
+        const sessionsMap = this.configDoc?.getMap<unknown>('sessions');
+        if (sessionsMap) {
+            sessionsMap.set(code, sessionData);
+        }
+
+        console.log('✅ 세션 레지스트리에 등록:', code);
+    }
+
+    /**
+     * 세션 레지스트리 목록 조회
+     */
+    public async getSessionRegistry(): Promise<Array<{ code: string; name: string; type: string; createdAt: number }>> {
+        await this.connectToConfigRoom();
+        const sessionsMap = this.configDoc?.getMap<unknown>('sessions');
+
+        if (!sessionsMap) {
+            return [];
+        }
+
+        const sessions: Array<{ code: string; name: string; type: string; createdAt: number }> = [];
+        sessionsMap.forEach((value, key) => {
+            const session = value as { code: string; name: string; type: string; createdAt: number };
+            sessions.push({ ...session, code: key });
+        });
+
+        // 최신순 정렬
+        return sessions.sort((a, b) => b.createdAt - a.createdAt);
+    }
+
+    /**
+     * 세션을 레지스트리에서 제거
+     */
+    public async unregisterSession(code: string): Promise<void> {
+        await this.connectToConfigRoom();
+        const sessionsMap = this.configDoc?.getMap<unknown>('sessions');
+
+        if (sessionsMap) {
+            sessionsMap.delete(code);
+            console.log('✅ 세션 레지스트리에서 제거:', code);
         }
     }
 }
