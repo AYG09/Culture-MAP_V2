@@ -298,15 +298,18 @@ ${connectionsContext}
             let finalActions: any[] = [];
             let isFirstChunk = true;
 
-            // 30초 타임아웃 설정 (응답 지연 시 무한 로딩 방지)
+            const hasAcademicFiles = aiService.getAcademicFiles().length > 0;
+            const timeoutMs = hasAcademicFiles || fileUri ? 120000 : 30000;
+
+            // 타임아웃 설정 (응답 지연 시 무한 로딩 방지)
             const responseTimeout = setTimeout(() => {
                 if (isFirstChunk) {
-                    console.warn('⌛ [AIChatSidebar] AI Response Timeout (30s)');
+                    console.warn(`⌛ [AIChatSidebar] AI Response Timeout (${Math.round(timeoutMs / 1000)}s)`);
                     setIsLoading(false);
                     const timeoutId = liveblocksService.startAiResponse();
-                    liveblocksService.updateAiResponse(timeoutId, 'AI 응답이 30초 이상 지연되어 연결을 중단했습니다. 인터넷 연결을 확인하거나 Gemini API 할당량을 확인해주세요.');
+                    liveblocksService.updateAiResponse(timeoutId, `AI 응답이 ${Math.round(timeoutMs / 1000)}초 이상 지연되어 연결을 중단했습니다. 인터넷 연결을 확인하거나 Gemini API 할당량을 확인해주세요.`);
                 }
-            }, 30000);
+            }, timeoutMs);
 
             try {
                 for await (const chunk of aiStream) {
@@ -346,6 +349,29 @@ ${connectionsContext}
                             ));
                         }
                     } else if (chunk.type === 'actions') {
+                        if (isFirstChunk) {
+                            console.log('🤖 [AIChatSidebar] AI First chunk received (actions)');
+                            clearTimeout(responseTimeout);
+                            setIsLoading(false);
+                            aiMsgId = liveblocksService.startAiResponse();
+                            console.log('🤖 [AIChatSidebar] AI Message ID created:', aiMsgId);
+                            isFirstChunk = false;
+
+                            if (!aiMsgId) {
+                                console.warn('⚠️ [AIChatSidebar] Liveblocks not connected, using local state');
+                                const localMsgId = `local-ai-${Date.now()}`;
+                                aiMsgId = localMsgId;
+                                setMessages(prev => [...prev, {
+                                    id: localMsgId,
+                                    role: 'assistant' as const,
+                                    content: '',
+                                    userName: 'AI Assistant',
+                                    userColor: '#8b5cf6',
+                                    timestamp: Date.now()
+                                }]);
+                            }
+                        }
+
                         finalActions = chunk.actions || [];
                         console.log('🎯 [AIChatSidebar] Actions received:', finalActions.length, 'items');
 

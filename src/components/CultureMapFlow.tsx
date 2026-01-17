@@ -164,23 +164,24 @@ const CultureMapFlow = ({
       const promptTemplate = await promptResponse.text();
 
       // 2. 현재 맵 데이터를 텍스트로 변환 (LiveblocksService에서 가져오기)
-      const notesList = liveblocksService.getNotesArray();
-      const connectionsList = liveblocksService.getConnectionsArray();
+      const notesList = liveblocksService.getStickyNotes();
+      const connectionsList = liveblocksService.getConnections();
 
       const layerNames = ['결과 (Layer 1)', '행동 (Layer 2)', '유형 레버 (Layer 3)', '무형 레버 (Layer 4)'];
       
       const mapDataSection = `
 ### 노드 목록 (${notesList.length}개)
-${notesList.map(note => {
+${notesList.map((note: import('../types/liveblocks').StickyNoteData) => {
   const layerName = layerNames[note.layer - 1] || `Layer ${note.layer}`;
   return `- [${layerName}] ${note.content} (감정: ${note.sentiment || 'neutral'})`;
 }).join('\n')}
 
 ### 연결 관계 (${connectionsList.length}개)
-${connectionsList.map(conn => {
-  const sourceNote = notesList.find(n => n.id === conn.sourceId);
-  const targetNote = notesList.find(n => n.id === conn.targetId);
-  return `- "${sourceNote?.content || conn.sourceId}" → "${targetNote?.content || conn.targetId}" (${conn.type || 'causes'})`;
+${connectionsList.map((conn: import('../types/liveblocks').ConnectionData) => {
+  const sourceNote = notesList.find((n: import('../types/liveblocks').StickyNoteData) => n.id === conn.sourceId);
+  const targetNote = notesList.find((n: import('../types/liveblocks').StickyNoteData) => n.id === conn.targetId);
+  const relation = conn.relationType || 'direct';
+  return `- "${sourceNote?.content || conn.sourceId}" → "${targetNote?.content || conn.targetId}" (${relation})`;
 }).join('\n')}
 `;
 
@@ -318,7 +319,10 @@ ${chatHistorySection}
     const currentEdges = edgesRef.current;
 
     if (!currentNodes.length) {
-      console.warn('⚠️ [React Flow] auto_layout 중단: 노드가 비어 있습니다.');
+      console.warn('⚠️ [React Flow] auto_layout 중단: 노드가 비어 있습니다.', {
+        nodes: currentNodes.length,
+        edges: currentEdges.length,
+      });
       return;
     }
 
@@ -421,7 +425,11 @@ ${chatHistorySection}
           draggable: true,
         };
 
-        setNodes((nds) => nds.concat(newNode));
+        setNodes((nds) => {
+          const updated = nds.concat(newNode);
+          nodesRef.current = updated;
+          return updated;
+        });
         console.log('✅ [Action Bridge] New node added to UI:', newNodeId, 'type:', nodeType, 'layer:', args.layer);
         break;
       }
@@ -441,8 +449,8 @@ ${chatHistorySection}
           ...(args.type ? { type: args.type } : {}),
         });
 
-        setNodes((nds) =>
-          nds.map((node) => {
+        setNodes((nds) => {
+          const updated = nds.map((node) => {
             if (node.id === args.id) {
               return {
                 ...node,
@@ -457,8 +465,10 @@ ${chatHistorySection}
               };
             }
             return node;
-          })
-        );
+          });
+          nodesRef.current = updated;
+          return updated;
+        });
         console.log('✅ [Action Bridge] Node updated in UI:', args.id);
         break;
       }
@@ -466,20 +476,66 @@ ${chatHistorySection}
       case 'delete_node':
         if (args.id) {
           liveblocksService.deleteStickyNote(args.id);
-          setNodes((nds) => nds.filter((node) => node.id !== args.id));
-          setEdges((eds) => eds.filter((edge) => edge.source !== args.id && edge.target !== args.id));
+          setNodes((nds) => {
+            const updated = nds.filter((node) => node.id !== args.id);
+            nodesRef.current = updated;
+            return updated;
+          });
+          setEdges((eds) => {
+            const updated = eds.filter((edge) => edge.source !== args.id && edge.target !== args.id);
+            edgesRef.current = updated;
+            return updated;
+          });
           console.log('✅ [Action Bridge] Node deleted from UI:', args.id);
         }
         break;
 
       case 'create_connection':
-        liveblocksService.updateConnection({
-          id: `conn-${Date.now()}`,
-          sourceId: args.sourceId || args.source,
-          targetId: args.targetId || args.target,
-          relationType: 'direct',
-          isPositive: true,
-        });
+        {
+          const sourceId = args.sourceId || args.source;
+          const targetId = args.targetId || args.target;
+          if (!sourceId || !targetId) break;
+
+          const edgeId = `edge-${sourceId}-${targetId}`;
+          const newEdge: Edge = {
+            id: edgeId,
+            source: sourceId,
+            target: targetId,
+            type: 'default',
+            animated: false,
+            style: {
+              strokeWidth: 2,
+              stroke: '#10b981',
+            },
+            markerEnd: {
+              type: 'arrowclosed',
+              width: 20,
+              height: 20,
+              color: '#10b981',
+            },
+            data: {
+              relationType: 'direct',
+              isPositive: true,
+            },
+          };
+
+          setEdges((eds) => {
+            const updated = addEdge(newEdge, eds);
+            edgesRef.current = updated;
+            return updated;
+          });
+
+          const { connections: updatedConnections } = convertFromFlowData(nodesRef.current, [...edgesRef.current, newEdge]);
+          onConnectionsChange(updatedConnections);
+
+          liveblocksService.updateConnection({
+            id: edgeId,
+            sourceId,
+            targetId,
+            relationType: 'direct',
+            isPositive: true,
+          });
+        }
         break;
 
       case 'adjust_layer_height': {
@@ -538,7 +594,7 @@ ${chatHistorySection}
       });
 
       if (requestedLayout || layoutNeeded) {
-        safeAutoLayout(false);
+        requestAnimationFrame(() => safeAutoLayout(false));
       }
     }, 0);
   }, [executeAiAction, safeAutoLayout]);
@@ -1905,7 +1961,6 @@ ${chatHistorySection}
                   onActionExecute={handleAiAction}
                   notes={nodes.map(n => n.data as unknown as NoteData)}
                   connections={edges.map(e => e.data as unknown as ConnectionData)}
-                  layerHeights={layerHeights}
                   passwordType={mode}
                 />
 
@@ -1996,7 +2051,6 @@ ${chatHistorySection}
                     onActionExecute={handleAiAction}
                     notes={nodes.map(n => n.data as unknown as NoteData)}
                     connections={edges.map(e => e.data as unknown as ConnectionData)}
-                    layerHeights={layerHeights}
                     passwordType={mode}
                   />
                 </div>

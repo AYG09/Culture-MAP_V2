@@ -290,7 +290,9 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
           try {
             const followUp = await this.chatSession!.sendMessage({
               message: [
-                { text: `[시스템] "${topic}" 관련 학술 자료를 로드했습니다. 이 자료를 참고하여 답변해주세요.` },
+                {
+                  text: `[시스템] "${topic}" 관련 학술 자료를 로드했습니다. 전체를 통독하기보다 주제와 관련된 섹션/챕터를 우선 탐색해 핵심 근거만 요약해 주세요. 가능하면 장/절 제목을 함께 제시하고, 불확실한 내용은 추정하지 마세요.`
+                },
                 createPartFromUri(selectedFile.uri, selectedFile.mimeType)
               ]
             });
