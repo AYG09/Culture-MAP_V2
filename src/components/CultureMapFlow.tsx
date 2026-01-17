@@ -1561,8 +1561,10 @@ const CultureMapFlow = ({
 
   // PromptGenerator에서 맵 생성 (AI 텍스트 파싱)
 
-  // 렌더링 시점 로그
-  console.log('🎨 [Render] contextMenu state:', contextMenu);
+  // 렌더링 시점 로그 (contextMenu가 열릴 때만 출력하여 로그 폭탄 방지)
+  if (contextMenu !== null) {
+    console.log('🎨 [Render] contextMenu opened:', contextMenu);
+  }
 
   return (
     <div className="culture-map-flow-wrapper" style={{

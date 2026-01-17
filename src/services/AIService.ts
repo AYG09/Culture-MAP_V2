@@ -690,9 +690,17 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     return selected;
   }
 
+  // 대용량 PDF 제외 키워드 (Gemini API 1000페이지 제한 초과 파일들)
+  // ⚠️ 분할된 PDF는 여기서 제외하지 않음 (예: 로빈스_Part1, Part2, Part3)
+  private static readonly LARGE_PDF_EXCLUSIONS: string[] = [
+    // 현재 제외 대상 없음 - 분할된 PDF 사용 시 이 배열은 비워둠
+    // 분할되지 않은 대용량 PDF가 있다면 여기에 키워드 추가
+  ];
+
   /**
    * AI 도구 호출용: 주제 기반 PDF 선택 (단일 파일 반환)
    * AI가 load_academic_knowledge 도구를 호출할 때 사용
+   * ⚠️ Gemini API 제한: PDF 최대 1000페이지
    */
   private selectRelevantFilesForTopic(topic: string): FileMetadata | null {
     if (this.academicFiles.length === 0) return null;
@@ -704,16 +712,38 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       let score = 0;
       const displayName = (file.displayName || file.name).toLowerCase();
 
+      // [페이지 제한 체크] 대용량 PDF 제외 (1000페이지 초과 파일들)
+      const isLargePDF = AIService.LARGE_PDF_EXCLUSIONS.some(keyword => 
+        displayName.includes(keyword.toLowerCase())
+      );
+      if (isLargePDF) {
+        console.warn('⚠️ [AIService] Excluded large PDF (>1000 pages):', file.displayName);
+        return { file, score: -999 }; // 최저 점수로 제외
+      }
+
       // 에드가 샤인 관련
       if ((lowerTopic.includes('샤인') || lowerTopic.includes('schein') || lowerTopic.includes('에드가')) &&
           (displayName.includes('샤인') || displayName.includes('schein') || displayName.includes('culture'))) {
         score += 50;
       }
 
-      // 로빈스 조직행동론 관련
-      if ((lowerTopic.includes('로빈스') || lowerTopic.includes('robbins') || lowerTopic.includes('조직행동')) &&
-          (displayName.includes('robbins') || displayName.includes('behavior') || displayName.includes('organizational'))) {
-        score += 50;
+      // 로빈스 조직행동론 (분할된 파트별 매칭)
+      if (lowerTopic.includes('로빈스') || lowerTopic.includes('robbins') || lowerTopic.includes('조직행동')) {
+        if (displayName.includes('로빈스') || displayName.includes('robbins')) {
+          // 파트별 세부 매칭
+          if ((lowerTopic.includes('개인') || lowerTopic.includes('성격') || lowerTopic.includes('동기') || lowerTopic.includes('지각')) &&
+              displayName.includes('part1')) {
+            score += 60; // Part1 우선
+          } else if ((lowerTopic.includes('집단') || lowerTopic.includes('팀') || lowerTopic.includes('리더십') || lowerTopic.includes('의사소통')) &&
+              displayName.includes('part2')) {
+            score += 60; // Part2 우선
+          } else if ((lowerTopic.includes('조직') || lowerTopic.includes('문화') || lowerTopic.includes('구조') || lowerTopic.includes('변화')) &&
+              displayName.includes('part3')) {
+            score += 60; // Part3 우선
+          } else {
+            score += 40; // 일반 로빈스 매칭
+          }
+        }
       }
 
       // 조직개발/변화관리 관련
@@ -734,8 +764,13 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       return { file, score };
     });
 
-    // 최고 점수 파일 반환
+    // 최고 점수 파일 반환 (0점 이상만)
     const best = scoredFiles.filter(sf => sf.score > 0).sort((a, b) => b.score - a.score)[0];
+    
+    if (!best) {
+      console.log('📚 [AIService] No suitable PDF found for topic, will use static knowledge');
+    }
+    
     return best?.file || null;
   }
 

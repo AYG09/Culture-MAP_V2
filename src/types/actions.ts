@@ -74,7 +74,8 @@ export const MAP_TOOL_DECLARATIONS = [
                 sentiment: { type: 'string', enum: ['positive', 'negative', 'neutral'], description: 'Sentiment of the node' },
                 intensity: { type: 'number', enum: [1, 2, 3, 4, 5], description: 'Perception intensity (1=low, 5=high)' }
             },
-            required: ['label', 'type', 'layer']
+            required: ['label', 'type', 'layer'],
+            propertyOrdering: ['label', 'type', 'layer', 'content', 'sentiment', 'intensity']
         }
     },
     {
@@ -88,7 +89,8 @@ export const MAP_TOOL_DECLARATIONS = [
                 content: { type: 'string', description: 'New detailed content' },
                 sentiment: { type: 'string', enum: ['positive', 'negative', 'neutral'] }
             },
-            required: ['id']
+            required: ['id'],
+            propertyOrdering: ['id', 'label', 'content', 'sentiment']
         }
     },
     {
@@ -99,7 +101,8 @@ export const MAP_TOOL_DECLARATIONS = [
             properties: {
                 id: { type: 'string', description: 'ID of the node to delete' }
             },
-            required: ['id']
+            required: ['id'],
+            propertyOrdering: ['id']
         }
     },
     {
@@ -112,7 +115,8 @@ export const MAP_TOOL_DECLARATIONS = [
                 targetId: { type: 'string', description: 'Target node ID (e.g., behavior node)' },
                 label: { type: 'string', description: 'Connection meaning (e.g., 강화함, 유발함, 방해함)' }
             },
-            required: ['sourceId', 'targetId']
+            required: ['sourceId', 'targetId'],
+            propertyOrdering: ['sourceId', 'targetId', 'label']
         }
     },
     {
@@ -129,7 +133,8 @@ export const MAP_TOOL_DECLARATIONS = [
                 layer: { type: 'number', enum: [1, 2, 3, 4], description: 'Layer index (1:결과, 2:행동, 3:유형, 4:무형)' },
                 height: { type: 'number', description: 'New height in pixels (min: 100, max: 600)' }
             },
-            required: ['layer', 'height']
+            required: ['layer', 'height'],
+            propertyOrdering: ['layer', 'height']
         }
     },
     {
@@ -156,6 +161,7 @@ This loads relevant PDF documents which costs tokens, so use sparingly.`,
                     description: 'The academic topic to search for. Examples: "에드가 샤인 3계층 모델", "조직문화 변화관리", "로빈스 조직행동론"'
                 }
             },
-            required: ['topic']
+            required: ['topic'],
+            propertyOrdering: ['topic']
         }
     }];

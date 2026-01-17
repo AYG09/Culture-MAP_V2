@@ -18,11 +18,21 @@
 
 ### 2.1 AI Service (Gemini)
 - **Primary Model**: Use `gemini-2.5-flash-lite` for default chatbot and analysis.
+- **Skills 자동 검토**: AI 관련 코드 수정 전 `.cursor/rules/` 내 관련 Skills 확인 필수
+  - `gemini-api-rules.mdc`: Gemini API 필수 규칙 (propertyOrdering, 파일 제한 등)
+  - `ai-service-guard.mdc`: AI 서비스 수정 시 체크리스트
 - **Thinking Configuration**:
   - For Gemini 2.x: Set `thinkingBudget: -1` (automatic) or specific token count.
   - For Gemini 3.x: Set `thinkingLevel: 'HIGH'`.
+- **Schema 필수 규칙** (Gemini Function Calling):
+  - `propertyOrdering`: 모든 parametersJsonSchema에 필수 포함 (출력 순서 강제)
+  - `required`: 필수 파라미터 배열 명시
+  - `enum`: 제한된 선택지는 enum으로 정의
+- **파일 처리 제한**:
+  - PDF: 최대 1000 페이지 (초과 시 `LARGE_PDF_EXCLUSIONS`에 추가)
+  - 이미지: 최대 3600x3600 픽셀
 - **Tool Updates**: When adding new AI capabilities, you MUST update:
-  1. `src/types/actions.ts`: Add to `MAP_TOOL_DECLARATIONS`.
+  1. `src/types/actions.ts`: Add to `MAP_TOOL_DECLARATIONS` (with `propertyOrdering`!).
   2. `src/services/AIService.ts`: Update system instructions.
   3. `src/components/AIChatSidebar.tsx`: Ensure UI triggers the action.
 
