@@ -239,6 +239,41 @@
 2. 배치 생성 후 자동 정렬이 동작하는지 확인
 3. update_node(x,y)로 좌표 이동이 반영되는지 확인
 
+---
+
+# Walkthrough: 학술 응답 누락(ContentUnion 관련) 복구
+
+## 완료 일시
+2026-01-18
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 학술 지식 로드 후 응답이 끊기는 현상 해소
+2. sendMessage 후속 응답 파싱을 SDK 규격에 맞춤
+
+---
+
+## ✅ 해결 조치
+
+1. sendMessage 결과에서 response 기반으로 candidates/parts 추출
+2. functionResponse 후속 응답도 동일 파싱 방식 적용
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/services/AIService.ts` | 후속 응답 파싱을 response 기반으로 통일 |
+
+---
+
+## 🧪 검증
+
+1. load_academic_knowledge 호출 후 바로 답변이 출력되는지 확인
+2. “찾았다/검색하겠다” 멘트만 남고 끊기는 현상이 사라지는지 확인
+
 
 # Walkthrough: 모델 목록/추론 설정 정비
 

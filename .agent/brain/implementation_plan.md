@@ -1,9 +1,10 @@
-# Implementation Plan: AI 레이어 도구 활용 + Edge-aware 레이아웃 + 좌표 이동
+# Implementation Plan: AI 레이어 도구 활용 + Edge-aware 레이아웃 + 좌표 이동 + 학술 응답 안정화
 
 ## 목표
 1. AI가 레이어 높이 도구(adjust_layer_height)를 이해하고 활용하도록 컨텍스트/프롬프트 보강
 2. auto_layout이 연결선 흐름을 고려해 가시적으로 배치되도록 개선
 3. update_node에서 좌표(x/y) 이동을 지원해 직접 배치 가능하도록 확장
+4. 학술 지식 로드 후 응답이 끊기는 현상(ContentUnion/후속 응답 파싱)을 안정화
 
 ---
 
@@ -22,6 +23,10 @@
 ### 4) 좌표 이동 지원
 - update_node가 x/y 좌표를 수용하고 React Flow position + Liveblocks 동기화
 - AI 컨텍스트에 노드 좌표 포함, 시스템 프롬프트에 좌표 이동 규칙/예시 추가
+
+### 5) 학술 응답 안정화
+- load_academic_knowledge 후속 응답 파싱 시 SDK 규격에 맞춰 response 처리
+- sendMessage 결과에서 candidates/parts 정상 추출
 
 ---
 

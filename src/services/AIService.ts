@@ -309,8 +309,8 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
                 createPartFromUri(selectedFile.uri, selectedFile.mimeType)
               ]
             });
-            
-            const followUpParts = followUp.response?.candidates?.[0]?.content?.parts || [];
+            const followUpResponse = await followUp.response;
+            const followUpParts = followUpResponse.candidates?.[0]?.content?.parts || [];
             for (const part of followUpParts) {
               if (part.text) {
                 fullText += '\n\n' + part.text;
@@ -332,8 +332,8 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
             const followUp = await this.chatSession!.sendMessage({
               message: `[시스템] 관련 학술 지식: ${knowledgeResult}`
             });
-            
-            const followUpParts = followUp.response?.candidates?.[0]?.content?.parts || [];
+            const followUpResponse = await followUp.response;
+            const followUpParts = followUpResponse.candidates?.[0]?.content?.parts || [];
             for (const part of followUpParts) {
               if (part.text) {
                 fullText += '\n\n' + part.text;
@@ -362,9 +362,9 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
               }
             ]
           });
-
+          const followUpResponse = await followUp.response;
           // 후속 응답에서 텍스트와 function call 추출
-          const followUpParts = followUp.response?.candidates?.[0]?.content?.parts || [];
+          const followUpParts = followUpResponse.candidates?.[0]?.content?.parts || [];
           for (const part of followUpParts) {
             if (part.text) {
               fullText += '\n\n' + part.text;
@@ -476,10 +476,17 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
             }
           ]
         });
+        const toolResponsePayload = await toolResponse.response;
+        const toolParts = toolResponsePayload.candidates?.[0]?.content?.parts || [];
 
         // 최종 답변 업데이트
-        text = toolResponse.text || '';
-        functionCalls = toolResponse.functionCalls as any || [];
+        text = toolParts
+          .map((part: any) => (typeof part?.text === 'string' ? part.text : ''))
+          .filter(Boolean)
+          .join('');
+        functionCalls = toolParts
+          .filter((part: any) => part?.functionCall)
+          .map((part: any) => part.functionCall);
       }
     }
 
