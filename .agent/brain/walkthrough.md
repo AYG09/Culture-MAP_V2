@@ -196,3 +196,34 @@
 | `src/components/AIConfigModal.tsx` | 컨설팅 모드 전환 UI 및 검증 로직 추가 |
 | `src/components/AIConfigModal.css` | 전환 UI 스타일 추가 |
 | `src/services/LiveblocksService.ts` | 세션 타입 업데이트 메서드 추가 |
+
+---
+
+# Walkthrough: 모델 목록/추론 설정 정비
+
+## 완료 일시
+2026-01-17
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 사용 불가 모델(1.5/2.0) 제거 및 최신 모델 목록 제공
+2. Gemini 2.5/3.0 모델의 추론 설정 자동 전환
+
+---
+
+## ✅ 해결 조치
+
+1. `AIService.getAvailableGeminiModels()`에서 1.5/2.0 모델 제거
+2. `AIService.getAvailableClaudeModels()`로 최신 Claude 모델 목록 제공
+3. `getThinkingConfig()`로 모델 세대별 thinking 설정 자동 적용
+4. 설정 모달 기본 모델/목록 최신화
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/services/AIService.ts` | 모델 목록/정규화/추론 설정 자동화 |
+| `src/components/AIConfigModal.tsx` | 모델 기본값/목록/설명 갱신 |

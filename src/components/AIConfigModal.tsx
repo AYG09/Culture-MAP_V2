@@ -13,7 +13,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
     const currentConfig = aiService.getConfig();
     const [provider, setProvider] = useState<AIProvider>(currentConfig?.provider || 'gemini');
     const [apiKey, setApiKey] = useState(currentConfig?.apiKey || '');
-    const [modelName, setModelName] = useState(currentConfig?.modelName || (provider === 'gemini' ? 'gemini-3-flash-thinking' : 'claude-3-5-sonnet-20241022'));
+    const [modelName, setModelName] = useState(currentConfig?.modelName || (provider === 'gemini' ? 'gemini-2.5-flash-lite' : 'claude-sonnet-4-5-20250929'));
     const [autoExecute, setAutoExecute] = useState(currentConfig?.autoExecuteFunctionCalls || false);
     const [isSaved, setIsSaved] = useState(false);
     const [showKey, setShowKey] = useState(false);
@@ -121,7 +121,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
         if (provider === 'gemini') {
             return aiService.getAvailableGeminiModels();
         }
-        return ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229'];
+        return aiService.getAvailableClaudeModels();
     };
 
     return (
@@ -150,7 +150,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                                 className={`provider-tab ${provider === 'gemini' ? 'active' : ''}`}
                                 onClick={() => {
                                     setProvider('gemini');
-                                    setModelName('gemini-3-flash-thinking');
+                                    setModelName('gemini-2.5-flash-lite');
                                 }}
                             >
                                 Google Gemini
@@ -159,7 +159,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                                 className={`provider-tab ${provider === 'claude' ? 'active' : ''}`}
                                 onClick={() => {
                                     setProvider('claude');
-                                    setModelName('claude-3-5-sonnet-20241022');
+                                    setModelName('claude-sonnet-4-5-20250929');
                                 }}
                             >
                                 Anthropic Claude
@@ -209,11 +209,13 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                                 <option key={m} value={m}>{m}</option>
                             ))}
                         </select>
-                        <p className="help-text" style={{ color: '#10b981', fontWeight: 500, lineHeight: 1.5 }}>
-                            {modelName.includes('gemini-3')
-                                ? "✨ Gemini 3.0: 최신 'Level' 추론 및 에이전틱 Smart Skills를 지원합니다."
-                                : "⚙️ Gemini 2.5: 'Budget' 추론 기반의 전문가 지식(PDF) 및 도구 분석을 완벽히 지원합니다."}
-                        </p>
+                        {provider === 'gemini' && (
+                            <p className="help-text" style={{ color: '#10b981', fontWeight: 500, lineHeight: 1.5 }}>
+                                {modelName.includes('gemini-3')
+                                    ? "✨ Gemini 3.0: thinkingLevel 기반 추론(자동 적용)"
+                                    : "⚙️ Gemini 2.5: thinkingBudget 기반 추론(자동 적용)"}
+                            </p>
+                        )}
                     </div>
 
                     {/* AI 액션 자동 실행 설정 */}

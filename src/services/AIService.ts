@@ -48,7 +48,8 @@ class AIService {
    * AI 서비스 설정
    */
   public setConfig(config: AIConfig) {
-    this.currentConfig = config;
+    const normalized = this.normalizeModelConfig(config);
+    this.currentConfig = normalized;
     if (config.provider === 'gemini' && config.apiKey) {
       this.geminiClient = new GoogleGenAI({ apiKey: config.apiKey });
     } else if (config.provider === 'claude' && config.apiKey) {
@@ -59,7 +60,7 @@ class AIService {
     }
 
     // 설정 변경 시 localStorage에 저장
-    localStorage.setItem('culture-map-ai-config', JSON.stringify(config));
+    localStorage.setItem('culture-map-ai-config', JSON.stringify(normalized));
   }
 
   /**
@@ -125,25 +126,7 @@ class AIService {
     if (!this.geminiClient) throw new Error('Gemini API 설정을 먼저 완료해주세요.');
 
     const modelName = this.currentConfig?.modelName || 'gemini-2.5-flash-lite';
-    const isGemini3 = modelName.includes('gemini-3');
-    const isGemini25 = modelName.includes('gemini-2.5');
-
-    // 세대별 추론 설정 구성
-    const thinkingConfig: any = {
-      includeThoughts: true
-    };
-
-    if (isGemini3) {
-      // Gemini 3.0 사양: thinkingLevel 사용 (대문자 권장)
-      thinkingConfig.thinkingLevel = 'HIGH';
-    } else if (isGemini25) {
-      // Gemini 2.5 사양: thinkingBudget 사용 (0은 비활성화, 양수는 토큰 예산)
-      // E2E 테스트 및 일반 사용성 향상을 위해 1024 토큰으로 제한 (응답 지연 최소화)
-      thinkingConfig.thinkingBudget = 1024;
-    } else {
-      // Thinking 미지원 모델 (1.5 등)
-      delete thinkingConfig.includeThoughts;
-    }
+    const thinkingConfig = this.getThinkingConfig(modelName);
 
     this.chatSession = this.geminiClient.chats.create({
       model: modelName,
@@ -196,7 +179,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
           }
         },
         // thinkingConfig가 유효할 때만 포함
-        ...(Object.keys(thinkingConfig).length > 0 ? { thinkingConfig } : {})
+        ...(thinkingConfig ? { thinkingConfig } : {})
       },
       history: history as any
     });
@@ -826,20 +809,28 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 
   public async analyzeWithPDF(fileUri: string, mimeType: string, prompt: string): Promise<string> {
     if (!this.geminiClient) throw new Error('Gemini API 설정을 먼저 완료해주세요.');
+    const modelName = this.currentConfig?.modelName || 'gemini-2.5-flash-lite';
+    const thinkingConfig = this.getThinkingConfig(modelName);
     const fileContent = createPartFromUri(fileUri, mimeType);
     const response = await this.geminiClient.models.generateContent({
-      model: this.currentConfig?.modelName || 'gemini-3-flash-thinking',
+      model: modelName,
       contents: [prompt, fileContent],
+      ...(thinkingConfig ? { config: { thinkingConfig } } : {})
     });
     return response.text || '';
   }
 
   private async callGemini(prompt: string, schema?: object): Promise<string> {
     if (!this.geminiClient) throw new Error('Gemini 클라이언트가 초기화되지 않았습니다.');
+    const modelName = this.currentConfig?.modelName || 'gemini-2.5-flash-lite';
+    const thinkingConfig = this.getThinkingConfig(modelName);
     const response = await this.geminiClient.models.generateContent({
-      model: this.currentConfig?.modelName || 'gemini-3-flash-thinking',
+      model: modelName,
       contents: prompt,
-      config: schema ? { responseMimeType: 'application/json', responseSchema: schema as any } : undefined,
+      config: {
+        ...(schema ? { responseMimeType: 'application/json', responseSchema: schema as any } : {}),
+        ...(thinkingConfig ? { thinkingConfig } : {})
+      },
     });
     return response.text || '';
   }
@@ -847,7 +838,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
   private async callClaude(prompt: string): Promise<string> {
     if (!this.claudeClient) throw new Error('Claude 클라이언트가 초기화되지 않았습니다.');
     const response = await this.claudeClient.messages.create({
-      model: this.currentConfig?.modelName || 'claude-3-5-sonnet-20241022',
+      model: this.currentConfig?.modelName || 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -857,14 +848,59 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 
   public getAvailableGeminiModels(): string[] {
     return [
-      'gemini-1.5-flash',        // 100만 토큰, Function Calling 지원
-      'gemini-2.0-flash',        // 100만 토큰, Function Calling 지원
-      'gemini-2.5-flash',        // 100만 토큰, Function Calling 지원, 추론 강화
-      'gemini-2.5-flash-lite',   // 100만 토큰, Function Calling 지원, 저비용/고속
-      'gemini-3-flash-thinking', // Thinking 지원
-      'gemini-3-flash',          // 20만 토큰, 초고속 에이전틱
-      'gemini-3-pro',            // 100만 토큰, 플래그십
+      'gemini-2.5-flash',        // Function Calling 지원, 추론 강화
+      'gemini-2.5-flash-lite',   // Function Calling 지원, 저비용/고속
+      'gemini-2.5-pro',          // 고성능 추론
+      'gemini-3-flash',          // 최신 thinkingLevel 지원
+      'gemini-3-pro',            // 최신 플래그십
     ];
+  }
+
+  public getAvailableClaudeModels(): string[] {
+    return [
+      'claude-sonnet-4-5-20250929',
+      'claude-haiku-4-5-20251001',
+      'claude-opus-4-5-20251101',
+    ];
+  }
+
+  private normalizeModelConfig(config: AIConfig): AIConfig {
+    const normalized = { ...config };
+
+    if (normalized.provider === 'gemini') {
+      const available = this.getAvailableGeminiModels();
+      if (!normalized.modelName || !available.includes(normalized.modelName)) {
+        normalized.modelName = 'gemini-2.5-flash-lite';
+      }
+    }
+
+    if (normalized.provider === 'claude') {
+      const available = this.getAvailableClaudeModels();
+      if (!normalized.modelName || !available.includes(normalized.modelName)) {
+        normalized.modelName = 'claude-sonnet-4-5-20250929';
+      }
+    }
+
+    return normalized;
+  }
+
+  private getThinkingConfig(modelName: string): { includeThoughts?: boolean; thinkingLevel?: string; thinkingBudget?: number } | null {
+    const lowerName = modelName.toLowerCase();
+
+    if (lowerName.includes('gemini-3')) {
+      return {
+        includeThoughts: true,
+        thinkingLevel: 'HIGH'
+      };
+    }
+
+    if (lowerName.includes('gemini-2.5')) {
+      return {
+        thinkingBudget: 1024
+      };
+    }
+
+    return null;
   }
 
   // ============================================

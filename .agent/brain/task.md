@@ -28,3 +28,8 @@
 ## Task 5: 컨설팅 모드 전환 버튼
 - [x] AIConfigModal에 전환 버튼/비밀번호 입력 추가
 - [x] LiveblocksService에 세션 타입 업데이트 메서드 추가
+
+## Task 6: 모델 목록/추론 설정 정비
+- [x] Gemini 1.5/2.0 제거 및 최신 Gemini 모델만 노출
+- [x] 최신 Claude 모델 목록으로 교체
+- [x] 모델별 thinkingLevel/thinkingBudget 자동 적용
