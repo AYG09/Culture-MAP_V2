@@ -85,11 +85,6 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
             return;
         }
 
-        if (!session.isHost) {
-            setConsultingError('호스트만 컨설팅 모드로 전환할 수 있습니다.');
-            return;
-        }
-
         if (session.type === 'consulting') {
             setConsultingError('이미 컨설팅 모드입니다.');
             return;
@@ -261,7 +256,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                         </div>
                         {consultingError && <p className="consulting-error">{consultingError}</p>}
                         {consultingSuccess && <p className="consulting-success">컨설팅 모드로 전환되었습니다.</p>}
-                        <p className="help-text">* 전환은 호스트만 가능하며, 비밀번호 입력이 필요합니다.</p>
+                        <p className="help-text">* 전환은 세션 연결 상태에서만 가능하며, 비밀번호 입력이 필요합니다.</p>
                     </div>
 
                     {/* 전문가 지식 베이스 섹션 (Gemini 전용) */}
