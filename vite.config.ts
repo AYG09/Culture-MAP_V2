@@ -25,7 +25,6 @@ export default defineConfig({
           liveblocks: ['@liveblocks/client', '@liveblocks/react', '@liveblocks/yjs', 'yjs', 'y-indexeddb'],
           // AI SDK (매우 큼)
           'ai-google': ['@google/genai'],
-          'ai-anthropic': ['@anthropic-ai/sdk'],
           // PDF/문서 생성 (큼)
           'docs-pdf': ['jspdf', 'html2pdf.js', 'html2canvas', 'pdfjs-dist'],
           'docs-word': ['docx'],
