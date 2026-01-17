@@ -149,9 +149,9 @@ const CultureMapFlow = ({
       }
       const promptTemplate = await promptResponse.text();
 
-      // 2. 현재 맵 데이터를 텍스트로 변환
-      const notesList = initialNotes || [];
-      const connectionsList = initialConnections || [];
+      // 2. 현재 맵 데이터를 텍스트로 변환 (LiveblocksService에서 가져오기)
+      const notesList = liveblocksService.getNotesArray();
+      const connectionsList = liveblocksService.getConnectionsArray();
 
       const layerNames = ['결과 (Layer 1)', '행동 (Layer 2)', '유형 레버 (Layer 3)', '무형 레버 (Layer 4)'];
       
@@ -246,7 +246,7 @@ ${chatHistorySection}
     } finally {
       setIsGeneratingReport(false);
     }
-  }, [isGeneratingReport, initialNotes, initialConnections, isConsultingMode]);
+  }, [isGeneratingReport, isConsultingMode]);
 
   // 보고서 내용 Firebase 동기화 (컨설팅 모드에서만)
   useEffect(() => {

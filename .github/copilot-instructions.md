@@ -27,6 +27,7 @@ Real-time collaborative organizational culture analysis tool using **React 19 + 
 - [.agent/skills/google-genai-sdk/SKILL.md](.agent/skills/google-genai-sdk/SKILL.md) - SDK error patterns & solutions
 - [.agent/skills/sdk-version-check/SKILL.md](.agent/skills/sdk-version-check/SKILL.md) - Deprecation checks
 - [.agent/skills/css-theming/SKILL.md](.agent/skills/css-theming/SKILL.md) - Dark mode CSS variables
+- [.agent/skills/code-safety-checks/SKILL.md](.agent/skills/code-safety-checks/SKILL.md) - Variable scope & dependency array checks
 
 ## 4-Layer Culture Model
 

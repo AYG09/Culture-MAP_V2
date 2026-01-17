@@ -23,6 +23,7 @@ Sequential Thinking, Tavily, Context7 MCP를 활용한 체계적 개발 워크�
   - `.agent/skills/doc-guided-optimization/SKILL.md` (최신 패턴 및 성능 최적화)
   - `.agent/skills/gemini-function-calling/SKILL.md` (Gemini Function Calling 스키마 규칙)
   - `.agent/skills/culture-map-ai/SKILL.md` (Culture-MAP AI 도구 사용 규칙)
+  - `.agent/skills/code-safety-checks/SKILL.md` (변수 스코프, 의존성 배열 체크)
 - 외부 API/SDK 사용 코드는 최신 권장 사항(Best Practices) 준수 여부 확인
 - 특히 실시간 협업(Liveblocks) 및 AI SDK는 릴리즈 주기가 빠르므로 2025 하반기 기준 최신 문서 필독
 
