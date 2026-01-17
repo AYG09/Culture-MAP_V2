@@ -24,3 +24,7 @@
 
 ## Task 4: 검증
 - [ ] 각 모달 UI 톤/버튼/포커스 스타일 확인
+
+## Task 5: 컨설팅 모드 전환 버튼
+- [x] AIConfigModal에 전환 버튼/비밀번호 입력 추가
+- [x] LiveblocksService에 세션 타입 업데이트 메서드 추가

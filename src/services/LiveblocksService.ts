@@ -111,6 +111,34 @@ class LiveblocksService {
         this.indexeddbProvider.on('synced', () => this.emit('sync-complete', { code }));
     }
 
+    /**
+     * 세션 타입 업데이트 (워크샵/컨설팅)
+     */
+    public async updateSessionType(sessionType: SessionType): Promise<void> {
+        if (!this.yDoc || !this.currentSession) {
+            throw new Error('세션이 연결되어 있지 않습니다.');
+        }
+
+        const metadata = this.yDoc.getMap<unknown>('metadata');
+        metadata.set('type', sessionType);
+
+        this.currentSession = { ...this.currentSession, type: sessionType };
+
+        try {
+            await this.connectToConfigRoom();
+            const sessionsMap = this.configDoc?.getMap<unknown>('sessions');
+            if (sessionsMap) {
+                const existing = sessionsMap.get(this.currentSession.code) as { code: string; name: string; type: string; createdAt: number; createdBy: string } | undefined;
+                sessionsMap.set(this.currentSession.code, {
+                    ...(existing || { code: this.currentSession.code, name: this.currentSession.name || `세션 ${this.currentSession.code}`, createdAt: Date.now(), createdBy: this.displayName }),
+                    type: sessionType,
+                });
+            }
+        } catch (error) {
+            console.warn('⚠️ 세션 레지스트리 타입 업데이트 실패:', error);
+        }
+    }
+
     public async leaveSession(): Promise<void> {
         try {
             if (this.provider) {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Key, Info, CheckCircle2, BookOpen, Upload, Trash2, Loader2, FileText, Eye, EyeOff } from 'lucide-react';
 import { aiService, type AIProvider, type AIConfig, type FileMetadata } from '../services/AIService';
+import liveblocksService from '../services/LiveblocksService';
 import './AIConfigModal.css';
 
 interface AIConfigModalProps {
@@ -16,6 +17,10 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
     const [autoExecute, setAutoExecute] = useState(currentConfig?.autoExecuteFunctionCalls || false);
     const [isSaved, setIsSaved] = useState(false);
     const [showKey, setShowKey] = useState(false);
+    const [consultingPassword, setConsultingPassword] = useState('');
+    const [consultingError, setConsultingError] = useState('');
+    const [consultingSuccess, setConsultingSuccess] = useState(false);
+    const [isSwitchingMode, setIsSwitchingMode] = useState(false);
 
     // 전문 지식 파일 상태
     const [academicFiles, setAcademicFiles] = useState<FileMetadata[]>([]);
@@ -68,6 +73,48 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
     const handleRemoveFile = (fileName: string) => {
         aiService.removeAcademicFile(fileName);
         setAcademicFiles([...aiService.getAcademicFiles()]);
+    };
+
+    const handleSwitchToConsulting = async () => {
+        setConsultingError('');
+        setConsultingSuccess(false);
+
+        const session = liveblocksService.getCurrentSession();
+        if (!session) {
+            setConsultingError('세션에 연결된 상태에서만 전환할 수 있습니다.');
+            return;
+        }
+
+        if (!session.isHost) {
+            setConsultingError('호스트만 컨설팅 모드로 전환할 수 있습니다.');
+            return;
+        }
+
+        if (session.type === 'consulting') {
+            setConsultingError('이미 컨설팅 모드입니다.');
+            return;
+        }
+
+        const input = consultingPassword.trim().toLowerCase();
+        const required = 'winter09@!';
+        if (input !== required.toLowerCase()) {
+            setConsultingError('비밀번호가 올바르지 않습니다.');
+            return;
+        }
+
+        setIsSwitchingMode(true);
+        try {
+            await liveblocksService.updateSessionType('consulting');
+            setConsultingSuccess(true);
+            setTimeout(() => {
+                window.location.reload();
+            }, 800);
+        } catch (error) {
+            console.error('컨설팅 모드 전환 실패:', error);
+            setConsultingError('모드 전환에 실패했습니다. 잠시 후 다시 시도하세요.');
+        } finally {
+            setIsSwitchingMode(false);
+        }
     };
 
     const getModels = () => {
@@ -189,6 +236,30 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                                 ? '⚡ AI가 제안하는 노드 추가/수정이 즉시 캔버스에 반영됩니다.'
                                 : '🛡️ AI 제안을 확인 후 "캔버스에 적용" 버튼을 눌러야 반영됩니다.'}
                         </p>
+                    </div>
+
+                    <div className="config-section">
+                        <label className="section-label">컨설팅 모드 전환</label>
+                        <div className="consulting-switch">
+                            <input
+                                type="password"
+                                className="config-input consulting-input"
+                                placeholder="비밀번호 입력 (대소문자 구분 없음)"
+                                value={consultingPassword}
+                                onChange={(e) => setConsultingPassword(e.target.value)}
+                            />
+                            <button
+                                className="save-btn consulting-switch-btn"
+                                onClick={handleSwitchToConsulting}
+                                disabled={!consultingPassword.trim() || isSwitchingMode}
+                                type="button"
+                            >
+                                {isSwitchingMode ? '전환 중...' : '컨설팅 모드로 전환'}
+                            </button>
+                        </div>
+                        {consultingError && <p className="consulting-error">{consultingError}</p>}
+                        {consultingSuccess && <p className="consulting-success">컨설팅 모드로 전환되었습니다.</p>}
+                        <p className="help-text">* 전환은 호스트만 가능하며, 비밀번호 입력이 필요합니다.</p>
                     </div>
 
                     {/* 전문가 지식 베이스 섹션 (Gemini 전용) */}

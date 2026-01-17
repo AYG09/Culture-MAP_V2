@@ -165,3 +165,34 @@
 
 1. 각 모달이 동일한 헤더 그라데이션/오버레이 톤으로 표시되는지 확인
 2. 입력/복사/닫기 버튼의 hover·focus 상태 확인
+
+---
+
+# Walkthrough: 설정창 컨설팅 모드 전환
+
+## 완료 일시
+2026-01-17
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 설정창에서 컨설팅 모드 전환 버튼 제공
+2. 비밀번호 입력(대소문자 구분 없음) 필수화
+
+---
+
+## ✅ 해결 조치
+
+1. `AIConfigModal`에 비밀번호 입력/전환 버튼 추가
+2. `LiveblocksService.updateSessionType()`으로 세션 타입 갱신
+3. 전환 성공 시 화면 리로드로 모드 반영
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/components/AIConfigModal.tsx` | 컨설팅 모드 전환 UI 및 검증 로직 추가 |
+| `src/components/AIConfigModal.css` | 전환 UI 스타일 추가 |
+| `src/services/LiveblocksService.ts` | 세션 타입 업데이트 메서드 추가 |

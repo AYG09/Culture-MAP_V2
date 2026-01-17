@@ -198,6 +198,35 @@
     text-decoration: underline;
 }
 
+.ai-config-modal .consulting-switch {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.ai-config-modal .consulting-input {
+    min-width: 220px;
+}
+
+.ai-config-modal .consulting-switch-btn {
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+}
+
+.ai-config-modal .consulting-error {
+    margin: 6px 0 0;
+    font-size: 0.8rem;
+    color: #dc2626;
+}
+
+.ai-config-modal .consulting-success {
+    margin: 6px 0 0;
+    font-size: 0.8rem;
+    color: #16a34a;
+}
+
 .ai-config-modal .config-select {
     background: var(--input-bg, rgba(255, 255, 255, 0.8));
     border: 1px solid var(--input-border, rgba(0, 0, 0, 0.1));
