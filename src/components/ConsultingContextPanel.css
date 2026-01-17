@@ -1,6 +1,6 @@
 .consulting-context-panel {
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
+  background: var(--bg-secondary, #f8f9fa);
+  border: 1px solid var(--border-color, #dee2e6);
   border-radius: 8px;
   padding: 1rem;
   margin: 1rem 0;
@@ -20,24 +20,28 @@
   font-size: 0.95rem;
   font-weight: 600;
   margin-bottom: 0.5rem;
-  color: #495057;
+  color: var(--text-secondary, #495057);
 }
 
 .observation-section textarea {
   width: 100%;
   padding: 0.5rem;
-  border: 1px solid #ced4da;
+  border: 1px solid var(--input-border, #ced4da);
   border-radius: 4px;
   font-family: inherit;
   resize: vertical;
+  background: var(--input-bg, white);
+  color: var(--text-primary, inherit);
 }
 
 .tone-section select,
 .sentiment-section select {
   width: 100%;
   padding: 0.5rem;
-  border: 1px solid #ced4da;
+  border: 1px solid var(--input-border, #ced4da);
   border-radius: 4px;
+  background: var(--input-bg, white);
+  color: var(--text-primary, inherit);
 }
 
 .sentiment-grid {
@@ -51,7 +55,7 @@
   font-size: 0.85rem;
   font-weight: 500;
   margin-bottom: 0.25rem;
-  color: #6c757d;
+  color: var(--text-muted, #6c757d);
 }
 
 .checkbox-grid {
@@ -71,7 +75,7 @@
 }
 
 .checkbox-grid label:hover {
-  background: #e9ecef;
+  background: var(--bg-tertiary, #e9ecef);
 }
 
 .checkbox-grid input[type="checkbox"] {
@@ -80,12 +84,14 @@
 
 .checkbox-grid span {
   font-size: 0.85rem;
-  color: #495057;
+  color: var(--text-secondary, #495057);
 }
 
 .korean-culture-section input[type="text"] {
   width: 100%;
   padding: 0.5rem;
-  border: 1px solid #ced4da;
+  border: 1px solid var(--input-border, #ced4da);
   border-radius: 4px;
+  background: var(--input-bg, white);
+  color: var(--text-primary, inherit);
 }

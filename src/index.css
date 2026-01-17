@@ -11,6 +11,49 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* ===== 라이트 모드 CSS 변수 (기본값) ===== */
+  /* 배경색 */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #f1f5f9;
+  --bg-glass: rgba(255, 255, 255, 0.95);
+  --bg-glass-subtle: rgba(255, 255, 255, 0.85);
+  
+  /* 텍스트 색상 */
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+  --text-inverse: #ffffff;
+  
+  /* 테두리 색상 */
+  --border-color: rgba(226, 232, 240, 0.8);
+  --border-subtle: rgba(0, 0, 0, 0.05);
+  --border-strong: #e2e8f0;
+  
+  /* 강조색 (Indigo/Purple) */
+  --accent-primary: #4f46e5;
+  --accent-secondary: #8b5cf6;
+  --accent-hover: #4338ca;
+  --accent-light: rgba(79, 70, 229, 0.08);
+  
+  /* 상태 색상 */
+  --success-color: #10b981;
+  --success-bg: #ecfdf5;
+  --error-color: #ef4444;
+  --error-bg: #fef2f2;
+  --warning-color: #f59e0b;
+  --warning-bg: #fffbeb;
+  
+  /* 그림자 */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.15);
+  
+  /* 폼 요소 */
+  --input-bg: #ffffff;
+  --input-border: #e2e8f0;
+  --input-focus: #4f46e5;
 }
 
 * {
@@ -91,5 +134,52 @@ button:focus-visible {
   }
   button {
     background-color: #f9f9f9;
+  }
+}
+
+/* ===== 다크 모드 CSS 변수 ===== */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* 배경색 - Slate 팔레트 기반 (순수 검정 피함) */
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --bg-glass: rgba(15, 23, 42, 0.95);
+    --bg-glass-subtle: rgba(30, 41, 59, 0.9);
+    
+    /* 텍스트 색상 */
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --text-inverse: #0f172a;
+    
+    /* 테두리 색상 */
+    --border-color: rgba(51, 65, 85, 0.8);
+    --border-subtle: rgba(255, 255, 255, 0.05);
+    --border-strong: #334155;
+    
+    /* 강조색 (밝게 조정) */
+    --accent-primary: #818cf8;
+    --accent-secondary: #a78bfa;
+    --accent-hover: #6366f1;
+    --accent-light: rgba(129, 140, 248, 0.15);
+    
+    /* 상태 색상 (다크모드용 조정) */
+    --success-color: #34d399;
+    --success-bg: rgba(16, 185, 129, 0.15);
+    --error-color: #f87171;
+    --error-bg: rgba(239, 68, 68, 0.15);
+    --warning-color: #fbbf24;
+    --warning-bg: rgba(245, 158, 11, 0.15);
+    
+    /* 그림자 (다크모드에서 더 강하게) */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
+    
+    /* 폼 요소 */
+    --input-bg: #1e293b;
+    --input-border: #334155;
+    --input-focus: #818cf8;
   }
 }
