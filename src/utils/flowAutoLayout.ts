@@ -74,18 +74,86 @@ export function getLayoutedElements(
     const layerNodes = nodesByLayer.get(layerKey) || [];
     if (layerNodes.length === 0) return;
 
+    const previousLayerKey = layerIndex > 0 ? layerOrder[layerIndex - 1] : null;
+    const nextLayerKey = layerIndex < layerOrder.length - 1 ? layerOrder[layerIndex + 1] : null;
+    const previousLayerNodes = previousLayerKey ? (nodesByLayer.get(previousLayerKey) || []) : [];
+    const nextLayerNodes = nextLayerKey ? (nodesByLayer.get(nextLayerKey) || []) : [];
+
+    const previousIndexMap = new Map(previousLayerNodes.map((node, index) => [node.id, index]));
+    const nextIndexMap = new Map(nextLayerNodes.map((node, index) => [node.id, index]));
+
+    const edgeTargetsBySource = new Map<string, string[]>();
+    const edgeSourcesByTarget = new Map<string, string[]>();
+
+    edges.forEach((edge) => {
+      if (!edgeTargetsBySource.has(edge.source)) {
+        edgeTargetsBySource.set(edge.source, []);
+      }
+      edgeTargetsBySource.get(edge.source)!.push(edge.target);
+
+      if (!edgeSourcesByTarget.has(edge.target)) {
+        edgeSourcesByTarget.set(edge.target, []);
+      }
+      edgeSourcesByTarget.get(edge.target)!.push(edge.source);
+    });
+
     // 각 층위의 Y 좌표를 개별 높이에 따라 계산
     let fixedY = 0;
     for (let i = 0; i < layerIndex; i++) {
       fixedY += layerHeights[i];
     }
 
-    // 수평 간격 설정
-    const horizontalSpacing = 300; // 노드 간 수평 간격
-    const startX = 100; // 시작 X 좌표
+    // 수평 간격 설정 (노드가 많을수록 간격 확대)
+    const baseSpacing = 340;
+    const expandedSpacing = 460;
+    const horizontalSpacing = layerNodes.length > 4 ? expandedSpacing : baseSpacing;
+    const startX = 120; // 시작 X 좌표
+
+    const scoredNodes = layerNodes.map((node, nodeIndex) => {
+      const neighborIndices: number[] = [];
+
+      if (previousLayerKey) {
+        const sources = edgeSourcesByTarget.get(node.id) || [];
+        sources.forEach((sourceId) => {
+          const index = previousIndexMap.get(sourceId);
+          if (index !== undefined) {
+            neighborIndices.push(index);
+          }
+        });
+      }
+
+      if (nextLayerKey) {
+        const targets = edgeTargetsBySource.get(node.id) || [];
+        targets.forEach((targetId) => {
+          const index = nextIndexMap.get(targetId);
+          if (index !== undefined) {
+            neighborIndices.push(index);
+          }
+        });
+      }
+
+      const averageIndex = neighborIndices.length > 0
+        ? neighborIndices.reduce((sum, value) => sum + value, 0) / neighborIndices.length
+        : nodeIndex;
+
+      return {
+        node,
+        score: averageIndex,
+        fallbackIndex: nodeIndex,
+      };
+    });
+
+    const orderedNodes = scoredNodes
+      .sort((a, b) => {
+        if (a.score === b.score) {
+          return a.fallbackIndex - b.fallbackIndex;
+        }
+        return a.score - b.score;
+      })
+      .map(item => item.node);
 
     // 같은 층위의 노드들을 수평으로 나열
-    layerNodes.forEach((node, nodeIndex) => {
+    orderedNodes.forEach((node, nodeIndex) => {
       layoutedNodes.push({
         ...node,
         position: {

@@ -56,6 +56,7 @@ interface AIChatSidebarProps {
     onActionExecute: (action: any) => void;
     notes: NoteData[];
     connections: ConnectionData[];
+    layerHeights?: number[];
     passwordType?: PasswordType; // 모드 감지용
 }
 
@@ -63,6 +64,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     onActionExecute,
     notes: _notes,
     connections: _connections,
+    layerHeights,
     passwordType
 }) => {
     const currentConfig = aiService.getConfig();
@@ -217,7 +219,8 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
             ? _notes.map(n => {
                 const layerName = layerNames[n.layer] || `Layer ${n.layer}`;
                 const sentiment = n.sentiment === 'positive' ? '긍정' : n.sentiment === 'negative' ? '부정' : '중립';
-                return `  - ID: "${n.id}", 층위: ${layerName}, 감정: ${sentiment}, 내용: "${n.content || '(내용 없음)'}"`;
+                const position = `(${Math.round(n.position.x)}, ${Math.round(n.position.y)})`;
+                return `  - ID: "${n.id}", 층위: ${layerName}, 좌표: ${position}, 감정: ${sentiment}, 내용: "${n.content || '(내용 없음)'}"`;
             }).join('\n')
             : '  (노드 없음)';
 
@@ -230,6 +233,20 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
                 return `  - "${fromNode?.content || c.sourceId}" → "${toNode?.content || c.targetId}" (${relType}, ${polarity})`;
             }).join('\n')
             : '  (연결 없음)';
+
+        const normalizedLayerHeights = Array.isArray(layerHeights) && layerHeights.length === 4
+            ? layerHeights
+            : [0, 0, 0, 0];
+
+        const layerHeightContext = normalizedLayerHeights.some(height => height > 0)
+            ? `
+📏 현재 레이어 높이(px):
+- Layer 4(무형레버): ${normalizedLayerHeights[3]}
+- Layer 3(유형레버): ${normalizedLayerHeights[2]}
+- Layer 2(행동): ${normalizedLayerHeights[1]}
+- Layer 1(결과): ${normalizedLayerHeights[0]}
+`
+            : '';
 
         const contextString = `[현재 컬처맵 상태]
 총 노드 수: ${_notes.length}개, 총 연결선 수: ${_connections.length}개
@@ -246,8 +263,13 @@ ${nodesContext}
 🔗 연결 관계:
 ${connectionsContext}
 
+${layerHeightContext}
+
 💡 연결 방향: 상위 층위(원인=sourceId) → 하위 층위(결과=targetId)
-💡 참고: 노드 생성 후 관련 노드와 create_connection 호출 권장!`;
+💡 참고: 노드 생성 후 관련 노드와 create_connection 호출 권장!
+💡 여러 노드와 연결을 한 번에 만들 때는 add_nodes_with_connections를 사용하고, nodes에 tempId를 지정한 뒤 connections에서 tempId를 참조하세요.
+💡 특정 위치로 옮길 때는 update_node에 x/y 좌표를 포함하세요.
+💡 레이아웃이 겹치거나 연결선이 가려지면 adjust_layer_height로 레이어 높이를 늘려 공간을 확보하세요.`;
 
         let fileUri: string | undefined;
         let mimeType: string | undefined;

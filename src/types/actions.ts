@@ -9,6 +9,7 @@ export type ActionType =
     | 'ADD_NODE'
     | 'UPDATE_NODE'
     | 'DELETE_NODE'
+    | 'ADD_NODES_WITH_CONNECTIONS'
     | 'CREATE_CONNECTION'
     | 'DELETE_CONNECTION'
     | 'AUTO_LAYOUT'
@@ -48,6 +49,39 @@ export interface UpdateNodePayload {
 }
 
 /**
+ * 배치 노드 생성 입력
+ */
+export interface BatchNodeInput {
+    tempId?: string;
+    label: string;
+    type: NoteType;
+    layer: 1 | 2 | 3 | 4;
+    content?: string;
+    sentiment?: 'positive' | 'negative' | 'neutral';
+    intensity?: PerceptionIntensity;
+    x?: number;
+    y?: number;
+}
+
+/**
+ * 배치 연결 생성 입력
+ */
+export interface BatchConnectionInput {
+    sourceId: string;
+    targetId: string;
+    relationType?: 'direct' | 'indirect';
+    isPositive?: boolean;
+}
+
+/**
+ * 배치 노드+연결 생성 액션 페이로드
+ */
+export interface AddNodesWithConnectionsPayload {
+    nodes: BatchNodeInput[];
+    connections?: BatchConnectionInput[];
+}
+
+/**
  * 엣지 생성 액션 페이로드
  */
 export interface CreateConnectionPayload {
@@ -79,6 +113,52 @@ export const MAP_TOOL_DECLARATIONS = [
         }
     },
     {
+        name: 'add_nodes_with_connections',
+        description: 'MUST call when the user asks to create multiple nodes and their relationships in one request. Use tempId to reference newly created nodes inside connections. Examples: "A,B,C 노드 만들고 A-B, B-C 연결해줘"',
+        parametersJsonSchema: {
+            type: 'object',
+            properties: {
+                nodes: {
+                    type: 'array',
+                    description: 'Nodes to create in batch',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            tempId: { type: 'string', description: 'Temporary ID to reference this node in connections (optional)' },
+                            label: { type: 'string', description: 'Title of the sticky note (short and clear, in Korean)' },
+                            type: { type: 'string', enum: ['결과', '행동', '유형_레버', '무형_레버'], description: 'Layer type: 결과=Outcomes, 행동=Behaviors, 유형_레버=Tangible, 무형_레버=Intangible' },
+                            layer: { type: 'number', enum: [1, 2, 3, 4], description: 'Layer index (1:결과, 2:행동, 3:유형, 4:무형)' },
+                            content: { type: 'string', description: 'Detailed description (optional)' },
+                            sentiment: { type: 'string', enum: ['positive', 'negative', 'neutral'], description: 'Sentiment of the node' },
+                            intensity: { type: 'number', enum: [1, 2, 3, 4, 5], description: 'Perception intensity (1=low, 5=high)' },
+                            x: { type: 'number', description: 'X position (canvas coordinate, optional)' },
+                            y: { type: 'number', description: 'Y position (canvas coordinate, optional)' }
+                        },
+                        required: ['label', 'type', 'layer'],
+                        propertyOrdering: ['tempId', 'label', 'type', 'layer', 'content', 'sentiment', 'intensity', 'x', 'y']
+                    }
+                },
+                connections: {
+                    type: 'array',
+                    description: 'Connections to create after nodes are added',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            sourceId: { type: 'string', description: 'Source node ID or tempId (cause)' },
+                            targetId: { type: 'string', description: 'Target node ID or tempId (effect)' },
+                            relationType: { type: 'string', enum: ['direct', 'indirect'], description: 'Connection type (direct or indirect)' },
+                            isPositive: { type: 'boolean', description: 'Whether the relation is positive (default: true)' }
+                        },
+                        required: ['sourceId', 'targetId'],
+                        propertyOrdering: ['sourceId', 'targetId', 'relationType', 'isPositive']
+                    }
+                }
+            },
+            required: ['nodes'],
+            propertyOrdering: ['nodes', 'connections']
+        }
+    },
+    {
         name: 'update_node',
         description: 'MUST call when user wants to modify, edit, change, or update existing sticky notes. Trigger words: 수정, 변경, 고쳐, 바꿔, 업데이트. Examples: "노드 내용 수정해줘", "제목 변경"',
         parametersJsonSchema: {
@@ -87,10 +167,12 @@ export const MAP_TOOL_DECLARATIONS = [
                 id: { type: 'string', description: 'ID of the node to modify' },
                 label: { type: 'string', description: 'New title' },
                 content: { type: 'string', description: 'New detailed content' },
-                sentiment: { type: 'string', enum: ['positive', 'negative', 'neutral'] }
+                sentiment: { type: 'string', enum: ['positive', 'negative', 'neutral'] },
+                x: { type: 'number', description: 'New x position (canvas coordinate)' },
+                y: { type: 'number', description: 'New y position (canvas coordinate)' }
             },
             required: ['id'],
-            propertyOrdering: ['id', 'label', 'content', 'sentiment']
+            propertyOrdering: ['id', 'label', 'content', 'sentiment', 'x', 'y']
         }
     },
     {

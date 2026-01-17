@@ -95,6 +95,7 @@ class AIService {
       if (storedFiles) {
         this.academicFiles = JSON.parse(storedFiles);
         console.log(`📚 Academic files loaded: ${this.academicFiles.length} files`);
+        this.normalizeAcademicFiles();
       }
 
       // 인사이트 캐시 로드
@@ -148,18 +149,30 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 
 ## 도구 사용 규칙
 1. 노드 추가/수정 후 반드시 auto_layout 호출하여 정리
-2. 공간 부족 시 adjust_layer_height 호출
+2. 공간 부족/겹침/연결선 가림이 발생하면 adjust_layer_height 호출
 3. 사용자가 명시적으로 노드 생성을 요청할 때만 도구 사용
+4. 여러 노드와 연결을 동시에 만들 때는 add_nodes_with_connections로 단일 호출 수행
+5. 특정 좌표로 이동할 필요가 있으면 update_node에 x/y 포함
 
 ## 연결선(인과관계) 생성 규칙
 1. **노드 생성 후 연결 권장**: 새 노드 추가 후, 관련된 기존 노드와 create_connection 호출 권장
 2. **층위 간 인과 흐름**: 무형레버(Layer 4) → 유형레버(Layer 3) → 행동(Layer 2) → 결과(Layer 1) 방향
 3. **sourceId/targetId 순서**: sourceId = 원인 노드(상위 층위), targetId = 결과 노드(하위 층위)
 4. **다수 노드 생성 시**: 모든 노드 생성 완료 → 일괄 연결(create_connection) → auto_layout 순서
+5. **대량 생성 최적화**: 노드+연결 요청이 함께 오면 add_nodes_with_connections로 노드/연결을 한 번에 생성
 
 ### ✅ 예시 (DO)
 사용자: "리더십 문화 관련 노드 3개 만들어줘"
 → 순서: add_node(Layer4 "리더십 가치관") → add_node(Layer3 "리더십 평가제도") → add_node(Layer2 "솔선수범 행동") → create_connection(source: Layer4노드ID, target: Layer3노드ID) → create_connection(source: Layer3노드ID, target: Layer2노드ID) → auto_layout()
+
+사용자: "A,B,C 노드 만들고 A-B, B-C 연결해줘"
+→ 순서: add_nodes_with_connections(nodes:[{tempId:"A", label:"A", layer:4, type:"무형_레버"}, {tempId:"B", label:"B", layer:3, type:"유형_레버"}, {tempId:"C", label:"C", layer:2, type:"행동"}], connections:[{sourceId:"A", targetId:"B"}, {sourceId:"B", targetId:"C"}]) → auto_layout()
+
+사용자: "노드 X를 (900, 420)로 옮겨줘"
+→ 순서: update_node(id:"노드X_ID", x:900, y:420) → auto_layout()
+
+사용자: "노드가 겹치고 연결선이 가려져"
+→ 순서: adjust_layer_height(layer: 4, height: 350) → adjust_layer_height(layer: 3, height: 350) → auto_layout()
 
 ### ❌ 금지 (DON'T)
 - 노드만 생성하고 연결선 없이 끝내기
@@ -552,6 +565,35 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     return [...new Set(keywords)];
   }
 
+  private normalizeAcademicFiles(): void {
+    if (this.academicFiles.length === 0) {
+      return;
+    }
+
+    let changed = false;
+    this.academicFiles = this.academicFiles.map((file) => {
+      const displayName = file.displayName || file.name;
+      const keywords = file.keywords && file.keywords.length > 0
+        ? file.keywords
+        : this.extractKeywords(displayName);
+
+      if (displayName !== file.displayName || keywords !== file.keywords) {
+        changed = true;
+      }
+
+      return {
+        ...file,
+        displayName,
+        keywords,
+      };
+    });
+
+    if (changed) {
+      localStorage.setItem('culture-map-academic-files', JSON.stringify(this.academicFiles));
+      console.log('📚 Academic files metadata normalized');
+    }
+  }
+
   /**
       for (const keyword of keywords) {
         if (lowerPrompt.includes(keyword.toLowerCase())) {
@@ -621,6 +663,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
    * [토큰 비용 최적화] 학술 지식이 필요한 질문에만 PDF 로드
    */
   private selectRelevantFiles(prompt: string, maxFiles: number = 1): FileMetadata[] {
+    this.normalizeAcademicFiles();
     if (this.academicFiles.length === 0) return [];
 
     const lowerPrompt = prompt.toLowerCase();
@@ -705,6 +748,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
    * ⚠️ Gemini API 제한: PDF 최대 1000페이지
    */
   private selectRelevantFilesForTopic(topic: string): FileMetadata | null {
+    this.normalizeAcademicFiles();
     if (this.academicFiles.length === 0) return null;
 
     const lowerTopic = topic.toLowerCase();
@@ -770,10 +814,16 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     const best = scoredFiles.filter(sf => sf.score > 0).sort((a, b) => b.score - a.score)[0];
     
     if (!best) {
-      console.log('📚 [AIService] No suitable PDF found for topic, will use static knowledge');
+      const fallback = this.academicFiles[this.academicFiles.length - 1] ?? null;
+      if (fallback) {
+        console.log('📚 [AIService] No suitable PDF matched, using fallback file:', fallback.displayName);
+      } else {
+        console.log('📚 [AIService] No suitable PDF found for topic, will use static knowledge');
+      }
+      return fallback;
     }
-    
-    return best?.file || null;
+
+    return best.file;
   }
 
   /**

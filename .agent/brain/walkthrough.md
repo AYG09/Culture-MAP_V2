@@ -199,6 +199,47 @@
 
 ---
 
+# Walkthrough: 배치 노드/연결 생성 + 좌표 이동 지원
+
+## 완료 일시
+2026-01-18
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 노드와 연결선을 단일 호출로 생성
+2. 좌표 기반 이동 지원
+3. Gemini 프롬프트/컨텍스트에 배치 생성 규칙 반영
+
+---
+
+## ✅ 해결 조치
+
+1. add_nodes_with_connections 도구 스키마 추가 및 propertyOrdering 적용
+2. CultureMapFlow에서 배치 생성 및 tempId→실제 ID 매핑 처리
+3. AI 컨텍스트에 노드 좌표 포함, 시스템 프롬프트에 배치/좌표 규칙 추가
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/types/actions.ts` | 배치 생성 도구/타입 및 스키마 추가 |
+| `src/components/CultureMapFlow.tsx` | 배치 생성 실행 로직, 좌표 업데이트 반영 |
+| `src/components/AIChatSidebar.tsx` | 노드 좌표 컨텍스트 및 배치 도구 안내 추가 |
+| `src/services/AIService.ts` | 배치 생성/좌표 이동 규칙 및 예시 추가 |
+| `src/utils/flowAutoLayout.ts` | 엣지 기반 정렬 개선(연결 흐름 반영) |
+
+---
+
+## 🧪 검증
+
+1. 사용자 요청이 “노드+연결”을 포함할 때 add_nodes_with_connections 호출되는지 확인
+2. 배치 생성 후 자동 정렬이 동작하는지 확인
+3. update_node(x,y)로 좌표 이동이 반영되는지 확인
+
+
 # Walkthrough: 모델 목록/추론 설정 정비
 
 ## 완료 일시

@@ -1,5 +1,5 @@
 // src/components/CultureMapFlow.tsx - 완전히 재작성된 버전
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -36,8 +36,9 @@ import ReportEditor from './ReportEditor'; // 보고서 편집기
 
 // 타입
 import type { NoteData, ConnectionData, PerceptionIntensity } from '../types/culture';
+import type { BatchConnectionInput, BatchNodeInput } from '../types/actions';
 import { INTENSITY_MAP } from '../types/culture';
-import type { ConnectionData as LBConnectionData } from '../types/liveblocks';
+import type { StickyNoteData, ConnectionData as LBConnectionData } from '../types/liveblocks';
 
 // 유틸리티
 import { convertToFlowData, convertFromFlowData } from '../utils/flowDataConverter';
@@ -97,6 +98,65 @@ const nodeTypes = {
   tangible_lever: TangibleLeverNode,
   intangible_lever: IntangibleLeverNode,
 };
+
+const NOTE_TYPE_MAP: Record<string, NoteData['type']> = {
+  result: '결과',
+  behavior: '행동',
+  tangible_lever: '유형_레버',
+  intangible_lever: '무형_레버',
+  결과: '결과',
+  행동: '행동',
+  유형_레버: '유형_레버',
+  무형_레버: '무형_레버',
+};
+
+const NOTE_TYPE_TO_LAYER: Record<NoteData['type'], NoteData['layer']> = {
+  결과: 1,
+  행동: 2,
+  유형_레버: 3,
+  무형_레버: 4,
+  insight: 2,
+};
+
+const isSentiment = (value: unknown): value is NoteData['sentiment'] =>
+  value === 'positive' || value === 'negative' || value === 'neutral';
+
+const toNoteType = (value?: string): NoteData['type'] => NOTE_TYPE_MAP[value ?? ''] ?? '행동';
+
+const toLayerValue = (layer?: number, noteType?: NoteData['type']): NoteData['layer'] => {
+  if (layer && layer >= 1 && layer <= 4) {
+    return layer as NoteData['layer'];
+  }
+  return NOTE_TYPE_TO_LAYER[noteType ?? '행동'] ?? 2;
+};
+
+const mapLiveblocksNoteToNoteData = (note: StickyNoteData): NoteData => {
+  const noteType = toNoteType(note.type);
+  const sentiment = isSentiment(note.sentiment) ? note.sentiment : 'neutral';
+
+  return {
+    id: note.id,
+    content: note.content ?? '',
+    position: { x: note.x, y: note.y },
+    width: note.width ?? 200,
+    height: note.height ?? 120,
+    type: noteType,
+    sentiment,
+    perceptionIntensity: note.frequency ?? undefined,
+    basis: note.basis,
+    layer: toLayerValue(note.layer, noteType),
+  };
+};
+
+const mapLiveblocksConnectionToConnectionData = (
+  connection: LBConnectionData
+): ConnectionData => ({
+  id: connection.id,
+  sourceId: connection.sourceId,
+  targetId: connection.targetId,
+  relationType: connection.relationType === 'indirect' ? 'indirect' : 'direct',
+  isPositive: connection.isPositive !== false,
+});
 
 const CultureMapFlow = ({
   onNotesChange,
@@ -275,7 +335,7 @@ ${chatHistorySection}
   }, [isConsultingMode]);
 
   // 층위별 개별 높이 조절 상태 (레거시 모드와 동일)
-  const [layerHeights, setLayerHeights] = useState<number[]>([100, 100, 100, 100]); // [결과, 행동, 유형, 무형]
+  const [layerHeights, setLayerHeights] = useState<number[]>([220, 220, 220, 220]); // [결과, 행동, 유형, 무형]
   const [layerOpacities, setLayerOpacities] = useState<number[]>([0.05, 0.05, 0.05, 0.05]); // 층위별 투명도
   const [showLayerBackground, setShowLayerBackground] = useState(true);
 
@@ -434,17 +494,175 @@ ${chatHistorySection}
         break;
       }
 
+      case 'add_nodes_with_connections': {
+        const nodeInputs = Array.isArray(args.nodes) ? (args.nodes as BatchNodeInput[]) : [];
+        const connectionInputs = Array.isArray(args.connections) ? (args.connections as BatchConnectionInput[]) : [];
+
+        if (!nodeInputs.length) break;
+
+        const typeMap: Record<string, string> = {
+          '결과': 'result',
+          '행동': 'behavior',
+          '유형_레버': 'tangible_lever',
+          '무형_레버': 'intangible_lever',
+          'result': 'result',
+          'behavior': 'behavior',
+          'tangible_lever': 'tangible_lever',
+          'intangible_lever': 'intangible_lever',
+        };
+
+        const layerCounts = new Map<number, number>();
+        nodesRef.current.forEach((node) => {
+          const layerValue = typeof node.data?.layer === 'number' ? node.data.layer : undefined;
+          if (layerValue) {
+            layerCounts.set(layerValue, (layerCounts.get(layerValue) ?? 0) + 1);
+          }
+        });
+
+        const idMap: Record<string, string> = {};
+        const newNodes: Node[] = [];
+        const batchTimestamp = Date.now();
+
+        nodeInputs.forEach((input, index) => {
+          const layerValue = typeof input.layer === 'number' ? input.layer : 2;
+          const layerIndex = Math.max(1, Math.min(4, layerValue)) - 1;
+          const currentCount = layerCounts.get(layerValue) ?? 0;
+          layerCounts.set(layerValue, currentCount + 1);
+
+          let currentY = 0;
+          for (let i = 0; i < layerIndex; i++) {
+            currentY += layerHeights[i];
+          }
+          const defaultY = currentY + (layerHeights[layerIndex] / 2);
+          const baseX = 150 + (currentCount * 220);
+
+          const x = typeof input.x === 'number' && Number.isFinite(input.x)
+            ? input.x
+            : baseX;
+          const y = typeof input.y === 'number' && Number.isFinite(input.y)
+            ? input.y
+            : defaultY + (Math.random() * 20 - 10);
+
+          const nodeType = typeMap[input.type] || 'result';
+          const content = input.content || input.label || '새 노드';
+          const sentiment = input.sentiment === 'positive' ? 'positive' : (input.sentiment === 'negative' ? 'negative' : 'neutral');
+          const frequency = typeof input.intensity === 'number'
+            ? INTENSITY_MAP.TO_STRING(input.intensity)
+            : input.intensity;
+
+          const newNodeId = `node-${batchTimestamp}-${index}-${Math.random().toString(36).substr(2, 4)}`;
+          if (input.tempId) {
+            idMap[input.tempId] = newNodeId;
+          }
+
+          liveblocksService.updateStickyNote({
+            id: newNodeId,
+            content,
+            x,
+            y,
+            layer: layerValue,
+            sentiment,
+            type: nodeType,
+            frequency,
+          });
+
+          newNodes.push({
+            id: newNodeId,
+            type: nodeType,
+            position: { x, y },
+            data: {
+              id: newNodeId,
+              content,
+              author: liveblocksService.getCurrentUserDisplayName(),
+              timestamp: Date.now(),
+              sentiment,
+              frequency,
+              type: nodeType,
+              layer: layerValue,
+            },
+            draggable: true,
+          });
+        });
+
+        const updatedNodes = [...nodesRef.current, ...newNodes];
+        setNodes(() => {
+          nodesRef.current = updatedNodes;
+          return updatedNodes;
+        });
+
+        const newEdges: Edge[] = [];
+        connectionInputs.forEach((connection, index) => {
+          const sourceId = idMap[connection.sourceId] || connection.sourceId;
+          const targetId = idMap[connection.targetId] || connection.targetId;
+          if (!sourceId || !targetId) {
+            return;
+          }
+
+          const relationType = connection.relationType === 'indirect' ? 'indirect' : 'direct';
+          const isPositive = connection.isPositive !== false;
+          const edgeColor = isPositive ? '#10b981' : '#ef4444';
+          const edgeId = `edge-${sourceId}-${targetId}-${batchTimestamp}-${index}`;
+
+          newEdges.push({
+            id: edgeId,
+            source: sourceId,
+            target: targetId,
+            type: 'default',
+            animated: false,
+            style: {
+              strokeWidth: 2,
+              stroke: edgeColor,
+              strokeDasharray: relationType === 'indirect' ? '5 5' : undefined,
+            },
+            markerEnd: {
+              type: 'arrowclosed',
+              width: 20,
+              height: 20,
+              color: edgeColor,
+            },
+            data: {
+              relationType,
+              isPositive,
+            },
+          });
+
+          liveblocksService.updateConnection({
+            id: edgeId,
+            sourceId,
+            targetId,
+            relationType,
+            isPositive,
+          });
+        });
+
+        const updatedEdges = [...edgesRef.current, ...newEdges];
+        setEdges(() => {
+          edgesRef.current = updatedEdges;
+          return updatedEdges;
+        });
+
+        const { connections: updatedConnections } = convertFromFlowData(updatedNodes, updatedEdges);
+        onConnectionsChange(updatedConnections);
+
+        console.log('✅ [Action Bridge] Batch nodes/connections added:', newNodes.length, newEdges.length);
+        break;
+      }
+
       case 'update_node': {
         if (!args.id) break;
         const sentiment = args.sentiment === 'positive' ? 'positive' : (args.sentiment === 'negative' ? 'negative' : 'neutral');
         const frequency = typeof args.intensity === 'number' ? INTENSITY_MAP.TO_STRING(args.intensity) : args.intensity;
         const content = args.content || args.label;
+        const hasX = typeof args.x === 'number' && Number.isFinite(args.x);
+        const hasY = typeof args.y === 'number' && Number.isFinite(args.y);
 
         liveblocksService.updateStickyNote({
           id: args.id,
           content,
           sentiment,
           frequency,
+          ...(hasX ? { x: args.x } : {}),
+          ...(hasY ? { y: args.y } : {}),
           ...(args.layer ? { layer: args.layer } : {}),
           ...(args.type ? { type: args.type } : {}),
         });
@@ -452,8 +670,15 @@ ${chatHistorySection}
         setNodes((nds) => {
           const updated = nds.map((node) => {
             if (node.id === args.id) {
+              const nextPosition = hasX || hasY
+                ? {
+                    x: hasX ? args.x : node.position.x,
+                    y: hasY ? args.y : node.position.y,
+                  }
+                : node.position;
               return {
                 ...node,
+                position: nextPosition,
                 data: {
                   ...node.data,
                   ...(content ? { content } : {}),
@@ -556,7 +781,7 @@ ${chatHistorySection}
       default:
         console.warn('⚠️ 알 수 없는 AI 액션:', name);
     }
-  }, [layerHeights, setEdges, setNodes, safeAutoLayout]);
+  }, [layerHeights, onConnectionsChange, setEdges, setNodes, safeAutoLayout]);
 
   const handleAiAction = useCallback((action: any) => {
     pendingActionsRef.current.push(action);
@@ -582,7 +807,7 @@ ${chatHistorySection}
           return;
         }
 
-        if (name === 'add_node' || name === 'update_node' || name === 'delete_node' || name === 'create_connection') {
+        if (name === 'add_node' || name === 'add_nodes_with_connections' || name === 'update_node' || name === 'delete_node' || name === 'create_connection') {
           layoutNeeded = true;
         }
 
@@ -770,6 +995,112 @@ ${chatHistorySection}
     },
     [onNodeUpdate, setNodes]
   );
+
+  const aiContext = useMemo(() => convertFromFlowData(nodes, edges), [nodes, edges]);
+
+  const hydrateFromLiveblocks = useCallback(
+    (reason: string) => {
+      if (!liveblocksService.isConnected()) {
+        return;
+      }
+
+      const rawNotes = liveblocksService.getStickyNotes();
+      const rawConnections = liveblocksService.getConnections();
+      const hasRemoteData = rawNotes.length > 0 || rawConnections.length > 0;
+      const hasLocalData =
+        nodesRef.current.length > 0 || edgesRef.current.length > 0;
+
+      if (!hasRemoteData && hasLocalData) {
+        console.log('ℹ️ [React Flow] 초기 동기화 보류 (원격 비어 있음):', reason);
+        return;
+      }
+
+      const mappedNotes = rawNotes.map(mapLiveblocksNoteToNoteData);
+      const mappedConnections = rawConnections.map(mapLiveblocksConnectionToConnectionData);
+
+      const { nodes: flowNodes, edges: flowEdges } = convertToFlowData(
+        mappedNotes,
+        mappedConnections,
+        handleNodeContentUpdate,
+        {
+          activeLocks: collaborationLocksRef.current,
+          onNodeEditStart: handleStartNodeEditing,
+          onNodeEditEnd: handleStopNodeEditing,
+          currentUserId: getCurrentUserId(),
+          includeFrequency: isConsultingMode,
+        }
+      );
+
+      setNodes(() => {
+        nodesRef.current = flowNodes;
+        return flowNodes;
+      });
+      setEdges(() => {
+        edgesRef.current = flowEdges;
+        return flowEdges;
+      });
+
+      onNotesChange(mappedNotes);
+      onConnectionsChange(mappedConnections);
+
+      console.log('✅ [React Flow] 세션 데이터 복원 완료:', {
+        reason,
+        notes: mappedNotes.length,
+        connections: mappedConnections.length,
+      });
+    },
+    [
+      getCurrentUserId,
+      handleNodeContentUpdate,
+      handleStartNodeEditing,
+      handleStopNodeEditing,
+      isConsultingMode,
+      onConnectionsChange,
+      onNotesChange,
+      setEdges,
+      setNodes,
+    ]
+  );
+
+  useEffect(() => {
+    type EventHandler = (...args: unknown[]) => void;
+
+    const handleSyncComplete: EventHandler = () => {
+      hydrateFromLiveblocks('sync-complete');
+    };
+
+    liveblocksService.on('sync-complete', handleSyncComplete);
+
+    let retryCount = 0;
+    const maxRetries = 10;
+    let intervalId: number | undefined;
+
+    const tryInitialHydrate = (reason: string) => {
+      if (!liveblocksService.isConnected()) {
+        return false;
+      }
+      hydrateFromLiveblocks(reason);
+      return true;
+    };
+
+    if (!tryInitialHydrate('initial')) {
+      intervalId = window.setInterval(() => {
+        retryCount += 1;
+        if (tryInitialHydrate('polling') || retryCount >= maxRetries) {
+          if (intervalId) {
+            window.clearInterval(intervalId);
+          }
+        }
+      }, 500);
+    }
+
+    return () => {
+      liveblocksService.off('sync-complete', handleSyncComplete);
+      if (intervalId) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }, [hydrateFromLiveblocks]);
 
   // ============================================================================
   // Liveblocks 실시간 리스너 등록
@@ -1959,8 +2290,9 @@ ${chatHistorySection}
               }}>
                 <AIChatSidebar
                   onActionExecute={handleAiAction}
-                  notes={nodes.map(n => n.data as unknown as NoteData)}
-                  connections={edges.map(e => e.data as unknown as ConnectionData)}
+                  notes={aiContext.notes}
+                  connections={aiContext.connections}
+                  layerHeights={layerHeights}
                   passwordType={mode}
                 />
 
@@ -2049,8 +2381,9 @@ ${chatHistorySection}
 
                   <AIChatSidebar
                     onActionExecute={handleAiAction}
-                    notes={nodes.map(n => n.data as unknown as NoteData)}
-                    connections={edges.map(e => e.data as unknown as ConnectionData)}
+                    notes={aiContext.notes}
+                    connections={aiContext.connections}
+                    layerHeights={layerHeights}
                     passwordType={mode}
                   />
                 </div>
