@@ -3,6 +3,7 @@ import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css'; // Quill Snow 테마 CSS
 import { saveAs } from 'file-saver';
 import ExcelJS from 'exceljs';
+import { Sparkles, Loader2 } from 'lucide-react';
 import { createDocxBlobFromHtml } from '../utils/htmlToDocx';
 import './ReportEditor.css';
 
@@ -11,6 +12,10 @@ interface ReportEditorProps {
   initialContent: string;
   /** 콘텐츠 변경 시 호출되는 콜백 */
   onSave: (content: string) => void;
+  /** AI 보고서 생성 핸들러 (선택적) */
+  onGenerateReport?: () => void;
+  /** AI 보고서 생성 중 여부 */
+  isGenerating?: boolean;
 }
 
 /**
@@ -19,7 +24,7 @@ interface ReportEditorProps {
  * 편집 모드와 뷰어 모드를 토글할 수 있으며,
  * AI가 생성한 보고서를 수정하거나 새로 작성할 수 있습니다.
  */
-export default function ReportEditor({ initialContent, onSave }: ReportEditorProps) {
+export default function ReportEditor({ initialContent, onSave, onGenerateReport, isGenerating }: ReportEditorProps) {
   const [content, setContent] = useState(initialContent);
   const [isEditing, setIsEditing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -223,6 +228,28 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
       {/* 툴바: 편집 모드 토글 버튼 및 내보내기 버튼 */}
       <div className="editor-toolbar">
         <div className="export-buttons">
+          {/* AI 보고서 생성 버튼 */}
+          {onGenerateReport && (
+            <button
+              className="generate-report-button"
+              onClick={onGenerateReport}
+              disabled={isGenerating}
+              type="button"
+              title="AI가 현재 Culture Map을 분석하여 보고서를 생성합니다"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 size={16} className="spinner" />
+                  생성 중...
+                </>
+              ) : (
+                <>
+                  <Sparkles size={16} />
+                  AI 보고서 생성
+                </>
+              )}
+            </button>
+          )}
           <button
             className="export-button"
             onClick={handleExportWord}
@@ -239,7 +266,7 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
             type="button"
             title="Excel 파일로 다운로드"
           >
-            � Excel
+            📊 Excel
           </button>
         </div>
 
@@ -279,8 +306,18 @@ export default function ReportEditor({ initialContent, onSave }: ReportEditorPro
             />
           ) : (
             <div className="report-empty">
-              <p>아직 보고서가 작성되지 않았습니다.</p>
-              <p>상단의 "✏️ 편집하기" 버튼을 눌러 보고서를 작성해주세요.</p>
+              <Sparkles size={48} className="empty-icon" />
+              <p className="empty-title">아직 보고서가 작성되지 않았습니다.</p>
+              {onGenerateReport ? (
+                <p className="empty-description">
+                  상단의 "<Sparkles size={14} /> AI 보고서 생성" 버튼을 눌러<br />
+                  현재 Culture Map을 분석한 보고서를 자동으로 생성하세요.
+                </p>
+              ) : (
+                <p className="empty-description">
+                  상단의 "✏️ 편집하기" 버튼을 눌러 보고서를 작성해주세요.
+                </p>
+              )}
             </div>
           )}
         </div>

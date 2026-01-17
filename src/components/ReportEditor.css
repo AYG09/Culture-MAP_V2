@@ -224,6 +224,91 @@
   color: #6b7280;
 }
 
+/* AI 보고서 생성 버튼 */
+.generate-report-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.generate-report-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
+
+.generate-report-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.generate-report-button .spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 빈 상태 스타일 개선 */
+.report-empty .empty-icon {
+  color: #9ca3af;
+  margin-bottom: 16px;
+}
+
+.report-empty .empty-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.report-empty .empty-description {
+  font-size: 14px;
+  color: #6b7280;
+  line-height: 1.6;
+}
+
+.report-empty .empty-description svg {
+  vertical-align: middle;
+  color: #6366f1;
+}
+
+/* 다크모드 대응 */
+@media (prefers-color-scheme: dark) {
+  .report-editor {
+    background: var(--bg-primary, #1e293b);
+    border-color: var(--border-color, #334155);
+  }
+
+  .editor-toolbar {
+    background: var(--bg-secondary, #0f172a);
+    border-color: var(--border-color, #334155);
+  }
+
+  .generate-report-button {
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
+  }
+
+  .report-empty .empty-title {
+    color: var(--text-primary, #e2e8f0);
+  }
+
+  .report-empty .empty-description {
+    color: var(--text-secondary, #94a3b8);
+  }
+}
+
 /* 반응형 */
 @media (max-width: 768px) {
   .report-editor {

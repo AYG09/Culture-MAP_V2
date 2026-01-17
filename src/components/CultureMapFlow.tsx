@@ -48,6 +48,10 @@ import { parseAIOutput } from '../utils/parser';
 import liveblocksService from '../services/LiveblocksService';
 import SessionInfoPanel from './SessionInfoPanel';
 
+// AI 서비스 및 유틸리티
+import { aiService } from '../services/AIService';
+import { parseMarkdown } from '../utils/markdownParser';
+
 import './CultureMapFlow.css';
 
 interface CultureMapFlowProps {
@@ -115,6 +119,7 @@ const CultureMapFlow = ({
   // 탭 시스템 상태 (컬쳐맵 / 보고서)
   const [activeTab, setActiveTab] = useState<'map' | 'report'>('map');
   const [reportContent, setReportContent] = useState(''); // 보고서 내용
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false); // AI 보고서 생성 중
 
   // 선택된 노드/엣지 상태 (추후 활용 가능)
   const [, setSelectedNodes] = useState<Node[]>([]);
@@ -129,6 +134,74 @@ const CultureMapFlow = ({
       liveblocksService.updateReportContent(content);
     }
   }, [isConsultingMode]);
+
+  // AI 보고서 생성 핸들러
+  const handleGenerateReport = useCallback(async () => {
+    if (isGeneratingReport) return;
+
+    try {
+      setIsGeneratingReport(true);
+
+      // 1. 프롬프트 파일 로드
+      const promptResponse = await fetch('/prompts/comprehensive_analysis.md');
+      if (!promptResponse.ok) {
+        throw new Error('프롬프트 파일을 불러올 수 없습니다.');
+      }
+      const promptTemplate = await promptResponse.text();
+
+      // 2. 현재 맵 데이터를 텍스트로 변환
+      const notesList = initialNotes || [];
+      const connectionsList = initialConnections || [];
+
+      const layerNames = ['결과 (Layer 1)', '행동 (Layer 2)', '유형 레버 (Layer 3)', '무형 레버 (Layer 4)'];
+      
+      const mapContext = `
+## 현재 Culture Map 데이터
+
+### 노드 목록 (${notesList.length}개)
+${notesList.map(note => {
+  const layerName = layerNames[note.layer - 1] || `Layer ${note.layer}`;
+  return `- [${layerName}] ${note.content} (감정: ${note.sentiment || 'neutral'})`;
+}).join('\n')}
+
+### 연결 관계 (${connectionsList.length}개)
+${connectionsList.map(conn => {
+  const sourceNote = notesList.find(n => n.id === conn.sourceId);
+  const targetNote = notesList.find(n => n.id === conn.targetId);
+  return `- "${sourceNote?.content || conn.sourceId}" → "${targetNote?.content || conn.targetId}" (${conn.type || 'causes'})`;
+}).join('\n')}
+`;
+
+      // 3. AI에게 분석 요청
+      const fullPrompt = `${promptTemplate}\n\n${mapContext}\n\n위 Culture Map을 분석하여 종합 분석 보고서를 작성해주세요.`;
+      
+      // 새 채팅 세션 시작 (도구 호출 없이 순수 텍스트 응답)
+      aiService.startChat([]);
+      const response = await aiService.sendChatMessage(fullPrompt);
+
+      if (!response || !response.text) {
+        throw new Error('AI 응답을 받지 못했습니다.');
+      }
+
+      // 4. 마크다운을 HTML로 변환
+      const htmlContent = parseMarkdown(response.text);
+
+      // 5. 보고서 내용 설정 및 탭 전환
+      setReportContent(htmlContent);
+      setActiveTab('report');
+
+      // 컨설팅 모드에서는 Firebase에도 저장
+      if (isConsultingMode) {
+        liveblocksService.updateReportContent(htmlContent);
+      }
+
+    } catch (error) {
+      console.error('❌ 보고서 생성 실패:', error);
+      alert(`보고서 생성에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  }, [isGeneratingReport, initialNotes, initialConnections, isConsultingMode]);
 
   // 보고서 내용 Firebase 동기화 (컨설팅 모드에서만)
   useEffect(() => {
@@ -2237,6 +2310,8 @@ const CultureMapFlow = ({
             <ReportEditor
               initialContent={reportContent}
               onSave={handleReportChange}
+              onGenerateReport={handleGenerateReport}
+              isGenerating={isGeneratingReport}
             />
           </div>
         )}
