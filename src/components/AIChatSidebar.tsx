@@ -56,7 +56,6 @@ interface AIChatSidebarProps {
     onActionExecute: (action: any) => void;
     notes: NoteData[];
     connections: ConnectionData[];
-    layerHeights?: number[];
     passwordType?: PasswordType; // 모드 감지용
 }
 
@@ -64,9 +63,9 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     onActionExecute,
     notes: _notes,
     connections: _connections,
-    layerHeights = [200, 200, 200, 200],
     passwordType
 }) => {
+    const currentConfig = aiService.getConfig();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -96,6 +95,8 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isLoading, uploadProgress]);
+
+    const activeModelLabel = currentConfig?.modelName || 'gemini-2.5-flash-lite';
 
     // 접속자 수 업데이트 (세션 상태 감시)
     useEffect(() => {
@@ -398,6 +399,13 @@ ${connectionsContext}
 
     return (
         <div className="ai-chat-sidebar">
+            <div className="ai-local-knowledge-banner">
+                <div className="ai-local-knowledge-title">로컬 지식 베이스 사용</div>
+                <div className="ai-local-knowledge-desc">
+                    업로드한 PDF는 본인 브라우저에서만 사용되며, 세션에는 메타데이터만 공유됩니다.
+                </div>
+                <div className="ai-local-knowledge-meta">현재 모델: {activeModelLabel}</div>
+            </div>
             <div className="chat-header">
                 <div className="header-left">
                     <div className="ai-header-avatar">

@@ -5,6 +5,7 @@ import './index.css';
 import 'react-quill-new/dist/quill.snow.css'; // React Quill New 스타일
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 import liveblocksService from './services/LiveblocksService';
+import { aiService } from './services/AIService';
 
 // Liveblocks 앱 초기화
 async function initializeApp() {
@@ -21,6 +22,13 @@ async function initializeApp() {
     }
   } catch (error) {
     console.error('❌ Liveblocks 초기화 오류:', error);
+  }
+
+  try {
+    aiService.initializeFromStorage();
+    console.log('✅ AI 설정/학술 PDF 캐시 복원 완료');
+  } catch (error) {
+    console.error('❌ AI 설정 캐시 복원 오류:', error);
   }
 
   ReactDOM.createRoot(document.getElementById('root')!).render(

@@ -13,6 +13,7 @@ import type {
     MultiUserSession,
     SessionType,
     ChatMessage,
+    AcademicFileMeta,
 } from '../types/liveblocks';
 
 type EventCallback = (...args: unknown[]) => void;
@@ -335,6 +336,30 @@ class LiveblocksService {
     }
 
     // ============================================
+    // 학술 파일 메타데이터 공유 (읽기 전용)
+    // ============================================
+
+    public publishAcademicFiles(files: AcademicFileMeta[]): void {
+        if (!this.yDoc) return;
+        const academicFiles = this.yDoc.getMap<AcademicFileMeta[]>('academicFiles');
+        academicFiles.set(this.userId, files);
+    }
+
+    public getAcademicFilesByUser(): Record<string, AcademicFileMeta[]> {
+        if (!this.yDoc) return {};
+        const academicFiles = this.yDoc.getMap<AcademicFileMeta[]>('academicFiles');
+        return academicFiles.toJSON() as Record<string, AcademicFileMeta[]>;
+    }
+
+    public onAcademicFiles(callback: (data: Record<string, AcademicFileMeta[]>) => void): () => void {
+        if (!this.yDoc) return () => { };
+        const academicFiles = this.yDoc.getMap<AcademicFileMeta[]>('academicFiles');
+        const observer = () => callback(academicFiles.toJSON() as Record<string, AcademicFileMeta[]>);
+        academicFiles.observe(observer);
+        return () => academicFiles.unobserve(observer);
+    }
+
+    // ============================================
     // 유틸리티
     // ============================================
 
@@ -400,10 +425,10 @@ class LiveblocksService {
 
             // 개별 노드 변경 이벤트 (추가/수정)
             event.changes.added.forEach((item) => {
-                const content = item.content as Y.AbstractType<unknown>;
-                if (content && 'toArray' in content) {
-                    const notes = content.toArray() as StickyNoteData[];
-                    notes.forEach((note: StickyNoteData) => {
+                const content = item.content as unknown;
+                if (content && typeof (content as { toArray?: () => StickyNoteData[] }).toArray === 'function') {
+                    const notes = (content as { toArray: () => StickyNoteData[] }).toArray();
+                    notes.forEach((note) => {
                         this.emit('sticky-note-updated', note);
                     });
                 }
@@ -411,10 +436,10 @@ class LiveblocksService {
 
             // 삭제 이벤트
             event.changes.deleted.forEach((item) => {
-                const content = item.content as Y.AbstractType<unknown>;
-                if (content && 'toArray' in content) {
-                    const notes = content.toArray() as StickyNoteData[];
-                    notes.forEach((note: StickyNoteData) => {
+                const content = item.content as unknown;
+                if (content && typeof (content as { toArray?: () => StickyNoteData[] }).toArray === 'function') {
+                    const notes = (content as { toArray: () => StickyNoteData[] }).toArray();
+                    notes.forEach((note) => {
                         this.emit('sticky-note-deleted', { noteId: note.id });
                     });
                 }
@@ -428,10 +453,10 @@ class LiveblocksService {
 
             // 개별 연결선 변경 이벤트 (추가/수정)
             event.changes.added.forEach((item) => {
-                const content = item.content as Y.AbstractType<unknown>;
-                if (content && 'toArray' in content) {
-                    const connections = content.toArray() as LBConnectionData[];
-                    connections.forEach((conn: LBConnectionData) => {
+                const content = item.content as unknown;
+                if (content && typeof (content as { toArray?: () => LBConnectionData[] }).toArray === 'function') {
+                    const connections = (content as { toArray: () => LBConnectionData[] }).toArray();
+                    connections.forEach((conn) => {
                         this.emit('connection-updated', conn);
                     });
                 }
@@ -439,10 +464,10 @@ class LiveblocksService {
 
             // 삭제 이벤트
             event.changes.deleted.forEach((item) => {
-                const content = item.content as Y.AbstractType<unknown>;
-                if (content && 'toArray' in content) {
-                    const connections = content.toArray() as LBConnectionData[];
-                    connections.forEach((conn: LBConnectionData) => {
+                const content = item.content as unknown;
+                if (content && typeof (content as { toArray?: () => LBConnectionData[] }).toArray === 'function') {
+                    const connections = (content as { toArray: () => LBConnectionData[] }).toArray();
+                    connections.forEach((conn) => {
                         this.emit('connection-deleted', { connectionId: conn.id });
                     });
                 }

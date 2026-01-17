@@ -1,35 +1,25 @@
-# Implementation Plan: 전역 모달 스타일 정비 및 통일
+# Implementation Plan: auto_layout 안정화 + PDF 첨부 인식 개선
 
 ## 목표
-1. 전역 `.modal-*` 셀렉터로 인한 스타일 충돌 제거
-2. 채팅 UI 톤과 일관된 모달 베이스 스타일 제공
-3. 각 모달의 고유 레이아웃은 유지하되 시각적 일관성 확보
-4. 설정창에서 비밀번호 기반 컨설팅 모드 전환 제공
-5. 모델 버전별 추론 설정 자동 전환 및 모델 목록 최신화
+1. `create_connection` → `auto_layout` 시 노드/연결선 소실 문제를 방지하고 레이아웃 실행을 안전화
+2. AI 채팅 첨부 PDF가 실제로 모델 입력에 포함되도록 보장하고, 지원되지 않는 provider는 명확히 처리
 
 ---
 
 ## 핵심 변경 범위
 
-### 1) 공통 모달 베이스 도입
-- `ModalBase.css`에 `.cm-modal-*` 공통 스타일 정의
-- 오버레이/헤더/바디/푸터 스타일을 채팅 UI 컬러에 맞춤
+### 1) AI 액션 배치 처리 안정화
+- `auto_layout` 실행 시점에 최신 노드/엣지 스냅샷을 사용하도록 보정
+- `create_connection`이 로컬 엣지 상태에도 반영되도록 처리하여 레이아웃 기반 데이터 불일치 최소화
 
-### 2) 모달 컴포넌트 클래스 스코프 변경
-- HelpModal, ConnectionGuideModal, CheckboxPopupModal, Gateway, SessionManager, MobileGestureGuide 모달에서
-	전역 `.modal-*` 클래스 제거 후 `.cm-modal-*`로 교체
-- 컴포넌트별 CSS는 전용 클래스 기반으로 한정
+### 2) 데이터 소실 방지 안전장치 강화
+- 레이아웃 결과 검증(노드 개수, 타입 누락) 실패 시 상태 업데이트 중단
+- 레이아웃 이후 Liveblocks 동기화 시 기존 데이터 덮어쓰기를 방지
 
-### 3) 시각적 톤 업그레이드
-- 버튼/포커스/그라데이션을 채팅 UI 테마 변수로 통일
-
-### 4) 컨설팅 모드 전환 버튼 구현
-- 설정 모달에 비밀번호 입력/전환 버튼 추가
-- 비밀번호 검증(대소문자 구분 없음) 후 세션 타입 업데이트
-
-### 5) 모델 버전별 추론 설정 자동화
-- Gemini 3.x는 thinkingLevel, Gemini 2.5는 thinkingBudget 자동 적용
-- 1.5/2.0 모델 제거 및 최신 Claude 모델로 목록 갱신
+### 3) PDF 첨부 인식 개선
+- 파일 업로드 성공 여부/URI 포함 여부를 명확히 확인
+- 파일 첨부가 가능한 provider(Gemini)와 불가(provider: Claude) 동작을 분리 처리
+- Claude 선택 시 사용자 안내 또는 Gemini로 안전 폴백
 
 ---
 
@@ -37,27 +27,22 @@
 
 | 리스크 | 영향 | 대응 |
 |---|---|---|
-| 클래스 변경 누락 | 모달 레이아웃 깨짐 | TSX와 CSS를 함께 변경하고 확인 |
-| 기존 모달별 특화 스타일 손실 | 정보 가독성 저하 | 컴포넌트별 CSS로 필요한 스타일 유지 |
+| 액션 배치 처리 변경 | 레이아웃 타이밍 변경 | 변경 전후 로그 비교 및 수동 검증으로 확인 |
+| provider 분기 처리 | 예상과 다른 모델 사용 | UI 안내/로그로 명확히 표시 |
 
 ---
 
 ## 롤백 계획
 
 ### 트리거 조건
-- 모달 레이아웃/기능이 깨짐
+- 레이아웃 후 노드 위치/연결 상태가 더 악화됨
+- PDF 첨부가 기존보다 실패율 증가
 
 ### 롤백 절차
 ```bash
-git checkout -- src/components/ModalBase.css
-git checkout -- src/components/HelpModal.tsx
-git checkout -- src/components/HelpModal.css
-git checkout -- src/components/ConnectionGuideModal.tsx
-git checkout -- src/components/ConnectionGuideModal.css
-git checkout -- src/components/CheckboxPopupModal.tsx
-git checkout -- src/components/CheckboxPopupModal.css
-git checkout -- src/components/Gateway.tsx
-git checkout -- src/components/Gateway.css
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- src/components/AIChatSidebar.tsx
+git checkout -- src/services/AIService.ts
 ```
 
 ---
@@ -70,5 +55,7 @@ npm run build
 ```
 
 ### 수동 검증
-1. 각 모달(도움말/접속 안내/체크박스/게이트웨이)이 동일한 톤으로 표시되는지 확인
-2. 닫기 버튼/복사 버튼/입력 필드 포커스 상태 확인
+1. AI가 `add_node`→`create_connection`→`auto_layout` 호출 후 노드/연결선이 유지되는지 확인
+2. 자동 레이아웃 이후 맵이 빈 상태로 초기화되지 않는지 확인
+3. PDF 첨부 후 AI가 파일 내용을 반영하는지 확인 (Gemini 선택)
+4. Claude 선택 시 파일 첨부 불가 메시지가 표시되는지 확인

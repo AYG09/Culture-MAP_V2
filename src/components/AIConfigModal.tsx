@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Key, Info, CheckCircle2, BookOpen, Upload, Trash2, Loader2, FileText, Eye, EyeOff } from 'lucide-react';
+import { X, Save, Key, Info, CheckCircle2, BookOpen, Upload, Trash2, Loader2, FileText, Eye, EyeOff, Users } from 'lucide-react';
 import { aiService, type AIProvider, type AIConfig, type FileMetadata } from '../services/AIService';
+import type { AcademicFileMeta } from '../types/liveblocks';
 import liveblocksService from '../services/LiveblocksService';
 import './AIConfigModal.css';
 
@@ -11,9 +12,9 @@ interface AIConfigModalProps {
 
 const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
     const currentConfig = aiService.getConfig();
-    const [provider, setProvider] = useState<AIProvider>(currentConfig?.provider || 'gemini');
+    const provider: AIProvider = 'gemini';
     const [apiKey, setApiKey] = useState(currentConfig?.apiKey || '');
-    const [modelName, setModelName] = useState(currentConfig?.modelName || (provider === 'gemini' ? 'gemini-2.5-flash-lite' : 'claude-sonnet-4-5-20250929'));
+    const [modelName, setModelName] = useState(currentConfig?.modelName || 'gemini-2.5-flash-lite');
     const [autoExecute, setAutoExecute] = useState(currentConfig?.autoExecuteFunctionCalls || false);
     const [isSaved, setIsSaved] = useState(false);
     const [showKey, setShowKey] = useState(false);
@@ -25,11 +26,21 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
     // 전문 지식 파일 상태
     const [academicFiles, setAcademicFiles] = useState<FileMetadata[]>([]);
     const [isUploading, setIsUploading] = useState(false);
+    const [sharedAcademicFiles, setSharedAcademicFiles] = useState<Record<string, AcademicFileMeta[]>>({});
 
     useEffect(() => {
         if (isOpen) {
             setAcademicFiles(aiService.getAcademicFiles());
+            setSharedAcademicFiles(liveblocksService.getAcademicFilesByUser());
         }
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const unsubscribe = liveblocksService.onAcademicFiles((data) => {
+            setSharedAcademicFiles(data);
+        });
+        return unsubscribe;
     }, [isOpen]);
 
     if (!isOpen) return null;
@@ -50,29 +61,72 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
 
-        if (file.type !== 'application/pdf') {
-            alert('PDF 파일만 업로드 가능합니다.');
+        const remainingSlots = Math.max(0, 10 - academicFiles.length);
+        if (remainingSlots === 0) {
+            alert('전문가 지식 베이스는 최대 10개까지 등록할 수 있습니다.');
+            e.target.value = '';
             return;
+        }
+
+        const pdfFiles = files.filter(file => file.type === 'application/pdf');
+        if (pdfFiles.length === 0) {
+            alert('PDF 파일만 업로드 가능합니다.');
+            e.target.value = '';
+            return;
+        }
+
+        const filesToUpload = pdfFiles.slice(0, remainingSlots);
+        if (pdfFiles.length > remainingSlots) {
+            alert(`최대 10개까지 등록 가능합니다. ${remainingSlots}개만 업로드합니다.`);
         }
 
         try {
             setIsUploading(true);
-            await aiService.addAcademicFile(file);
-            setAcademicFiles([...aiService.getAcademicFiles()]);
+            for (const file of filesToUpload) {
+                await aiService.addAcademicFile(file);
+            }
+            const updatedFiles = [...aiService.getAcademicFiles()];
+            setAcademicFiles(updatedFiles);
+            const ownerId = liveblocksService.getCurrentUserId();
+            const ownerName = liveblocksService.getCurrentUserDisplayName();
+            const metaList: AcademicFileMeta[] = updatedFiles.map(file => ({
+                name: file.name,
+                displayName: file.displayName,
+                mimeType: file.mimeType,
+                keywords: file.keywords,
+                uploadedAt: Date.now(),
+                ownerId,
+                ownerName,
+            }));
+            liveblocksService.publishAcademicFiles(metaList);
         } catch (error) {
-            console.error('Failed to upload academic file:', error);
+            console.error('Failed to upload academic files:', error);
             alert('파일 업로드에 실패했습니다. API 키를 확인해주세요.');
         } finally {
             setIsUploading(false);
+            e.target.value = '';
         }
     };
 
     const handleRemoveFile = (fileName: string) => {
         aiService.removeAcademicFile(fileName);
-        setAcademicFiles([...aiService.getAcademicFiles()]);
+        const updatedFiles = [...aiService.getAcademicFiles()];
+        setAcademicFiles(updatedFiles);
+        const ownerId = liveblocksService.getCurrentUserId();
+        const ownerName = liveblocksService.getCurrentUserDisplayName();
+        const metaList: AcademicFileMeta[] = updatedFiles.map(file => ({
+            name: file.name,
+            displayName: file.displayName,
+            mimeType: file.mimeType,
+            keywords: file.keywords,
+            uploadedAt: Date.now(),
+            ownerId,
+            ownerName,
+        }));
+        liveblocksService.publishAcademicFiles(metaList);
     };
 
     const handleSwitchToConsulting = async () => {
@@ -112,12 +166,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
         }
     };
 
-    const getModels = () => {
-        if (provider === 'gemini') {
-            return aiService.getAvailableGeminiModels();
-        }
-        return aiService.getAvailableClaudeModels();
-    };
+    const getModels = () => aiService.getAvailableGeminiModels();
 
     return (
         <div className="ai-config-modal-overlay">
@@ -139,36 +188,12 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                     </div>
 
                     <div className="config-section">
-                        <label className="section-label">제공자 선택</label>
-                        <div className="provider-tabs">
-                            <button
-                                className={`provider-tab ${provider === 'gemini' ? 'active' : ''}`}
-                                onClick={() => {
-                                    setProvider('gemini');
-                                    setModelName('gemini-2.5-flash-lite');
-                                }}
-                            >
-                                Google Gemini
-                            </button>
-                            <button
-                                className={`provider-tab ${provider === 'claude' ? 'active' : ''}`}
-                                onClick={() => {
-                                    setProvider('claude');
-                                    setModelName('claude-sonnet-4-5-20250929');
-                                }}
-                            >
-                                Anthropic Claude
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="config-section">
                         <label className="section-label">API 키</label>
                         <div className="input-with-action">
                             <input
                                 type={showKey ? "text" : "password"}
                                 className="config-input"
-                                placeholder={`${provider === 'gemini' ? 'Gemini' : 'Claude'} API 키를 입력하세요`}
+                                placeholder="Gemini API 키를 입력하세요"
                                 value={apiKey}
                                 onChange={(e) => setApiKey(e.target.value)}
                             />
@@ -181,15 +206,9 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                             </button>
                         </div>
                         <p className="help-text">
-                            {provider === 'gemini' ? (
-                                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">
-                                    Google AI Studio에서 키 발급받기 ↗
-                                </a>
-                            ) : (
-                                <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">
-                                    Anthropic Console에서 키 발급받기 ↗
-                                </a>
-                            )}
+                            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">
+                                Google AI Studio에서 키 발급받기 ↗
+                            </a>
                         </p>
                     </div>
 
@@ -204,13 +223,11 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                                 <option key={m} value={m}>{m}</option>
                             ))}
                         </select>
-                        {provider === 'gemini' && (
-                            <p className="help-text" style={{ color: '#10b981', fontWeight: 500, lineHeight: 1.5 }}>
-                                {modelName.includes('gemini-3')
-                                    ? "✨ Gemini 3.0: thinkingLevel 기반 추론(자동 적용)"
-                                    : "⚙️ Gemini 2.5: thinkingBudget 기반 추론(자동 적용)"}
-                            </p>
-                        )}
+                        <p className="help-text" style={{ color: '#10b981', fontWeight: 500, lineHeight: 1.5 }}>
+                            {modelName.includes('gemini-3')
+                                ? "✨ Gemini 3.0: thinkingLevel 기반 추론(자동 적용)"
+                                : "⚙️ Gemini 2.5: thinkingBudget 기반 추론(자동 적용)"}
+                        </p>
                     </div>
 
                     {/* AI 액션 자동 실행 설정 */}
@@ -259,9 +276,8 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                         <p className="help-text">* 전환은 세션 연결 상태에서만 가능하며, 비밀번호 입력이 필요합니다.</p>
                     </div>
 
-                    {/* 전문가 지식 베이스 섹션 (Gemini 전용) */}
-                    {provider === 'gemini' && (
-                        <div className="academic-section">
+                    {/* 전문가 지식 베이스 섹션 */}
+                    <div className="academic-section">
                             <div className="academic-header">
                                 <label className="section-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <BookOpen size={16} color="#3b82f6" />
@@ -295,6 +311,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                                 <input
                                     type="file"
                                     accept=".pdf"
+                                    multiple
                                     style={{ display: 'none' }}
                                     onChange={handleFileUpload}
                                     disabled={isUploading || academicFiles.length >= 10}
@@ -313,7 +330,43 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                                 * 업로드된 서적은 대화 시 AI의 핵심 지식으로 활용됩니다.
                             </p>
                         </div>
-                    )}
+
+                        <div className="academic-section" style={{ marginTop: '16px' }}>
+                            <div className="academic-header">
+                                <label className="section-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Users size={16} color="#6366f1" />
+                                    세션 공유 목록 (읽기 전용)
+                                </label>
+                            </div>
+
+                            <div className="file-list">
+                                {Object.keys(sharedAcademicFiles).length === 0 && (
+                                    <p style={{ fontSize: '0.8rem', color: '#9ca3af', textAlign: 'center', margin: '10px 0' }}>
+                                        공유된 지식 파일이 없습니다.
+                                    </p>
+                                )}
+                                {Object.entries(sharedAcademicFiles).map(([userId, files]) => (
+                                    <div key={userId} className="file-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
+                                        <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                                            {files[0]?.ownerName || userId}의 업로드
+                                        </div>
+                                        {files.length === 0 ? (
+                                            <span style={{ fontSize: '0.8rem', color: '#9ca3af' }}>등록된 파일 없음</span>
+                                        ) : (
+                                            files.map((file) => (
+                                                <div key={file.name} className="file-info" style={{ paddingLeft: '4px' }}>
+                                                    <FileText size={14} />
+                                                    <span className="file-name" title={file.displayName}>{file.displayName}</span>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="help-text" style={{ marginTop: '8px', color: '#6b7280' }}>
+                                * 공유 목록은 메타데이터만 표시되며, 실제 파일 내용은 각 사용자 로컬에서만 사용됩니다.
+                            </p>
+                        </div>
                 </div>
 
                 <div className="modal-footer">

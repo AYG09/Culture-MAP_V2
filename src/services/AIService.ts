@@ -1,5 +1,5 @@
 /**
- * AI 서비스 - Gemini API 및 Claude API 통합
+ * AI 서비스 - Gemini API 전용
  * 
  * 중요: @google/genai SDK 사용 (2025.05~ GA)
  * - File API 지원 (PDF 업로드)
@@ -7,13 +7,12 @@
  * - Tool Use (Function Calling) 지원
  */
 
-import { GoogleGenAI, createPartFromUri, FunctionCallingConfigMode } from '@google/genai';
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI, createPartFromUri, FunctionCallingConfigMode, type ThinkingConfig, type ThinkingLevel } from '@google/genai';
 import { MAP_TOOL_DECLARATIONS } from '../types/actions';
 import { searchKnowledge } from '../data/academicKnowledge';
 import type { Insight, InsightType } from '../types/liveblocks';
 
-export type AIProvider = 'gemini' | 'claude';
+export type AIProvider = 'gemini';
 
 export interface AIConfig {
   provider: AIProvider;
@@ -37,7 +36,6 @@ export interface FileMetadata {
  */
 class AIService {
   private geminiClient: GoogleGenAI | null = null;
-  private claudeClient: Anthropic | null = null;
   private currentConfig: AIConfig | null = null;
   private chatSession: any = null;
   private currentThoughts: string[] = []; // 현재 세션의 사고 과정 저장
@@ -52,11 +50,6 @@ class AIService {
     this.currentConfig = normalized;
     if (config.provider === 'gemini' && config.apiKey) {
       this.geminiClient = new GoogleGenAI({ apiKey: config.apiKey });
-    } else if (config.provider === 'claude' && config.apiKey) {
-      this.claudeClient = new Anthropic({
-        apiKey: config.apiKey,
-        dangerouslyAllowBrowser: true
-      });
     }
 
     // 설정 변경 시 localStorage에 저장
@@ -82,7 +75,7 @@ class AIService {
 
         if (config.apiKey) {
           this.setConfig(config);
-          console.log(`📡 AI Service initialized from storage: ${config.provider}`);
+          console.log('📡 AI Service initialized from storage: gemini');
           return;
         }
       }
@@ -496,11 +489,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
   public async analyzeCulture(prompt: string, schema?: object): Promise<string> {
     if (!this.currentConfig) throw new Error('AI API 설정을 먼저 완료해주세요.');
 
-    if (this.currentConfig.provider === 'gemini') {
-      return this.callGemini(prompt, schema);
-    } else {
-      return this.callClaude(prompt);
-    }
+    return this.callGemini(prompt, schema);
   }
 
   /**
@@ -835,17 +824,6 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     return response.text || '';
   }
 
-  private async callClaude(prompt: string): Promise<string> {
-    if (!this.claudeClient) throw new Error('Claude 클라이언트가 초기화되지 않았습니다.');
-    const response = await this.claudeClient.messages.create({
-      model: this.currentConfig?.modelName || 'claude-sonnet-4-5-20250929',
-      max_tokens: 4096,
-      messages: [{ role: 'user', content: prompt }],
-    });
-    const textContent = response.content.find((c) => c.type === 'text');
-    return textContent ? (textContent as any).text : '';
-  }
-
   public getAvailableGeminiModels(): string[] {
     return [
       'gemini-2.5-flash',        // Function Calling 지원, 추론 강화
@@ -856,41 +834,22 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     ];
   }
 
-  public getAvailableClaudeModels(): string[] {
-    return [
-      'claude-sonnet-4-5-20250929',
-      'claude-haiku-4-5-20251001',
-      'claude-opus-4-5-20251101',
-    ];
-  }
-
   private normalizeModelConfig(config: AIConfig): AIConfig {
-    const normalized = { ...config };
-
-    if (normalized.provider === 'gemini') {
-      const available = this.getAvailableGeminiModels();
-      if (!normalized.modelName || !available.includes(normalized.modelName)) {
-        normalized.modelName = 'gemini-2.5-flash-lite';
-      }
+    const normalized = { ...config, provider: 'gemini' as const };
+    const available = this.getAvailableGeminiModels();
+    if (!normalized.modelName || !available.includes(normalized.modelName)) {
+      normalized.modelName = 'gemini-2.5-flash-lite';
     }
-
-    if (normalized.provider === 'claude') {
-      const available = this.getAvailableClaudeModels();
-      if (!normalized.modelName || !available.includes(normalized.modelName)) {
-        normalized.modelName = 'claude-sonnet-4-5-20250929';
-      }
-    }
-
     return normalized;
   }
 
-  private getThinkingConfig(modelName: string): { includeThoughts?: boolean; thinkingLevel?: string; thinkingBudget?: number } | null {
+  private getThinkingConfig(modelName: string): ThinkingConfig | null {
     const lowerName = modelName.toLowerCase();
 
     if (lowerName.includes('gemini-3')) {
       return {
         includeThoughts: true,
-        thinkingLevel: 'HIGH'
+        thinkingLevel: 'HIGH' as ThinkingLevel
       };
     }
 

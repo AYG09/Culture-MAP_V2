@@ -112,6 +112,20 @@ const CultureMapFlow = ({
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
+  const nodesRef = useRef<Node[]>([]);
+  const edgesRef = useRef<Edge[]>([]);
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+
+  useEffect(() => {
+    edgesRef.current = edges;
+  }, [edges]);
+
+  const pendingActionsRef = useRef<any[]>([]);
+  const flushScheduledRef = useRef(false);
+
   // AI 일괄 생성 입력 상태
   const [aiInput, setAiInput] = useState('');
   const [showAiInput, setShowAiInput] = useState(false);
@@ -299,164 +313,235 @@ ${chatHistorySection}
   const [collaborationLocks, setCollaborationLocks] = useState<Record<string, CollaborationLock>>({});
   const collaborationLocksRef = useRef<Record<string, CollaborationLock>>({});
 
-  // AI 액션 실행 핸들러
-  const handleAiAction = useCallback((action: any) => {
+  const safeAutoLayout = useCallback((showAlert = false) => {
+    const currentNodes = nodesRef.current;
+    const currentEdges = edgesRef.current;
+
+    if (!currentNodes.length) {
+      console.warn('⚠️ [React Flow] auto_layout 중단: 노드가 비어 있습니다.');
+      return;
+    }
+
+    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+      currentNodes,
+      currentEdges,
+      layerHeights
+    );
+
+    if (!layoutedNodes.length || layoutedNodes.length !== currentNodes.length) {
+      console.warn('⚠️ [React Flow] auto_layout 중단: 레이아웃 결과가 비정상입니다.', {
+        before: currentNodes.length,
+        after: layoutedNodes.length,
+      });
+      return;
+    }
+
+    setNodes(layoutedNodes);
+    setEdges(layoutedEdges);
+
+    layoutedNodes.forEach((node) => {
+      const currentData = node.data as any;
+      liveblocksService.updateStickyNote({
+        id: node.id,
+        x: node.position.x,
+        y: node.position.y,
+        content: currentData.content,
+        layer: (node.type === 'result' ? 1 : node.type === 'behavior' ? 2 : node.type === 'tangible_lever' ? 3 : 4),
+        sentiment: currentData.sentiment || 'neutral'
+      });
+    });
+
+    if (showAlert) {
+      alert('컬처맵이 데이브 그레이 모델 구조에 맞춰 정렬되었습니다.');
+    }
+  }, [layerHeights, setEdges, setNodes]);
+
+  // AI 액션 실행 핸들러 (배치 처리)
+  const executeAiAction = useCallback((action: any) => {
     console.log('🤖 [Action Bridge] AI 액션 실행:', action);
     const { name, args } = action;
 
-    try {
-      switch (name) {
-        case 'add_node': {
-          const newNodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-          const layerIndex = (args.layer || 2) - 1;
+    switch (name) {
+      case 'add_node': {
+        const newNodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+        const layerIndex = (args.layer || 2) - 1;
 
-          // 현재 설정된 레이어 높이를 바탕으로 기본 Y 좌표 계산
-          let currentY = 0;
-          for (let i = 0; i < layerIndex; i++) {
-            currentY += layerHeights[i];
-          }
-          const defaultY = currentY + (layerHeights[layerIndex] / 2);
+        let currentY = 0;
+        for (let i = 0; i < layerIndex; i++) {
+          currentY += layerHeights[i];
+        }
+        const defaultY = currentY + (layerHeights[layerIndex] / 2);
 
-          // [FIX] 노드 겹침 방지: 현재 레이어의 노드 수를 기반으로 X 좌표 분산
-          const existingNodesInLayer = nodes.filter(n => n.data?.layer === args.layer).length;
-          const baseX = 150 + (existingNodesInLayer * 220); // 각 노드 간 220px 간격
-          const x = args.x || baseX;
-          const y = args.y || defaultY + (Math.random() * 20 - 10);
+        const existingNodesInLayer = nodesRef.current.filter(n => n.data?.layer === args.layer).length;
+        const baseX = 150 + (existingNodesInLayer * 220);
+        const x = args.x || baseX;
+        const y = args.y || defaultY + (Math.random() * 20 - 10);
 
-          // [FIX] 한국어 타입을 영어로 매핑
-          const typeMap: Record<string, string> = {
-            '결과': 'result',
-            '행동': 'behavior',
-            '유형_레버': 'tangible_lever',
-            '무형_레버': 'intangible_lever',
-            'result': 'result',
-            'behavior': 'behavior',
-            'tangible_lever': 'tangible_lever',
-            'intangible_lever': 'intangible_lever',
-          };
-          const nodeType = typeMap[args.type] || 'result';
+        const typeMap: Record<string, string> = {
+          '결과': 'result',
+          '행동': 'behavior',
+          '유형_레버': 'tangible_lever',
+          '무형_레버': 'intangible_lever',
+          'result': 'result',
+          'behavior': 'behavior',
+          'tangible_lever': 'tangible_lever',
+          'intangible_lever': 'intangible_lever',
+        };
+        const nodeType = typeMap[args.type] || 'result';
 
-          const content = args.content || args.label || '새 노드';
-          const sentiment = args.sentiment === 'positive' ? 'positive' : (args.sentiment === 'negative' ? 'negative' : 'neutral');
-          const frequency = typeof args.intensity === 'number' ? INTENSITY_MAP.TO_STRING(args.intensity) : (args.intensity || '보통');
+        const content = args.content || args.label || '새 노드';
+        const sentiment = args.sentiment === 'positive' ? 'positive' : (args.sentiment === 'negative' ? 'negative' : 'neutral');
+        const frequency = typeof args.intensity === 'number' ? INTENSITY_MAP.TO_STRING(args.intensity) : (args.intensity || '보통');
 
-          // 1. Liveblocks (DB/Sync) 업데이트
-          liveblocksService.updateStickyNote({
+        liveblocksService.updateStickyNote({
+          id: newNodeId,
+          content,
+          x,
+          y,
+          layer: args.layer || 2,
+          sentiment,
+          type: nodeType,
+          frequency,
+        });
+
+        const newNode: Node = {
+          id: newNodeId,
+          type: nodeType,
+          position: { x, y },
+          data: {
             id: newNodeId,
             content,
-            x,
-            y,
+            author: liveblocksService.getCurrentUserDisplayName(),
+            timestamp: Date.now(),
+            sentiment,
+            frequency,
+            type: nodeType,
             layer: args.layer || 2,
-            sentiment,
-            type: nodeType,
-            frequency,
-          });
+          },
+          draggable: true,
+        };
 
-          // 2. Local State (React Flow UI) 즉시 업데이트
-          const newNode: Node = {
-            id: newNodeId,
-            type: nodeType,
-            position: { x, y },
-            data: {
-              id: newNodeId,
-              content,
-              author: liveblocksService.getCurrentUserDisplayName(),
-              timestamp: Date.now(),
-              sentiment,
-              frequency,
-              type: nodeType,
-              layer: args.layer || 2,
-            },
-            draggable: true, // [FIX] 드래그 활성화
-          };
-
-          setNodes((nds) => nds.concat(newNode));
-          console.log('✅ [Action Bridge] New node added to UI:', newNodeId, 'type:', nodeType, 'layer:', args.layer);
-          break;
-        }
-
-        case 'update_node': {
-          if (!args.id) break;
-          const sentiment = args.sentiment === 'positive' ? 'positive' : (args.sentiment === 'negative' ? 'negative' : 'neutral');
-          const frequency = typeof args.intensity === 'number' ? INTENSITY_MAP.TO_STRING(args.intensity) : args.intensity;
-          const content = args.content || args.label;
-
-          // 1. Liveblocks (DB/Sync) 업데이트
-          liveblocksService.updateStickyNote({
-            id: args.id,
-            content,
-            sentiment,
-            frequency,
-            ...(args.layer ? { layer: args.layer } : {}),
-            ...(args.type ? { type: args.type } : {}),
-          });
-
-          // 2. Local State (React Flow UI) 즉시 업데이트
-          setNodes((nds) =>
-            nds.map((node) => {
-              if (node.id === args.id) {
-                return {
-                  ...node,
-                  data: {
-                    ...node.data,
-                    ...(content ? { content } : {}),
-                    ...(sentiment ? { sentiment } : {}),
-                    ...(frequency ? { frequency } : {}),
-                    ...(args.type ? { type: args.type } : {}),
-                    ...(args.layer ? { layer: args.layer } : {}),
-                  },
-                };
-              }
-              return node;
-            })
-          );
-          console.log('✅ [Action Bridge] Node updated in UI:', args.id);
-          break;
-        }
-
-        case 'delete_node':
-          if (args.id) {
-            liveblocksService.deleteStickyNote(args.id);
-            setNodes((nds) => nds.filter((node) => node.id !== args.id));
-            setEdges((eds) => eds.filter((edge) => edge.source !== args.id && edge.target !== args.id));
-            console.log('✅ [Action Bridge] Node deleted from UI:', args.id);
-          }
-          break;
-
-        case 'create_connection':
-          liveblocksService.updateConnection({
-            id: `conn-${Date.now()}`,
-            sourceId: args.sourceId || args.source,
-            targetId: args.targetId || args.target,
-            relationType: 'direct',
-            isPositive: true,
-          });
-          break;
-
-        case 'auto_layout':
-          handleAutoLayout();
-          break;
-
-        case 'adjust_layer_height': {
-          if (args.layer && args.height) {
-            const layerIndex = args.layer - 1;
-            const newHeights = [...layerHeights];
-            newHeights[layerIndex] = Math.min(600, Math.max(100, args.height));
-            setLayerHeights(newHeights);
-
-            // 높이 변경 후 자동으로 레이아웃 재정렬하여 노드들 위치 보정
-            setTimeout(() => handleAutoLayout(), 100);
-          }
-          break;
-        }
-
-        default:
-          console.warn('⚠️ 알 수 없는 AI 액션:', name);
+        setNodes((nds) => nds.concat(newNode));
+        console.log('✅ [Action Bridge] New node added to UI:', newNodeId, 'type:', nodeType, 'layer:', args.layer);
+        break;
       }
-    } catch (err) {
-      console.error('❌ AI 액션 실행 실패:', err);
+
+      case 'update_node': {
+        if (!args.id) break;
+        const sentiment = args.sentiment === 'positive' ? 'positive' : (args.sentiment === 'negative' ? 'negative' : 'neutral');
+        const frequency = typeof args.intensity === 'number' ? INTENSITY_MAP.TO_STRING(args.intensity) : args.intensity;
+        const content = args.content || args.label;
+
+        liveblocksService.updateStickyNote({
+          id: args.id,
+          content,
+          sentiment,
+          frequency,
+          ...(args.layer ? { layer: args.layer } : {}),
+          ...(args.type ? { type: args.type } : {}),
+        });
+
+        setNodes((nds) =>
+          nds.map((node) => {
+            if (node.id === args.id) {
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  ...(content ? { content } : {}),
+                  ...(sentiment ? { sentiment } : {}),
+                  ...(frequency ? { frequency } : {}),
+                  ...(args.type ? { type: args.type } : {}),
+                  ...(args.layer ? { layer: args.layer } : {}),
+                },
+              };
+            }
+            return node;
+          })
+        );
+        console.log('✅ [Action Bridge] Node updated in UI:', args.id);
+        break;
+      }
+
+      case 'delete_node':
+        if (args.id) {
+          liveblocksService.deleteStickyNote(args.id);
+          setNodes((nds) => nds.filter((node) => node.id !== args.id));
+          setEdges((eds) => eds.filter((edge) => edge.source !== args.id && edge.target !== args.id));
+          console.log('✅ [Action Bridge] Node deleted from UI:', args.id);
+        }
+        break;
+
+      case 'create_connection':
+        liveblocksService.updateConnection({
+          id: `conn-${Date.now()}`,
+          sourceId: args.sourceId || args.source,
+          targetId: args.targetId || args.target,
+          relationType: 'direct',
+          isPositive: true,
+        });
+        break;
+
+      case 'adjust_layer_height': {
+        if (args.layer && args.height) {
+          const layerIndex = args.layer - 1;
+          const newHeights = [...layerHeights];
+          newHeights[layerIndex] = Math.min(600, Math.max(100, args.height));
+          setLayerHeights(newHeights);
+
+          setTimeout(() => safeAutoLayout(false), 100);
+        }
+        break;
+      }
+
+      case 'auto_layout':
+        break;
+
+      default:
+        console.warn('⚠️ 알 수 없는 AI 액션:', name);
     }
-  }, []);
+  }, [layerHeights, setEdges, setNodes, safeAutoLayout]);
+
+  const handleAiAction = useCallback((action: any) => {
+    pendingActionsRef.current.push(action);
+
+    if (flushScheduledRef.current) {
+      return;
+    }
+
+    flushScheduledRef.current = true;
+
+    setTimeout(() => {
+      flushScheduledRef.current = false;
+      const actions = [...pendingActionsRef.current];
+      pendingActionsRef.current = [];
+
+      let requestedLayout = false;
+      let layoutNeeded = false;
+
+      actions.forEach((queuedAction) => {
+        const name = queuedAction?.name;
+        if (name === 'auto_layout') {
+          requestedLayout = true;
+          return;
+        }
+
+        if (name === 'add_node' || name === 'update_node' || name === 'delete_node' || name === 'create_connection') {
+          layoutNeeded = true;
+        }
+
+        try {
+          executeAiAction(queuedAction);
+        } catch (err) {
+          console.error('❌ AI 액션 실행 실패:', err);
+        }
+      });
+
+      if (requestedLayout || layoutNeeded) {
+        safeAutoLayout(false);
+      }
+    }, 0);
+  }, [executeAiAction, safeAutoLayout]);
 
   useEffect(() => {
     collaborationLocksRef.current = collaborationLocks;
@@ -1027,32 +1112,8 @@ ${chatHistorySection}
   // 자동 레이아웃 실행 핸들러
   const handleAutoLayout = useCallback(() => {
     console.log('📐 [React Flow] 자동 레이아웃 실행');
-
-    // 현재 노드와 엣지 데이터를 NoteData/ConnectionData로 역변환하여 레이아웃 계산
-    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
-      nodes,
-      edges,
-      layerHeights // 현재 설정된 층위 높이 반영
-    );
-
-    setNodes(layoutedNodes);
-    setEdges(layoutedEdges);
-
-    // Firebase 동기화 (레이아웃된 좌표 저장)
-    layoutedNodes.forEach((node) => {
-      const currentData = node.data as any;
-      liveblocksService.updateStickyNote({
-        id: node.id,
-        x: node.position.x,
-        y: node.position.y,
-        content: currentData.content,
-        layer: (node.type === 'result' ? 1 : node.type === 'behavior' ? 2 : node.type === 'tangible_lever' ? 3 : 4),
-        sentiment: currentData.sentiment || 'neutral'
-      });
-    });
-
-    alert('컬처맵이 데이브 그레이 모델 구조에 맞춰 정렬되었습니다.');
-  }, [nodes, edges, layerHeights, setNodes, setEdges]);
+    safeAutoLayout(true);
+  }, [safeAutoLayout]);
 
   // ============================================================================
   // 노드 변경 핸들러 + Firebase 동기화

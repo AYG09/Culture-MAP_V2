@@ -44,6 +44,20 @@ export interface Insight {
 }
 
 // ============================================
+// 학술 파일 메타데이터 (공유용 - URI 제외)
+// ============================================
+
+export interface AcademicFileMeta {
+    name: string;
+    displayName: string;
+    mimeType: string;
+    keywords?: string[];
+    uploadedAt: number;
+    ownerId: string;
+    ownerName: string;
+}
+
+// ============================================
 // 프레즌스 (Presence) - 사용자 상태
 // ============================================
 
