@@ -40,11 +40,13 @@ VSCode + GitHub Copilot 환경에서 사용 가능한 **모든 MCP**를 체계�
 **Skills 활용 판단 기준**:
 | 조건 | 행동 |
 |------|------|
-| Skills 존재 + 90일 이내 업데이트 | ✅ 바로 적용, 1-2~1-3 스킵 가능 |
+| Skills 존재 + 90일 이내 업데이트 | ✅ 바로 적용, Context7/Tavily 스킵 가능 |
 | Skills 존재 + 90일 초과 | ⚠️ 1-2로 이동, 최신 여부 검증 필요 |
 | Skills 미존재 또는 관련 정보 없음 | 🔍 1-2, 1-3 필수 실행 |
 
 **왜 90일?**: 주요 라이브러리 마이너 업데이트 주기 (React, Next.js, Motion 등)
+
+**참고**: Shrimp Task Agent, Sequential Thinking 등 다른 MCP는 Skills 상태와 무관하게 필요 시 사용
 
 #### 1-2. Context7 - 공식 문서 조회 (조건부)
 ```
