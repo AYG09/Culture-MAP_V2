@@ -1,3 +1,11 @@
+---
+name: CSS Dark Mode Theming System
+description: prefers-color-scheme 미디어 쿼리 기반 라이트/다크 모드 테마 시스템
+lastUpdated: 2026-01-17
+source: 프로젝트 경험
+applies_to: CSS, React, 모든 프론트엔드
+---
+
 # CSS Dark Mode Theming System Skill
 
 ## 개요

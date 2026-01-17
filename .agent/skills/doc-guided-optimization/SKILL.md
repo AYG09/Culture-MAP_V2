@@ -1,6 +1,9 @@
 ---
 name: 라이브러리 및 문서 기반 최적화 (Doc-Guided Optimization)
 description: 라이브러리 공식 문서와 베스트 프랙티스를 기반으로 코드를 검토하고 최신 표준으로 최적화하는 절차
+lastUpdated: 2026-01-17
+source: 프로젝트 경험
+applies_to: 모든 프로젝트
 ---
 
 # 라이브러리 및 문서 기반 최적화 Skill

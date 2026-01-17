@@ -1,6 +1,9 @@
 ---
 name: Google GenAI SDK (@google/genai) 사용 가이드
 description: Gemini 2.5/3.0 모델의 @google/genai SDK 사용 시 주요 함정과 올바른 패턴 정리
+lastUpdated: 2026-01-17
+source: Context7 (@google/genai 공식 문서), 프로젝트 경험
+applies_to: @google/genai, Gemini API, TypeScript
 ---
 
 # Google GenAI SDK (@google/genai) 사용 가이드

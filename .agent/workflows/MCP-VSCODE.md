@@ -29,33 +29,38 @@ VSCode + GitHub Copilot 환경에서 사용 가능한 **모든 MCP**를 체계�
 
 ### 1단계: 요구사항 분석 및 정보 수집
 
-#### 1-1. Skills 확인 (⚠️ 필수 - 반드시 먼저 실행)
+#### 1-1. Skills 확인 (⚠️ 최우선 - 토큰 최적화)
 ```
 .agent/skills/ 폴더에서 관련 스킬 확인:
 1. 해당 기술 스택 관련 스킬 존재 여부 확인
-2. 기존 규칙 및 패턴 로드
-3. SKILL.md의 "적용 체크리스트" 확인
-
-예시: UI 작업 시
-- css-theming/SKILL.md → 다크모드 변수
-- ui-design-patterns/SKILL.md → Motion 패턴, hover 규칙
+2. lastUpdated 날짜 확인 (SKILL.md 상단 메타데이터)
+3. 관련 패턴/체크리스트 로드
 ```
 
-**⚠️ 중요**: Skills에 정의된 패턴은 반드시 코드에 적용해야 함. "학습만 하고 적용 안 함" 금지!
+**Skills 활용 판단 기준**:
+| 조건 | 행동 |
+|------|------|
+| Skills 존재 + 90일 이내 업데이트 | ✅ 바로 적용, 1-2~1-3 스킵 가능 |
+| Skills 존재 + 90일 초과 | ⚠️ 1-2로 이동, 최신 여부 검증 필요 |
+| Skills 미존재 또는 관련 정보 없음 | 🔍 1-2, 1-3 필수 실행 |
 
-#### 1-2. Context7 - 공식 문서 조회 (⚠️ 필수 - 코드 작성 전)
+**왜 90일?**: 주요 라이브러리 마이너 업데이트 주기 (React, Next.js, Motion 등)
+
+#### 1-2. Context7 - 공식 문서 조회 (조건부)
 ```
+Skills가 없거나 오래된 경우에만 실행:
 1. mcp_context7_resolve-library-id: 라이브러리 ID 확인
 2. mcp_context7_query-docs: 공식 문서에서 Best Practices 조회
-3. 조회된 패턴을 즉시 적용 계획에 반영
+3. 기존 Skills와 비교 → 차이점 발견 시 6단계에서 업데이트
 ```
 
-**⚠️ 중요**: Context7에서 조회한 공식 패턴은 반드시 실제 코드에 적용해야 함!
+**⚠️ 중요**: 조회한 패턴은 반드시 코드에 적용!
 - 조회만 하고 CSS로 대체하거나 무시 금지
 - 예: Motion `whileHover` 조회 → 실제로 `motion.button` 사용
 
-#### 1-3. Tavily - 최신 정보 검색
+#### 1-3. Tavily - 최신 정보 검색 (조건부)
 ```
+Skills가 없거나 최신 트렌드가 필요한 경우에만 실행:
 mcp_tavily_tavily-search: 
 - 최신 트렌드, 버그 픽스, 권장 패턴 검색
 - 커뮤니티 베스트 프랙티스 확인
@@ -163,19 +168,14 @@ mcp_com_vercel_ve_search_vercel_documentation: 배포 이슈 해결
 
 ### 6단계: Skills 검토 및 생성 🆕
 
-#### 6-1. 기존 Skills 적용 검증 (⚠️ 필수)
-작업 완료 전 반드시 확인:
+#### 6-1. Skills 업데이트 필요 여부 확인
+작업 중 Context7/Tavily를 사용했다면:
 
-| 체크 항목 | 확인 내용 |
-|----------|----------|
-| **Skills 로드** | 1단계에서 관련 Skills를 로드했는가? |
-| **패턴 적용** | Skills에 정의된 패턴을 실제 코드에 적용했는가? |
-| **Context7 적용** | 공식 문서 패턴을 CSS 대체 없이 그대로 적용했는가? |
-| **체크리스트 완료** | Skills의 "적용 체크리스트"를 모두 통과했는가? |
-
-**⚠️ "학습만 하고 적용 안 함" 패턴 금지!**
-- Context7에서 Motion 패턴 조회 → 반드시 `motion.button` 사용
-- Skills에서 min-height 규칙 확인 → 반드시 CSS에 적용
+| 상황 | 행동 |
+|------|------|
+| 기존 Skills와 다른 패턴 발견 | 해당 SKILL.md 업데이트, `lastUpdated` 갱신 |
+| 새로운 기술/라이브러리 사용 | 신규 SKILL.md 생성 |
+| Skills 90일 이상 경과 | `lastUpdated` 확인 후 갱신 |
 
 #### 6-2. 범용 Skills 필요성 검토
 작업 완료 후 다음을 검토:
@@ -187,7 +187,7 @@ mcp_com_vercel_ve_search_vercel_documentation: 배포 이슈 해결
 | **Best Practice** | 공식 문서에서 발견한 규칙이 다른 프로젝트에도 적용되는가? |
 | **디버깅 팁** | 이 작업에서 발견한 디버깅 방법이 범용적인가? |
 
-#### 6-2. Skills 생성 기준
+#### 6-3. Skills 생성 기준
 다음 조건 중 2개 이상 충족 시 신규 Skill 생성:
 
 1. ✅ **범용성**: 2개 이상의 프로젝트에 적용 가능
@@ -195,11 +195,12 @@ mcp_com_vercel_ve_search_vercel_documentation: 배포 이슈 해결
 3. ✅ **복잡성**: 공식 문서만으로 파악하기 어려운 함정 존재
 4. ✅ **시간 절약**: 매번 조사하는 것보다 문서화가 효율적
 
-#### 6-3. Skill 파일 구조
+#### 6-4. Skill 파일 구조 (⚠️ lastUpdated 필수!)
 ```markdown
 ---
 name: [스킬 이름]
 description: [한 줄 설명]
+lastUpdated: YYYY-MM-DD  # ⚠️ 필수! 90일 기준 판단에 사용
 source: [출처 - Context7, Tavily, 경험 등]
 applies_to: [적용 대상 - 기술 스택, 프레임워크]
 ---
@@ -220,7 +221,7 @@ applies_to: [적용 대상 - 기술 스택, 프레임워크]
 // 예시
 ```
 
-## 체크리스트
+## 적용 체크리스트
 - [ ] 항목 1
 - [ ] 항목 2
 ```

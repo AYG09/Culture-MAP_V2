@@ -1,6 +1,9 @@
 ---
 name: SDK/라이브러리 버전 검증
 description: 기존 코드의 SDK/라이브러리가 deprecated되지 않았는지 최신 문서로 검증
+lastUpdated: 2026-01-17
+source: 프로젝트 경험
+applies_to: 모든 프로젝트, SDK 관련 작업
 ---
 
 # SDK/라이브러리 버전 검증 Skill

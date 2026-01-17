@@ -1,7 +1,9 @@
 ---
 name: 코드 안전성 체크 (Code Safety Checks)
 description: 코드 수정 시 변수 스코프, 의존성 배열, 서비스 호출 등 런타임 오류 방지 규칙
+lastUpdated: 2026-01-17
 source: Culture-MAP V2 개발 중 발견된 오류 패턴
+applies_to: TypeScript, React, 모든 프로젝트
 ---
 
 # 코드 안전성 체크 Skill

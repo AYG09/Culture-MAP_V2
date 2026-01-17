@@ -1,7 +1,9 @@
 ---
 name: Culture-MAP AI 컨설턴트 규칙
 description: Culture-MAP V2의 AI 도구 사용 및 연결선 생성 규칙
+lastUpdated: 2026-01-17
 source: 시스템 프롬프트 + Vertex AI Best Practices
+applies_to: Culture-MAP V2, Gemini API
 ---
 
 # Culture-MAP AI 컨설턴트 규칙

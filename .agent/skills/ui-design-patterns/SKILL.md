@@ -1,3 +1,11 @@
+---
+name: UI Design Patterns
+description: UI/디자인 실수 방지를 위한 패턴과 규칙 정의
+lastUpdated: 2026-01-17
+source: Context7 (Motion, Tailwind), Tavily (2026 트렌드)
+applies_to: React, framer-motion, CSS, lucide-react
+---
+
 # UI Design Patterns Skill
 
 ## 목적
@@ -5,7 +13,7 @@ UI/디자인 실수를 반복하지 않기 위한 패턴과 규칙 정의
 
 ## 출처
 - **Context7**: Motion for React 공식 문서, Tailwind CSS 공식 문서
-- **Tavily**: 2026 UI 트렌드 조사 (2025.01 기준)
+- **Tavily**: 2026 UI 트렌드 조사 (2026.01 기준)
 
 ## 2026 UI 트렌드
 

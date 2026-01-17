@@ -1,7 +1,9 @@
 ---
 name: Gemini Function Calling 규칙
 description: Gemini API Function Calling 스키마 작성 시 필수 규칙
+lastUpdated: 2026-01-17
 source: Context7 (@google/genai SDK 공식 문서)
+applies_to: @google/genai, Gemini API, Function Calling
 ---
 
 # Gemini Function Calling 규칙
