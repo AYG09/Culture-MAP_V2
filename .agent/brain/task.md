@@ -18,6 +18,7 @@
 ## Task 2-1: 입력 필드 기능 복구
 - [x] chat-input-field 폭/최소폭 보강
 - [x] input-row width 100% 적용
+- [x] left-panel 전역 button 스타일 충돌 해소(스코프 적용)
 
 ## Task 3: 문서화
 - [x] implementation_plan.md에 리스크/대응 업데이트

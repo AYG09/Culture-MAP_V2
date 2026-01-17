@@ -34,6 +34,7 @@
 | sticky 입력 바 레이아웃 충돌 | 입력 영역 잘림 | 높이/패딩 재확인 및 min-height 유지 |
 | CSS 중복 블록으로 기존 스타일 재적용 | UI 변경 미반영 | 파일 내 중복 헤더/블록 제거 및 검증 절차 추가 |
 | 입력 필드 폭 0으로 축소 | 텍스트 입력 불가 | input-row/textarea에 width·min-width 보강 |
+| 전역 .left-panel button 스타일 충돌 | 버튼 폭 100%로 입력 필드 잠식 | 컴포넌트 루트 스코프(.ai-chat-sidebar)로 버튼 스타일 재정의 |
 
 ---
 
