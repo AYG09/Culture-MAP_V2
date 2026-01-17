@@ -1,5 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, X, Sparkles, Loader2, FileText, Settings } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Send, Paperclip, X, Sparkles, Loader2, FileText, Settings, Copy, Check } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { aiService } from '../services/AIService';
 import AIConfigModal from './AIConfigModal';
 import ConsultingToolsPanel from './ConsultingToolsPanel';
@@ -31,8 +33,20 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     const [attachments, setAttachments] = useState<File[]>([]);
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
+    const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // 메시지 복사 기능
+    const handleCopyMessage = useCallback(async (messageId: string, content: string) => {
+        try {
+            await navigator.clipboard.writeText(content);
+            setCopiedMessageId(messageId);
+            setTimeout(() => setCopiedMessageId(null), 2000);
+        } catch (err) {
+            console.error('복사 실패:', err);
+        }
+    }, []);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -374,7 +388,30 @@ ${connectionsContext}
                 {messages.map((msg) => (
                     <div key={msg.id} className={`message-wrapper ${msg.role === 'user' ? 'user' : 'ai'}`}>
                         <div className="message-bubble">
-                            <div className="message-content">{msg.content}</div>
+                            {msg.role === 'user' ? (
+                                <div className="message-content">{msg.content}</div>
+                            ) : (
+                                <div className="message-content markdown-body">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {msg.content}
+                                    </ReactMarkdown>
+                                </div>
+                            )}
+
+                            {/* AI 메시지에만 복사 버튼 표시 */}
+                            {msg.role === 'assistant' && (
+                                <button
+                                    className="copy-message-btn"
+                                    onClick={() => handleCopyMessage(msg.id, msg.content)}
+                                    title="메시지 복사"
+                                >
+                                    {copiedMessageId === msg.id ? (
+                                        <><Check size={12} /> 복사됨</>
+                                    ) : (
+                                        <><Copy size={12} /> 복사</>
+                                    )}
+                                </button>
+                            )}
 
                             {msg.suggestedActions && msg.suggestedActions.length > 0 && (
                                 <div className="ai-tools-panel">

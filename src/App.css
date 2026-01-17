@@ -22,7 +22,6 @@
   --color-connection-neutral: #34495e;
 }
 
-.left-panel * {
 .session-info-btn:hover {
   background-color: #d1ecf1 !important;
   border-color: #3b9bc9 !important;
