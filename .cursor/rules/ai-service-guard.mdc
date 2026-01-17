@@ -8,6 +8,9 @@ globs:
 alwaysApply: false
 ---
 
+> ⚠️ **DEPRECATED**: 이 파일은 Cursor IDE 전용입니다.
+> **VSCode/GitHub 호환 버전**: `.agent/skills/culture-map-ai/SKILL.md` 참조
+
 # AI 서비스 수정 가드
 
 이 파일은 AI 관련 코드 수정 시 자동으로 로드되어 실수를 방지합니다.

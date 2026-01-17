@@ -160,13 +160,20 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
         const contextString = `[현재 컬처맵 상태]
 총 노드 수: ${_notes.length}개, 총 연결선 수: ${_connections.length}개
 
+� 층위 구조 (상위→하위 = 원인→결과):
+- Layer 4 (무형레버): 조직의 기본 가정, 가치관, 신념
+- Layer 3 (유형레버): 제도, 정책, 시스템, 보상체계
+- Layer 2 (행동): 구성원들의 실제 행동 패턴
+- Layer 1 (결과): 성과, 결과물, KPI
+
 📋 노드 목록:
 ${nodesContext}
 
 🔗 연결 관계:
 ${connectionsContext}
 
-💡 참고: create_connection 사용 시 위 노드 ID를 sourceId, targetId에 사용하세요.`;
+💡 연결 방향: 상위 층위(원인=sourceId) → 하위 층위(결과=targetId)
+💡 참고: 노드 생성 후 관련 노드와 create_connection 호출 권장!`;
 
         let fileUri: string | undefined;
         let mimeType: string | undefined;

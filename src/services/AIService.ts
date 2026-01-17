@@ -165,6 +165,20 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 1. 노드 추가/수정 후 반드시 auto_layout 호출하여 정리
 2. 공간 부족 시 adjust_layer_height 호출
 3. 사용자가 명시적으로 노드 생성을 요청할 때만 도구 사용
+
+## 연결선(인과관계) 생성 규칙
+1. **노드 생성 후 연결 권장**: 새 노드 추가 후, 관련된 기존 노드와 create_connection 호출 권장
+2. **층위 간 인과 흐름**: 무형레버(Layer 4) → 유형레버(Layer 3) → 행동(Layer 2) → 결과(Layer 1) 방향
+3. **sourceId/targetId 순서**: sourceId = 원인 노드(상위 층위), targetId = 결과 노드(하위 층위)
+4. **다수 노드 생성 시**: 모든 노드 생성 완료 → 일괄 연결(create_connection) → auto_layout 순서
+
+### ✅ 예시 (DO)
+사용자: "리더십 문화 관련 노드 3개 만들어줘"
+→ 순서: add_node(Layer4 "리더십 가치관") → add_node(Layer3 "리더십 평가제도") → add_node(Layer2 "솔선수범 행동") → create_connection(source: Layer4노드ID, target: Layer3노드ID) → create_connection(source: Layer3노드ID, target: Layer2노드ID) → auto_layout()
+
+### ❌ 금지 (DON'T)
+- 노드만 생성하고 연결선 없이 끝내기
+- 연결 방향 반대로 하기 (하위→상위)
         `,
         tools: [{ functionDeclarations: MAP_TOOL_DECLARATIONS as any }],
         toolConfig: {

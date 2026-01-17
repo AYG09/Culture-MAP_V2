@@ -6,6 +6,9 @@ globs:
 alwaysApply: false
 ---
 
+> ⚠️ **DEPRECATED**: 이 파일은 Cursor IDE 전용입니다.
+> **VSCode/GitHub 호환 버전**: `.agent/skills/gemini-function-calling/SKILL.md` 참조
+
 # Gemini API 필수 규칙
 
 이 문서는 Culture-MAP V2에서 Gemini AI API를 사용할 때 반드시 준수해야 하는 규칙들입니다.
