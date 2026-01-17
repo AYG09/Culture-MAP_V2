@@ -153,6 +153,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 3. 사용자가 명시적으로 노드 생성을 요청할 때만 도구 사용
 4. 여러 노드와 연결을 동시에 만들 때는 add_nodes_with_connections로 단일 호출 수행
 5. 특정 좌표로 이동할 필요가 있으면 update_node에 x/y 포함
+6. delete_node는 **사용자가 명시적으로 삭제를 요청한 특정 노드 ID**에만 사용하며, 연결선 유무로 임의 삭제하지 말 것
 
 ## 연결선(인과관계) 생성 규칙
 1. **노드 생성 후 연결 권장**: 새 노드 추가 후, 관련된 기존 노드와 create_connection 호출 권장
@@ -177,6 +178,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 ### ❌ 금지 (DON'T)
 - 노드만 생성하고 연결선 없이 끝내기
 - 연결 방향 반대로 하기 (하위→상위)
+- 연결선 없는 노드를 추정해서 삭제하기
         `,
         tools: [{ functionDeclarations: MAP_TOOL_DECLARATIONS as any }],
         toolConfig: {

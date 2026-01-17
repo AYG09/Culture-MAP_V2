@@ -177,7 +177,7 @@ export const MAP_TOOL_DECLARATIONS = [
     },
     {
         name: 'delete_node',
-        description: 'MUST call when user wants to delete, remove, or clear sticky notes from the map. Trigger words: 삭제, 지워, 제거, 없애. Examples: "노드 삭제해줘", "포스트잇 지워"',
+        description: 'MUST call ONLY when user explicitly requests deleting a specific node ID. Do NOT infer deletion based on missing connections. Trigger words: 삭제, 지워, 제거, 없애. Examples: "노드 삭제해줘", "포스트잇 지워"',
         parametersJsonSchema: {
             type: 'object',
             properties: {

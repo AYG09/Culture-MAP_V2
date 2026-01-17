@@ -314,6 +314,23 @@ class LiveblocksService {
         else { connections.push([connection]); }
     }
 
+    /**
+     * 노드/연결선 전체 초기화 (AI 일괄 생성 등 replace 시나리오용)
+     */
+    public clearMapData(): void {
+        if (!this.yDoc) return;
+        const nodes = this.yDoc.getArray<StickyNoteData>('nodes');
+        const connections = this.yDoc.getArray<LBConnectionData>('connections');
+        this.yDoc.transact(() => {
+            if (nodes.length > 0) {
+                nodes.delete(0, nodes.length);
+            }
+            if (connections.length > 0) {
+                connections.delete(0, connections.length);
+            }
+        });
+    }
+
     public deleteConnection(connectionId: string): void {
         if (!this.yDoc) return;
         const connections = this.yDoc.getArray<LBConnectionData>('connections');

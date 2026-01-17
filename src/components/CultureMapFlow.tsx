@@ -1441,6 +1441,8 @@ ${chatHistorySection}
       // ⚡ Firebase 멀티유저 동기화
       console.log(`📤 [React Flow] Firebase 동기화 시작: ${parsedNotes.length}개 노드`);
 
+      liveblocksService.clearMapData();
+
       parsedNotes.forEach((note, index) => {
         setTimeout(() => {
           const payload = {
@@ -2248,10 +2250,8 @@ ${chatHistorySection}
                 onNotesChange([]);
                 onConnectionsChange([]);
 
-                // Firebase에서도 삭제
-                nodes.forEach((node) => {
-                  liveblocksService.deleteStickyNote(node.id);
-                });
+                // Liveblocks 저장소 일괄 초기화
+                liveblocksService.clearMapData();
 
                 console.log('🗑️ [React Flow] 전체 삭제 완료');
               }
