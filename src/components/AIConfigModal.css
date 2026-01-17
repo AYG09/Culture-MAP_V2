@@ -24,7 +24,7 @@
     flex-direction: column;
 }
 
-.modal-header {
+.ai-config-modal .modal-header {
     padding: 20px 24px;
     border-bottom: 1px solid var(--border-color, rgba(0, 0, 0, 0.05));
     display: flex;
@@ -32,24 +32,24 @@
     justify-content: space-between;
 }
 
-.header-title {
+.ai-config-modal .header-title {
     display: flex;
     align-items: center;
     gap: 10px;
 }
 
-.header-title h3 {
+.ai-config-modal .header-title h3 {
     margin: 0;
     font-size: 1.1rem;
     color: var(--text-primary, #1a1a1a);
     font-weight: 600;
 }
 
-.icon-blue {
+.ai-config-modal .icon-blue {
     color: var(--accent-primary, #4f46e5);
 }
 
-.close-btn {
+.ai-config-modal .close-btn {
     background: none;
     border: 1px solid transparent;
     color: var(--text-muted, #666);
@@ -60,25 +60,25 @@
     display: flex;
 }
 
-.close-btn:hover {
+.ai-config-modal .close-btn:hover {
     background: var(--bg-secondary, rgba(0, 0, 0, 0.05));
     color: var(--text-primary, #000);
     border-color: var(--border-color, rgba(0, 0, 0, 0.08));
 }
 
-.close-btn:focus-visible {
+.ai-config-modal .close-btn:focus-visible {
     outline: 2px solid var(--accent-primary, #4f46e5);
     outline-offset: 2px;
 }
 
-.modal-body {
+.ai-config-modal .modal-body {
     padding: 24px;
     display: flex;
     flex-direction: column;
     gap: 20px;
 }
 
-.info-box {
+.ai-config-modal .info-box {
     background: var(--accent-light, rgba(79, 70, 229, 0.08));
     border: 1px solid rgba(79, 70, 229, 0.2);
     border-radius: 12px;
@@ -88,26 +88,26 @@
     align-items: flex-start;
 }
 
-.info-box p {
+.ai-config-modal .info-box p {
     margin: 0;
     font-size: 0.85rem;
     color: var(--text-primary, #1e293b);
     line-height: 1.4;
 }
 
-.config-section {
+.ai-config-modal .config-section {
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
 
-.section-label {
+.ai-config-modal .section-label {
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--text-secondary, #4b5563);
 }
 
-.provider-tabs {
+.ai-config-modal .provider-tabs {
     display: flex;
     background: var(--bg-secondary, rgba(0, 0, 0, 0.05));
     padding: 4px;
@@ -115,7 +115,7 @@
     gap: 4px;
 }
 
-.provider-tab {
+.ai-config-modal .provider-tab {
     flex: 1;
     border: none;
     background: none;
@@ -127,19 +127,19 @@
     color: var(--text-muted, #6b7280);
 }
 
-.provider-tab.active {
+.ai-config-modal .provider-tab.active {
     background: var(--bg-primary, white);
     color: var(--text-primary, #000);
     font-weight: 600;
     box-shadow: var(--shadow-sm, 0 2px 4px rgba(0, 0, 0, 0.1));
 }
 
-.input-with-action {
+.ai-config-modal .input-with-action {
     display: flex;
     gap: 8px;
 }
 
-.config-input {
+.ai-config-modal .config-input {
     flex: 1;
     background: var(--input-bg, rgba(255, 255, 255, 0.8));
     border: 1px solid var(--input-border, rgba(0, 0, 0, 0.1));
@@ -151,13 +151,13 @@
     color: var(--text-primary, inherit);
 }
 
-.config-input:focus {
+.ai-config-modal .config-input:focus {
     border-color: var(--input-focus, #4f46e5);
     background: var(--bg-primary, white);
     box-shadow: 0 0 0 3px var(--accent-light, rgba(79, 70, 229, 0.12));
 }
 
-.config-toggle-visibility {
+.ai-config-modal .config-toggle-visibility {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -173,32 +173,32 @@
     flex-shrink: 0;
 }
 
-.config-toggle-visibility:hover {
+.ai-config-modal .config-toggle-visibility:hover {
     background: var(--bg-secondary, rgba(0, 0, 0, 0.05));
     color: var(--text-primary, #1a1a1a);
     border-color: var(--border-color-hover, rgba(0, 0, 0, 0.2));
 }
 
-.config-toggle-visibility:focus-visible {
+.ai-config-modal .config-toggle-visibility:focus-visible {
     outline: 2px solid var(--accent-primary, #4f46e5);
     outline-offset: 2px;
 }
 
-.help-text {
+.ai-config-modal .help-text {
     margin: 4px 0 0;
     font-size: 0.75rem;
 }
 
-.help-text a {
+.ai-config-modal .help-text a {
     color: var(--accent-primary, #4f46e5);
     text-decoration: none;
 }
 
-.help-text a:hover {
+.ai-config-modal .help-text a:hover {
     text-decoration: underline;
 }
 
-.config-select {
+.ai-config-modal .config-select {
     background: var(--input-bg, rgba(255, 255, 255, 0.8));
     border: 1px solid var(--input-border, rgba(0, 0, 0, 0.1));
     border-radius: 10px;
@@ -208,7 +208,7 @@
     color: var(--text-primary, inherit);
 }
 
-.modal-footer {
+.ai-config-modal .modal-footer {
     padding: 20px 24px;
     background: var(--bg-secondary, rgba(0, 0, 0, 0.02));
     border-top: 1px solid var(--border-color, rgba(0, 0, 0, 0.05));
@@ -217,7 +217,7 @@
     gap: 12px;
 }
 
-.cancel-btn-text {
+.ai-config-modal .cancel-btn-text {
     background: none;
     border: 1px solid transparent;
     color: var(--text-muted, #6b7280);
@@ -226,18 +226,18 @@
     padding: 8px 16px;
 }
 
-.cancel-btn-text:hover {
+.ai-config-modal .cancel-btn-text:hover {
     color: var(--text-primary, #1e293b);
     background: var(--bg-secondary, rgba(0, 0, 0, 0.05));
     border-color: var(--border-color, rgba(0, 0, 0, 0.08));
 }
 
-.cancel-btn-text:focus-visible {
+.ai-config-modal .cancel-btn-text:focus-visible {
     outline: 2px solid var(--accent-primary, #4f46e5);
     outline-offset: 2px;
 }
 
-.save-btn {
+.ai-config-modal .save-btn {
     background: linear-gradient(135deg, var(--accent-primary, #4f46e5), var(--accent-secondary, #8b5cf6));
     color: white;
     border: none;
@@ -252,42 +252,42 @@
     transition: all 0.18s;
 }
 
-.save-btn:hover:not(:disabled) {
+.ai-config-modal .save-btn:hover:not(:disabled) {
     background: linear-gradient(135deg, var(--accent-hover, #4338ca), #7c3aed);
     transform: translateY(-1px);
 }
 
-.save-btn:disabled {
+.ai-config-modal .save-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
 }
 
-.save-btn.saved {
+.ai-config-modal .save-btn.saved {
     background: #10b981;
 }
 
 /* 전문 지식 베이스 섹션 스타일 */
-.academic-section {
+.ai-config-modal .academic-section {
     margin-top: 10px;
     padding-top: 20px;
     border-top: 1px dashed var(--border-color, rgba(0, 0, 0, 0.1));
 }
 
-.academic-header {
+.ai-config-modal .academic-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 12px;
 }
 
-.file-list {
+.ai-config-modal .file-list {
     display: flex;
     flex-direction: column;
     gap: 8px;
     margin-bottom: 15px;
 }
 
-.file-item {
+.ai-config-modal .file-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -297,7 +297,7 @@
     font-size: 0.85rem;
 }
 
-.file-info {
+.ai-config-modal .file-info {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -305,13 +305,13 @@
     overflow: hidden;
 }
 
-.file-name {
+.ai-config-modal .file-name {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.remove-file-btn {
+.ai-config-modal .remove-file-btn {
     background: none;
     border: none;
     color: #9ca3af;
@@ -322,12 +322,12 @@
     transition: all 0.2s;
 }
 
-.remove-file-btn:hover {
+.ai-config-modal .remove-file-btn:hover {
     background: rgba(239, 68, 68, 0.1);
     color: #ef4444;
 }
 
-.upload-academic-btn {
+.ai-config-modal .upload-academic-btn {
     width: 100%;
     padding: 12px;
     background: white;
@@ -344,17 +344,17 @@
     transition: all 0.2s;
 }
 
-.upload-academic-btn:hover:not(:disabled) {
+.ai-config-modal .upload-academic-btn:hover:not(:disabled) {
     background: rgba(59, 130, 246, 0.05);
     border-color: #3b82f6;
 }
 
-.upload-academic-btn:disabled {
+.ai-config-modal .upload-academic-btn:disabled {
     opacity: 0.6;
     cursor: wait;
 }
 
-.upload-academic-btn .spinner {
+.ai-config-modal .upload-academic-btn .spinner {
     animation: spin 1s linear infinite;
 }
 
@@ -381,7 +381,7 @@
 }
 
 /* 토글 스위치 스타일 */
-.toggle-row {
+.ai-config-modal .toggle-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -391,13 +391,13 @@
     border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.toggle-label {
+.ai-config-modal .toggle-label {
     font-size: 0.9rem;
     font-weight: 500;
     color: #374151;
 }
 
-.toggle-switch {
+.ai-config-modal .toggle-switch {
     position: relative;
     width: 48px;
     height: 26px;
@@ -409,11 +409,11 @@
     padding: 0;
 }
 
-.toggle-switch.active {
+.ai-config-modal .toggle-switch.active {
     background: linear-gradient(135deg, #3b82f6, #8b5cf6);
 }
 
-.toggle-knob {
+.ai-config-modal .toggle-knob {
     position: absolute;
     top: 3px;
     left: 3px;
@@ -425,6 +425,6 @@
     transition: transform 0.3s ease;
 }
 
-.toggle-switch.active .toggle-knob {
+.ai-config-modal .toggle-switch.active .toggle-knob {
     transform: translateX(22px);
 }

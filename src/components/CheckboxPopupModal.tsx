@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import './ModalBase.css';
 import './CheckboxPopupModal.css';
 
 export interface CheckboxItem {
@@ -58,14 +59,14 @@ const CheckboxPopupModal: React.FC<CheckboxPopupModalProps> = ({
   if (!isOpen) return null;
   
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="checkbox-popup-modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>{title}</h2>
-          <button className="close-button" onClick={onClose}>×</button>
+    <div className="cm-modal-overlay checkbox-popup-overlay" onClick={onClose}>
+      <div className="cm-modal checkbox-popup-modal" onClick={e => e.stopPropagation()}>
+        <div className="cm-modal-header checkbox-popup-header">
+          <h2 className="cm-modal-title">{title}</h2>
+          <button className="cm-modal-close checkbox-popup-close" onClick={onClose}>×</button>
         </div>
         
-        <div className="modal-body">
+        <div className="cm-modal-body checkbox-popup-body">
           <p className="description">프롬프트에 포함할 컨텍스트를 선택하세요.</p>
           
           <div className="checkbox-list">
@@ -82,7 +83,7 @@ const CheckboxPopupModal: React.FC<CheckboxPopupModalProps> = ({
           </div>
         </div>
         
-        <div className="modal-footer">
+        <div className="cm-modal-footer checkbox-popup-footer">
           <button className="cancel-btn" onClick={onClose}>취소</button>
           <button className="copy-btn" onClick={handleCopy}>
             📋 복사하기 ({checkedItems.size}개 선택)

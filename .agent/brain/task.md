@@ -1,4 +1,4 @@
-# Task List: AIChatSidebar UI 변경 미반영 이슈 분석/해결
+# Task List: 전역 모달 스타일 정비
 
 ## 진행 상황
 - 🔲 미완료
@@ -7,27 +7,20 @@
 
 ---
 
-## Task 1: 증상 재현 및 CSS 중복 확인
-- [x] AIChatSidebar.css 내 중복 블록 존재 여부 확인
-- [x] 동일 셀렉터가 파일 하단에서 재정의되는지 확인
+## Task 1: 공통 모달 베이스 정의
+- [x] ModalBase.css 추가
 
-## Task 2: 원인 제거
-- [x] 기존 Glassmorphism 블록 전체 제거
-- [x] 파일 내 중복 헤더/블록 제거 확인
+## Task 2: 모달 컴포넌트 스코프 변경
+- [x] HelpModal 클래스 교체 및 CSS 스코프화
+- [x] ConnectionGuideModal 클래스 교체 및 CSS 스코프화
+- [x] CheckboxPopupModal 클래스 교체 및 CSS 스코프화
+- [x] Gateway 모달 클래스 교체 및 CSS 정비
+- [x] SessionManager 모달 클래스 교체 및 CSS 정비
+- [x] MobileGestureGuide 모달 클래스 교체 및 CSS 정비
 
-## Task 2-1: 입력 필드 기능 복구
-- [x] chat-input-field 폭/최소폭 보강
-- [x] input-row width 100% 적용
-- [x] left-panel 전역 button 스타일 충돌 해소(스코프 적용)
+## Task 3: 문서화 업데이트
+- [x] implementation_plan.md 최신화
+- [ ] walkthrough.md 변경 사항 기록
 
-## Task 3: 문서화
-- [x] implementation_plan.md에 리스크/대응 업데이트
-- [x] walkthrough.md에 MCP 조사 및 원인 기록
-
-## Task 4: 재발 방지(스킬 업데이트)
-- [x] UI Design Patterns 스킬에 CSS 중복 블록 방지 규칙 추가
-
-## Task 5: 검증
-- [x] AIChatSidebar.css에 "Premium Glassmorphism" 문자열 미존재 확인
-- [x] UI 변경 사항 적용 여부 확인(DevTools 권장)
-- [ ] 채팅 입력창 폭 0 이슈 재확인
+## Task 4: 검증
+- [ ] 각 모달 UI 톤/버튼/포커스 스타일 확인

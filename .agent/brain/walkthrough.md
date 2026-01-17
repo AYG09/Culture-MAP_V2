@@ -75,3 +75,93 @@
 
 1. UI 변경 반영 확인(브라우저 새로고침/캐시 무효화)
 2. 필요 시 배포 재빌드/재배포 확인
+
+---
+
+# Walkthrough: 설정 모달 디자인 미반영 해결
+
+## 완료 일시
+2026-01-17
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 설정 모달 디자인이 기존 스타일로 보이는 원인 제거
+2. AIConfigModal 전용 스타일의 우선순위 확보
+
+---
+
+## 🔍 원인 분석
+
+- `.modal-header`, `.modal-body`, `.modal-footer` 등 범용 클래스가 다른 모달 CSS와 충돌할 가능성 높음.
+- 로드 순서/캐스케이드에 의해 AIConfigModal 스타일이 덮어쓰기 되는 상황 발생 가능.
+
+---
+
+## ✅ 해결 조치
+
+1. `src/components/AIConfigModal.css`의 셀렉터를 `.ai-config-modal` 스코프로 전부 한정
+2. 전역/다른 모달 CSS가 영향 주지 않도록 우선순위 강화
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/components/AIConfigModal.css` | 모달 관련 셀렉터 전체 스코프화 |
+
+---
+
+## 🧪 검증
+
+1. 설정 모달의 헤더/탭/버튼/토글 스타일이 스코프 내 규칙으로 적용되는지 확인
+2. 다른 모달(예: Help/ConnectionGuide)과 스타일이 교차 적용되지 않는지 확인
+
+---
+
+# Walkthrough: 전역 모달 스타일 정비
+
+## 완료 일시
+2026-01-17
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 전역 `.modal-*` 셀렉터 제거로 충돌 차단
+2. 채팅 UI와 톤이 맞는 공통 모달 베이스 적용
+
+---
+
+## ✅ 해결 조치
+
+1. 공통 모달 베이스 스타일 `ModalBase.css` 추가
+2. Help/ConnectionGuide/Checkbox/Gateway 모달을 `.cm-modal-*` 클래스로 교체
+3. 각 모달 CSS를 컴포넌트 스코프로 정리
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/components/ModalBase.css` | 공통 모달 스타일 추가 |
+| `src/components/HelpModal.tsx` | 공통 모달 클래스 적용 |
+| `src/components/HelpModal.css` | 스코프화 및 불필요 전역 제거 |
+| `src/components/ConnectionGuideModal.tsx` | 공통 모달 클래스 적용 |
+| `src/components/ConnectionGuideModal.css` | 스코프화 및 톤 업그레이드 |
+| `src/components/CheckboxPopupModal.tsx` | 공통 모달 클래스 적용 |
+| `src/components/CheckboxPopupModal.css` | 스코프화 및 버튼 톤 정리 |
+| `src/components/Gateway.tsx` | 공통 모달 클래스 적용 |
+| `src/components/Gateway.css` | 전역 모달 셀렉터 제거 및 레이아웃 보강 |
+| `src/components/SessionManager.tsx` | 공통 모달 클래스 적용 |
+| `src/components/SessionManager.css` | 스코프화 및 톤 업그레이드 |
+| `src/components/MobileGestureGuide.tsx` | 공통 모달 클래스 적용 |
+| `src/components/MobileGestureGuide.css` | 스코프화 및 톤 업그레이드 |
+
+---
+
+## 🧪 검증
+
+1. 각 모달이 동일한 헤더 그라데이션/오버레이 톤으로 표시되는지 확인
+2. 입력/복사/닫기 버튼의 hover·focus 상태 확인

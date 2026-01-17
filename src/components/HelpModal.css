@@ -1,57 +1,13 @@
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
+.help-modal {
+  max-width: 720px;
 }
 
-.modal-content {
-  background: var(--bg-primary, white);
-  padding: 2rem;
-  border-radius: 12px;
-  box-shadow: var(--shadow-lg, 0 5px 15px rgba(0, 0, 0, 0.3));
-  width: 90%;
-  max-width: 600px;
-  max-height: 90vh;
-  overflow-y: auto;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid var(--border-color, #e0e0e0);
-  padding-bottom: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: 1.5rem;
-  color: var(--text-primary, #333);
-}
-
-.close-button {
-  background: transparent;
-  border: none;
-  font-size: 2rem;
-  cursor: pointer;
-  color: var(--text-muted, #888);
-  padding: 0;
+.help-modal-close {
+  font-size: 20px;
   line-height: 1;
 }
-.close-button:hover {
-  color: var(--text-primary, #333);
-}
 
-.modal-body h3 {
+.help-modal-body h3 {
   font-size: 1.2rem;
   color: #007bff;
   margin-top: 1.5rem;
@@ -60,19 +16,19 @@
   padding-left: 0.5rem;
 }
 
-.modal-body ul {
+.help-modal-body ul {
   list-style-type: none;
   padding-left: 0.5rem;
   margin: 0;
 }
 
-.modal-body li {
+.help-modal-body li {
   margin-bottom: 0.75rem;
   line-height: 1.6;
   color: var(--text-secondary, #555);
 }
 
-.modal-body code {
+.help-modal-body code {
   background-color: var(--bg-secondary, #e9ecef);
   padding: 0.2em 0.4em;
   margin: 0;

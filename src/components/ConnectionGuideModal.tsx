@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import './ModalBase.css';
 import './ConnectionGuideModal.css';
 
 interface ConnectionGuideModalProps {
@@ -126,16 +127,16 @@ const ConnectionGuideModal: React.FC<ConnectionGuideModalProps> = ({ sessionCode
   };
 
   return (
-    <div className="connection-guide-overlay">
-      <div className="connection-guide-modal">
-        <div className="modal-header">
-          <h2>🤝 접속 안내</h2>
-          <button className="close-btn" onClick={onClose}>
+    <div className="cm-modal-overlay connection-guide-overlay">
+      <div className="cm-modal connection-guide-modal">
+        <div className="cm-modal-header connection-guide-header">
+          <h2 className="cm-modal-title">🤝 접속 안내</h2>
+          <button className="cm-modal-close connection-guide-close" onClick={onClose}>
             ×
           </button>
         </div>
 
-        <div className="modal-content">
+        <div className="cm-modal-body connection-guide-body">
           <div className="connection-section">
             <h3>📱 QR코드로 접속</h3>
             <div className="qr-section">

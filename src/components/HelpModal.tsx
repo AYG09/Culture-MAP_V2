@@ -1,3 +1,4 @@
+import './ModalBase.css';
 import './HelpModal.css';
 
 interface HelpModalProps {
@@ -6,15 +7,15 @@ interface HelpModalProps {
 
 const HelpModal = ({ onClose }: HelpModalProps) => {
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>컬처 맵 사용 가이드</h2>
-          <button onClick={onClose} className="close-button">
+    <div className="cm-modal-overlay help-modal-overlay" onClick={onClose}>
+      <div className="cm-modal help-modal" onClick={e => e.stopPropagation()}>
+        <div className="cm-modal-header help-modal-header">
+          <h2 className="cm-modal-title">컬처 맵 사용 가이드</h2>
+          <button onClick={onClose} className="cm-modal-close help-modal-close">
             &times;
           </button>
         </div>
-        <div className="modal-body">
+        <div className="cm-modal-body help-modal-body">
           <h3>기본 조작</h3>
           <ul>
             <li>

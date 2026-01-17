@@ -1,28 +1,25 @@
-# Implementation Plan: AI 챗 사이드바 UI 전면 개편
+# Implementation Plan: 전역 모달 스타일 정비 및 통일
 
 ## 목표
-1. AIChatSidebar UI/UX 전면 개편(시각적 계층, 마이크로인터랙션, 접근성)
-2. CSS 변수 기반 라이트/다크 테마 일관성 강화
-3. 기존 서비스/상태 로직 유지(UX 개선에 집중)
+1. 전역 `.modal-*` 셀렉터로 인한 스타일 충돌 제거
+2. 채팅 UI 톤과 일관된 모달 베이스 스타일 제공
+3. 각 모달의 고유 레이아웃은 유지하되 시각적 일관성 확보
 
 ---
 
 ## 핵심 변경 범위
 
-### 1) AIChatSidebar.tsx 구조/접근성
-- 헤더/메시지 리스트/컴포저 영역을 명확한 래퍼 구조로 정리
-- 아이콘 버튼에 `aria-label`/`title` 추가
-- 기존 Liveblocks/AIService 로직 유지
+### 1) 공통 모달 베이스 도입
+- `ModalBase.css`에 `.cm-modal-*` 공통 스타일 정의
+- 오버레이/헤더/바디/푸터 스타일을 채팅 UI 컬러에 맞춤
 
-### 2) AIChatSidebar.css 전면 개편
-- 헤더/메시지/입력 영역의 배경/테두리/그림자 재정의
-- 메시지 카드/버블의 radius/spacing 통일
-- 입력 영역 sticky 처리 및 focus-within 강화
-- 150~200ms 전환 규칙으로 미세 인터랙션 정리
+### 2) 모달 컴포넌트 클래스 스코프 변경
+- HelpModal, ConnectionGuideModal, CheckboxPopupModal, Gateway, SessionManager, MobileGestureGuide 모달에서
+	전역 `.modal-*` 클래스 제거 후 `.cm-modal-*`로 교체
+- 컴포넌트별 CSS는 전용 클래스 기반으로 한정
 
-### 3) AIConfigModal.css 톤 정리
-- 사이드바 톤과 일관된 색상/그림자/테두리로 보정
-- 버튼/토글 hover/focus 상태 정리
+### 3) 시각적 톤 업그레이드
+- 버튼/포커스/그라데이션을 채팅 UI 테마 변수로 통일
 
 ---
 
@@ -30,25 +27,27 @@
 
 | 리스크 | 영향 | 대응 |
 |---|---|---|
-| Glassmorphism 과용으로 가독성 저하 | 텍스트 대비 문제 | 배경 불투명도/테두리 강화, 제한적 적용 |
-| sticky 입력 바 레이아웃 충돌 | 입력 영역 잘림 | 높이/패딩 재확인 및 min-height 유지 |
-| CSS 중복 블록으로 기존 스타일 재적용 | UI 변경 미반영 | 파일 내 중복 헤더/블록 제거 및 검증 절차 추가 |
-| 입력 필드 폭 0으로 축소 | 텍스트 입력 불가 | input-row/textarea에 width·min-width 보강 |
-| 전역 .left-panel button 스타일 충돌 | 버튼 폭 100%로 입력 필드 잠식 | 컴포넌트 루트 스코프(.ai-chat-sidebar)로 버튼 스타일 재정의 |
+| 클래스 변경 누락 | 모달 레이아웃 깨짐 | TSX와 CSS를 함께 변경하고 확인 |
+| 기존 모달별 특화 스타일 손실 | 정보 가독성 저하 | 컴포넌트별 CSS로 필요한 스타일 유지 |
 
 ---
 
 ## 롤백 계획
 
 ### 트리거 조건
-- UI 가독성 문제 발생
-- 레이아웃 깨짐/스크롤 오류
+- 모달 레이아웃/기능이 깨짐
 
 ### 롤백 절차
 ```bash
-git checkout -- src/components/AIChatSidebar.tsx
-git checkout -- src/components/AIChatSidebar.css
-git checkout -- src/components/AIConfigModal.css
+git checkout -- src/components/ModalBase.css
+git checkout -- src/components/HelpModal.tsx
+git checkout -- src/components/HelpModal.css
+git checkout -- src/components/ConnectionGuideModal.tsx
+git checkout -- src/components/ConnectionGuideModal.css
+git checkout -- src/components/CheckboxPopupModal.tsx
+git checkout -- src/components/CheckboxPopupModal.css
+git checkout -- src/components/Gateway.tsx
+git checkout -- src/components/Gateway.css
 ```
 
 ---
@@ -61,6 +60,5 @@ npm run build
 ```
 
 ### 수동 검증
-1. 메시지 전송/첨부/복사/설정 모달 정상 동작
-2. 라이트/다크 모드 대비 확인
-3. 입력 바 sticky 및 포커스/호버 상태 확인
+1. 각 모달(도움말/접속 안내/체크박스/게이트웨이)이 동일한 톤으로 표시되는지 확인
+2. 닫기 버튼/복사 버튼/입력 필드 포커스 상태 확인

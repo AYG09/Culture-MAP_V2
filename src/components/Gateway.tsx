@@ -3,6 +3,7 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { Search, Plus, Users, Clock, Settings, LogIn, X } from 'lucide-react';
 import liveblocksService from '../services/LiveblocksService';
 import AdminGateway from './AdminGateway';
+import './ModalBase.css';
 import './Gateway.css';
 
 interface SessionInfo {
@@ -290,11 +291,11 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
 
       {/* 새 세션 만들기 모달 */}
       {showCreateModal && (
-        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>✨ 새 세션 만들기</h3>
-              <button className="modal-close" onClick={() => setShowCreateModal(false)}><X size={20} /></button>
+        <div className="cm-modal-overlay gateway-modal-overlay" onClick={() => setShowCreateModal(false)}>
+          <div className="cm-modal gateway-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="cm-modal-header gateway-modal-header">
+              <h3 className="cm-modal-title">✨ 새 세션 만들기</h3>
+              <button className="cm-modal-close gateway-modal-close" onClick={() => setShowCreateModal(false)}><X size={20} /></button>
             </div>
             <form onSubmit={handleCreateSession}>
               <div className="form-group">
@@ -317,11 +318,11 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
 
       {/* 세션 입장 모달 */}
       {showJoinModal && (
-        <div className="modal-overlay" onClick={() => setShowJoinModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>🚀 세션 입장</h3>
-              <button className="modal-close" onClick={() => setShowJoinModal(false)}><X size={20} /></button>
+        <div className="cm-modal-overlay gateway-modal-overlay" onClick={() => setShowJoinModal(false)}>
+          <div className="cm-modal gateway-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="cm-modal-header gateway-modal-header">
+              <h3 className="cm-modal-title">🚀 세션 입장</h3>
+              <button className="cm-modal-close gateway-modal-close" onClick={() => setShowJoinModal(false)}><X size={20} /></button>
             </div>
             <form onSubmit={handleJoinSession}>
               <div className="form-group">
@@ -348,11 +349,11 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
 
       {/* 관리자 인증 모달 */}
       {showAdminModal && (
-        <div className="modal-overlay" onClick={() => setShowAdminModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>🔧 관리자 인증</h3>
-              <button className="modal-close" onClick={() => setShowAdminModal(false)}><X size={20} /></button>
+        <div className="cm-modal-overlay gateway-modal-overlay" onClick={() => setShowAdminModal(false)}>
+          <div className="cm-modal gateway-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="cm-modal-header gateway-modal-header">
+              <h3 className="cm-modal-title">🔧 관리자 인증</h3>
+              <button className="cm-modal-close gateway-modal-close" onClick={() => setShowAdminModal(false)}><X size={20} /></button>
             </div>
             <form onSubmit={handleAdminAuth}>
               <div className="form-group">

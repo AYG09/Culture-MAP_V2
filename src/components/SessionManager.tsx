@@ -3,6 +3,7 @@ import liveblocksService from '../services/LiveblocksService';
 import type { PasswordType } from '../services/GatewayAdminService';
 import type { SessionType } from '../types/liveblocks';
 import { formatRelativeTime } from '../utils/timeFormat';
+import './ModalBase.css';
 import './SessionManager.css';
 
 interface SessionManagerProps {
@@ -144,10 +145,17 @@ const SessionManager: React.FC<SessionManagerProps> = ({
   }
 
   return (
-    <div className="session-modal-overlay">
-      <div className="session-modal">
-        <h2>🤝 멀티유저 세션</h2>
-        <p>동료들과 함께 조직문화를 분석하세요!</p>
+    <div className="cm-modal-overlay session-modal-overlay">
+      <div className="cm-modal session-modal">
+        <div className="cm-modal-header session-modal-header">
+          <h2 className="cm-modal-title">🤝 멀티유저 세션</h2>
+          <button className="cm-modal-close session-modal-close" onClick={() => { setShowModal(false); onClose?.(); }}>
+            ✕
+          </button>
+        </div>
+
+        <div className="cm-modal-body session-modal-body">
+          <p className="session-modal-subtitle">동료들과 함께 조직문화를 분석하세요!</p>
 
         {error && <div className="error-message">{error}</div>}
 
@@ -189,12 +197,13 @@ const SessionManager: React.FC<SessionManagerProps> = ({
           </div>
         </div>
 
-        <div className="session-info-text">
-          <p>
-            💡 <strong>팁:</strong> 세션 코드를 공유하면 누구나 참가할 수 있습니다.
-          </p>
-          <p>🔄 실시간으로 스티키 노트와 분석 데이터가 동기화됩니다.</p>
-          <p>💾 오프라인에서도 작업하고 나중에 동기화할 수 있습니다.</p>
+          <div className="session-info-text">
+            <p>
+              💡 <strong>팁:</strong> 세션 코드를 공유하면 누구나 참가할 수 있습니다.
+            </p>
+            <p>🔄 실시간으로 스티키 노트와 분석 데이터가 동기화됩니다.</p>
+            <p>💾 오프라인에서도 작업하고 나중에 동기화할 수 있습니다.</p>
+          </div>
         </div>
       </div>
     </div>
