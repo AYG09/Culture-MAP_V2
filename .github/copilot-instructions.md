@@ -130,3 +130,20 @@ VITE_SKIP_GATE=true  # Skip gateway in dev
 - ❌ Trusting existing code without Context7 verification
 - ❌ Using `@google/generative-ai` (deprecated)
 - ❌ `{ parts: [...] }` format in sendMessageStream (use `{ message: ... }`)
+
+## /MCP Command (6-Step Workflow)
+
+When user says `/mcp`, `mcp로`, or `MCP 프로세스` → **MUST follow [.agent/workflows/MCP-VSCODE.md](.agent/workflows/MCP-VSCODE.md)**
+
+| Step | Action | MCP Tools |
+|------|--------|-----------|
+| 1 | 정보 수집 | Context7 → Tavily → Sequential Thinking |
+| 2 | 계획 수립 | Shrimp `plan_task` → `analyze_task` → `split_tasks` |
+| 3 | 실행 | `execute_task`, 코드 수정, 빌드 확인 |
+| 4 | 검증 | `verify_task`, 브라우저 테스트 |
+| 5 | 문서화 | `.agent/brain/` 문서, Git commit/push |
+| 6 | Skills 검토 | 반복 패턴 → 신규 Skill 생성 |
+
+**필수**: Context7 공식 문서 먼저 → Tavily 최신 정보 보조
+- ❌ Using `@google/generative-ai` (deprecated)
+- ❌ `{ parts: [...] }` format in sendMessageStream (use `{ message: ... }`)

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Key, Info, CheckCircle2, BookOpen, Upload, Trash2, Loader2, FileText } from 'lucide-react';
+import { X, Save, Key, Info, CheckCircle2, BookOpen, Upload, Trash2, Loader2, FileText, Eye, EyeOff } from 'lucide-react';
 import { aiService, type AIProvider, type AIConfig, type FileMetadata } from '../services/AIService';
 import './AIConfigModal.css';
 
@@ -133,8 +133,9 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                             <button
                                 className="toggle-visibility-btn"
                                 onClick={() => setShowKey(!showKey)}
+                                title={showKey ? "숨기기" : "보기"}
                             >
-                                {showKey ? "숨기기" : "보기"}
+                                {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
                             </button>
                         </div>
                         <p className="help-text">

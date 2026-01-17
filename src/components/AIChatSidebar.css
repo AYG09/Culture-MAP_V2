@@ -51,7 +51,7 @@
 .header-config-btn:hover {
     background: rgba(79, 70, 229, 0.08);
     color: #4f46e5;
-    transform: rotate(30deg);
+    transform: scale(1.05);
 }
 
 /* Messages */
@@ -277,6 +277,7 @@
     border-radius: 16px;
     border: 1px solid var(--input-border, #e2e8f0);
     transition: all 0.2s;
+    min-height: 52px;
 }
 
 .input-row:focus-within {
@@ -286,6 +287,8 @@
 
 .chat-input-field {
     flex: 1;
+    min-width: 0;
+    min-height: 40px;
     border: none;
     background: transparent;
     resize: none;

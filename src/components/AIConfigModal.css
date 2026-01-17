@@ -152,13 +152,24 @@
 }
 
 .toggle-visibility-btn {
-    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
     background: none;
     border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
     border-radius: 10px;
-    font-size: 0.75rem;
     color: var(--text-muted, #6b7280);
     cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toggle-visibility-btn:hover {
+    background: var(--bg-secondary, rgba(0, 0, 0, 0.05));
+    color: var(--text-primary, #1a1a1a);
+    border-color: var(--border-color-hover, rgba(0, 0, 0, 0.2));
 }
 
 .help-text {
