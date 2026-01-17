@@ -155,9 +155,7 @@ const CultureMapFlow = ({
 
       const layerNames = ['결과 (Layer 1)', '행동 (Layer 2)', '유형 레버 (Layer 3)', '무형 레버 (Layer 4)'];
       
-      const mapContext = `
-## 현재 Culture Map 데이터
-
+      const mapDataSection = `
 ### 노드 목록 (${notesList.length}개)
 ${notesList.map(note => {
   const layerName = layerNames[note.layer - 1] || `Layer ${note.layer}`;
@@ -172,8 +170,38 @@ ${connectionsList.map(conn => {
 }).join('\n')}
 `;
 
-      // 3. AI에게 분석 요청
-      const fullPrompt = `${promptTemplate}\n\n${mapContext}\n\n위 Culture Map을 분석하여 종합 분석 보고서를 작성해주세요.`;
+      // 3. 채팅 히스토리 가져오기 (이전 분석 결과 및 논의 내용 포함)
+      const chatMessages = liveblocksService.getChatMessages();
+      const recentMessages = chatMessages.slice(-50); // 최근 50개 메시지로 제한
+      
+      const chatHistorySection = recentMessages.length > 0
+        ? recentMessages.map(msg => {
+            const role = msg.role === 'user' ? '👤 사용자' : '🤖 AI 컨설턴트';
+            // 각 메시지 500자 제한 (토큰 오버플로우 방지)
+            const content = msg.content.length > 500 
+              ? msg.content.slice(0, 500) + '... (생략)' 
+              : msg.content;
+            return `${role}:\n${content}`;
+          }).join('\n\n---\n\n')
+        : '(이전 대화 기록 없음)';
+
+      // 4. 통합 컨텍스트 생성
+      const fullContext = `
+## 1. Culture Map 현황
+
+${mapDataSection}
+
+## 2. 이전 대화 내용 (자료 분석 결과 및 논의 포함)
+
+아래는 사용자와 AI 간 대화 기록입니다. 버크만 진단, RACI, 업무분장표, 조직도 등 업로드된 자료 분석 결과와 논의 내용이 포함되어 있습니다.
+
+${chatHistorySection}
+`;
+
+      // 5. AI에게 분석 요청
+      const fullPrompt = `${promptTemplate}\n\n${fullContext}\n\n위 Culture Map 데이터와 이전 대화 내용을 바탕으로 종합 분석 보고서를 작성해주세요. 
+대화에서 논의된 자료 분석 결과(버크만 진단, RACI, 조직도 등)가 있다면 해당 내용을 솔루션 제안에 반영해주세요.
+특히 솔루션 실행 담당자 배정 시 대화에서 언급된 개인별 특성이나 역할을 참고해주세요.`;
       
       // 새 채팅 세션 시작 (도구 호출 없이 순수 텍스트 응답)
       aiService.startChat([]);
@@ -183,10 +211,10 @@ ${connectionsList.map(conn => {
         throw new Error('AI 응답을 받지 못했습니다.');
       }
 
-      // 4. 마크다운을 HTML로 변환
+      // 6. 마크다운을 HTML로 변환
       const htmlContent = parseMarkdown(response.text);
 
-      // 5. 보고서 내용 설정 및 탭 전환
+      // 7. 보고서 내용 설정 및 탭 전환
       setReportContent(htmlContent);
       setActiveTab('report');
 
