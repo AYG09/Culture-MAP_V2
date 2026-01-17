@@ -51,7 +51,7 @@
 .header-config-btn:hover {
     background: rgba(79, 70, 229, 0.08);
     color: #4f46e5;
-    transform: scale(1.05);
+    /* transform: Motion에서 처리 (whileHover/whileTap) */
 }
 
 /* Messages */

@@ -29,18 +29,30 @@ VSCode + GitHub Copilot 환경에서 사용 가능한 **모든 MCP**를 체계�
 
 ### 1단계: 요구사항 분석 및 정보 수집
 
-#### 1-1. Skills 확인 (필수)
+#### 1-1. Skills 확인 (⚠️ 필수 - 반드시 먼저 실행)
 ```
-.agent/skills/ 폴더에서 관련 스킬 확인
-- 해당 기술 스택 관련 스킬 존재 여부
-- 기존 규칙 및 패턴 로드
+.agent/skills/ 폴더에서 관련 스킬 확인:
+1. 해당 기술 스택 관련 스킬 존재 여부 확인
+2. 기존 규칙 및 패턴 로드
+3. SKILL.md의 "적용 체크리스트" 확인
+
+예시: UI 작업 시
+- css-theming/SKILL.md → 다크모드 변수
+- ui-design-patterns/SKILL.md → Motion 패턴, hover 규칙
 ```
 
-#### 1-2. Context7 - 공식 문서 조회 (필수)
+**⚠️ 중요**: Skills에 정의된 패턴은 반드시 코드에 적용해야 함. "학습만 하고 적용 안 함" 금지!
+
+#### 1-2. Context7 - 공식 문서 조회 (⚠️ 필수 - 코드 작성 전)
 ```
 1. mcp_context7_resolve-library-id: 라이브러리 ID 확인
 2. mcp_context7_query-docs: 공식 문서에서 Best Practices 조회
+3. 조회된 패턴을 즉시 적용 계획에 반영
 ```
+
+**⚠️ 중요**: Context7에서 조회한 공식 패턴은 반드시 실제 코드에 적용해야 함!
+- 조회만 하고 CSS로 대체하거나 무시 금지
+- 예: Motion `whileHover` 조회 → 실제로 `motion.button` 사용
 
 #### 1-3. Tavily - 최신 정보 검색
 ```
@@ -79,14 +91,27 @@ mcp_com_mermaidch_validate_and_render_mermaid_diagram:
 
 ### 3단계: 작업 실행
 
-#### 3-1. 태스크별 실행
+#### 3-1. Skills 패턴 적용 확인 (⚠️ 필수)
+```
+코드 작성 전 확인:
+1. 1단계에서 로드한 Skills 패턴이 적용되었는가?
+2. Context7에서 조회한 공식 패턴이 적용되었는가?
+3. CSS만으로 대체하지 않고 권장 라이브러리를 사용했는가?
+```
+
+**적용 체크리스트 예시**:
+- [ ] Motion `whileHover`/`whileTap` 사용 (CSS transform 대신)
+- [ ] Tailwind `field-sizing-content` 사용 (JS resize 대신)
+- [ ] 아이콘 버튼에 `title` 또는 `aria-label` 포함
+
+#### 3-2. 태스크별 실행
 ```
 mcp_mcp-shrimp-ta_execute_task: 
 - 태스크 ID로 실행 가이드 확인
 - 단계별 구현
 ```
 
-#### 3-2. 실시간 검증
+#### 3-3. 실시간 검증
 ```
 - get_errors: 컴파일 에러 확인
 - run_in_terminal: 빌드/테스트 실행
@@ -138,7 +163,21 @@ mcp_com_vercel_ve_search_vercel_documentation: 배포 이슈 해결
 
 ### 6단계: Skills 검토 및 생성 🆕
 
-#### 6-1. 범용 Skills 필요성 검토
+#### 6-1. 기존 Skills 적용 검증 (⚠️ 필수)
+작업 완료 전 반드시 확인:
+
+| 체크 항목 | 확인 내용 |
+|----------|----------|
+| **Skills 로드** | 1단계에서 관련 Skills를 로드했는가? |
+| **패턴 적용** | Skills에 정의된 패턴을 실제 코드에 적용했는가? |
+| **Context7 적용** | 공식 문서 패턴을 CSS 대체 없이 그대로 적용했는가? |
+| **체크리스트 완료** | Skills의 "적용 체크리스트"를 모두 통과했는가? |
+
+**⚠️ "학습만 하고 적용 안 함" 패턴 금지!**
+- Context7에서 Motion 패턴 조회 → 반드시 `motion.button` 사용
+- Skills에서 min-height 규칙 확인 → 반드시 CSS에 적용
+
+#### 6-2. 범용 Skills 필요성 검토
 작업 완료 후 다음을 검토:
 
 | 검토 항목 | 질문 |

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { Send, Paperclip, X, Sparkles, Loader2, FileText, Settings, Copy, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -341,13 +342,15 @@ ${connectionsContext}
         <div className="ai-chat-sidebar">
             <div className="chat-header">
                 <h2><Sparkles size={18} className="ai-icon" /> AI 컨설턴트</h2>
-                <button
+                <motion.button
                     className="header-config-btn"
                     onClick={() => setIsConfigOpen(true)}
                     title="AI API 설정 (BYOK)"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
                 >
                     <Settings size={18} />
-                </button>
+                </motion.button>
             </div>
 
             <AIConfigModal

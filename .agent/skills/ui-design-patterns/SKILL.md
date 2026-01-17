@@ -252,6 +252,27 @@ function Button() {
 - [ ] hover 상태가 정의되어 있는가?
 - [ ] focus 상태가 정의되어 있는가?
 
+---
+
+## ⚠️ 적용 체크리스트 (MCP 3단계 필수)
+
+**이 Skill을 로드했다면 반드시 아래 패턴을 코드에 적용해야 함!**
+
+### Motion 패턴 (CSS transform 대신 필수 사용)
+- [ ] 버튼 hover → `motion.button` + `whileHover={{ scale: 1.1 }}`
+- [ ] 버튼 클릭 → `whileTap={{ scale: 0.9 }}`
+- [ ] CSS `transform: scale()` 사용 금지 (Motion으로 대체)
+
+### Tailwind 패턴 (있다면)
+- [ ] textarea 자동 확장 → `field-sizing-content`
+- [ ] 커스텀 min-height → `min-h-[값]` 또는 CSS 변수
+
+### 아이콘 패턴
+- [ ] 텍스트 토글 → 아이콘 토글 (Eye/EyeOff 등)
+- [ ] 아이콘 버튼에 `title` 속성 필수
+
+---
+
 ## 관련 파일
 - [AIChatSidebar.css](../../../src/components/AIChatSidebar.css)
 - [AIConfigModal.css](../../../src/components/AIConfigModal.css)
