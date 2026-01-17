@@ -3,6 +3,10 @@
 ## 목적
 UI/디자인 실수를 반복하지 않기 위한 패턴과 규칙 정의
 
+## 출처
+- **Context7**: Motion for React 공식 문서, Tailwind CSS 공식 문서
+- **Tavily**: 2026 UI 트렌드 조사 (2025.01 기준)
+
 ## 2026 UI 트렌드
 
 ### 핵심 원칙
@@ -15,6 +19,80 @@ UI/디자인 실수를 반복하지 않기 위한 패턴과 규칙 정의
 - **Sticky Input Bar**: 입력창 항상 접근 가능
 - **Glassmorphism**: 배경 블러 + 반투명 효과 (적절하게 사용)
 - **Neumorphism**: 부드러운 그림자로 입체감 표현
+
+## Motion for React 공식 패턴 (Context7)
+
+### Hover 애니메이션 (공식 권장)
+```jsx
+// ✅ Motion 공식 권장 패턴 - scale 1.1
+<motion.button whileHover={{ scale: 1.1 }} />
+
+// ✅ Hover + Tap 조합 (입력 피드백)
+<motion.button
+  whileHover={{ scale: 1.1 }}
+  whileTap={{ scale: 0.9 }}
+/>
+
+// ✅ 진입/퇴장 transition 커스터마이징
+<motion.button
+  whileHover={{
+    scale: 1.1,
+    transition: { duration: 0.1 }  // 진입 시
+  }}
+  transition={{ duration: 0.5 }}   // 퇴장 시
+/>
+```
+
+### Tailwind + Motion 조합
+```jsx
+// ✅ 공식 예제: Tailwind 스타일 + Motion 애니메이션
+import { motion } from "motion/react";
+
+function Button() {
+  return (
+    <motion.button
+      className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-lg"
+      whileHover={{ scale: 1.1 }}
+      whileTap={{ scale: 0.9 }}
+    >
+      Click Me!
+    </motion.button>
+  );
+}
+```
+
+## Tailwind CSS 공식 패턴 (Context7)
+
+### 동적 textarea 크기 조절
+```html
+<!-- ✅ 콘텐츠 기반 자동 확장 -->
+<textarea class="field-sizing-content ..." rows="2"></textarea>
+
+<!-- ✅ 고정 크기 유지 -->
+<textarea class="field-sizing-fixed w-80 ..." rows="2"></textarea>
+```
+
+### min-height 적용
+```html
+<!-- ✅ 숫자 스케일 사용 -->
+<div class="min-h-24 ...">min-h-24</div>
+<div class="min-h-40 ...">min-h-40</div>
+
+<!-- ✅ 커스텀 값 -->
+<div class="min-h-[220px] ..."></div>
+
+<!-- ✅ CSS 변수 참조 -->
+<div class="min-h-(--my-min-height) ..."></div>
+```
+
+### Flex 비율 조절
+```html
+<!-- ✅ 비례 성장 -->
+<div class="flex ...">
+  <div class="grow-3 ...">01</div>
+  <div class="grow-7 ...">02</div>
+</div>
+```
 
 ## CSS 필수 규칙
 
@@ -34,7 +112,7 @@ UI/디자인 실수를 반복하지 않기 위한 패턴과 규칙 정의
 
 ### 2. Hover 애니메이션
 ```css
-/* ✅ 권장: 미묘한 스케일 변화 */
+/* ✅ 권장: 미묘한 스케일 변화 (Motion 권장 1.1, CSS만 쓸 경우 1.05) */
 .button:hover {
     transform: scale(1.05);
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
