@@ -418,6 +418,7 @@ ${connectionsContext}
                         className="header-config-btn"
                         onClick={() => setIsConfigOpen(true)}
                         title="AI API 설정 (BYOK)"
+                        aria-label="AI API 설정 열기"
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
                     >
@@ -431,117 +432,124 @@ ${connectionsContext}
                 onClose={() => setIsConfigOpen(false)}
             />
 
-            {/* 컨설팅 모드에서만 분석 도구 패널 표시 */}
-            {passwordType === 'consulting' && (
-                <ConsultingToolsPanel
-                    onSelectPrompt={(prompt, stepName) => {
-                        console.log(`📋 [AIChatSidebar] Consulting prompt selected: ${stepName}`);
-                        handleSendMessage(prompt);
-                    }}
-                />
-            )}
-
-            <div className="chat-messages">
-                {messages.length === 0 && (
-                    <div className="welcome-container">
-                        <div className="welcome-card">
-                            <h3>👋 반갑습니다!</h3>
-                            <p>조직문화 분석과 맵 제어를 도와드릴게요.</p>
-                            <div className="suggestion-buttons">
-                                {suggestions.map((suggestion, idx) => (
-                                    <button
-                                        key={idx}
-                                        className="suggestion-item-btn"
-                                        onClick={() => handleSendMessage(suggestion)}
-                                    >
-                                        "{suggestion}"
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+            <div className="chat-content">
+                {/* 컨설팅 모드에서만 분석 도구 패널 표시 */}
+                {passwordType === 'consulting' && (
+                    <div className="chat-tools-slot">
+                        <ConsultingToolsPanel
+                            onSelectPrompt={(prompt, stepName) => {
+                                console.log(`📋 [AIChatSidebar] Consulting prompt selected: ${stepName}`);
+                                handleSendMessage(prompt);
+                            }}
+                        />
                     </div>
                 )}
-                {messages.map((msg) => {
-                    const isCurrentUser = msg.role === 'user' && msg.userId === currentUserId;
-                    const isOtherUser = msg.role === 'user' && msg.userId !== currentUserId && msg.userId;
-                    const isAI = msg.role === 'assistant';
-                    
-                    return (
-                    <div key={msg.id} className={`message-wrapper ${isCurrentUser ? 'current-user' : ''} ${isOtherUser ? 'other-user' : ''} ${isAI ? 'ai' : ''}`}>
-                        {/* 다른 사용자나 AI 메시지일 때 아바타 표시 */}
-                        {(isOtherUser || isAI) && (
-                            <div className="message-avatar-row">
-                                <UserAvatar 
-                                    userName={msg.userName} 
-                                    userColor={msg.userColor} 
-                                    size={28}
-                                    isAI={isAI}
-                                />
-                                {isOtherUser && <span className="message-sender-name">{msg.userName}</span>}
-                                {isAI && <span className="message-sender-name">AI 컨설턴트</span>}
+
+                <div className="chat-messages">
+                    {messages.length === 0 && (
+                        <div className="welcome-container">
+                            <div className="welcome-card">
+                                <h3>👋 반갑습니다!</h3>
+                                <p>조직문화 분석과 맵 제어를 도와드릴게요.</p>
+                                <div className="suggestion-buttons">
+                                    {suggestions.map((suggestion, idx) => (
+                                        <button
+                                            key={idx}
+                                            className="suggestion-item-btn"
+                                            onClick={() => handleSendMessage(suggestion)}
+                                            aria-label={`추천 질문: ${suggestion}`}
+                                        >
+                                            "{suggestion}"
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
-                        )}
-                        <div className="message-bubble">
-                            {msg.role === 'user' ? (
-                                <div className="message-content">{msg.content}</div>
-                            ) : (
-                                <div className="message-content markdown-body">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                        {msg.content}
-                                    </ReactMarkdown>
+                        </div>
+                    )}
+                    {messages.map((msg) => {
+                        const isCurrentUser = msg.role === 'user' && msg.userId === currentUserId;
+                        const isOtherUser = msg.role === 'user' && msg.userId !== currentUserId && msg.userId;
+                        const isAI = msg.role === 'assistant';
+                        
+                        return (
+                        <div key={msg.id} className={`message-wrapper ${isCurrentUser ? 'current-user' : ''} ${isOtherUser ? 'other-user' : ''} ${isAI ? 'ai' : ''}`}>
+                            {/* 다른 사용자나 AI 메시지일 때 아바타 표시 */}
+                            {(isOtherUser || isAI) && (
+                                <div className="message-avatar-row">
+                                    <UserAvatar 
+                                        userName={msg.userName} 
+                                        userColor={msg.userColor} 
+                                        size={28}
+                                        isAI={isAI}
+                                    />
+                                    {isOtherUser && <span className="message-sender-name">{msg.userName}</span>}
+                                    {isAI && <span className="message-sender-name">AI 컨설턴트</span>}
                                 </div>
                             )}
-
-                            {/* AI 메시지에만 복사 버튼 표시 */}
-                            {msg.role === 'assistant' && (
-                                <button
-                                    className="copy-message-btn"
-                                    onClick={() => handleCopyMessage(msg.id, msg.content)}
-                                    title="메시지 복사"
-                                >
-                                    {copiedMessageId === msg.id ? (
-                                        <><Check size={12} /> 복사됨</>
-                                    ) : (
-                                        <><Copy size={12} /> 복사</>
-                                    )}
-                                </button>
-                            )}
-
-                            {msg.suggestedActions && msg.suggestedActions.length > 0 && (
-                                <div className="ai-tools-panel">
-                                    <div className="tools-header">
-                                        <Sparkles size={12} /> AI 제안 액션 ({msg.suggestedActions.length})
+                            <div className="message-bubble">
+                                {msg.role === 'user' ? (
+                                    <div className="message-content">{msg.content}</div>
+                                ) : (
+                                    <div className="message-content markdown-body">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                            {msg.content}
+                                        </ReactMarkdown>
                                     </div>
+                                )}
+
+                                {/* AI 메시지에만 복사 버튼 표시 */}
+                                {msg.role === 'assistant' && (
                                     <button
-                                        className="action-apply-btn"
-                                        onClick={() => {
-                                            msg.suggestedActions?.forEach(action => onActionExecute(action));
-                                        }}
+                                        className="copy-message-btn"
+                                        onClick={() => handleCopyMessage(msg.id, msg.content)}
+                                        title="메시지 복사"
+                                        aria-label="AI 메시지 복사"
                                     >
-                                        캔버스에 즉시 적용
+                                        {copiedMessageId === msg.id ? (
+                                            <><Check size={12} /> 복사됨</>
+                                        ) : (
+                                            <><Copy size={12} /> 복사</>
+                                        )}
                                     </button>
-                                </div>
-                            )}
+                                )}
+
+                                {msg.suggestedActions && msg.suggestedActions.length > 0 && (
+                                    <div className="ai-tools-panel">
+                                        <div className="tools-header">
+                                            <Sparkles size={12} /> AI 제안 액션 ({msg.suggestedActions.length})
+                                        </div>
+                                        <button
+                                            className="action-apply-btn"
+                                            onClick={() => {
+                                                msg.suggestedActions?.forEach(action => onActionExecute(action));
+                                            }}
+                                            aria-label="AI 제안 액션을 캔버스에 적용"
+                                        >
+                                            캔버스에 즉시 적용
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="message-time">
+                                {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
                         </div>
-                        <div className="message-time">
-                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        );
+                    })}
+                    {uploadProgress && (
+                        <div className="status-indicator">
+                            <Loader2 className="spinner" size={14} />
+                            <span>{uploadProgress}</span>
                         </div>
-                    </div>
-                    );
-                })}
-                {uploadProgress && (
-                    <div className="status-indicator">
-                        <Loader2 className="spinner" size={14} />
-                        <span>{uploadProgress}</span>
-                    </div>
-                )}
-                {isLoading && !uploadProgress && (
-                    <div className="status-indicator">
-                        <Loader2 className="spinner" size={14} />
-                        <span>AI가 답변을 생성하고 있습니다...</span>
-                    </div>
-                )}
-                <div ref={messagesEndRef} />
+                    )}
+                    {isLoading && !uploadProgress && (
+                        <div className="status-indicator">
+                            <Loader2 className="spinner" size={14} />
+                            <span>AI가 답변을 생성하고 있습니다...</span>
+                        </div>
+                    )}
+                    <div ref={messagesEndRef} />
+                </div>
             </div>
 
             <div className="chat-footer">
@@ -551,7 +559,9 @@ ${connectionsContext}
                             <div key={i} className="attachment-chip">
                                 <FileText size={12} />
                                 <span className="file-name">{file.name}</span>
-                                <button onClick={() => removeAttachment(i)}><X size={12} /></button>
+                                <button onClick={() => removeAttachment(i)} aria-label={`${file.name} 첨부 제거`}>
+                                    <X size={12} />
+                                </button>
                             </div>
                         ))}
                     </div>
@@ -565,7 +575,12 @@ ${connectionsContext}
                         onChange={handleFileChange}
                         accept=".pdf,image/*"
                     />
-                    <button className="footer-icon-btn" onClick={() => fileInputRef.current?.click()} title="파일 첨부">
+                    <button
+                        className="footer-icon-btn"
+                        onClick={() => fileInputRef.current?.click()}
+                        title="파일 첨부"
+                        aria-label="파일 첨부"
+                    >
                         <Paperclip size={18} />
                     </button>
 
@@ -587,6 +602,7 @@ ${connectionsContext}
                         className="send-btn-modern"
                         onClick={() => handleSendMessage()}
                         disabled={isLoading || (!inputValue.trim() && attachments.length === 0)}
+                        aria-label="메시지 전송"
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                     >
