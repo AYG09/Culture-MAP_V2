@@ -352,12 +352,16 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 
         // 검색 결과를 AI에게 다시 전달하여 후속 응답 생성
         try {
-          const followUp = await this.chatSession!.sendMessage([{
-            functionResponse: {
-              name: 'search_academic_theory',
-              response: { content: knowledgeResult }
-            }
-          }]);
+          const followUp = await this.chatSession!.sendMessage({
+            message: [
+              {
+                functionResponse: {
+                  name: 'search_academic_theory',
+                  response: { content: knowledgeResult }
+                }
+              }
+            ]
+          });
 
           // 후속 응답에서 텍스트와 function call 추출
           const followUpParts = followUp.response?.candidates?.[0]?.content?.parts || [];
@@ -402,14 +406,12 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       parts.push(createPartFromUri(fileUri, mimeType));
     }
 
-    // @google/genai v2.0 SDK: simple string is safest for chat if no attachments
+    // @google/genai SDK: sendMessage는 { message: string | PartUnion[] } 형식 필요
     let result;
     if (parts.length === 1 && parts[0].text) {
-      result = await this.chatSession!.sendMessage(parts[0].text);
+      result = await this.chatSession!.sendMessage({ message: parts[0].text });
     } else {
-      result = await this.chatSession!.sendMessage({
-        parts: parts
-      });
+      result = await this.chatSession!.sendMessage({ message: parts });
     }
 
     // v2.0 SDK에서 응답 객체 가져오기
@@ -464,14 +466,16 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
         const knowledgeResult = searchKnowledge(academicSearch.args.topic);
 
         // 검색 결과를 도구 출력으로 다시 AI에게 전송
-        const toolResponse = await this.chatSession!.sendMessage([
-          {
-            functionResponse: {
-              name: 'search_academic_theory',
-              response: { content: knowledgeResult }
+        const toolResponse = await this.chatSession!.sendMessage({
+          message: [
+            {
+              functionResponse: {
+                name: 'search_academic_theory',
+                response: { content: knowledgeResult }
+              }
             }
-          }
-        ]);
+          ]
+        });
 
         // 최종 답변 업데이트
         text = toolResponse.text || '';
