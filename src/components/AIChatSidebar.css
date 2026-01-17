@@ -13,32 +13,89 @@
     font-family: 'Inter', system-ui, sans-serif;
 }
 
-/* Header */
+/* Header - Tidio Style */
 .chat-header {
     padding: 16px 20px;
-    background: var(--bg-glass, rgba(255, 255, 255, 0.5));
-    border-bottom: 1px solid var(--border-color, rgba(226, 232, 240, 0.5));
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    border-bottom: none;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.ai-header-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    position: relative;
+}
+
+.ai-header-avatar .online-badge {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 10px;
+    height: 10px;
+    background: #22c55e;
+    border: 2px solid #6366f1;
+    border-radius: 50%;
+}
+
+.header-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 
 .chat-header h2 {
-    font-size: 16px;
-    font-weight: 700;
+    font-size: 15px;
+    font-weight: 600;
     margin: 0;
+    color: white;
+    background: none;
+    -webkit-background-clip: unset;
+    -webkit-text-fill-color: unset;
+}
+
+.header-status {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.header-right {
     display: flex;
     align-items: center;
     gap: 8px;
-    background: linear-gradient(135deg, #4f46e5, #9333ea);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+}
+
+.connected-users {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 20px;
+    color: white;
+    font-size: 12px;
+    font-weight: 500;
 }
 
 .header-config-btn {
-    background: none;
+    background: rgba(255, 255, 255, 0.15);
     border: none;
-    color: var(--text-secondary, #475569);
+    color: white;
     padding: 8px;
     border-radius: 10px;
     cursor: pointer;
@@ -49,9 +106,8 @@
 }
 
 .header-config-btn:hover {
-    background: rgba(79, 70, 229, 0.08);
-    color: #4f46e5;
-    /* transform: Motion에서 처리 (whileHover/whileTap) */
+    background: rgba(255, 255, 255, 0.25);
+    color: white;
 }
 
 /* Messages */
@@ -130,14 +186,43 @@
     max-width: 85%;
 }
 
-.message-wrapper.user {
+.message-wrapper.current-user {
     align-self: flex-end;
     align-items: flex-end;
 }
 
+.message-wrapper.other-user,
 .message-wrapper.ai {
     align-self: flex-start;
     align-items: flex-start;
+}
+
+/* Avatar Row for other users and AI */
+.message-avatar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.user-avatar {
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.user-avatar.ai-avatar {
+    background: linear-gradient(135deg, #8b5cf6, #6366f1);
+}
+
+.message-sender-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary, #64748b);
 }
 
 .message-bubble {
@@ -149,10 +234,17 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
 }
 
-.user .message-bubble {
-    background: #4f46e5;
+.current-user .message-bubble {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
     color: white;
     border-bottom-right-radius: 4px;
+}
+
+.other-user .message-bubble {
+    background: var(--bg-secondary, #f1f5f9);
+    color: var(--text-primary, #1e293b);
+    border-bottom-left-radius: 4px;
+    margin-left: 36px;
 }
 
 .ai .message-bubble {
@@ -160,6 +252,7 @@
     color: var(--text-primary, #1e293b);
     border: 1px solid var(--border-color, rgba(226, 232, 240, 0.8));
     border-bottom-left-radius: 4px;
+    margin-left: 36px;
 }
 
 .message-time {
@@ -342,6 +435,34 @@
 .send-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+/* Modern Send Button - Circular Gradient */
+.send-btn-modern {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    border: none;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: white;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.send-btn-modern:hover:not(:disabled) {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+}
+
+.send-btn-modern:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: none;
 }
 
 /* ===== 마크다운 렌더링 스타일 ===== */

@@ -15,6 +15,7 @@ export interface ChatMessage {
     id: string;
     role: 'user' | 'assistant' | 'system';
     content: string;
+    userId?: string;       // 발신자 식별용 (실시간 협업에서 사용자 구분)
     userName: string;
     userColor: string;
     timestamp: number;

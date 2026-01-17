@@ -159,6 +159,7 @@ class LiveblocksService {
             id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
             role: 'user',
             content,
+            userId: this.userId,        // 발신자 식별용
             userName: this.displayName,
             userColor: this.userColor,
             timestamp: Date.now(),

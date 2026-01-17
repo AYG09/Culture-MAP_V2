@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Paperclip, X, Sparkles, Loader2, FileText, Settings, Copy, Check } from 'lucide-react';
+import { Send, Paperclip, X, Sparkles, Loader2, FileText, Settings, Copy, Check, Users } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { aiService } from '../services/AIService';
@@ -11,6 +11,46 @@ import type { ChatMessage } from '../types/liveblocks';
 import type { NoteData, ConnectionData } from '../types/culture';
 import type { PasswordType } from '../services/GatewayAdminService';
 import './AIChatSidebar.css';
+
+// 사용자 아바타 컴포넌트 - Tidio 스타일
+interface UserAvatarProps {
+    userName: string;
+    userColor: string;
+    size?: number;
+    isAI?: boolean;
+}
+
+const UserAvatar: React.FC<UserAvatarProps> = ({ userName, userColor, size = 32, isAI = false }) => {
+    if (isAI) {
+        return (
+            <div 
+                className="user-avatar ai-avatar" 
+                style={{ 
+                    width: size, 
+                    height: size,
+                    background: 'linear-gradient(135deg, #8b5cf6, #6366f1)'
+                }}
+            >
+                <Sparkles size={size * 0.5} />
+            </div>
+        );
+    }
+    
+    const initial = userName.charAt(0).toUpperCase();
+    return (
+        <div 
+            className="user-avatar" 
+            style={{ 
+                width: size, 
+                height: size, 
+                backgroundColor: userColor,
+                fontSize: size * 0.45
+            }}
+        >
+            {initial}
+        </div>
+    );
+};
 
 interface AIChatSidebarProps {
     onActionExecute: (action: any) => void;
@@ -35,8 +75,12 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+    const [connectedUsers, setConnectedUsers] = useState(1);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    
+    // 현재 사용자 ID 가져오기
+    const currentUserId = liveblocksService.getCurrentUserId();
 
     // 메시지 복사 기능
     const handleCopyMessage = useCallback(async (messageId: string, content: string) => {
@@ -52,6 +96,20 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isLoading, uploadProgress]);
+
+    // 접속자 수 업데이트 (세션 상태 감시)
+    useEffect(() => {
+        const updateUserCount = () => {
+            const session = liveblocksService.getCurrentSession();
+            if (session?.connectedUsers) {
+                setConnectedUsers(session.connectedUsers);
+            }
+        };
+        
+        updateUserCount();
+        const interval = setInterval(updateUserCount, 3000);
+        return () => clearInterval(interval);
+    }, []);
 
     // Liveblocks 채팅 메시지 구독 - 세션 연결 후 재구독 필요
     useEffect(() => {
@@ -341,16 +399,31 @@ ${connectionsContext}
     return (
         <div className="ai-chat-sidebar">
             <div className="chat-header">
-                <h2><Sparkles size={18} className="ai-icon" /> AI 컨설턴트</h2>
-                <motion.button
-                    className="header-config-btn"
-                    onClick={() => setIsConfigOpen(true)}
-                    title="AI API 설정 (BYOK)"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                >
-                    <Settings size={18} />
-                </motion.button>
+                <div className="header-left">
+                    <div className="ai-header-avatar">
+                        <Sparkles size={16} />
+                        <span className="online-badge" />
+                    </div>
+                    <div className="header-info">
+                        <h2>Culture-MAP AI</h2>
+                        <span className="header-status">온라인 · 질문에 답변 준비됨</span>
+                    </div>
+                </div>
+                <div className="header-right">
+                    <div className="connected-users" title={`${connectedUsers}명 접속 중`}>
+                        <Users size={14} />
+                        <span>{connectedUsers}</span>
+                    </div>
+                    <motion.button
+                        className="header-config-btn"
+                        onClick={() => setIsConfigOpen(true)}
+                        title="AI API 설정 (BYOK)"
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                    >
+                        <Settings size={18} />
+                    </motion.button>
+                </div>
             </div>
 
             <AIConfigModal
@@ -388,8 +461,26 @@ ${connectionsContext}
                         </div>
                     </div>
                 )}
-                {messages.map((msg) => (
-                    <div key={msg.id} className={`message-wrapper ${msg.role === 'user' ? 'user' : 'ai'}`}>
+                {messages.map((msg) => {
+                    const isCurrentUser = msg.role === 'user' && msg.userId === currentUserId;
+                    const isOtherUser = msg.role === 'user' && msg.userId !== currentUserId && msg.userId;
+                    const isAI = msg.role === 'assistant';
+                    
+                    return (
+                    <div key={msg.id} className={`message-wrapper ${isCurrentUser ? 'current-user' : ''} ${isOtherUser ? 'other-user' : ''} ${isAI ? 'ai' : ''}`}>
+                        {/* 다른 사용자나 AI 메시지일 때 아바타 표시 */}
+                        {(isOtherUser || isAI) && (
+                            <div className="message-avatar-row">
+                                <UserAvatar 
+                                    userName={msg.userName} 
+                                    userColor={msg.userColor} 
+                                    size={28}
+                                    isAI={isAI}
+                                />
+                                {isOtherUser && <span className="message-sender-name">{msg.userName}</span>}
+                                {isAI && <span className="message-sender-name">AI 컨설턴트</span>}
+                            </div>
+                        )}
                         <div className="message-bubble">
                             {msg.role === 'user' ? (
                                 <div className="message-content">{msg.content}</div>
@@ -436,7 +527,8 @@ ${connectionsContext}
                             {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
                     </div>
-                ))}
+                    );
+                })}
                 {uploadProgress && (
                     <div className="status-indicator">
                         <Loader2 className="spinner" size={14} />
@@ -479,7 +571,7 @@ ${connectionsContext}
 
                     <textarea
                         className="chat-input-field"
-                        placeholder="AI에게 지시하기..."
+                        placeholder="메시지를 입력하세요..."
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         onKeyDown={(e) => {
@@ -491,13 +583,15 @@ ${connectionsContext}
                         rows={1}
                     />
 
-                    <button
-                        className="send-btn"
+                    <motion.button
+                        className="send-btn-modern"
                         onClick={() => handleSendMessage()}
                         disabled={isLoading || (!inputValue.trim() && attachments.length === 0)}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
                     >
                         <Send size={18} />
-                    </button>
+                    </motion.button>
                 </div>
             </div>
         </div>
