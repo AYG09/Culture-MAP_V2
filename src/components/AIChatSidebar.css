@@ -301,6 +301,11 @@
     color: var(--text-primary, #1e293b);
 }
 
+.chat-input-field::placeholder {
+    color: var(--text-muted, #94a3b8);
+    opacity: 1;
+}
+
 .footer-icon-btn {
     padding: 8px;
     border: none;

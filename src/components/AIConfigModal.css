@@ -151,7 +151,7 @@
     box-shadow: 0 0 0 3px var(--accent-glow, rgba(59, 130, 246, 0.1));
 }
 
-.toggle-visibility-btn {
+.config-toggle-visibility {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -164,9 +164,10 @@
     color: var(--text-muted, #6b7280);
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
 }
 
-.toggle-visibility-btn:hover {
+.config-toggle-visibility:hover {
     background: var(--bg-secondary, rgba(0, 0, 0, 0.05));
     color: var(--text-primary, #1a1a1a);
     border-color: var(--border-color-hover, rgba(0, 0, 0, 0.2));

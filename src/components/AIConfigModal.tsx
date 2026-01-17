@@ -131,7 +131,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                                 onChange={(e) => setApiKey(e.target.value)}
                             />
                             <button
-                                className="toggle-visibility-btn"
+                                className="config-toggle-visibility"
                                 onClick={() => setShowKey(!showKey)}
                                 title={showKey ? "숨기기" : "보기"}
                             >
