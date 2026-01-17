@@ -2,7 +2,7 @@
 name: UI Design Patterns
 description: UI/디자인 실수 방지를 위한 패턴과 규칙 정의
 lastUpdated: 2026-01-17
-source: Context7 (Motion, Tailwind), Tavily (2026 트렌드)
+source: Context7 (Motion, Tailwind), Tavily (2026 트렌드), Postmortem (CSS 중복 블록)
 applies_to: React, framer-motion, CSS, lucide-react
 ---
 
@@ -163,6 +163,17 @@ function Button() {
 </button>
 ```
 
+### 5. CSS 중복 블록 방지 (재발 방지 규칙)
+```css
+/* ✅ 파일에 동일한 큰 섹션이 중복되지 않도록 검증 */
+/* 예: "AIChatSidebar.css - Premium ..." 헤더가 1회만 존재해야 함 */
+```
+
+권장 점검:
+1. 동일한 클래스 블록이 파일 끝에 다시 등장하지 않는지 확인
+2. 리팩터링 후 `grep`으로 기존 헤더 문자열이 1회만 존재하는지 확인
+3. UI 변경이 반영되지 않을 경우, CSS 파일 내부 중복/순서 문제를 먼저 점검
+
 ## 컴포넌트 패턴
 
 ### 1. 설정 버튼
@@ -253,6 +264,7 @@ function Button() {
 - [ ] hover 애니메이션이 미묘한가? (scale ≤ 1.05, no rotate)
 - [ ] transition 시간이 200ms 이하인가?
 - [ ] CSS 변수를 사용하는가? (하드코딩 색상 금지)
+- [ ] 동일 헤더/블록 중복이 없는가? (중복 블록은 후속 정의가 전체를 덮어씀)
 
 ### 버튼 작성 시
 - [ ] 아이콘 버튼에 `title` 또는 `aria-label` 있는가?

@@ -1,4 +1,4 @@
-# Task List: AI 연결선 생성 지시 개선 + 구조화
+# Task List: AIChatSidebar UI 변경 미반영 이슈 분석/해결
 
 ## 진행 상황
 - 🔲 미완료
@@ -7,39 +7,21 @@
 
 ---
 
-## Task 1: 시스템 프롬프트에 구체적 예시 추가
-- [x] AIService.ts 연결선 규칙 섹션에 예시 추가
-- [x] "what to do" 예시 포함
-- [x] "what NOT to do" 예시 포함
+## Task 1: 증상 재현 및 CSS 중복 확인
+- [x] AIChatSidebar.css 내 중복 블록 존재 여부 확인
+- [x] 동일 셀렉터가 파일 하단에서 재정의되는지 확인
 
-## Task 2: gemini-function-calling 스킬 생성
-- [x] `.agent/skills/gemini-function-calling/SKILL.md` 생성
-- [x] propertyOrdering 규칙 문서화
-- [x] required 배열 규칙 문서화
-- [x] Context7 출처 명시
+## Task 2: 원인 제거
+- [x] 기존 Glassmorphism 블록 전체 제거
+- [x] 파일 내 중복 헤더/블록 제거 확인
 
-## Task 3: culture-map-ai 스킬 생성
-- [x] `.agent/skills/culture-map-ai/SKILL.md` 생성
-- [x] 연결선 생성 규칙 문서화
-- [x] 레이어 구조 설명
-- [x] 도구 사용 지침
+## Task 3: 문서화
+- [x] implementation_plan.md에 리스크/대응 업데이트
+- [x] walkthrough.md에 MCP 조사 및 원인 기록
 
-## Task 4: 기존 .cursor/rules 파일 deprecated 표시
-- [x] `gemini-api-rules.mdc` 상단에 deprecated 안내 추가
-- [x] `ai-service-guard.mdc` 상단에 deprecated 안내 추가
-- [x] `.agent/skills/` 참조 링크 추가
+## Task 4: 재발 방지(스킬 업데이트)
+- [x] UI Design Patterns 스킬에 CSS 중복 블록 방지 규칙 추가
 
-## Task 5: MCP.md 스킬 참조 추가
-- [x] 신규 스킬 참조 추가
-
-## Task 6: AIChatSidebar 컨텍스트 개선
-- [x] 층위 구조 정보 추가
-- [x] 연결 방향 안내 추가
-
-## Task 7: 빌드 및 검증
-- [x] npm run build 성공
-- [x] 에러 없음 확인
-
-## Task 8: Git 커밋 및 배포
-- [ ] git add/commit/push
-- [ ] Vercel 배포 확인
+## Task 5: 검증
+- [x] AIChatSidebar.css에 "Premium Glassmorphism" 문자열 미존재 확인
+- [x] UI 변경 사항 적용 여부 확인(DevTools 권장)
