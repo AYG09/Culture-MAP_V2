@@ -15,6 +15,10 @@
 - [x] 기존 Glassmorphism 블록 전체 제거
 - [x] 파일 내 중복 헤더/블록 제거 확인
 
+## Task 2-1: 입력 필드 기능 복구
+- [x] chat-input-field 폭/최소폭 보강
+- [x] input-row width 100% 적용
+
 ## Task 3: 문서화
 - [x] implementation_plan.md에 리스크/대응 업데이트
 - [x] walkthrough.md에 MCP 조사 및 원인 기록
@@ -25,3 +29,4 @@
 ## Task 5: 검증
 - [x] AIChatSidebar.css에 "Premium Glassmorphism" 문자열 미존재 확인
 - [x] UI 변경 사항 적용 여부 확인(DevTools 권장)
+- [ ] 채팅 입력창 폭 0 이슈 재확인

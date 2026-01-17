@@ -32,6 +32,10 @@
 - 동일 셀렉터가 파일 하단에서 다시 정의되어 **기존 스타일이 우선 적용**됨.
 - 결과적으로 UI 변경이 사용자에게 보이지 않음.
 
+추가 확인:
+- 배포 환경에서 `.chat-input-field`의 렌더 폭/높이가 0으로 계산되어 입력 필드가 보이지 않는 현상 확인.
+- 입력 영역의 폭 축소를 방지하기 위해 `width`/`min-width` 보강 필요.
+
 ---
 
 ## ✅ 해결 조치
@@ -39,6 +43,7 @@
 1. 중복된 기존 스타일 블록을 제거
 2. 파일 내 중복 헤더 문자열이 존재하지 않는지 확인
 3. UI Design Patterns 스킬에 **CSS 중복 블록 방지 규칙** 추가
+4. `.input-row`와 `.chat-input-field`에 폭/최소폭 보강 적용
 
 ---
 
@@ -57,6 +62,11 @@
 
 - `Premium Glassmorphism` 문자열이 CSS 파일에 없는지 확인
 - 브라우저 DevTools에서 `.ai-chat-sidebar` 스타일이 새 정의로 적용되는지 확인
+
+### 배포 자산 확인 (2026-01-17)
+- 프로덕션 HTML에서 로딩된 CSS: `assets/index-rnmjKtiD.css`
+- 해당 CSS에 `chat-footer { position: sticky; }` 규칙 포함 확인
+- Vercel 최신 프로덕션 배포 커밋: `0780406` (fix: remove duplicate chat sidebar styles)
 
 ---
 
