@@ -27,6 +27,22 @@ export interface ChatMessage {
 }
 
 // ============================================
+// AI 인사이트 타입 (동적 캐싱용)
+// ============================================
+
+export type InsightType = 'berkman' | 'raci' | 'org-chart' | 'diagnosis' | 'solution' | 'recommendation' | 'general';
+
+export interface Insight {
+    id: string;
+    type: InsightType;
+    title: string;
+    content: string;
+    source?: string;       // 원본 파일명 또는 대화 참조
+    persons?: string[];    // 관련 인물 (버크만 등)
+    timestamp: number;
+}
+
+// ============================================
 // 프레즌스 (Presence) - 사용자 상태
 // ============================================
 
@@ -91,6 +107,7 @@ export interface RoomStorage {
     metadata: SessionMetadata;
     reportContent: string;
     chatMessages: ChatMessage[];
+    insights: Insight[]; // AI 동적 인사이트 캐싱
 }
 
 // ============================================

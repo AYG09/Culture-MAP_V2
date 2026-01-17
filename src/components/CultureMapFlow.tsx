@@ -170,20 +170,36 @@ ${connectionsList.map(conn => {
 }).join('\n')}
 `;
 
-      // 3. 채팅 히스토리 가져오기 (이전 분석 결과 및 논의 내용 포함)
-      const chatMessages = liveblocksService.getChatMessages();
-      const recentMessages = chatMessages.slice(-50); // 최근 50개 메시지로 제한
+      // 3. AI가 캐싱한 핵심 인사이트 가져오기 (동적으로 추출된 분석 결과)
+      const cachedInsights = aiService.getInsights();
       
-      const chatHistorySection = recentMessages.length > 0
-        ? recentMessages.map(msg => {
-            const role = msg.role === 'user' ? '👤 사용자' : '🤖 AI 컨설턴트';
-            // 각 메시지 500자 제한 (토큰 오버플로우 방지)
-            const content = msg.content.length > 500 
-              ? msg.content.slice(0, 500) + '... (생략)' 
-              : msg.content;
-            return `${role}:\n${content}`;
+      // 인사이트를 유형별로 그룹화하여 정리
+      const insightsByType = cachedInsights.reduce((acc, insight) => {
+        if (!acc[insight.type]) acc[insight.type] = [];
+        acc[insight.type].push(insight);
+        return acc;
+      }, {} as Record<string, typeof cachedInsights>);
+      
+      const typeLabels: Record<string, string> = {
+        'berkman': '📊 버크만 진단 분석',
+        'raci': '📋 RACI 매트릭스 분석',
+        'org-chart': '🏢 조직 구조 분석',
+        'diagnosis': '🔍 문화 진단 결과',
+        'solution': '💡 솔루션 제안',
+        'recommendation': '✅ 핵심 추천 사항',
+        'general': '📝 기타 분석 결과'
+      };
+      
+      const chatHistorySection = cachedInsights.length > 0
+        ? Object.entries(insightsByType).map(([type, insights]) => {
+            const label = typeLabels[type] || type;
+            const insightContents = insights.map(ins => {
+              const personsInfo = ins.persons?.length ? `\n[관련 인물: ${ins.persons.join(', ')}]` : '';
+              return `### ${ins.title}\n${ins.content}${personsInfo}`;
+            }).join('\n\n');
+            return `## ${label}\n\n${insightContents}`;
           }).join('\n\n---\n\n')
-        : '(이전 대화 기록 없음)';
+        : '(캐싱된 분석 인사이트 없음)';
 
       // 4. 통합 컨텍스트 생성
       const fullContext = `
@@ -191,17 +207,18 @@ ${connectionsList.map(conn => {
 
 ${mapDataSection}
 
-## 2. 이전 대화 내용 (자료 분석 결과 및 논의 포함)
+## 2. AI 분석 인사이트 (자동 캐싱된 핵심 분석 결과)
 
-아래는 사용자와 AI 간 대화 기록입니다. 버크만 진단, RACI, 업무분장표, 조직도 등 업로드된 자료 분석 결과와 논의 내용이 포함되어 있습니다.
+아래는 대화 중 AI가 자동으로 추출하여 캐싱한 핵심 인사이트입니다. 
+버크만 진단, RACI, 조직도 분석 등 의미 있는 분석 결과만 포함되어 있습니다.
 
 ${chatHistorySection}
 `;
 
       // 5. AI에게 분석 요청
-      const fullPrompt = `${promptTemplate}\n\n${fullContext}\n\n위 Culture Map 데이터와 이전 대화 내용을 바탕으로 종합 분석 보고서를 작성해주세요. 
-대화에서 논의된 자료 분석 결과(버크만 진단, RACI, 조직도 등)가 있다면 해당 내용을 솔루션 제안에 반영해주세요.
-특히 솔루션 실행 담당자 배정 시 대화에서 언급된 개인별 특성이나 역할을 참고해주세요.`;
+      const fullPrompt = `${promptTemplate}\n\n${fullContext}\n\n위 Culture Map 데이터와 캐싱된 AI 분석 인사이트를 바탕으로 종합 분석 보고서를 작성해주세요.
+인사이트에 포함된 버크만 진단, RACI, 조직도 분석 결과가 있다면 솔루션 제안에 적극 반영해주세요.
+특히 솔루션 실행 담당자 배정 시 관련 인물 정보와 개인별 특성을 참고해주세요.`;
       
       // 새 채팅 세션 시작 (도구 호출 없이 순수 텍스트 응답)
       aiService.startChat([]);

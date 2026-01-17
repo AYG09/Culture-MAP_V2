@@ -11,6 +11,7 @@ import { GoogleGenAI, createPartFromUri, FunctionCallingConfigMode } from '@goog
 import Anthropic from '@anthropic-ai/sdk';
 import { MAP_TOOL_DECLARATIONS } from '../types/actions';
 import { searchKnowledge } from '../data/academicKnowledge';
+import type { Insight, InsightType } from '../types/liveblocks';
 
 export type AIProvider = 'gemini' | 'claude';
 
@@ -41,6 +42,7 @@ class AIService {
   private chatSession: any = null;
   private currentThoughts: string[] = []; // 현재 세션의 사고 과정 저장
   private academicFiles: FileMetadata[] = []; // 전문 서적 지식 파일 목록
+  private insights: Insight[] = []; // AI 동적 인사이트 캐싱
 
   /**
    * AI 서비스 설정
@@ -99,6 +101,13 @@ class AIService {
       if (storedFiles) {
         this.academicFiles = JSON.parse(storedFiles);
         console.log(`📚 Academic files loaded: ${this.academicFiles.length} files`);
+      }
+
+      // 인사이트 캐시 로드
+      const storedInsights = localStorage.getItem('culture-map-insights');
+      if (storedInsights) {
+        this.insights = JSON.parse(storedInsights);
+        console.log(`💡 Insights loaded: ${this.insights.length} insights`);
       }
     } catch (error) {
       console.error('Failed to load AI config from storage:', error);
@@ -479,6 +488,11 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       }
     }
 
+    // 인사이트 자동 추출 (AI 응답에서 중요 분석 결과 캐싱)
+    if (text && text.length > 200) {
+      this.extractInsightsFromResponse(text, 'AI 대화');
+    }
+
     return {
       text,
       thoughts: this.currentThoughts,
@@ -800,7 +814,14 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
    */
   public async analyzeBerkmanReport(fileUri: string, mimeType: string, cultureMapContext?: string): Promise<string> {
     const prompt = `버크만 진단 전문가로서 다음 PDF를 분석해주세요. ${cultureMapContext ? `현재 맵 컨텍스트: ${cultureMapContext}` : ''}`;
-    return this.analyzeWithPDF(fileUri, mimeType, prompt);
+    const result = await this.analyzeWithPDF(fileUri, mimeType, prompt);
+    
+    // 버크만 분석 결과에서 인사이트 자동 추출
+    if (result && result.length > 200) {
+      this.extractInsightsFromResponse(result, '버크만 진단 레포트');
+    }
+    
+    return result;
   }
 
   public async analyzeWithPDF(fileUri: string, mimeType: string, prompt: string): Promise<string> {
@@ -844,6 +865,111 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       'gemini-3-flash',          // 20만 토큰, 초고속 에이전틱
       'gemini-3-pro',            // 100만 토큰, 플래그십
     ];
+  }
+
+  // ============================================
+  // 인사이트 캐싱 시스템
+  // ============================================
+
+  /**
+   * 캐싱된 인사이트 조회
+   */
+  public getInsights(): Insight[] {
+    return this.insights;
+  }
+
+  /**
+   * 인사이트 추가
+   */
+  public addInsight(insight: Omit<Insight, 'id' | 'timestamp'>): void {
+    const newInsight: Insight = {
+      ...insight,
+      id: `insight-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: Date.now(),
+    };
+    this.insights.push(newInsight);
+    
+    // 최대 100개 인사이트 유지
+    if (this.insights.length > 100) {
+      this.insights = this.insights.slice(-100);
+    }
+    
+    localStorage.setItem('culture-map-insights', JSON.stringify(this.insights));
+    console.log(`💡 Insight added: ${newInsight.title} (${newInsight.type})`);
+  }
+
+  /**
+   * 인사이트 초기화
+   */
+  public clearInsights(): void {
+    this.insights = [];
+    localStorage.removeItem('culture-map-insights');
+    console.log('💡 Insights cleared');
+  }
+
+  /**
+   * AI 응답에서 인사이트 자동 추출
+   * 마크다운 헤딩과 키워드 기반으로 중요 분석 결과 추출
+   */
+  public extractInsightsFromResponse(responseText: string, source?: string): void {
+    if (!responseText || responseText.length < 200) return;
+
+    // 인사이트 타입별 키워드 매핑
+    const typeKeywords: Record<InsightType, string[]> = {
+      'berkman': ['버크만', 'berkman', '행동유형', '스트레스 행동', '욕구', '관심사'],
+      'raci': ['raci', '책임', '담당', '협의', '참조', '역할 분담'],
+      'org-chart': ['조직도', '조직 구조', '부서', '팀 구성', '보고 라인'],
+      'diagnosis': ['진단', '분석 결과', '현황', '문제점', '이슈', '원인'],
+      'solution': ['솔루션', '해결', '개선', '방안', '대책', '실행 계획'],
+      'recommendation': ['추천', '제안', '권고', '조언', '가이드'],
+      'general': [],
+    };
+
+    // 마크다운 섹션 파싱 (## 또는 ### 헤딩 기준)
+    const sections = responseText.split(/(?=^##\s)/m).filter(s => s.trim().length > 0);
+
+    for (const section of sections) {
+      // 헤딩 추출
+      const headingMatch = section.match(/^##\s*(.+?)[\n\r]/);
+      if (!headingMatch) continue;
+
+      const title = headingMatch[1].trim();
+      const content = section.replace(/^##\s*.+?[\n\r]/, '').trim();
+
+      // 너무 짧은 섹션 스킵 (300자 미만)
+      if (content.length < 300) continue;
+
+      // 타입 결정 (키워드 매칭)
+      let detectedType: InsightType = 'general';
+      const lowerSection = section.toLowerCase();
+
+      for (const [type, keywords] of Object.entries(typeKeywords)) {
+        if (keywords.some(kw => lowerSection.includes(kw.toLowerCase()))) {
+          detectedType = type as InsightType;
+          break;
+        }
+      }
+
+      // 중요 키워드가 없는 일반 섹션은 스킵
+      const importantKeywords = ['분석', '진단', '추천', '제안', '결과', '솔루션', '개선', '버크만', 'raci'];
+      const hasImportantKeyword = importantKeywords.some(kw => lowerSection.includes(kw));
+      if (detectedType === 'general' && !hasImportantKeyword) continue;
+
+      // 관련 인물 추출 (이름 패턴: 한글 2-4자)
+      const personMatches = content.match(/[가-힣]{2,4}(씨|님|팀장|부장|과장|대리|사원|매니저)?/g);
+      const persons = personMatches ? [...new Set(personMatches.map(p => p.replace(/(씨|님|팀장|부장|과장|대리|사원|매니저)$/, '')))] : undefined;
+
+      // 중복 방지: 같은 제목의 인사이트가 이미 있으면 스킵
+      if (this.insights.some(i => i.title === title)) continue;
+
+      this.addInsight({
+        type: detectedType,
+        title,
+        content: content.slice(0, 2000), // 최대 2000자
+        source,
+        persons: persons?.length ? persons.slice(0, 10) : undefined,
+      });
+    }
   }
 }
 
