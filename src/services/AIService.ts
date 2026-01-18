@@ -322,6 +322,18 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     const externalActions = accumulatedFunctionCalls.filter(fc => !internalTools.includes(fc.name));
     const internalActions = accumulatedFunctionCalls.filter(fc => internalTools.includes(fc.name));
 
+    const extractPartsFromResponse = (result: any) => {
+      const response = result?.response ?? result;
+      if (!response) return [] as any[];
+      if (response.candidates?.[0]?.content?.parts) {
+        return response.candidates[0].content.parts as any[];
+      }
+      if (response.text) {
+        return [{ text: response.text }];
+      }
+      return [] as any[];
+    };
+
     // 내부 도구 자동 처리 (학술 지식 검색 등)
     for (const internalCall of internalActions) {
       // [신규] AI가 동적으로 PDF 로드 요청
@@ -345,8 +357,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
                 createPartFromUri(selectedFile.uri, selectedFile.mimeType)
               ]
             });
-            const followUpResponse = await followUp.response;
-            const followUpParts = followUpResponse.candidates?.[0]?.content?.parts || [];
+            const followUpParts = extractPartsFromResponse(followUp);
             for (const part of followUpParts) {
               if (part.text) {
                 fullText += '\n\n' + part.text;
@@ -368,8 +379,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
             const followUp = await session!.sendMessage({
               message: `[시스템] 관련 학술 지식: ${knowledgeResult}`
             });
-            const followUpResponse = await followUp.response;
-            const followUpParts = followUpResponse.candidates?.[0]?.content?.parts || [];
+            const followUpParts = extractPartsFromResponse(followUp);
             for (const part of followUpParts) {
               if (part.text) {
                 fullText += '\n\n' + part.text;
@@ -398,9 +408,8 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
               }
             ]
           });
-          const followUpResponse = await followUp.response;
           // 후속 응답에서 텍스트와 function call 추출
-          const followUpParts = followUpResponse.candidates?.[0]?.content?.parts || [];
+          const followUpParts = extractPartsFromResponse(followUp);
           for (const part of followUpParts) {
             if (part.text) {
               fullText += '\n\n' + part.text;

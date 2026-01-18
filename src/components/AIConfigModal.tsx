@@ -27,6 +27,8 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
     const [academicFiles, setAcademicFiles] = useState<FileMetadata[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [sharedAcademicFiles, setSharedAcademicFiles] = useState<Record<string, AcademicFileMeta[]>>({});
+    const currentUserId = liveblocksService.getCurrentUserId();
+    const hasSharedForCurrentUser = !!sharedAcademicFiles[currentUserId]?.length;
 
     useEffect(() => {
         if (isOpen) {
@@ -287,6 +289,11 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                             </div>
 
                             <div className="file-list">
+                                {academicFiles.length === 0 && hasSharedForCurrentUser && (
+                                    <p style={{ fontSize: '0.8rem', color: '#9ca3af', textAlign: 'center', margin: '10px 0' }}>
+                                        로컬 저장소가 초기화되어 전문 지식 베이스가 비어 있습니다. 세션 공유 목록은 메타데이터만 표시되며 실제 파일은 각 브라우저에만 저장됩니다. 필요하면 다시 업로드해 주세요.
+                                    </p>
+                                )}
                                 {academicFiles.map((file, idx) => (
                                     <div key={idx} className="file-item">
                                         <div className="file-info">
