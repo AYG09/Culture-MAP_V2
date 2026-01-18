@@ -1,24 +1,23 @@
-# Implementation Plan: 도구 호출 누락(코드 출력) 방지 + 규칙/문서 최신화
+# Implementation Plan: 학술 PDF 다중 매칭 + 폴백 응답 개선
 
 ## 목표
-1. AI가 도구 호출을 코드 텍스트로 출력하지 않고 실제 function call로 실행하도록 유도
-2. "그렇게 해" 등 확인 응답을 직전 제안 실행으로 해석하도록 규칙 보강
-3. MCP-VSCODE 기준으로 .cursorrules 및 .agent/brain 문서 최신화
+1. load_academic_knowledge에서 업로드된 다중 PDF를 주제 기반으로 매칭해 활용
+2. 주제 불일치 시 단일 폴백 PDF 사용을 중단하고 일반 지식 답변을 제공
+3. 매칭/로딩 흐름을 로그로 명확히 하여 진단 가능성 향상
 
 ---
 
 ## 핵심 변경 범위
 
-### 1) AI 시스템 프롬프트 보강
-- 도구 호출은 코드로 출력하지 말고 function call로 실행하도록 규칙 추가
-- 확인 응답("그렇게 해" 등)은 직전 제안 실행으로 처리
+### 1) 학술 PDF 선택 로직
+- `selectRelevantFilesForTopic()`을 배열 반환으로 변경
+- 키워드/주제 스코어링 기반 상위 N개 선택
+- 대용량 PDF 제외 규칙 유지
 
-### 2) AI 컨텍스트 경고 문구
-- AIChatSidebar의 컨텍스트에 도구 호출 코드 출력 금지 문구 추가
-
-### 3) 규칙/문서 최신화
-- .cursorrules에 MCP-VSCODE 우선 및 Shrimp 워크플로우 명시
-- .agent/brain/task.md, walkthrough.md 갱신
+### 2) load_academic_knowledge 처리
+- 선택된 복수 PDF를 PartUnion으로 전달
+- 매칭 실패 시 static knowledge + 일반 지식 응답 유도
+- 선택된 파일 목록과 전체 파일 목록 로그 추가
 
 ---
 
@@ -26,23 +25,22 @@
 
 | 리스크 | 영향 | 대응 |
 |---|---|---|
-| 프롬프트 길이 증가 | 토큰 비용 증가 | 짧은 규칙 문구로 제한 |
-| 과도한 도구 호출 | 오작동 가능성 | 명시 요청/확인 응답에만 트리거 |
+| 다중 PDF 로딩으로 토큰 증가 | 응답 지연/비용 증가 | 상위 N개 제한(기본 2개) 유지 |
+| 매칭 실패 시 품질 저하 | 빈약한 답변 가능성 | static knowledge 요약 + 일반 지식 안내 프롬프트 사용 |
+| 잘못된 파일 매칭 | 근거 왜곡 | 키워드/저자 매칭 스코어 개선 및 로그로 확인 |
 
 ---
 
 ## 롤백 계획
 
 ### 트리거 조건
-- AI 컨텍스트에서 노드 ID/층위 표시 오류 재발
-- PDF 로드 실패가 증가
-- 레이아웃 변경 후 가시성 악화
+- 학술 PDF 로드 실패율 급증
+- 응답 품질 저하로 사용자 불만 증가
+- 로그에서 매칭 결과가 비정상적으로 빈번히 없음으로 표시
 
 ### 롤백 절차
 ```bash
 git checkout -- src/services/AIService.ts
-git checkout -- src/components/AIChatSidebar.tsx
-git checkout -- .cursorrules
 git checkout -- .agent/brain/implementation_plan.md
 git checkout -- .agent/brain/task.md
 git checkout -- .agent/brain/walkthrough.md
@@ -59,5 +57,6 @@ npm run type-check
 ```
 
 ### 수동 검증
-1. "노드를 생성해줘" 요청 시 function call이 발생하는지 확인
-2. "그렇게 해" 응답 시 직전 제안이 실제 도구 호출로 이어지는지 확인
+1. “SMART 원칙이 뭐야?” 질문 시 단일 폴백 PDF 사용 로그가 사라지는지 확인
+2. 매칭 실패 시 일반 지식 답변이 제공되는지 확인
+3. 콘솔에서 선택된 파일 목록이 출력되는지 확인

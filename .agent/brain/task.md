@@ -1,4 +1,4 @@
-# Task List: 도구 호출 누락(코드 출력) 방지 + 규칙/문서 최신화
+# Task List: 학술 PDF 다중 매칭 + 폴백 응답 개선
 
 ## 진행 상황
 - 🔲 미완료
@@ -7,15 +7,15 @@
 
 ---
 
-## Task 1: 도구 호출 유도 규칙 보강
-- [x] AIService systemInstruction에 코드 출력 금지 및 확인 응답 트리거 추가
-- [x] AIChatSidebar 컨텍스트에 도구 호출 코드 출력 금지 문구 추가
+## Task 1: 학술 PDF 매칭/폴백 로직 개선
+- [x] load_academic_knowledge에서 다중 PDF 매칭 지원
+- [x] 단일 폴백 PDF 사용 제거 및 일반 지식 응답 유도
+- [x] 선택 파일/전체 파일 로그 출력
 
-## Task 2: 규칙/문서 최신화
-- [x] .cursorrules에 MCP-VSCODE 우선 규칙 반영
-- [x] implementation_plan.md를 본 이슈 범위로 갱신
+## Task 2: 문서 업데이트
+- [x] implementation_plan.md 갱신
 - [ ] walkthrough.md에 변경 사항 기록
 
 ## Task 3: 검증
-- [ ] “노드를 생성해줘” 요청 시 function call 발생 확인
-- [ ] “그렇게 해” 응답 시 직전 제안 실행 확인
+- [ ] “SMART 원칙이 뭐야?” 질문 시 단일 폴백 PDF 사용 로그 미출력 확인
+- [ ] 매칭 실패 시 일반 지식 답변 제공 확인

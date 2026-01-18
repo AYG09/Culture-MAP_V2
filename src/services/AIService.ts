@@ -340,22 +340,30 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       if (internalCall.name === 'load_academic_knowledge') {
         const topic = internalCall.args?.topic || '';
         console.log('📚 [AIService] AI requested academic knowledge:', topic);
+        const availableFiles = this.academicFiles.map(file => file.displayName || file.name).filter(Boolean);
+        console.log('📚 [AIService] Academic files available:', availableFiles.join(', '));
         
         // PDF 선택 (AI가 제공한 topic 기반)
-        const selectedFile = this.selectRelevantFilesForTopic(topic);
-        
-        if (selectedFile) {
-          console.log('📚 [AIService] Loading PDF:', selectedFile.displayName);
-          
+        const selectedFiles = this.selectRelevantFilesForTopic(topic);
+        const selectedNames = selectedFiles.map(file => file.displayName).filter(Boolean);
+
+        if (selectedFiles.length > 0) {
+          console.log('📚 [AIService] Loading PDFs:', selectedNames.join(', '));
+
           // PDF를 포함하여 후속 응답 생성
           try {
+            const parts: Array<{ text?: string } | ReturnType<typeof createPartFromUri>> = [
+              {
+                text: `[시스템] "${topic}" 관련 학술 자료를 로드했습니다. 전체를 통독하기보다 주제와 관련된 섹션/챕터를 우선 탐색해 핵심 근거만 요약해 주세요. 가능하면 장/절 제목을 함께 제시하고, 불확실한 내용은 추정하지 마세요.`
+              }
+            ];
+
+            selectedFiles.forEach(file => {
+              parts.push(createPartFromUri(file.uri, file.mimeType));
+            });
+
             const followUp = await session!.sendMessage({
-              message: [
-                {
-                  text: `[시스템] "${topic}" 관련 학술 자료를 로드했습니다. 전체를 통독하기보다 주제와 관련된 섹션/챕터를 우선 탐색해 핵심 근거만 요약해 주세요. 가능하면 장/절 제목을 함께 제시하고, 불확실한 내용은 추정하지 마세요.`
-                },
-                createPartFromUri(selectedFile.uri, selectedFile.mimeType)
-              ]
+              message: parts
             });
             const followUpParts = extractPartsFromResponse(followUp);
             for (const part of followUpParts) {
@@ -371,13 +379,13 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
             yield { type: 'text', content: '\n\n[학술 자료 로드 중 오류가 발생했습니다]', fullText: fullText + '\n\n[Error]' };
           }
         } else {
-          // PDF 없으면 하드코딩된 지식으로 폴백
-          console.log('📚 [AIService] No PDF found, falling back to static knowledge');
+          // 매칭된 PDF가 없으면 하드코딩된 지식 + 일반 지식 응답 유도
+          console.log('📚 [AIService] No suitable PDF matched, using static knowledge and general answer');
           const knowledgeResult = searchKnowledge(topic);
-          
+
           try {
             const followUp = await session!.sendMessage({
-              message: `[시스템] 관련 학술 지식: ${knowledgeResult}`
+              message: `[시스템] 업로드된 학술 자료에서 "${topic}"에 대한 직접 근거가 없다면 일반 지식으로 답변하세요. 자료 미포함 여부는 보조 설명으로만 언급하세요. 관련 학술 지식(요약/키워드): ${knowledgeResult}`
             });
             const followUpParts = extractPartsFromResponse(followUp);
             for (const part of followUpParts) {
@@ -824,9 +832,9 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
    * AI가 load_academic_knowledge 도구를 호출할 때 사용
    * ⚠️ Gemini API 제한: PDF 최대 1000페이지
    */
-  private selectRelevantFilesForTopic(topic: string): FileMetadata | null {
+  private selectRelevantFilesForTopic(topic: string, maxFiles: number = 2): FileMetadata[] {
     this.normalizeAcademicFiles();
-    if (this.academicFiles.length === 0) return null;
+    if (this.academicFiles.length === 0) return [];
 
     const lowerTopic = topic.toLowerCase();
 
@@ -887,20 +895,18 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       return { file, score };
     });
 
-    // 최고 점수 파일 반환 (0점 이상만)
-    const best = scoredFiles.filter(sf => sf.score > 0).sort((a, b) => b.score - a.score)[0];
-    
-    if (!best) {
-      const fallback = this.academicFiles[this.academicFiles.length - 1] ?? null;
-      if (fallback) {
-        console.log('📚 [AIService] No suitable PDF matched, using fallback file:', fallback.displayName);
-      } else {
-        console.log('📚 [AIService] No suitable PDF found for topic, will use static knowledge');
-      }
-      return fallback;
+    // 점수순 정렬 후 상위 N개 선택 (0점 이하는 제외)
+    const selected = scoredFiles
+      .filter(sf => sf.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxFiles)
+      .map(sf => sf.file);
+
+    if (selected.length === 0) {
+      console.log('📚 [AIService] No suitable PDF found for topic, will use static knowledge');
     }
 
-    return best.file;
+    return selected;
   }
 
   /**
