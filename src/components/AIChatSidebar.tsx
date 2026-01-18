@@ -309,12 +309,20 @@ ${layerHeightContext}
                 }
             }
 
+            const actionKeywords = [
+                '추가', '생성', '만들', '연결', '정리', '정렬', '레이아웃',
+                '삭제', '지워', '제거', '수정', '변경', '옮겨', '이동',
+                '높이', '레이어', '노드', '포스트잇'
+            ];
+            const forceFunctionCall = actionKeywords.some(keyword => currentText.includes(keyword));
+
             console.log('🤖 [AIChatSidebar] Requesting AI Stream...');
             // 스트리밍 시작
             const aiStream = aiService.sendChatMessageStream(
                 `${contextString}\n\n[사용자 메시지]\n${currentText || '첨부된 파일을 분석해주세요.'}`,
                 fileUri,
-                mimeType
+                mimeType,
+                { forceFunctionCall }
             );
 
             let aiMsgId = '';

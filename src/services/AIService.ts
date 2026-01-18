@@ -38,9 +38,106 @@ class AIService {
   private geminiClient: GoogleGenAI | null = null;
   private currentConfig: AIConfig | null = null;
   private chatSession: any = null;
+  private chatHistory: any[] = [];
   private currentThoughts: string[] = []; // 현재 세션의 사고 과정 저장
   private academicFiles: FileMetadata[] = []; // 전문 서적 지식 파일 목록
   private insights: Insight[] = []; // AI 동적 인사이트 캐싱
+
+  private getSystemInstruction(): string {
+    return `
+# Culture-MAP V2 AI 컨설턴트
+
+## 프로그램 소개
+Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론을 기반으로 한 **조직문화 진단 및 시각화 프로그램**입니다.
+
+### 핵심 기능
+- **4계층 문화 맵**: 결과(Outcomes) → 행동(Behaviors) → 유형 레버(Type Levers) → 무형 레버(Intangible Levers)
+- **노드 기반 시각화**: 각 레이어에 문화 요소를 노드로 추가하고 연결
+- **버크만 진단 통합**: 개인 성격 유형과 조직문화 연계 분석
+- **AI 컨설팅**: 학술 이론 기반 문화 진단 및 개선 전략 제안
+
+### 샤인 이론과의 연계
+- **Artifacts (인공물)** → 결과/행동 레이어
+- **Espoused Values (표방 가치)** → 유형 레버 레이어  
+- **Basic Assumptions (기본 가정)** → 무형 레버 레이어
+
+## 당신의 역할
+1. **문화 진단 전문가**: 샤인 이론, 로빈스 조직행동론 등 학술 지식 기반 분석
+2. **맵 편집 도우미**: 사용자 요청 시 노드 추가/수정/삭제 (도구 사용)
+3. **전략 컨설턴트**: 문화 변화 전략 및 실행 계획 제안
+
+## 도구 사용 규칙
+1. 노드 추가/수정 후 반드시 auto_layout 호출하여 정리
+2. 공간 부족/겹침/연결선 가림이 발생하면 adjust_layer_height 호출
+3. 사용자가 명시적으로 노드 생성을 요청할 때만 도구 사용
+4. 여러 노드와 연결을 동시에 만들 때는 add_nodes_with_connections로 단일 호출 수행
+5. 특정 좌표로 이동할 필요가 있으면 update_node에 x/y 포함
+6. delete_node는 **사용자가 명시적으로 삭제를 요청한 특정 노드 ID**에만 사용하며, 연결선 유무로 임의 삭제하지 말 것
+7. delete_connection은 **사용자가 명시적으로 삭제를 요청한 특정 연결선 ID**에만 사용하며, 노드 삭제의 부수 효과로 호출하지 말 것
+8. 도구 호출은 **코드 블록/print/default_api/tool_code**로 출력하지 말고 반드시 실제 function call로 실행
+9. 사용자가 "그렇게 해", "해줘", "진행해"처럼 직전 제안을 수락하면 즉시 해당 도구를 호출
+10. 코드 예시는 사용자가 명시적으로 코드 요청 시에만 제공하며, 도구 호출과는 분리
+
+## 연결선(인과관계) 생성 규칙
+1. **노드 생성 후 연결 권장**: 새 노드 추가 후, 관련된 기존 노드와 create_connection 호출 권장
+2. **층위 간 인과 흐름**: 무형레버(Layer 4) → 유형레버(Layer 3) → 행동(Layer 2) → 결과(Layer 1) 방향
+3. **sourceId/targetId 순서**: sourceId = 원인 노드(상위 층위), targetId = 결과 노드(하위 층위)
+4. **다수 노드 생성 시**: 모든 노드 생성 완료 → 일괄 연결(create_connection) → auto_layout 순서
+5. **대량 생성 최적화**: 노드+연결 요청이 함께 오면 add_nodes_with_connections로 노드/연결을 한 번에 생성
+
+### ✅ 예시 (DO)
+사용자: "리더십 문화 관련 노드 3개 만들어줘"
+→ 순서: add_node(Layer4 "리더십 가치관") → add_node(Layer3 "리더십 평가제도") → add_node(Layer2 "솔선수범 행동") → create_connection(source: Layer4노드ID, target: Layer3노드ID) → create_connection(source: Layer3노드ID, target: Layer2노드ID) → auto_layout()
+
+사용자: "A,B,C 노드 만들고 A-B, B-C 연결해줘"
+→ 순서: add_nodes_with_connections(nodes:[{tempId:"A", label:"A", layer:4, type:"무형_레버"}, {tempId:"B", label:"B", layer:3, type:"유형_레버"}, {tempId:"C", label:"C", layer:2, type:"행동"}], connections:[{sourceId:"A", targetId:"B"}, {sourceId:"B", targetId:"C"}]) → auto_layout()
+
+사용자: "노드 X를 (900, 420)로 옮겨줘"
+→ 순서: update_node(id:"노드X_ID", x:900, y:420) → auto_layout()
+
+사용자: "노드가 겹치고 연결선이 가려져"
+→ 순서: adjust_layer_height(layer: 4, height: 350) → adjust_layer_height(layer: 3, height: 350) → auto_layout()
+
+### ❌ 금지 (DON'T)
+- 노드만 생성하고 연결선 없이 끝내기
+- 연결 방향 반대로 하기 (하위→상위)
+- 연결선 없는 노드를 추정해서 삭제하기
+        `;
+  }
+
+  private createChatSession(mode: FunctionCallingConfigMode = FunctionCallingConfigMode.AUTO, history?: any[]) {
+    if (!this.geminiClient) throw new Error('Gemini API 설정을 먼저 완료해주세요.');
+
+    const modelName = this.currentConfig?.modelName || 'gemini-2.5-flash-lite';
+    const thinkingConfig = this.getThinkingConfig(modelName);
+    const mapEditTools = [
+      'add_node',
+      'add_nodes_with_connections',
+      'update_node',
+      'delete_node',
+      'delete_connection',
+      'create_connection',
+      'auto_layout',
+      'adjust_layer_height'
+    ];
+    const functionCallingConfig = {
+      mode,
+      ...(mode === FunctionCallingConfigMode.ANY ? { allowedFunctionNames: mapEditTools } : {})
+    };
+
+    return this.geminiClient.chats.create({
+      model: modelName,
+      config: {
+        systemInstruction: this.getSystemInstruction(),
+        tools: [{ functionDeclarations: MAP_TOOL_DECLARATIONS as any }],
+        toolConfig: {
+          functionCallingConfig
+        },
+        ...(thinkingConfig ? { thinkingConfig } : {})
+      },
+      ...(history && history.length > 0 ? { history: history as any } : {})
+    });
+  }
 
   /**
    * AI 서비스 설정
@@ -117,85 +214,10 @@ class AIService {
    * 챗봇 세션 시작
    */
   public startChat(history: any[] = []) {
-    if (!this.geminiClient) throw new Error('Gemini API 설정을 먼저 완료해주세요.');
+    this.chatHistory = Array.isArray(history) ? [...history] : [];
+    this.chatSession = this.createChatSession(FunctionCallingConfigMode.AUTO, this.chatHistory);
 
-    const modelName = this.currentConfig?.modelName || 'gemini-2.5-flash-lite';
-    const thinkingConfig = this.getThinkingConfig(modelName);
-
-    this.chatSession = this.geminiClient.chats.create({
-      model: modelName,
-      config: {
-        systemInstruction: `
-# Culture-MAP V2 AI 컨설턴트
-
-## 프로그램 소개
-Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론을 기반으로 한 **조직문화 진단 및 시각화 프로그램**입니다.
-
-### 핵심 기능
-- **4계층 문화 맵**: 결과(Outcomes) → 행동(Behaviors) → 유형 레버(Type Levers) → 무형 레버(Intangible Levers)
-- **노드 기반 시각화**: 각 레이어에 문화 요소를 노드로 추가하고 연결
-- **버크만 진단 통합**: 개인 성격 유형과 조직문화 연계 분석
-- **AI 컨설팅**: 학술 이론 기반 문화 진단 및 개선 전략 제안
-
-### 샤인 이론과의 연계
-- **Artifacts (인공물)** → 결과/행동 레이어
-- **Espoused Values (표방 가치)** → 유형 레버 레이어  
-- **Basic Assumptions (기본 가정)** → 무형 레버 레이어
-
-## 당신의 역할
-1. **문화 진단 전문가**: 샤인 이론, 로빈스 조직행동론 등 학술 지식 기반 분석
-2. **맵 편집 도우미**: 사용자 요청 시 노드 추가/수정/삭제 (도구 사용)
-3. **전략 컨설턴트**: 문화 변화 전략 및 실행 계획 제안
-
-## 도구 사용 규칙
-1. 노드 추가/수정 후 반드시 auto_layout 호출하여 정리
-2. 공간 부족/겹침/연결선 가림이 발생하면 adjust_layer_height 호출
-3. 사용자가 명시적으로 노드 생성을 요청할 때만 도구 사용
-4. 여러 노드와 연결을 동시에 만들 때는 add_nodes_with_connections로 단일 호출 수행
-5. 특정 좌표로 이동할 필요가 있으면 update_node에 x/y 포함
-6. delete_node는 **사용자가 명시적으로 삭제를 요청한 특정 노드 ID**에만 사용하며, 연결선 유무로 임의 삭제하지 말 것
-7. 도구 호출은 **코드 블록/print/default_api/tool_code**로 출력하지 말고 반드시 실제 function call로 실행
-8. 사용자가 "그렇게 해", "해줘", "진행해"처럼 직전 제안을 수락하면 즉시 해당 도구를 호출
-9. 코드 예시는 사용자가 명시적으로 코드 요청 시에만 제공하며, 도구 호출과는 분리
-
-## 연결선(인과관계) 생성 규칙
-1. **노드 생성 후 연결 권장**: 새 노드 추가 후, 관련된 기존 노드와 create_connection 호출 권장
-2. **층위 간 인과 흐름**: 무형레버(Layer 4) → 유형레버(Layer 3) → 행동(Layer 2) → 결과(Layer 1) 방향
-3. **sourceId/targetId 순서**: sourceId = 원인 노드(상위 층위), targetId = 결과 노드(하위 층위)
-4. **다수 노드 생성 시**: 모든 노드 생성 완료 → 일괄 연결(create_connection) → auto_layout 순서
-5. **대량 생성 최적화**: 노드+연결 요청이 함께 오면 add_nodes_with_connections로 노드/연결을 한 번에 생성
-
-### ✅ 예시 (DO)
-사용자: "리더십 문화 관련 노드 3개 만들어줘"
-→ 순서: add_node(Layer4 "리더십 가치관") → add_node(Layer3 "리더십 평가제도") → add_node(Layer2 "솔선수범 행동") → create_connection(source: Layer4노드ID, target: Layer3노드ID) → create_connection(source: Layer3노드ID, target: Layer2노드ID) → auto_layout()
-
-사용자: "A,B,C 노드 만들고 A-B, B-C 연결해줘"
-→ 순서: add_nodes_with_connections(nodes:[{tempId:"A", label:"A", layer:4, type:"무형_레버"}, {tempId:"B", label:"B", layer:3, type:"유형_레버"}, {tempId:"C", label:"C", layer:2, type:"행동"}], connections:[{sourceId:"A", targetId:"B"}, {sourceId:"B", targetId:"C"}]) → auto_layout()
-
-사용자: "노드 X를 (900, 420)로 옮겨줘"
-→ 순서: update_node(id:"노드X_ID", x:900, y:420) → auto_layout()
-
-사용자: "노드가 겹치고 연결선이 가려져"
-→ 순서: adjust_layer_height(layer: 4, height: 350) → adjust_layer_height(layer: 3, height: 350) → auto_layout()
-
-### ❌ 금지 (DON'T)
-- 노드만 생성하고 연결선 없이 끝내기
-- 연결 방향 반대로 하기 (하위→상위)
-- 연결선 없는 노드를 추정해서 삭제하기
-        `,
-        tools: [{ functionDeclarations: MAP_TOOL_DECLARATIONS as any }],
-        toolConfig: {
-          functionCallingConfig: {
-            mode: FunctionCallingConfigMode.AUTO
-          }
-        },
-        // thinkingConfig가 유효할 때만 포함
-        ...(thinkingConfig ? { thinkingConfig } : {})
-      },
-      history: history as any
-    });
-
-    console.log('🔧 [AIService] startChat: Model =', modelName, 'Tools count =', MAP_TOOL_DECLARATIONS.length);
+    console.log('🔧 [AIService] startChat: Model =', this.currentConfig?.modelName || 'gemini-2.5-flash-lite', 'Tools count =', MAP_TOOL_DECLARATIONS.length);
     console.log('🔧 [AIService] Tool names:', MAP_TOOL_DECLARATIONS.map((t: any) => t.name).join(', '));
 
     return this.chatSession;
@@ -204,12 +226,21 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
   /**
    * 챗봇 메시지 전송 (스트리밍 버전)
    */
-  public async *sendChatMessageStream(prompt: string, fileUri?: string, mimeType?: string) {
-    if (!this.chatSession) {
-      this.startChat();
-    }
+  public async *sendChatMessageStream(
+    prompt: string,
+    fileUri?: string,
+    mimeType?: string,
+    options?: { forceFunctionCall?: boolean }
+  ) {
+    const forceFunctionCall = options?.forceFunctionCall ?? false;
+    const session = forceFunctionCall
+      ? this.createChatSession(FunctionCallingConfigMode.ANY, this.chatHistory)
+      : (this.chatSession || this.startChat());
 
     const parts: any[] = [{ text: prompt }];
+    if (prompt) {
+      this.chatHistory.push({ role: 'user', parts: [{ text: prompt }] });
+    }
 
     // [토큰 최적화] PDF 자동 로드 제거 - AI가 load_academic_knowledge 도구로 필요시에만 로드
     // 이제 AI가 동적으로 판단하여 학술 지식이 필요할 때만 도구를 호출합니다.
@@ -229,9 +260,9 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       // @google/genai v2.0 SDK: sendMessageStream는 { message: string | PartUnion[] } 형식 필요
       // 단일 텍스트만 있으면 문자열로, 파일 포함 시 parts 배열로 전달
       if (parts.length === 1 && parts[0].text) {
-        streamResult = await this.chatSession!.sendMessageStream({ message: parts[0].text });
+        streamResult = await session!.sendMessageStream({ message: parts[0].text });
       } else {
-        streamResult = await this.chatSession!.sendMessageStream({ message: parts });
+        streamResult = await session!.sendMessageStream({ message: parts });
       }
 
       console.log('📡 [AIService] sendMessageStream request sent, waiting for chunks...');
@@ -306,7 +337,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
           
           // PDF를 포함하여 후속 응답 생성
           try {
-            const followUp = await this.chatSession!.sendMessage({
+            const followUp = await session!.sendMessage({
               message: [
                 {
                   text: `[시스템] "${topic}" 관련 학술 자료를 로드했습니다. 전체를 통독하기보다 주제와 관련된 섹션/챕터를 우선 탐색해 핵심 근거만 요약해 주세요. 가능하면 장/절 제목을 함께 제시하고, 불확실한 내용은 추정하지 마세요.`
@@ -334,7 +365,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
           const knowledgeResult = searchKnowledge(topic);
           
           try {
-            const followUp = await this.chatSession!.sendMessage({
+            const followUp = await session!.sendMessage({
               message: `[시스템] 관련 학술 지식: ${knowledgeResult}`
             });
             const followUpResponse = await followUp.response;
@@ -357,7 +388,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 
         // 검색 결과를 AI에게 다시 전달하여 후속 응답 생성
         try {
-          const followUp = await this.chatSession!.sendMessage({
+          const followUp = await session!.sendMessage({
             message: [
               {
                 functionResponse: {
@@ -384,6 +415,15 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       }
     }
 
+    const modelParts: any[] = [];
+    if (fullText) {
+      modelParts.push({ text: fullText });
+    }
+    accumulatedFunctionCalls.forEach((call) => modelParts.push({ functionCall: call }));
+    if (modelParts.length > 0) {
+      this.chatHistory.push({ role: 'model', parts: modelParts });
+    }
+
     // 맵 조작 도구만 외부로 dispatch
     if (externalActions.length > 0) {
       console.log('📡 [AIService] Dispatching external actions:', externalActions.map(a => a.name).join(', '));
@@ -400,6 +440,9 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     }
 
     const parts: any[] = [{ text: prompt }];
+    if (prompt) {
+      this.chatHistory.push({ role: 'user', parts: [{ text: prompt }] });
+    }
 
     // 등록된 학술 지식 파일 중 관련성 높은 파일만 동적으로 추가
     const selectedFiles = this.selectRelevantFiles(prompt, 1);
@@ -493,6 +536,15 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
           .filter((part: any) => part?.functionCall)
           .map((part: any) => part.functionCall);
       }
+    }
+
+    const responsePartsForHistory: any[] = [];
+    if (text) {
+      responsePartsForHistory.push({ text });
+    }
+    (functionCalls || []).forEach((call: any) => responsePartsForHistory.push({ functionCall: call }));
+    if (responsePartsForHistory.length > 0) {
+      this.chatHistory.push({ role: 'model', parts: responsePartsForHistory });
     }
 
     // 인사이트 자동 추출 (AI 응답에서 중요 분석 결과 캐싱)

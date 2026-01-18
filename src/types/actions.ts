@@ -92,6 +92,13 @@ export interface CreateConnectionPayload {
 }
 
 /**
+ * 엣지 삭제 액션 페이로드
+ */
+export interface DeleteConnectionPayload {
+    id: string;
+}
+
+/**
  * Gemini SDK용 도구 선언(Function Declaration) 스키마
  */
 export const MAP_TOOL_DECLARATIONS = [
@@ -199,6 +206,18 @@ export const MAP_TOOL_DECLARATIONS = [
             },
             required: ['sourceId', 'targetId'],
             propertyOrdering: ['sourceId', 'targetId', 'label']
+        }
+    },
+    {
+        name: 'delete_connection',
+        description: 'MUST call ONLY when user explicitly requests deleting a specific connection/edge ID. Trigger words: 연결선 삭제, 선 지워, 엣지 제거. Examples: "연결선 삭제해줘", "엣지 지워"',
+        parametersJsonSchema: {
+            type: 'object',
+            properties: {
+                id: { type: 'string', description: 'ID of the connection/edge to delete' }
+            },
+            required: ['id'],
+            propertyOrdering: ['id']
         }
     },
     {

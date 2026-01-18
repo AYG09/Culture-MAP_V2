@@ -715,6 +715,20 @@ ${chatHistorySection}
         }
         break;
 
+      case 'delete_connection':
+        if (args.id) {
+          liveblocksService.deleteConnection(args.id);
+          setEdges((eds) => {
+            const updated = eds.filter((edge) => edge.id !== args.id);
+            edgesRef.current = updated;
+            return updated;
+          });
+          const { connections: updatedConnections } = convertFromFlowData(nodesRef.current, edgesRef.current);
+          onConnectionsChange(updatedConnections);
+          console.log('✅ [Action Bridge] Connection deleted from UI:', args.id);
+        }
+        break;
+
       case 'create_connection':
         {
           const sourceId = args.sourceId || args.source;
@@ -807,7 +821,7 @@ ${chatHistorySection}
           return;
         }
 
-        if (name === 'add_node' || name === 'add_nodes_with_connections' || name === 'update_node' || name === 'delete_node' || name === 'create_connection') {
+        if (name === 'add_node' || name === 'add_nodes_with_connections' || name === 'update_node' || name === 'delete_node' || name === 'delete_connection' || name === 'create_connection') {
           layoutNeeded = true;
         }
 
