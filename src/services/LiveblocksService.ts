@@ -69,8 +69,6 @@ class LiveblocksService {
     public async createSession(sessionName?: string, sessionType: SessionType = 'workshop'): Promise<string> {
         const code = this.generateSessionCode();
         await this.joinSession(code, true, sessionName, sessionType);
-        // 세션 레지스트리에 등록
-        await this.registerSession(code, sessionName || `세션 ${code}`, sessionType);
         return code;
     }
 
@@ -105,6 +103,14 @@ class LiveblocksService {
                 metadata.set('type', sessionType);
                 metadata.set('createdAt', Date.now());
                 metadata.set('hostUserId', this.userId);
+            }
+        }
+
+        if (isHost) {
+            try {
+                await this.registerSession(code, sessionName || `세션 ${code}`, sessionType);
+            } catch (error) {
+                console.warn('⚠️ 세션 레지스트리 등록 실패:', error);
             }
         }
 
@@ -592,28 +598,21 @@ class LiveblocksService {
      * 세션을 레지스트리에 등록
      */
     public async registerSession(code: string, name: string, type: SessionType): Promise<void> {
-        const config = await this.connectToConfigRoom();
-        let sessions = config.get('sessions') as Map<string, unknown> | undefined;
+        await this.connectToConfigRoom();
+        const sessionsMap = this.configDoc?.getMap<unknown>('sessions');
 
-        if (!sessions) {
-            sessions = new Map();
-            config.set('sessions', sessions);
-        }
+        if (!sessionsMap) return;
 
+        const existing = sessionsMap.get(code) as { code: string; name: string; type: string; createdAt: number; createdBy: string } | undefined;
         const sessionData = {
             code,
             name,
             type,
-            createdAt: Date.now(),
-            createdBy: this.displayName
+            createdAt: existing?.createdAt ?? Date.now(),
+            createdBy: existing?.createdBy ?? this.displayName
         };
 
-        // Y.Map에 세션 추가
-        const sessionsMap = this.configDoc?.getMap<unknown>('sessions');
-        if (sessionsMap) {
-            sessionsMap.set(code, sessionData);
-        }
-
+        sessionsMap.set(code, sessionData);
         console.log('✅ 세션 레지스트리에 등록:', code);
     }
 

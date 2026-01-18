@@ -1,4 +1,4 @@
-# Task List: 전역 모달 스타일 정비
+# Task List: 도구 호출 누락(코드 출력) 방지 + 규칙/문서 최신화
 
 ## 진행 상황
 - 🔲 미완료
@@ -7,29 +7,15 @@
 
 ---
 
-## Task 1: 공통 모달 베이스 정의
-- [x] ModalBase.css 추가
+## Task 1: 도구 호출 유도 규칙 보강
+- [x] AIService systemInstruction에 코드 출력 금지 및 확인 응답 트리거 추가
+- [x] AIChatSidebar 컨텍스트에 도구 호출 코드 출력 금지 문구 추가
 
-## Task 2: 모달 컴포넌트 스코프 변경
-- [x] HelpModal 클래스 교체 및 CSS 스코프화
-- [x] ConnectionGuideModal 클래스 교체 및 CSS 스코프화
-- [x] CheckboxPopupModal 클래스 교체 및 CSS 스코프화
-- [x] Gateway 모달 클래스 교체 및 CSS 정비
-- [x] SessionManager 모달 클래스 교체 및 CSS 정비
-- [x] MobileGestureGuide 모달 클래스 교체 및 CSS 정비
+## Task 2: 규칙/문서 최신화
+- [x] .cursorrules에 MCP-VSCODE 우선 규칙 반영
+- [x] implementation_plan.md를 본 이슈 범위로 갱신
+- [ ] walkthrough.md에 변경 사항 기록
 
-## Task 3: 문서화 업데이트
-- [x] implementation_plan.md 최신화
-- [ ] walkthrough.md 변경 사항 기록
-
-## Task 4: 검증
-- [ ] 각 모달 UI 톤/버튼/포커스 스타일 확인
-
-## Task 5: 컨설팅 모드 전환 버튼
-- [x] AIConfigModal에 전환 버튼/비밀번호 입력 추가
-- [x] LiveblocksService에 세션 타입 업데이트 메서드 추가
-
-## Task 6: 모델 목록/추론 설정 정비
-- [x] Gemini 1.5/2.0 제거 및 최신 Gemini 모델만 노출
-- [x] 최신 Claude 모델 목록으로 교체
-- [x] 모델별 thinkingLevel/thinkingBudget 자동 적용
+## Task 3: 검증
+- [ ] “노드를 생성해줘” 요청 시 function call 발생 확인
+- [ ] “그렇게 해” 응답 시 직전 제안 실행 확인

@@ -2,24 +2,33 @@
 
 All AI agents (Copilot, Cursor, etc.) working on this project MUST follow the workflows and skills defined in the `.agent/` directory.
 
-## 🛠 Required Workflows
+## 🛠 Required Workflows (MCP-VSCODE 우선)
+
+0. **MCP-VSCODE Workflow** ([.agent/workflows/MCP-VSCODE.md](.agent/workflows/MCP-VSCODE.md)):
+   - 사용자가 “mcp/mcp로/MCP 프로세스”를 요청하면 MCP-VSCODE 6단계를 반드시 수행
+   - Context7 → Tavily → Sequential Thinking 순서를 유지
+   - Shrimp Task Agent로 계획/실행/검증을 관리
 
 1. **MCP Workflow** ([.agent/workflows/MCP.md](.agent/workflows/MCP.md)):
-   - Before starting any task, perform deep analysis using Sequential Thinking.
-   - Always verify SDK/library best practices using Context7 and Tavily.
-   - Do NOT trust existing code patterns; verify against 2025/2026 documentation.
+   - 작업 시작 전 Sequential Thinking으로 심층 분석
+   - SDK/라이브러리 검증은 Context7 → Tavily 순서
+   - 기존 코드 패턴을 신뢰하지 말고 2025/2026 문서와 대조
 
 2. **Doc-Guided Optimization** ([.agent/skills/doc-guided-optimization/SKILL.md](.agent/skills/doc-guided-optimization/SKILL.md)):
-   - Prioritize performance (React rendering, Liveblocks sync).
-   - Use latest Gemini models (e.g., `gemini-2.5-flash-lite`).
-   - Implement "Thinking" capabilities for complex reasoning.
+   - 성능 우선 (React 렌더링, Liveblocks 동기화)
+   - 최신 Gemini 모델 사용 (예: gemini-2.5-flash-lite)
+   - Thinking 설정(2.x=thinkingBudget, 3.x=thinkingLevel) 준수
 
 3. **SDK Version Check** ([.agent/skills/sdk-version-check/SKILL.md](.agent/skills/sdk-version-check/SKILL.md)):
-   - Verify if libraries are deprecated (e.g., use `@google/genai` instead of `@google/generative-ai`).
+   - Deprecated SDK 확인 (@google/generative-ai 금지, @google/genai 사용)
+
+4. **Gemini Function Calling** ([.agent/skills/gemini-function-calling/SKILL.md](.agent/skills/gemini-function-calling/SKILL.md)):
+   - parametersJsonSchema + propertyOrdering 필수
 
 ## 📋 Operational Rules
 
-- Always break down tasks into an `implementation_plan.md`.
-- Use `mcp_context7` for documentation queries before `mcp_tavily`.
-- When modifying AI logic, ensure the `thinkingBudget` or `thinkingLevel` is correctly set based on the model version.
-- Use atomic commits and task-based progress tracking.
+- 모든 작업은 `implementation_plan.md` 및 `task.md`로 계획/추적
+- 문서 조회 순서: Context7 → Tavily → Sequential Thinking
+- AI 로직 수정 시 모델별 thinking 설정 검증
+- Shrimp Task Agent의 execute/verify 흐름 준수
+- 작업 완료 후 walkthrough.md 업데이트

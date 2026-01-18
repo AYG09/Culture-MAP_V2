@@ -9,6 +9,50 @@ VSCode + GitHub Copilot 환경에서 사용 가능한 **모든 MCP**를 체계�
 
 ---
 
+## 0단계: MCP 도구 스냅샷 & 선택 로직 (필수)
+
+**목표:** 현재 세션에서 실제 사용 가능한 MCP 도구 목록을 먼저 확보하고, 그 범위 안에서만 선택한다.
+
+### 0-1. 사용 가능 도구 조회
+```
+mcp_com_mermaidch_list_tools
+```
+- 결과에 없는 MCP는 **현재 세션에서 사용 불가**로 간주
+- 문서에 있는 MCP라도 목록에 없으면 **기본 도구(read_file 등)**로 대체
+
+### 0-2. 선택 로직 (우선순위 매트릭스)
+| 작업 유형 | 우선 MCP | 대체 도구(없을 때) |
+|---|---|---|
+| 공식 문서 검증 | Context7 | 프로젝트 내 문서/README + grep_search |
+| 최신 정보/트렌드 | Tavily | fetch_webpage + 내부 기록 |
+| 복잡한 설계/분석 | Sequential Thinking | 단계별 체크리스트 수기 작성 |
+| 태스크 계획/검증 | Shrimp Task Agent | task.md 수기 작성 + 체크리스트 |
+| 다이어그램 | Mermaid/Excalidraw | Markdown 텍스트 다이어그램 |
+| 브라우저 검증 | Next.js Devtools | Playwright/로컬 수동 테스트 |
+| 배포/DB 관리 | Vercel/Supabase | 배포 문서 + SQL 파일 수동 검토 |
+
+### 0-3. 현재 세션에서 확인된 MCP (자동 갱신)
+- Mermaid: validate_and_render_mermaid_diagram, get_diagram_title, get_diagram_summary
+- Context7: resolve-library-id, query-docs
+- Tavily: tavily-search, tavily-extract
+- Sequential Thinking: sequentialthinking
+- Shrimp Task Agent: plan_task, analyze_task, reflect_task, split_tasks, execute_task, verify_task
+- Chrome DevTools MCP: 브라우저 검증 자동화 (사용자 선택 시)
+- Next Devtools MCP: 브라우저 검증 자동화 (사용자 선택 시)
+- Excalidraw / Penpot: 다이어그램 및 디자인 도구 (선택적)
+- Vercel MCP: 배포 관리 (필요 시)
+
+제외한 MCP:
+- basic memory, firebase, supabase (현재 작업 범위에서 불필요)
+
+검증 기준:
+- Mermaid는 도구 목록 재조회 결과로 확인
+- 나머지는 VSCode 도구 선택 상태 및 최근 호출 성공 이력으로 확인
+
+> 위 목록은 0-1 결과에 따라 갱신하며, 불일치 시 0-1 결과가 항상 우선이다.
+
+---
+
 ## 사용 가능한 MCP 목록
 
 | MCP | 용도 | 주요 도구 |
@@ -36,6 +80,9 @@ VSCode + GitHub Copilot 환경에서 사용 가능한 **모든 MCP**를 체계�
 2. lastUpdated 날짜 확인 (SKILL.md 상단 메타데이터)
 3. 관련 패턴/체크리스트 로드
 ```
+
+**관련 스킬 예시**
+- Liveblocks 세션 목록 이슈: `.agent/skills/liveblocks-session-registry/SKILL.md`
 
 **Skills 활용 판단 기준**:
 | 조건 | 행동 |

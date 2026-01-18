@@ -1,37 +1,24 @@
-# Implementation Plan: AI 레이어 도구 활용 + Edge-aware 레이아웃 + 좌표 이동 + 학술 응답 안정화 + 세션 재접속 초기화
+# Implementation Plan: 도구 호출 누락(코드 출력) 방지 + 규칙/문서 최신화
 
 ## 목표
-1. AI가 레이어 높이 도구(adjust_layer_height)를 이해하고 활용하도록 컨텍스트/프롬프트 보강
-2. auto_layout이 연결선 흐름을 고려해 가시적으로 배치되도록 개선
-3. update_node에서 좌표(x/y) 이동을 지원해 직접 배치 가능하도록 확장
-4. 학술 지식 로드 후 응답이 끊기는 현상(ContentUnion/후속 응답 파싱)을 안정화
-5. 세션 로그아웃/재접속 시 이전 데이터가 자동 재등장하지 않도록 초기화 옵션 제공
+1. AI가 도구 호출을 코드 텍스트로 출력하지 않고 실제 function call로 실행하도록 유도
+2. "그렇게 해" 등 확인 응답을 직전 제안 실행으로 해석하도록 규칙 보강
+3. MCP-VSCODE 기준으로 .cursorrules 및 .agent/brain 문서 최신화
 
 ---
 
 ## 핵심 변경 범위
 
-### 1) 레이어 도구 정보 제공
-- AIChatSidebar에 layerHeights 전달
-- 컨텍스트에 현재 층위 높이와 adjust_layer_height 사용 가이드 포함
+### 1) AI 시스템 프롬프트 보강
+- 도구 호출은 코드로 출력하지 말고 function call로 실행하도록 규칙 추가
+- 확인 응답("그렇게 해" 등)은 직전 제안 실행으로 처리
 
-### 2) AI 시스템 프롬프트 보강
-- 레이아웃 겹침/가림 발생 시 adjust_layer_height 사용 규칙 추가
+### 2) AI 컨텍스트 경고 문구
+- AIChatSidebar의 컨텍스트에 도구 호출 코드 출력 금지 문구 추가
 
-### 3) Edge-aware 레이아웃
-- flowAutoLayout에서 연결선 기반 정렬(인접 레이어 평균 인덱스) 적용
-
-### 4) 좌표 이동 지원
-- update_node가 x/y 좌표를 수용하고 React Flow position + Liveblocks 동기화
-- AI 컨텍스트에 노드 좌표 포함, 시스템 프롬프트에 좌표 이동 규칙/예시 추가
-
-### 5) 학술 응답 안정화
-- load_academic_knowledge 후속 응답 파싱 시 SDK 규격에 맞춰 response 처리
-- sendMessage 결과에서 candidates/parts 정상 추출
-
-### 6) 세션 재접속 초기화
-- 세션 나가기 시 저장/삭제 선택 제공
-- 전체 삭제/나가기 시 Liveblocks 저장소 일괄 초기화 처리
+### 3) 규칙/문서 최신화
+- .cursorrules에 MCP-VSCODE 우선 및 Shrimp 워크플로우 명시
+- .agent/brain/task.md, walkthrough.md 갱신
 
 ---
 
@@ -39,8 +26,8 @@
 
 | 리스크 | 영향 | 대응 |
 |---|---|---|
-| 레이어 정보 추가 | 컨텍스트 길이 증가 | 요약형으로 표시 |
-| 레이아웃 변경 | 사용자 배치 혼란 | auto_layout 실행 시에만 적용, 수동 배치 유지 |
+| 프롬프트 길이 증가 | 토큰 비용 증가 | 짧은 규칙 문구로 제한 |
+| 과도한 도구 호출 | 오작동 가능성 | 명시 요청/확인 응답에만 트리거 |
 
 ---
 
@@ -53,10 +40,12 @@
 
 ### 롤백 절차
 ```bash
-git checkout -- src/components/CultureMapFlow.tsx
 git checkout -- src/services/AIService.ts
 git checkout -- src/components/AIChatSidebar.tsx
-git checkout -- src/utils/flowAutoLayout.ts
+git checkout -- .cursorrules
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
 ```
 
 ---
@@ -70,5 +59,5 @@ npm run type-check
 ```
 
 ### 수동 검증
-1. AI 응답에서 레이어 높이 조절 안내/도구 호출 확인
-2. auto_layout 실행 후 연결선 흐름에 맞는 정렬 확인
+1. "노드를 생성해줘" 요청 시 function call이 발생하는지 확인
+2. "그렇게 해" 응답 시 직전 제안이 실제 도구 호출로 이어지는지 확인

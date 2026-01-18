@@ -269,7 +269,8 @@ ${layerHeightContext}
 💡 참고: 노드 생성 후 관련 노드와 create_connection 호출 권장!
 💡 여러 노드와 연결을 한 번에 만들 때는 add_nodes_with_connections를 사용하고, nodes에 tempId를 지정한 뒤 connections에서 tempId를 참조하세요.
 💡 특정 위치로 옮길 때는 update_node에 x/y 좌표를 포함하세요.
-💡 레이아웃이 겹치거나 연결선이 가려지면 adjust_layer_height로 레이어 높이를 늘려 공간을 확보하세요.`;
+💡 레이아웃이 겹치거나 연결선이 가려지면 adjust_layer_height로 레이어 높이를 늘려 공간을 확보하세요.
+🚫 도구 호출은 코드로 출력하지 말고 반드시 function call로 실행하세요.`;
 
         let fileUri: string | undefined;
         let mimeType: string | undefined;

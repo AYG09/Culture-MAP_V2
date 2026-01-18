@@ -71,7 +71,14 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
   const loadSessions = async () => {
     try {
       // Liveblocks 세션 레지스트리에서 로드
-      const registrySessions = await liveblocksService.getSessionRegistry();
+      const isDev = import.meta.env.VITE_APP_ENV === 'development';
+      let registrySessions = await liveblocksService.getSessionRegistry();
+
+      if (isDev && registrySessions.length === 0) {
+        await liveblocksService.registerSession('DEV-LOCAL', '개발 모드', 'workshop');
+        registrySessions = await liveblocksService.getSessionRegistry();
+      }
+
       const formattedSessions = registrySessions.map(s => ({
         code: s.code,
         name: s.name,
@@ -217,7 +224,10 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
           </div>
           <button
             className="admin-icon-btn"
-            onClick={() => setShowAdminModal(true)}
+            onClick={() => {
+              setError('');
+              setShowAdminModal(true);
+            }}
             title="관리자"
           >
             <Settings size={20} />
@@ -226,11 +236,23 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
 
         {/* 액션 버튼들 */}
         <div className="gateway-actions">
-          <button className="create-session-btn" onClick={() => setShowCreateModal(true)}>
+          <button
+            className="create-session-btn"
+            onClick={() => {
+              setError('');
+              setShowCreateModal(true);
+            }}
+          >
             <Plus size={20} />
             새 세션 만들기
           </button>
-          <button className="join-session-btn" onClick={() => setShowJoinModal(true)}>
+          <button
+            className="join-session-btn"
+            onClick={() => {
+              setError('');
+              setShowJoinModal(true);
+            }}
+          >
             <LogIn size={20} />
             세션 코드로 입장
           </button>
@@ -274,6 +296,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
                   className="session-join-btn"
                   onClick={() => {
                     setSessionCode(session.code);
+                    setError('');
                     setShowJoinModal(true);
                   }}
                 >
