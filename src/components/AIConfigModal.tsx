@@ -73,15 +73,15 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
             return;
         }
 
-        const pdfFiles = files.filter(file => file.type === 'application/pdf');
-        if (pdfFiles.length === 0) {
-            alert('PDF 파일만 업로드 가능합니다.');
+        const supportedFiles = files.filter(file => file.type === 'application/pdf' || file.type.startsWith('image/'));
+        if (supportedFiles.length === 0) {
+            alert('PDF 또는 이미지 파일만 업로드 가능합니다.');
             e.target.value = '';
             return;
         }
 
-        const filesToUpload = pdfFiles.slice(0, remainingSlots);
-        if (pdfFiles.length > remainingSlots) {
+        const filesToUpload = supportedFiles.slice(0, remainingSlots);
+        if (supportedFiles.length > remainingSlots) {
             alert(`최대 10개까지 등록 가능합니다. ${remainingSlots}개만 업로드합니다.`);
         }
 
@@ -283,7 +283,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                             <div className="academic-header">
                                 <label className="section-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <BookOpen size={16} color="#3b82f6" />
-                                    전문가 지식 베이스 (PDF)
+                                    전문가 지식 베이스 (PDF/이미지)
                                 </label>
                                 <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>{academicFiles.length}/10개</span>
                             </div>
@@ -317,7 +317,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                             <label className="upload-academic-btn">
                                 <input
                                     type="file"
-                                    accept=".pdf"
+                                    accept=".pdf,image/png,image/jpeg,image/webp"
                                     multiple
                                     style={{ display: 'none' }}
                                     onChange={handleFileUpload}
@@ -329,12 +329,12 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                                     </>
                                 ) : (
                                     <>
-                                        <Upload size={16} /> 전문 PDF 추가 (에드가 샤인 등)
+                                        <Upload size={16} /> 전문 PDF/이미지 추가 (마인드맵 포함)
                                     </>
                                 )}
                             </label>
                             <p className="help-text" style={{ marginTop: '8px', color: '#6b7280' }}>
-                                * 업로드된 서적은 대화 시 AI의 핵심 지식으로 활용됩니다.
+                                * 업로드된 PDF/이미지는 대화 시 AI의 핵심 지식으로 활용됩니다. 이미지 해상도는 3600x3600 이하만 지원됩니다.
                             </p>
                         </div>
 

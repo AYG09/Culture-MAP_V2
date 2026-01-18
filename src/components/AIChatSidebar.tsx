@@ -300,12 +300,13 @@ ${layerHeightContext}
             if (attachments.length > 0) {
                 try {
                     setUploadProgress('파일 업로드 중...');
-                    const metadata = await aiService.uploadPDF(attachments[0]);
+                    const metadata = await aiService.uploadAcademicFile(attachments[0]);
                     fileUri = metadata.uri;
                     mimeType = metadata.mimeType;
                 } catch (uploadErr) {
                     console.error('File upload failed:', uploadErr);
-                    setUploadProgress('업로드 실패');
+                    const errorMessage = uploadErr instanceof Error ? uploadErr.message : '업로드 실패';
+                    setUploadProgress(errorMessage);
                 }
             }
 

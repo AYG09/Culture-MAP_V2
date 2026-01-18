@@ -344,11 +344,12 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
         console.log('📚 [AIService] Academic files available:', availableFiles.join(', '));
         
         // PDF 선택 (AI가 제공한 topic 기반)
-        const selectedFiles = this.selectRelevantFilesForTopic(topic);
-        const selectedNames = selectedFiles.map(file => file.displayName).filter(Boolean);
+        const selectedFiles = await this.selectAcademicFilesForTopic(topic);
+        const limitedFiles = this.limitAcademicAttachments(selectedFiles);
+        const selectedNames = limitedFiles.map(file => file.displayName).filter(Boolean);
 
-        if (selectedFiles.length > 0) {
-          console.log('📚 [AIService] Loading PDFs:', selectedNames.join(', '));
+        if (limitedFiles.length > 0) {
+          console.log('📚 [AIService] Loading academic files:', selectedNames.join(', '));
 
           // PDF를 포함하여 후속 응답 생성
           try {
@@ -358,7 +359,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
               }
             ];
 
-            selectedFiles.forEach(file => {
+            limitedFiles.forEach(file => {
               parts.push(createPartFromUri(file.uri, file.mimeType));
             });
 
@@ -376,11 +377,32 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
             }
           } catch (err) {
             console.error('❌ [AIService] Error loading academic PDF:', err);
-            yield { type: 'text', content: '\n\n[학술 자료 로드 중 오류가 발생했습니다]', fullText: fullText + '\n\n[Error]' };
+
+            if (this.isTokenLimitError(err)) {
+              console.warn('⚠️ [AIService] Token limit exceeded, retrying without attachments');
+              const knowledgeResult = searchKnowledge(topic);
+              try {
+                const followUp = await session!.sendMessage({
+                  message: `[시스템] 업로드된 학술 자료 첨부 없이 "${topic}"에 대해 일반 지식으로 답변하세요. 자료 미포함 여부는 보조 설명으로만 언급하세요. 관련 학술 지식(요약/키워드): ${knowledgeResult}`
+                });
+                const followUpParts = extractPartsFromResponse(followUp);
+                for (const part of followUpParts) {
+                  if (part.text) {
+                    fullText += '\n\n' + part.text;
+                    yield { type: 'text', content: '\n\n' + part.text, fullText };
+                  }
+                }
+              } catch (retryErr) {
+                console.error('❌ [AIService] Error after token-limit retry:', retryErr);
+                yield { type: 'text', content: '\n\n[학술 자료 로드 중 오류가 발생했습니다]', fullText: fullText + '\n\n[Error]' };
+              }
+            } else {
+              yield { type: 'text', content: '\n\n[학술 자료 로드 중 오류가 발생했습니다]', fullText: fullText + '\n\n[Error]' };
+            }
           }
         } else {
           // 매칭된 PDF가 없으면 하드코딩된 지식 + 일반 지식 응답 유도
-          console.log('📚 [AIService] No suitable PDF matched, using static knowledge and general answer');
+          console.log('📚 [AIService] No suitable academic file matched, using static knowledge and general answer');
           const knowledgeResult = searchKnowledge(topic);
 
           try {
@@ -596,6 +618,35 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
    * PDF 파일 업로드
    */
   public async uploadPDF(file: File): Promise<FileMetadata> {
+    if (!file.type.includes('pdf')) {
+      throw new Error('PDF 파일만 업로드 가능합니다.');
+    }
+
+    return this.uploadFileToGemini(file, 'PDF 파일 처리에 실패했습니다.');
+  }
+
+  /**
+   * 학술 파일 업로드 (PDF/이미지)
+   */
+  public async uploadAcademicFile(file: File): Promise<FileMetadata> {
+    if (file.type === 'application/pdf') {
+      return this.uploadPDF(file);
+    }
+
+    if (file.type.startsWith('image/')) {
+      await this.validateImageDimensions(file);
+      const metadata = await this.uploadFileToGemini(file, '이미지 파일 처리에 실패했습니다.');
+      const mindmapKeywords = await this.extractMindmapKeywords(metadata.uri, metadata.mimeType);
+      if (mindmapKeywords.length > 0) {
+        return { ...metadata, keywords: mindmapKeywords };
+      }
+      return metadata;
+    }
+
+    throw new Error('PDF 또는 이미지 파일만 업로드 가능합니다.');
+  }
+
+  private async uploadFileToGemini(file: File, failureMessage: string): Promise<FileMetadata> {
     if (!this.geminiClient) throw new Error('Gemini API 설정을 먼저 완료해주세요.');
 
     const fileBlob = new Blob([await file.arrayBuffer()], { type: file.type });
@@ -611,7 +662,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       fileStatus = await this.geminiClient.files.get({ name: uploadedFile.name! });
     }
 
-    if (fileStatus.state === 'FAILED') throw new Error('PDF 파일 처리에 실패했습니다.');
+    if (fileStatus.state === 'FAILED') throw new Error(failureMessage);
 
     // 파일명에서 키워드 추출
     const keywords = this.extractKeywords(file.name);
@@ -624,6 +675,190 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       state: fileStatus.state!,
       keywords,
     };
+  }
+
+  private async validateImageDimensions(file: File): Promise<void> {
+    if (!file.type.startsWith('image/')) return;
+
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const { width, height } = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve({ width: img.width, height: img.height });
+        img.onerror = () => reject(new Error('이미지 파일을 읽을 수 없습니다.'));
+        img.src = objectUrl;
+      });
+
+      if (width > 3600 || height > 3600) {
+        throw new Error('이미지 해상도는 최대 3600x3600 픽셀까지 지원합니다.');
+      }
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  private async extractMindmapKeywords(fileUri: string, mimeType: string): Promise<string[]> {
+    if (!this.geminiClient) return [];
+
+    const modelName = this.currentConfig?.modelName || 'gemini-2.5-flash-lite';
+    const prompt = `다음 마인드맵 이미지를 보고 핵심 주제 키워드를 8~15개 이내로 추출하세요.\n- 중복 없이 간결한 명사/구로 작성\n- 결과는 JSON으로만 반환 (형식: {"keywords": ["..."]})`;
+    const schema = {
+      type: 'object',
+      properties: {
+        keywords: { type: 'array', items: { type: 'string' } }
+      },
+      required: ['keywords'],
+      propertyOrdering: ['keywords']
+    };
+
+    try {
+      const response = await this.geminiClient.models.generateContent({
+        model: modelName,
+        contents: [prompt, createPartFromUri(fileUri, mimeType)],
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: schema
+        }
+      });
+      const parsed = this.safeParseJson(response.text || '');
+      if (parsed && Array.isArray(parsed.keywords)) {
+        return parsed.keywords.filter((item) => typeof item === 'string' && item.trim().length > 0);
+      }
+    } catch (err) {
+      console.warn('⚠️ [AIService] Failed to extract mindmap keywords:', err);
+    }
+
+    return [];
+  }
+
+  private safeParseJson(value: string): { [key: string]: unknown } | null {
+    if (!value) return null;
+    try {
+      return JSON.parse(value) as { [key: string]: unknown };
+    } catch {
+      return null;
+    }
+  }
+
+  private splitAcademicFiles() {
+    const pdfFiles = this.academicFiles.filter(file => file.mimeType === 'application/pdf');
+    const imageFiles = this.academicFiles.filter(file => file.mimeType.startsWith('image/'));
+    return { pdfFiles, imageFiles };
+  }
+
+  private async selectAcademicFilesForTopic(topic: string): Promise<FileMetadata[]> {
+    const { pdfFiles, imageFiles } = this.splitAcademicFiles();
+    const fallbackSelected = this.limitAcademicAttachments(this.selectRelevantFilesForTopic(topic));
+
+    if (pdfFiles.length === 0 || imageFiles.length === 0) {
+      return fallbackSelected;
+    }
+
+    const mindmapSelected = await this.selectPdfFilesFromMindmaps(topic, pdfFiles, imageFiles);
+    const imageSelected = this.selectRelevantMindmapImages(topic, imageFiles);
+
+    const combined = this.limitAcademicAttachments([
+      ...mindmapSelected,
+      ...imageSelected,
+      ...fallbackSelected
+    ]);
+
+    return combined;
+  }
+
+  private selectRelevantMindmapImages(topic: string, imageFiles: FileMetadata[]): FileMetadata[] {
+    const lowerTopic = topic.toLowerCase();
+    return imageFiles
+      .map(file => {
+        const keywords = file.keywords || [];
+        const score = keywords.reduce((acc, keyword) => {
+          if (lowerTopic.includes(keyword.toLowerCase())) {
+            return acc + 10;
+          }
+          return acc;
+        }, 0);
+        return { file, score };
+      })
+      .filter(item => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(item => item.file);
+  }
+
+  private async selectPdfFilesFromMindmaps(
+    topic: string,
+    pdfFiles: FileMetadata[],
+    imageFiles: FileMetadata[]
+  ): Promise<FileMetadata[]> {
+    if (!this.geminiClient) return [];
+
+    const limitedImages = imageFiles.slice(0, 3);
+    const pdfNames = pdfFiles.map(file => file.displayName || file.name);
+    if (limitedImages.length === 0 || pdfNames.length === 0) return [];
+
+    const schema = {
+      type: 'object',
+      properties: {
+        fileNames: { type: 'array', items: { type: 'string' } },
+        rationale: { type: 'string' }
+      },
+      required: ['fileNames'],
+      propertyOrdering: ['fileNames', 'rationale']
+    };
+
+    const prompt = `다음 마인드맵 이미지들을 참고하여 질문 주제와 가장 관련성이 높은 PDF 이름을 선택하세요.\n- 주제: "${topic}"\n- 선택지는 아래 PDF 목록 중에서만 고르세요.\n- 출력은 JSON으로만 반환 (형식: {"fileNames": ["..."] , "rationale": "..." })\n\nPDF 목록:\n${pdfNames.map((name) => `- ${name}`).join('\n')}`;
+
+    try {
+      const response = await this.geminiClient.models.generateContent({
+        model: this.currentConfig?.modelName || 'gemini-2.5-flash-lite',
+        contents: [prompt, ...limitedImages.map(file => createPartFromUri(file.uri, file.mimeType))],
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: schema
+        }
+      });
+
+      const parsed = this.safeParseJson(response.text || '');
+      const fileNames = Array.isArray(parsed?.fileNames) ? parsed?.fileNames : [];
+      const normalizedNames = fileNames
+        .filter((name) => typeof name === 'string')
+        .map((name) => name.toLowerCase());
+
+      if (normalizedNames.length === 0) return [];
+
+      const matched = pdfFiles.filter(file => {
+        const displayName = (file.displayName || file.name).toLowerCase();
+        return normalizedNames.some((name) => displayName.includes(name));
+      });
+
+      console.log('📚 [AIService] Mindmap-guided PDF selection:', matched.map(file => file.displayName).join(', '));
+      return matched;
+    } catch (err) {
+      console.warn('⚠️ [AIService] Mindmap selection failed:', err);
+      return [];
+    }
+  }
+
+  private limitAcademicAttachments(files: FileMetadata[]): FileMetadata[] {
+    const pdfFile = files.find(file => file.mimeType === 'application/pdf');
+    const imageFile = files.find(file => file.mimeType.startsWith('image/'));
+    const limited: FileMetadata[] = [];
+    if (pdfFile) limited.push(pdfFile);
+    if (imageFile) limited.push(imageFile);
+    return limited;
+  }
+
+  private isTokenLimitError(error: unknown): boolean {
+    if (!error) return false;
+    if (typeof error === 'string') {
+      return error.toLowerCase().includes('input token count exceeds');
+    }
+
+    if (typeof error === 'object' && 'message' in error) {
+      const message = String((error as { message?: string }).message || '').toLowerCase();
+      return message.includes('input token count exceeds') || message.includes('1048576');
+    }
+
+    return false;
   }
 
   /**
@@ -722,7 +957,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
    * 학술 지식 파일(전문 서적) 추가
    */
   public async addAcademicFile(file: File): Promise<FileMetadata> {
-    const metadata = await this.uploadPDF(file);
+    const metadata = await this.uploadAcademicFile(file);
     this.academicFiles.push(metadata);
 
     // 최대 10개까지만 유지 (Gemini 한도 고려)
@@ -903,7 +1138,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       .map(sf => sf.file);
 
     if (selected.length === 0) {
-      console.log('📚 [AIService] No suitable PDF found for topic, will use static knowledge');
+      console.log('📚 [AIService] No suitable academic file found for topic, will use static knowledge');
     }
 
     return selected;
