@@ -634,8 +634,9 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     }
 
     if (file.type.startsWith('image/')) {
-      await this.validateImageDimensions(file);
-      const metadata = await this.uploadFileToGemini(file, '이미지 파일 처리에 실패했습니다.');
+      const resizedFile = await this.resizeImageIfNeeded(file);
+      await this.validateImageDimensions(resizedFile);
+      const metadata = await this.uploadFileToGemini(resizedFile, '이미지 파일 처리에 실패했습니다.');
       const mindmapKeywords = await this.extractMindmapKeywords(metadata.uri, metadata.mimeType);
       if (mindmapKeywords.length > 0) {
         return { ...metadata, keywords: mindmapKeywords };
@@ -680,18 +681,75 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
   private async validateImageDimensions(file: File): Promise<void> {
     if (!file.type.startsWith('image/')) return;
 
+    const { width, height } = await this.getImageDimensions(file);
+
+    if (width > 3600 || height > 3600) {
+      throw new Error(`이미지 해상도는 최대 3600x3600 픽셀까지 지원합니다. (현재 ${width}x${height})`);
+    }
+  }
+
+  private async getImageDimensions(file: File): Promise<{ width: number; height: number }> {
     const objectUrl = URL.createObjectURL(file);
     try {
-      const { width, height } = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+      return await new Promise<{ width: number; height: number }>((resolve, reject) => {
         const img = new Image();
         img.onload = () => resolve({ width: img.width, height: img.height });
         img.onerror = () => reject(new Error('이미지 파일을 읽을 수 없습니다.'));
         img.src = objectUrl;
       });
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
 
-      if (width > 3600 || height > 3600) {
-        throw new Error('이미지 해상도는 최대 3600x3600 픽셀까지 지원합니다.');
+  private async resizeImageIfNeeded(file: File): Promise<File> {
+    if (!file.type.startsWith('image/')) return file;
+
+    const { width, height } = await this.getImageDimensions(file);
+    const maxDimension = Math.max(width, height);
+
+    if (maxDimension <= 3600) {
+      return file;
+    }
+
+    const scale = 3600 / maxDimension;
+    const targetWidth = Math.round(width * scale);
+    const targetHeight = Math.round(height * scale);
+    const objectUrl = URL.createObjectURL(file);
+
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error('이미지 리사이즈에 실패했습니다.'));
+        image.src = objectUrl;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        throw new Error('이미지 리사이즈 컨텍스트를 생성할 수 없습니다.');
       }
+      ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+      const targetType = ['image/png', 'image/jpeg', 'image/webp'].includes(file.type)
+        ? file.type
+        : 'image/png';
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, targetType, 0.92));
+      if (!blob) {
+        throw new Error('이미지 리사이즈 결과를 생성하지 못했습니다.');
+      }
+
+      console.log(`📚 [AIService] Image resized: ${width}x${height} → ${targetWidth}x${targetHeight}`);
+      const nameParts = file.name.split('.');
+      const extension = nameParts.length > 1 ? nameParts.pop() : '';
+      const baseName = nameParts.join('.') || 'mindmap';
+      const resizedName = extension ? `${baseName}_resized.${extension}` : `${baseName}_resized`;
+
+      return new File([blob], resizedName, { type: targetType });
     } finally {
       URL.revokeObjectURL(objectUrl);
     }
@@ -957,13 +1015,30 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
    * 학술 지식 파일(전문 서적) 추가
    */
   public async addAcademicFile(file: File): Promise<FileMetadata> {
+    const pdfCount = this.academicFiles.filter(item => item.mimeType === 'application/pdf').length;
+    const imageCount = this.academicFiles.filter(item => item.mimeType.startsWith('image/')).length;
+    if (file.type === 'application/pdf' && pdfCount >= 10) {
+      throw new Error('PDF 전문 지식은 최대 10개까지 등록할 수 있습니다.');
+    }
+    if (file.type.startsWith('image/') && imageCount >= 10) {
+      throw new Error('이미지 지식은 최대 10개까지 등록할 수 있습니다.');
+    }
+
     const metadata = await this.uploadAcademicFile(file);
     this.academicFiles.push(metadata);
 
-    // 최대 10개까지만 유지 (Gemini 한도 고려)
-    if (this.academicFiles.length > 10) {
-      this.academicFiles.shift();
+    // PDF/이미지 각각 최대 10개 유지
+    const pdfFiles = this.academicFiles.filter(item => item.mimeType === 'application/pdf');
+    const imageFiles = this.academicFiles.filter(item => item.mimeType.startsWith('image/'));
+
+    if (pdfFiles.length > 10) {
+      pdfFiles.splice(0, pdfFiles.length - 10);
     }
+    if (imageFiles.length > 10) {
+      imageFiles.splice(0, imageFiles.length - 10);
+    }
+
+    this.academicFiles = [...pdfFiles, ...imageFiles];
 
     localStorage.setItem('culture-map-academic-files', JSON.stringify(this.academicFiles));
     return metadata;

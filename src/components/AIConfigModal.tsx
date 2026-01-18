@@ -66,13 +66,6 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
 
-        const remainingSlots = Math.max(0, 10 - academicFiles.length);
-        if (remainingSlots === 0) {
-            alert('전문가 지식 베이스는 최대 10개까지 등록할 수 있습니다.');
-            e.target.value = '';
-            return;
-        }
-
         const supportedFiles = files.filter(file => file.type === 'application/pdf' || file.type.startsWith('image/'));
         if (supportedFiles.length === 0) {
             alert('PDF 또는 이미지 파일만 업로드 가능합니다.');
@@ -80,9 +73,26 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
             return;
         }
 
-        const filesToUpload = supportedFiles.slice(0, remainingSlots);
-        if (supportedFiles.length > remainingSlots) {
-            alert(`최대 10개까지 등록 가능합니다. ${remainingSlots}개만 업로드합니다.`);
+        const pdfCount = academicFiles.filter(file => file.mimeType === 'application/pdf').length;
+        const imageCount = academicFiles.filter(file => file.mimeType.startsWith('image/')).length;
+        const remainingPdfSlots = Math.max(0, 10 - pdfCount);
+        const remainingImageSlots = Math.max(0, 10 - imageCount);
+
+        const pdfFiles = supportedFiles.filter(file => file.type === 'application/pdf');
+        const imageFiles = supportedFiles.filter(file => file.type.startsWith('image/'));
+
+        if (pdfFiles.length > remainingPdfSlots || imageFiles.length > remainingImageSlots) {
+            alert(`PDF 최대 ${remainingPdfSlots}개, 이미지 최대 ${remainingImageSlots}개까지 업로드 가능합니다.`);
+        }
+
+        const filesToUpload = [
+            ...pdfFiles.slice(0, remainingPdfSlots),
+            ...imageFiles.slice(0, remainingImageSlots)
+        ];
+
+        if (filesToUpload.length === 0) {
+            e.target.value = '';
+            return;
         }
 
         try {
@@ -285,7 +295,9 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                                     <BookOpen size={16} color="#3b82f6" />
                                     전문가 지식 베이스 (PDF/이미지)
                                 </label>
-                                <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>{academicFiles.length}/10개</span>
+                                <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                                    PDF {academicFiles.filter(file => file.mimeType === 'application/pdf').length}/10 · 이미지 {academicFiles.filter(file => file.mimeType.startsWith('image/')).length}/10
+                                </span>
                             </div>
 
                             <div className="file-list">
@@ -321,7 +333,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                                     multiple
                                     style={{ display: 'none' }}
                                     onChange={handleFileUpload}
-                                    disabled={isUploading || academicFiles.length >= 10}
+                                    disabled={isUploading}
                                 />
                                 {isUploading ? (
                                     <>
@@ -334,7 +346,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                                 )}
                             </label>
                             <p className="help-text" style={{ marginTop: '8px', color: '#6b7280' }}>
-                                * 업로드된 PDF/이미지는 대화 시 AI의 핵심 지식으로 활용됩니다. 이미지 해상도는 3600x3600 이하만 지원됩니다.
+                                * PDF는 최대 10개, 이미지는 최대 10개까지 등록할 수 있습니다. 이미지 해상도는 3600x3600 이하만 지원됩니다.
                             </p>
                         </div>
 
