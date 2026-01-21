@@ -10,7 +10,7 @@
 import { GoogleGenAI, createPartFromUri, FunctionCallingConfigMode, type ThinkingConfig, type ThinkingLevel } from '@google/genai';
 import { MAP_TOOL_DECLARATIONS } from '../types/actions';
 import { searchKnowledge } from '../data/academicKnowledge';
-import type { Insight, InsightType } from '../types/liveblocks';
+import type { ChatMessage, Insight, InsightType } from '../types/liveblocks';
 
 export type AIProvider = 'gemini';
 
@@ -42,6 +42,7 @@ class AIService {
   private currentThoughts: string[] = []; // 현재 세션의 사고 과정 저장
   private academicFiles: FileMetadata[] = []; // 전문 서적 지식 파일 목록
   private insights: Insight[] = []; // AI 동적 인사이트 캐싱
+  private modelTokenLimitCache: Record<string, { inputTokenLimit: number; outputTokenLimit: number; updatedAt: number }> = {};
 
   private getSystemInstruction(): string {
     return `
@@ -503,8 +504,13 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 
     // v2.0 SDK에서 응답 객체 가져오기
     const response = await result.response;
+    if (!response) {
+      console.error('❌ [AIService] Empty response from sendMessage');
+      throw new Error('AI 응답이 비어 있습니다. 잠시 후 다시 시도해주세요.');
+    }
     const candidate = response.candidates?.[0];
     const responseParts = candidate?.content?.parts || [];
+    const responseText = typeof response.text === 'string' ? response.text : '';
 
     console.log('📡 AI Raw Result Parts Count:', responseParts.length);
 
@@ -525,6 +531,10 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
         text += part.text;
       }
     });
+
+    if (!text && responseText) {
+      text = responseText;
+    }
 
     // 툴 호출 여부 확인
     let functionCalls = responseParts
@@ -564,13 +574,19 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
           ]
         });
         const toolResponsePayload = await toolResponse.response;
-        const toolParts = toolResponsePayload.candidates?.[0]?.content?.parts || [];
+        if (!toolResponsePayload) {
+          console.warn('⚠️ [AIService] Empty tool response payload for academic search');
+        }
+        const toolParts = toolResponsePayload?.candidates?.[0]?.content?.parts || [];
 
         // 최종 답변 업데이트
-        text = toolParts
+        const toolText = toolParts
           .map((part: any) => (typeof part?.text === 'string' ? part.text : ''))
           .filter(Boolean)
           .join('');
+        if (toolText) {
+          text = toolText;
+        }
         functionCalls = toolParts
           .filter((part: any) => part?.functionCall)
           .map((part: any) => part.functionCall);
@@ -1305,6 +1321,94 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     }
 
     return null;
+  }
+
+  public estimateTokenCount(text: string): number {
+    if (!text) return 0;
+    return Math.ceil(text.length / 4);
+  }
+
+  public async getModelTokenLimits(modelName?: string): Promise<{ inputTokenLimit: number; outputTokenLimit: number }> {
+    const resolvedModel = modelName || this.currentConfig?.modelName || 'gemini-2.5-flash-lite';
+    const cached = this.modelTokenLimitCache[resolvedModel];
+    if (cached) return { inputTokenLimit: cached.inputTokenLimit, outputTokenLimit: cached.outputTokenLimit };
+
+    const fallback = { inputTokenLimit: 200000, outputTokenLimit: 8192 };
+    if (!this.geminiClient) {
+      console.warn('⚠️ [AIService] Gemini client not initialized, using fallback token limits');
+      return fallback;
+    }
+
+    try {
+      const modelInfo = await this.geminiClient.models.get({ model: resolvedModel });
+      const inputTokenLimit = modelInfo?.inputTokenLimit ?? fallback.inputTokenLimit;
+      const outputTokenLimit = modelInfo?.outputTokenLimit ?? fallback.outputTokenLimit;
+      this.modelTokenLimitCache[resolvedModel] = {
+        inputTokenLimit,
+        outputTokenLimit,
+        updatedAt: Date.now(),
+      };
+      return { inputTokenLimit, outputTokenLimit };
+    } catch (error) {
+      console.warn('⚠️ [AIService] Failed to fetch model token limits, using fallback', error);
+      return fallback;
+    }
+  }
+
+  public async summarizeChatMessages(
+    messages: ChatMessage[],
+    options?: {
+      maxInputTokens?: number;
+      maxOutputChars?: number;
+      maxMessages?: number;
+      includeSystem?: boolean;
+    }
+  ): Promise<string> {
+    const maxOutputChars = options?.maxOutputChars ?? 1200;
+    const maxInputTokens = options?.maxInputTokens ?? 3000;
+    const includeSystem = options?.includeSystem ?? false;
+    const maxMessages = options?.maxMessages ?? 120;
+
+    const filtered = messages
+      .filter((msg) => !!msg?.content && (includeSystem || msg.role !== 'system'))
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .slice(-maxMessages);
+
+    if (filtered.length === 0) return '';
+
+    const formatLine = (msg: ChatMessage) => {
+      const roleLabel = msg.role === 'assistant' ? 'AI' : msg.role === 'system' ? 'SYSTEM' : msg.userName || 'USER';
+      return `[${roleLabel}] ${msg.content}`.trim();
+    };
+
+    let trimmed = [...filtered];
+    let logText = trimmed.map(formatLine).join('\n');
+
+    while (trimmed.length > 1 && this.estimateTokenCount(logText) > maxInputTokens) {
+      trimmed = trimmed.slice(1);
+      logText = trimmed.map(formatLine).join('\n');
+    }
+
+    if (!logText) return '';
+
+    const prompt = `다음은 Culture-MAP 프로젝트의 채팅 로그입니다.\n\n${logText}\n\n요약 지침:\n- 보고서 생성에 필요한 핵심 사실/결론/결정 사항 중심\n- 불필요한 수사와 반복 제거\n- ${maxOutputChars}자 이내\n- 한국어로 간결한 문장 또는 불릿으로 정리`;
+
+    try {
+      const summary = (await this.callGemini(prompt)).trim();
+      if (!summary) return '';
+      if (summary.length > maxOutputChars) {
+        return summary.slice(0, maxOutputChars) + '…';
+      }
+      return summary;
+    } catch (error) {
+      console.error('❌ [AIService] Chat summary failed, using fallback', error);
+      const fallback = trimmed.slice(-8).map(formatLine).join('\n');
+      if (!fallback) return '';
+      if (fallback.length > maxOutputChars) {
+        return fallback.slice(0, maxOutputChars) + '…';
+      }
+      return fallback;
+    }
   }
 
   // ============================================

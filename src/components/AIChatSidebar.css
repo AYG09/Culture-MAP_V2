@@ -421,6 +421,14 @@
     color: var(--text-secondary, #475569);
 }
 
+.attachment-preview {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    object-fit: cover;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
 .ai-chat-sidebar .attachment-chip button {
     border: none;
     background: transparent;

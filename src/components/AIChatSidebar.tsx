@@ -73,6 +73,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     const [isLoading, setIsLoading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState<string | null>(null);
     const [attachments, setAttachments] = useState<File[]>([]);
+    const [attachmentPreviews, setAttachmentPreviews] = useState<Record<string, string>>({});
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -451,9 +452,54 @@ ${layerHeightContext}
         }
     };
 
+    const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        const items = e.clipboardData?.items;
+        if (!items || items.length === 0) return;
+
+        const imageItem = Array.from(items).find(
+            (item) => item.kind === 'file' && item.type.startsWith('image/')
+        );
+
+        if (!imageItem) return;
+
+        const file = imageItem.getAsFile();
+        if (!file) return;
+
+        e.preventDefault();
+        setAttachments([file]);
+        setUploadProgress(null);
+    };
+
     const removeAttachment = (index: number) => {
         setAttachments(prev => prev.filter((_, i) => i !== index));
     };
+
+    useEffect(() => {
+        const nextPreviews: Record<string, string> = {};
+
+        attachments.forEach((file) => {
+            if (!file.type.startsWith('image/')) return;
+            const key = `${file.name}-${file.size}-${file.lastModified}`;
+            if (attachmentPreviews[key]) {
+                nextPreviews[key] = attachmentPreviews[key];
+                return;
+            }
+            const objectUrl = URL.createObjectURL(file);
+            nextPreviews[key] = objectUrl;
+        });
+
+        Object.entries(attachmentPreviews).forEach(([key, url]) => {
+            if (!nextPreviews[key]) {
+                URL.revokeObjectURL(url);
+            }
+        });
+
+        setAttachmentPreviews(nextPreviews);
+
+        return () => {
+            Object.values(nextPreviews).forEach((url) => URL.revokeObjectURL(url));
+        };
+    }, [attachments]);
 
     return (
         <div className="ai-chat-sidebar">
@@ -621,15 +667,23 @@ ${layerHeightContext}
             <div className="chat-footer">
                 {attachments.length > 0 && (
                     <div className="attachment-list">
-                        {attachments.map((file, i) => (
-                            <div key={i} className="attachment-chip">
-                                <FileText size={12} />
-                                <span className="file-name">{file.name}</span>
-                                <button onClick={() => removeAttachment(i)} aria-label={`${file.name} 첨부 제거`}>
-                                    <X size={12} />
-                                </button>
-                            </div>
-                        ))}
+                        {attachments.map((file, i) => {
+                            const previewKey = `${file.name}-${file.size}-${file.lastModified}`;
+                            const previewUrl = attachmentPreviews[previewKey];
+                            return (
+                                <div key={previewKey} className="attachment-chip">
+                                    {previewUrl ? (
+                                        <img src={previewUrl} alt={file.name} className="attachment-preview" />
+                                    ) : (
+                                        <FileText size={12} />
+                                    )}
+                                    <span className="file-name">{file.name}</span>
+                                    <button onClick={() => removeAttachment(i)} aria-label={`${file.name} 첨부 제거`}>
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
 
@@ -655,6 +709,7 @@ ${layerHeightContext}
                         placeholder="메시지를 입력하세요..."
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
+                        onPaste={handlePaste}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter' && !e.shiftKey) {
                                 e.preventDefault();

@@ -290,8 +290,29 @@ ${mapDataSection}
 ${chatHistorySection}
 `;
 
+      // 4-1. 채팅 요약 생성 (토큰 예산 고려)
+      const chatMessages = liveblocksService.getChatMessages();
+      const basePrompt = `${promptTemplate}\n\n${fullContext}`;
+      const baseTokens = aiService.estimateTokenCount(basePrompt);
+      const modelLimits = await aiService.getModelTokenLimits();
+      const reservedTokens = 12000; // 출력/안전 여유분
+      const remainingTokens = Math.max(modelLimits.inputTokenLimit - reservedTokens - baseTokens, 0);
+      const summaryInputBudget = Math.min(Math.floor(remainingTokens * 0.2), 12000);
+
+      const chatSummary = summaryInputBudget > 0
+        ? await aiService.summarizeChatMessages(chatMessages, {
+            maxInputTokens: summaryInputBudget,
+            maxOutputChars: 1200,
+            maxMessages: 160,
+          })
+        : '';
+
+      const fullContextWithSummary = chatSummary
+        ? `${fullContext}\n\n## 3. 최근 채팅 요약\n\n${chatSummary}\n`
+        : fullContext;
+
       // 5. AI에게 분석 요청
-      const fullPrompt = `${promptTemplate}\n\n${fullContext}\n\n위 Culture Map 데이터와 캐싱된 AI 분석 인사이트를 바탕으로 종합 분석 보고서를 작성해주세요.
+      const fullPrompt = `${promptTemplate}\n\n${fullContextWithSummary}\n\n위 Culture Map 데이터와 캐싱된 AI 분석 인사이트를 바탕으로 종합 분석 보고서를 작성해주세요.
 인사이트에 포함된 버크만 진단, RACI, 조직도 분석 결과가 있다면 솔루션 제안에 적극 반영해주세요.
 특히 솔루션 실행 담당자 배정 시 관련 인물 정보와 개인별 특성을 참고해주세요.`;
       
