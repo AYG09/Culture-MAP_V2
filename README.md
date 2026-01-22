@@ -1,6 +1,6 @@
 # 🎯 Culture-MAP v2 - 조직문화 분석기
 
-> **Live Demo**: https://culturemapwithai.vercel.app/
+> **Live Demo**: https://culture-map-v2.vercel.app/
 
 Liveblocks + Yjs 기반의 실시간 협업 웹서비스입니다. 조직문화를 4층위 모델로 분석하고 시각화하며, Gemini 3.0 Flash Thinking 모델을 통한 지능형 분석을 지원합니다.
 
