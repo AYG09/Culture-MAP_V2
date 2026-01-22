@@ -1453,18 +1453,20 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     };
 
     const directAlias = aliasMap[preferredModel];
-    if (directAlias && available.includes(directAlias)) {
-      return directAlias;
+    if (directAlias) {
+      if (available.length === 0 || available.includes(directAlias)) {
+        return directAlias;
+      }
     }
 
     if (preferredModel.endsWith('-flash')) {
       const preview = `${preferredModel}-preview`;
-      if (available.includes(preview)) return preview;
+      if (available.length === 0 || available.includes(preview)) return preview;
     }
 
     if (preferredModel.endsWith('-pro')) {
       const preview = `${preferredModel}-preview`;
-      if (available.includes(preview)) return preview;
+      if (available.length === 0 || available.includes(preview)) return preview;
     }
 
     return null;
@@ -1475,7 +1477,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     if (!this.geminiClient) return [];
 
     try {
-      const result: any = await this.geminiClient.models.list({ pageSize: 200, queryBase: true });
+      const result: any = await this.geminiClient.models.list();
       const rawModels: any[] = [];
 
       if (Array.isArray(result?.models)) {
@@ -1507,18 +1509,22 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
   private async validateModelAvailability(preferredModel: string) {
     if (!preferredModel) return;
     const available = await this.fetchAvailableModels();
-    if (available.length === 0) return;
-
     const normalizedPreferred = this.normalizeModelId(preferredModel);
-    if (available.includes(normalizedPreferred)) {
+    const currentConfig = this.currentConfig;
+    if (!currentConfig) return;
+    if (available.length > 0 && available.includes(normalizedPreferred)) {
       return;
     }
 
     const alias = this.resolveModelAlias(normalizedPreferred, available);
     if (alias) {
       console.warn('⚠️ [AIService] Model alias resolved:', preferredModel, '→', alias);
-      this.currentConfig = { ...this.currentConfig, modelName: alias };
+      this.currentConfig = { ...currentConfig, modelName: alias };
       localStorage.setItem('culture-map-ai-config', JSON.stringify(this.currentConfig));
+      return;
+    }
+
+    if (available.length === 0) {
       return;
     }
 
@@ -1527,7 +1533,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       : available[0];
 
     console.warn('⚠️ [AIService] Selected model not available:', preferredModel, '→ using', fallback);
-    this.currentConfig = { ...this.currentConfig, modelName: fallback };
+    this.currentConfig = { ...currentConfig, modelName: fallback };
     localStorage.setItem('culture-map-ai-config', JSON.stringify(this.currentConfig));
   }
 
