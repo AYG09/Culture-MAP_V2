@@ -20,6 +20,7 @@ interface GatewayProps {
 }
 
 const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
+  const LAST_SESSION_STORAGE_KEY = 'culture-map-last-session';
   const [isAuth, setIsAuth] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
@@ -39,6 +40,17 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const persistLastSession = (code: string, isHost: boolean) => {
+    localStorage.setItem(
+      LAST_SESSION_STORAGE_KEY,
+      JSON.stringify({ code, isHost })
+    );
+  };
+
+  const clearLastSession = () => {
+    localStorage.removeItem(LAST_SESSION_STORAGE_KEY);
+  };
+
   // 초기화
   useEffect(() => {
     const init = async () => {
@@ -48,7 +60,25 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
       if (skipGate === 'true') {
         console.log('🚪 [Gateway] 개발 모드 - 자동 연결');
         await handleDevModeAutoJoin();
+        persistLastSession('DEV-LOCAL', true);
       } else {
+        const stored = localStorage.getItem(LAST_SESSION_STORAGE_KEY);
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored) as { code: string; isHost?: boolean };
+            if (parsed.code) {
+              console.log('🔁 [Gateway] 마지막 세션 자동 재접속 시도:', parsed.code);
+              await liveblocksService.joinSession(parsed.code, parsed.isHost ?? false);
+              setIsAuth(true);
+              if (onAuthenticated) onAuthenticated(parsed.code);
+              setIsLoading(false);
+              return;
+            }
+          } catch {
+            clearLastSession();
+          }
+        }
+
         console.log('🚪 [Gateway] 일반 모드 - 세션 목록 로드');
         await loadSessions();
         setIsLoading(false);
@@ -126,6 +156,8 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
 
       const code = await liveblocksService.createSession(newSessionName || '새 세션', 'workshop');
 
+      persistLastSession(code, true);
+
       saveSession({
         code,
         name: newSessionName || '새 세션',
@@ -152,13 +184,16 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
     setIsSubmitting(true);
 
     try {
-      await liveblocksService.joinSession(sessionCode.toUpperCase(), false);
+      const code = sessionCode.toUpperCase();
+      await liveblocksService.joinSession(code, false);
+      persistLastSession(code, false);
       setIsAuth(true);
       setShowJoinModal(false);
-      if (onAuthenticated) onAuthenticated(sessionCode.toUpperCase());
+      if (onAuthenticated) onAuthenticated(code);
     } catch (err) {
       console.error('Session join failed:', err);
       setError('세션 입장에 실패했습니다. 코드를 확인해주세요.');
+      clearLastSession();
     } finally {
       setIsSubmitting(false);
     }

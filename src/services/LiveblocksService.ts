@@ -32,6 +32,7 @@ class LiveblocksService {
     private userId: string;
     private displayName: string;
     private userColor: string;
+    private hasClearedIndexeddbCache = false;
     private listeners: EventListeners = {};
 
     constructor() {
@@ -92,6 +93,7 @@ class LiveblocksService {
         this.leaveRoom = leave;
         this.provider = new LiveblocksYjsProvider(room as any, this.yDoc);
         this.indexeddbProvider = new IndexeddbPersistence(roomId, this.yDoc);
+        this.hasClearedIndexeddbCache = false;
 
         this.currentSession = { code, isHost, connectedUsers: 1, name: sessionName, type: sessionType };
 
@@ -116,6 +118,14 @@ class LiveblocksService {
 
         this.setupDataListeners();
         this.indexeddbProvider.on('synced', () => this.emit('sync-complete', { code }));
+
+        const handleProviderSync = async (isSynced: boolean) => {
+            if (!isSynced || this.hasClearedIndexeddbCache) return;
+            this.hasClearedIndexeddbCache = true;
+            await this.resetIndexeddbCacheAfterSync(code);
+            this.provider?.off('sync', handleProviderSync);
+        };
+        this.provider.on('sync', handleProviderSync);
     }
 
     /**
@@ -445,6 +455,16 @@ class LiveblocksService {
     private generateUserColor(): string {
         const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'];
         return colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    private async resetIndexeddbCacheAfterSync(code: string): Promise<void> {
+        if (!this.indexeddbProvider) return;
+        try {
+            await this.indexeddbProvider.clearData();
+            console.log(`🧹 [Liveblocks] IndexedDB cache cleared after sync: ${code}`);
+        } catch (error) {
+            console.warn('⚠️ [Liveblocks] IndexedDB cache clear failed:', error);
+        }
     }
 
     private setupDataListeners(): void {

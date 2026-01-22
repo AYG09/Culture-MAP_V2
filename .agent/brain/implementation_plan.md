@@ -1,3 +1,110 @@
+# Implementation Plan: 새로고침 시 세션 자동 재접속
+
+## 목표
+1. 페이지 새로고침 시 마지막 세션으로 자동 재접속
+2. 사용자가 명시적으로 나가기 버튼을 누르면 자동 재접속 해제
+
+---
+
+## 핵심 변경 범위
+
+### 1) Gateway 초기화 로직
+- 마지막 세션 코드(localStorage) 확인
+- 자동 재접속 성공 시 게이트 스킵
+
+### 2) 세션 저장/정리
+- 세션 생성/입장 시 마지막 세션 저장
+- 세션 나가기 시 저장값 제거
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 저장된 세션 코드가 만료됨 | 재접속 실패 | 실패 시 저장값 제거 후 목록 로드 |
+| 의도치 않은 자동 재접속 | UX 혼란 | 나가기 시 저장값 삭제 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 재접속 시 루프 발생
+- 세션 목록이 로드되지 않음
+
+### 롤백 절차
+```bash
+git checkout -- src/components/Gateway.tsx
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. 세션 입장 후 새로고침 시 자동 재접속 확인
+2. 나가기 후 새로고침 시 게이트 화면 표시 확인
+
+---
+
+# Implementation Plan: 동기화 완료 후 IndexedDB 캐시 리셋
+
+## 목표
+1. Liveblocks 서버 동기화 완료 이후에만 브라우저 IndexedDB 캐시 초기화
+2. 브라우저 간 캐시 불일치로 인한 구버전 노드/채팅 표시 방지
+
+---
+
+## 핵심 변경 범위
+
+### 1) Liveblocks 동기화 이벤트 후처리
+- `LiveblocksYjsProvider.on("sync")`로 서버 동기화 완료 감지
+- 1회만 `IndexeddbPersistence.clearData()` 호출
+
+### 2) 캐시 리셋 제어
+- 세션 재접속 시 플래그 초기화
+- 동기화 완료 후 반복 호출 방지
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 동기화 전에 캐시 삭제 | 데이터 유실 | sync 이벤트 이후에만 실행 |
+| 반복 삭제 | 불필요한 IO | 플래그로 1회만 실행 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 동기화 완료 후에도 데이터 미표시
+- 재접속 시 캐시 초기화 반복 호출
+
+### 롤백 절차
+```bash
+git checkout -- src/services/LiveblocksService.ts
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. 크롬/엣지에서 동일 세션 접속 후 동일한 노드 상태 표시 확인
+2. 새로고침 후에도 서버 최신 상태가 유지되는지 확인
+
+---
+
 # Implementation Plan: DEV-LOCAL 채팅 내역 초기화
 
 ## 목표

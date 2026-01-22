@@ -2258,6 +2258,7 @@ ${chatHistorySection}
                   type="button"
                   onClick={() => {
                     if (window.confirm('세션에서 나가시겠습니까?\n\n작업 내용은 저장됩니다.')) {
+                      localStorage.removeItem('culture-map-last-session');
                       liveblocksService.leaveSession();
                       window.location.reload();
                     }
