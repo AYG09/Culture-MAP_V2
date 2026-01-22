@@ -316,16 +316,15 @@ ${chatHistorySection}
 인사이트에 포함된 버크만 진단, RACI, 조직도 분석 결과가 있다면 솔루션 제안에 적극 반영해주세요.
 특히 솔루션 실행 담당자 배정 시 관련 인물 정보와 개인별 특성을 참고해주세요.`;
       
-      // 새 채팅 세션 시작 (도구 호출 없이 순수 텍스트 응답)
-      aiService.startChat([]);
-      const response = await aiService.sendChatMessage(fullPrompt);
+      // 단발성 생성 (채팅 세션/히스토리와 분리)
+      const responseText = await aiService.analyzeCulture(fullPrompt);
 
-      if (!response || !response.text) {
+      if (!responseText) {
         throw new Error('AI 응답을 받지 못했습니다.');
       }
 
       // 6. 마크다운을 HTML로 변환
-      const htmlContent = parseMarkdown(response.text);
+      const htmlContent = parseMarkdown(responseText);
 
       // 7. 보고서 내용 설정 및 탭 전환
       setReportContent(htmlContent);

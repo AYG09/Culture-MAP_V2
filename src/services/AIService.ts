@@ -11,6 +11,7 @@ import { GoogleGenAI, createPartFromUri, FunctionCallingConfigMode, type Thinkin
 import { MAP_TOOL_DECLARATIONS } from '../types/actions';
 import { searchKnowledge } from '../data/academicKnowledge';
 import type { ChatMessage, Insight, InsightType } from '../types/liveblocks';
+import ragService from './RagService';
 
 export type AIProvider = 'gemini';
 
@@ -43,6 +44,17 @@ class AIService {
   private academicFiles: FileMetadata[] = []; // 전문 서적 지식 파일 목록
   private insights: Insight[] = []; // AI 동적 인사이트 캐싱
   private modelTokenLimitCache: Record<string, { inputTokenLimit: number; outputTokenLimit: number; updatedAt: number }> = {};
+  private readonly academicKeywords = [
+    // 이론가/학자 이름
+    '샤인', 'schein', '에드가', 'edgar', '로빈스', 'robbins', 'cummings', 'worley',
+    // 학술 개념
+    '이론', '관점', '모델', '프레임워크', '원리', '원칙', '연구', '학술',
+    '인공물', 'artifact', '가정', 'assumption', '가치', 'value',
+    '조직문화', '조직행동', '리더십', '변화관리', 'od', '조직개발',
+    // 분석 요청
+    '분석', '진단', '평가', '해석', '설명', '비교', '적용',
+    '장점', '단점', '의미', '가치', '중요성', '시사점'
+  ];
 
   private getSystemInstruction(): string {
     return `
@@ -66,6 +78,12 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 1. **문화 진단 전문가**: 샤인 이론, 로빈스 조직행동론 등 학술 지식 기반 분석
 2. **맵 편집 도우미**: 사용자 요청 시 노드 추가/수정/삭제 (도구 사용)
 3. **전략 컨설턴트**: 문화 변화 전략 및 실행 계획 제안
+
+## 커뮤니케이션 페르소나
+- **포지션**: 조직문화 컨설팅 파트너
+- **톤**: 전문적이되 친절하고 단정한 존댓말
+- **구조**: 핵심 요약 → 근거/진단 → 실행 제안(담당/우선순위 포함)
+- **원칙**: 불확실한 내용은 추정하지 말고 질문으로 확인
 
 ## 도구 사용 규칙
 1. 노드 추가/수정 후 반드시 auto_layout 호출하여 정리
@@ -149,6 +167,8 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     if (config.provider === 'gemini' && config.apiKey) {
       this.geminiClient = new GoogleGenAI({ apiKey: config.apiKey });
     }
+
+    ragService.setClient(this.geminiClient);
 
     // 설정 변경 시 localStorage에 저장
     localStorage.setItem('culture-map-ai-config', JSON.stringify(normalized));
@@ -343,6 +363,33 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
         console.log('📚 [AIService] AI requested academic knowledge:', topic);
         const availableFiles = this.academicFiles.map(file => file.displayName || file.name).filter(Boolean);
         console.log('📚 [AIService] Academic files available:', availableFiles.join(', '));
+
+        const ragContext = await ragService.retrieveContext(topic, {
+          topK: 6,
+          minScore: 0.2,
+          maxContextChars: 7000
+        });
+
+        if (ragContext?.contextText) {
+          try {
+            const followUp = await session!.sendMessage({
+              message: `[시스템] 다음은 문서 기반 RAG 검색 결과입니다. 이 근거를 우선 사용하여 답변하세요. 불확실한 내용은 추정하지 마세요.\n\n${ragContext.contextText}\n\n[질문]\n${topic}`
+            });
+            const followUpParts = extractPartsFromResponse(followUp);
+            for (const part of followUpParts) {
+              if (part.text) {
+                fullText += '\n\n' + part.text;
+                yield { type: 'text', content: '\n\n' + part.text, fullText };
+              } else if (part.functionCall && !internalTools.includes(part.functionCall.name)) {
+                externalActions.push(part.functionCall);
+              }
+            }
+          } catch (err) {
+            console.error('❌ [AIService] Error using RAG context:', err);
+          }
+
+          continue;
+        }
         
         // PDF 선택 (AI가 제공한 topic 기반)
         const selectedFiles = await this.selectAcademicFilesForTopic(topic);
@@ -455,6 +502,12 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       }
     }
 
+    if (!fullText.trim() && externalActions.length === 0) {
+      const fallbackText = 'AI 응답이 비어 있습니다. 잠시 후 다시 시도해주세요.';
+      fullText = fallbackText;
+      yield { type: 'text', content: fallbackText, fullText };
+    }
+
     const modelParts: any[] = [];
     if (fullText) {
       modelParts.push({ text: fullText });
@@ -479,80 +532,105 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       this.startChat();
     }
 
-    const parts: any[] = [{ text: prompt }];
+    // 등록된 학술 지식 파일 중 관련성 높은 파일만 동적으로 추가
+    const selectedFiles = this.selectRelevantFiles(prompt, 1);
+    const buildParts = (messageText: string, includeAcademicFiles: boolean) => {
+      const messageParts: Array<{ text?: string } | ReturnType<typeof createPartFromUri>> = [{ text: messageText }];
+
+      if (includeAcademicFiles) {
+        selectedFiles.forEach(file => {
+          messageParts.push(createPartFromUri(file.uri, file.mimeType));
+        });
+      }
+
+      if (fileUri && mimeType) {
+        messageParts.push(createPartFromUri(fileUri, mimeType));
+      }
+
+      return messageParts;
+    };
+
+    const runSendMessage = async (messageParts: Array<{ text?: string } | ReturnType<typeof createPartFromUri>>) => {
+      if (messageParts.length === 1 && messageParts[0].text) {
+        return this.chatSession!.sendMessage({ message: messageParts[0].text });
+      }
+      return this.chatSession!.sendMessage({ message: messageParts });
+    };
+
+    const parseResponse = (response: any, fallbackParts?: any[]) => {
+      const candidate = response?.candidates?.[0];
+      const responseParts = candidate?.content?.parts || [];
+      const responseText = typeof response?.text === 'string' ? response.text : '';
+
+      console.log('📡 AI Raw Result Parts Count:', responseParts.length);
+
+      this.currentThoughts = [];
+      let parsedText = '';
+
+      responseParts.forEach((part: any) => {
+        if (part.thought) {
+          const thoughtText = typeof part.thought === 'string' ? part.thought : part.text;
+          if (thoughtText) {
+            this.currentThoughts.push(thoughtText);
+            console.log('🧠 AI Thought:', thoughtText);
+          }
+        } else if (part.text) {
+          parsedText += part.text;
+        }
+      });
+
+      if (!parsedText && responseText) {
+        parsedText = responseText;
+      }
+
+      let parsedFunctionCalls = responseParts
+        .filter((p: any) => p.functionCall)
+        .map((p: any) => p.functionCall);
+
+      if ((!parsedFunctionCalls || parsedFunctionCalls.length === 0) && Array.isArray(fallbackParts)) {
+        parsedFunctionCalls = fallbackParts
+          .filter((p: any) => p.functionCall)
+          .map((p: any) => p.functionCall);
+      }
+
+      if (!parsedText && parsedFunctionCalls && parsedFunctionCalls.length > 0) {
+        parsedText = '요청하신 작업을 위한 도구 실행을 준비 중입니다.';
+      }
+
+      return { parsedText, parsedFunctionCalls, responseParts };
+    };
+
     if (prompt) {
       this.chatHistory.push({ role: 'user', parts: [{ text: prompt }] });
     }
 
-    // 등록된 학술 지식 파일 중 관련성 높은 파일만 동적으로 추가
-    const selectedFiles = this.selectRelevantFiles(prompt, 1);
-    selectedFiles.forEach(file => {
-      parts.push(createPartFromUri(file.uri, file.mimeType));
-    });
+    const initialParts = buildParts(prompt, true);
+    let result = await runSendMessage(initialParts);
 
-    if (fileUri && mimeType) {
-      parts.push(createPartFromUri(fileUri, mimeType));
-    }
-
-    // @google/genai SDK: sendMessage는 { message: string | PartUnion[] } 형식 필요
-    let result;
-    if (parts.length === 1 && parts[0].text) {
-      result = await this.chatSession!.sendMessage({ message: parts[0].text });
-    } else {
-      result = await this.chatSession!.sendMessage({ message: parts });
-    }
-
-    // v2.0 SDK에서 응답 객체 가져오기
-    const response = await result.response;
+    let response = await result.response;
     if (!response) {
-      console.error('❌ [AIService] Empty response from sendMessage');
-      throw new Error('AI 응답이 비어 있습니다. 잠시 후 다시 시도해주세요.');
+      console.warn('⚠️ [AIService] Empty response payload from sendMessage');
     }
-    const candidate = response.candidates?.[0];
-    const responseParts = candidate?.content?.parts || [];
-    const responseText = typeof response.text === 'string' ? response.text : '';
 
-    console.log('📡 AI Raw Result Parts Count:', responseParts.length);
+    let { parsedText: text, parsedFunctionCalls: functionCalls } = parseResponse(response, (result as any).parts);
 
-    // 사고 과정(Thought) 및 텍스트 분리 파싱
-    this.currentThoughts = [];
-    let text = '';
+    if (!text?.trim() && (!functionCalls || functionCalls.length === 0)) {
+      console.warn('⚠️ [AIService] Empty content detected, retrying without academic attachments');
+      const retryPrompt = `${prompt}\n\n[시스템] 이전 응답이 비어 있었습니다. 동일 요청에 대해 반드시 텍스트로 답변하세요. 최소 5문장 이상으로 작성하세요.`;
+      this.chatHistory.push({ role: 'user', parts: [{ text: retryPrompt }] });
 
-    responseParts.forEach((part: any) => {
-      // 'thought: true'이거나 'thought' 필드가 있는 경우 사고 과정으로 분류
-      if (part.thought) {
-        const thoughtText = typeof part.thought === 'string' ? part.thought : part.text;
-        if (thoughtText) {
-          this.currentThoughts.push(thoughtText);
-          console.log('🧠 AI Thought:', thoughtText);
-        }
-      } else if (part.text) {
-        // 일반 대화 텍스트만 누적
-        text += part.text;
+      const retryParts = buildParts(retryPrompt, false);
+      result = await runSendMessage(retryParts);
+      response = await result.response;
+
+      if (!response) {
+        console.error('❌ [AIService] Empty response from sendMessage after retry');
+        throw new Error('AI 응답이 비어 있습니다. 잠시 후 다시 시도해주세요.');
       }
-    });
 
-    if (!text && responseText) {
-      text = responseText;
-    }
-
-    // 툴 호출 여부 확인
-    let functionCalls = responseParts
-      .filter((p: any) => p.functionCall)
-      .map((p: any) => p.functionCall);
-
-    // 만약 functionCalls가 비어있다면 파트에서 수동 추출 시도
-    if (!functionCalls || functionCalls.length === 0) {
-      if ((result as any).parts) {
-        functionCalls = (result as any).parts
-          .filter((p: any) => p.functionCall)
-          .map((p: any) => p.functionCall);
-      }
-    }
-
-    // 만약 텍스트가 없고 툴 호출만 있다면 기본 텍스트 제공
-    if (!text && functionCalls && functionCalls.length > 0) {
-      text = "요청하신 작업을 위한 도구 실행을 준비 중입니다.";
+      const retryParsed = parseResponse(response, (result as any).parts);
+      text = retryParsed.parsedText;
+      functionCalls = retryParsed.parsedFunctionCalls;
     }
 
     // 학술 지식 검색 도구가 호출된 경우 자동 처리
@@ -646,7 +724,9 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
    */
   public async uploadAcademicFile(file: File): Promise<FileMetadata> {
     if (file.type === 'application/pdf') {
-      return this.uploadPDF(file);
+      const metadata = await this.uploadPDF(file);
+      this.indexAcademicPdfInBackground(file, metadata);
+      return metadata;
     }
 
     if (file.type.startsWith('image/')) {
@@ -661,6 +741,20 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     }
 
     throw new Error('PDF 또는 이미지 파일만 업로드 가능합니다.');
+  }
+
+  private indexAcademicPdfInBackground(file: File, metadata: FileMetadata) {
+    if (!this.geminiClient) return;
+    void ragService
+      .indexAcademicPdf(file, { id: metadata.name, name: metadata.displayName })
+      .then((result) => {
+        if (result && result.chunkCount > 0) {
+          console.log(`📚 [AIService] RAG indexed: ${metadata.displayName} (${result.chunkCount} chunks)`);
+        }
+      })
+      .catch((error) => {
+        console.warn('⚠️ [AIService] RAG indexing failed:', metadata.displayName, error);
+      });
   }
 
   private async uploadFileToGemini(file: File, failureMessage: string): Promise<FileMetadata> {
@@ -1066,6 +1160,9 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
   public removeAcademicFile(fileName: string) {
     this.academicFiles = this.academicFiles.filter(f => f.name !== fileName);
     localStorage.setItem('culture-map-academic-files', JSON.stringify(this.academicFiles));
+    void ragService.removeDocument(fileName).catch((error) => {
+      console.warn('⚠️ [AIService] Failed to remove RAG index for file:', fileName, error);
+    });
   }
   /**
    * 프롬프트와 관련된 파일만 선택 (지능형 선택)
@@ -1081,19 +1178,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 
     // [1단계] 학술 지식이 필요한 질문인지 먼저 판단
     // 단순 인사, 노드 생성 요청, 일반 대화에는 PDF 로드 안 함 (토큰 절약)
-    const academicKeywords = [
-      // 이론가/학자 이름
-      '샤인', 'schein', '에드가', 'edgar', '로빈스', 'robbins', 'cummings', 'worley',
-      // 학술 개념
-      '이론', '관점', '모델', '프레임워크', '원리', '원칙', '연구', '학술',
-      '인공물', 'artifact', '가정', 'assumption', '가치', 'value',
-      '조직문화', '조직행동', '리더십', '변화관리', 'od', '조직개발',
-      // 분석 요청
-      '분석', '진단', '평가', '해석', '설명', '비교', '적용',
-      '장점', '단점', '의미', '가치', '중요성', '시사점'
-    ];
-
-    const needsAcademicKnowledge = academicKeywords.some(kw => lowerPrompt.includes(kw));
+    const needsAcademicKnowledge = this.needsAcademicKnowledge(lowerPrompt);
     
     if (!needsAcademicKnowledge) {
       console.log('📚 [AIService] No academic knowledge needed for this prompt - skipping PDF load');
@@ -1144,6 +1229,11 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     }
 
     return selected;
+  }
+
+  private needsAcademicKnowledge(prompt: string): boolean {
+    const lowerPrompt = prompt.toLowerCase();
+    return this.academicKeywords.some((keyword) => lowerPrompt.includes(keyword));
   }
 
   // 대용량 PDF 제외 키워드 (Gemini API 1000페이지 제한 초과 파일들)

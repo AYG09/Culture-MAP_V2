@@ -37,6 +37,31 @@ class DocumentService {
   }
 
   /**
+   * PDF 페이지 단위 텍스트 추출 (스트리밍용)
+   */
+  public async *iteratePdfPages(file: File): AsyncGenerator<{ pageNumber: number; text: string }> {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+    for (let i = 1; i <= pdf.numPages; i += 1) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const items = textContent.items as Array<unknown>;
+      const pageText = items
+        .map((item) => {
+          if (typeof item === 'string') return item;
+          if (item && typeof item === 'object' && 'str' in item) {
+            return String((item as { str?: unknown }).str ?? '');
+          }
+          return '';
+        })
+        .join(' ');
+
+      yield { pageNumber: i, text: pageText };
+    }
+  }
+
+  /**
    * 문서 컨텍스트 추가 (RAG 지원용)
    */
   public addContext(doc: DocumentContext) {
