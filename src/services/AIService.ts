@@ -1428,16 +1428,46 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 
   public getAvailableGeminiModels(): string[] {
     return [
+      'gemini-flash-latest',     // 최신 플래시 별칭 (preview로 전환됨)
+      'gemini-pro-latest',       // 최신 프로 별칭 (preview로 전환됨)
       'gemini-2.5-flash',        // Function Calling 지원, 추론 강화
       'gemini-2.5-flash-lite',   // Function Calling 지원, 저비용/고속
       'gemini-2.5-pro',          // 고성능 추론
       'gemini-3-flash',          // 최신 thinkingLevel 지원
+      'gemini-3-flash-preview',  // 최신 플래시 프리뷰
       'gemini-3-pro',            // 최신 플래그십
+      'gemini-3-pro-preview',    // 최신 프로 프리뷰
     ];
   }
 
   private normalizeModelId(modelName: string): string {
     return modelName.replace(/^models\//, '').trim();
+  }
+
+  private resolveModelAlias(preferredModel: string, available: string[]): string | null {
+    const aliasMap: Record<string, string> = {
+      'gemini-flash-latest': 'gemini-3-flash-preview',
+      'gemini-pro-latest': 'gemini-3-pro-preview',
+      'gemini-3-flash': 'gemini-3-flash-preview',
+      'gemini-3-pro': 'gemini-3-pro-preview',
+    };
+
+    const directAlias = aliasMap[preferredModel];
+    if (directAlias && available.includes(directAlias)) {
+      return directAlias;
+    }
+
+    if (preferredModel.endsWith('-flash')) {
+      const preview = `${preferredModel}-preview`;
+      if (available.includes(preview)) return preview;
+    }
+
+    if (preferredModel.endsWith('-pro')) {
+      const preview = `${preferredModel}-preview`;
+      if (available.includes(preview)) return preview;
+    }
+
+    return null;
   }
 
   private async fetchAvailableModels(): Promise<string[]> {
@@ -1481,6 +1511,14 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 
     const normalizedPreferred = this.normalizeModelId(preferredModel);
     if (available.includes(normalizedPreferred)) {
+      return;
+    }
+
+    const alias = this.resolveModelAlias(normalizedPreferred, available);
+    if (alias) {
+      console.warn('⚠️ [AIService] Model alias resolved:', preferredModel, '→', alias);
+      this.currentConfig = { ...this.currentConfig, modelName: alias };
+      localStorage.setItem('culture-map-ai-config', JSON.stringify(this.currentConfig));
       return;
     }
 
