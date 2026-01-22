@@ -44,6 +44,7 @@ class AIService {
   private academicFiles: FileMetadata[] = []; // 전문 서적 지식 파일 목록
   private insights: Insight[] = []; // AI 동적 인사이트 캐싱
   private modelTokenLimitCache: Record<string, { inputTokenLimit: number; outputTokenLimit: number; updatedAt: number }> = {};
+  private availableModelsCache: string[] | null = null;
   private readonly academicKeywords = [
     // 이론가/학자 이름
     '샤인', 'schein', '에드가', 'edgar', '로빈스', 'robbins', 'cummings', 'worley',
@@ -170,6 +171,10 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 
     ragService.setClient(this.geminiClient);
 
+    if (normalized.modelName) {
+      void this.validateModelAvailability(normalized.modelName);
+    }
+
     // 설정 변경 시 localStorage에 저장
     localStorage.setItem('culture-map-ai-config', JSON.stringify(normalized));
   }
@@ -254,7 +259,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     options?: { forceFunctionCall?: boolean }
   ) {
     const forceFunctionCall = options?.forceFunctionCall ?? false;
-    const session = forceFunctionCall
+    let session = forceFunctionCall
       ? this.createChatSession(FunctionCallingConfigMode.ANY, this.chatHistory)
       : (this.chatSession || this.startChat());
 
@@ -275,21 +280,34 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 
     // 스트리밍 세션 시작
     let streamResult;
-    try {
-      console.log('📡 [AIService] Calling sendMessageStream...');
+    let streamRetried = false;
+    while (true) {
+      try {
+        console.log('📡 [AIService] Calling sendMessageStream...');
 
-      // @google/genai v2.0 SDK: sendMessageStream는 { message: string | PartUnion[] } 형식 필요
-      // 단일 텍스트만 있으면 문자열로, 파일 포함 시 parts 배열로 전달
-      if (parts.length === 1 && parts[0].text) {
-        streamResult = await session!.sendMessageStream({ message: parts[0].text });
-      } else {
-        streamResult = await session!.sendMessageStream({ message: parts });
+        // @google/genai v2.0 SDK: sendMessageStream는 { message: string | PartUnion[] } 형식 필요
+        // 단일 텍스트만 있으면 문자열로, 파일 포함 시 parts 배열로 전달
+        if (parts.length === 1 && parts[0].text) {
+          streamResult = await session!.sendMessageStream({ message: parts[0].text });
+        } else {
+          streamResult = await session!.sendMessageStream({ message: parts });
+        }
+
+        console.log('📡 [AIService] sendMessageStream request sent, waiting for chunks...');
+        break;
+      } catch (err) {
+        if (!streamRetried && this.isModelNotFoundError(err)) {
+          console.warn('⚠️ [AIService] Model not available for stream, retrying with validated model');
+          streamRetried = true;
+          await this.validateModelAvailability(this.currentConfig?.modelName || '');
+          session = forceFunctionCall
+            ? this.createChatSession(FunctionCallingConfigMode.ANY, this.chatHistory)
+            : this.startChat(this.chatHistory);
+          continue;
+        }
+        console.error('❌ [AIService] Error starting stream:', err);
+        throw err;
       }
-
-      console.log('📡 [AIService] sendMessageStream request sent, waiting for chunks...');
-    } catch (err) {
-      console.error('❌ [AIService] Error starting stream:', err);
-      throw err;
     }
 
     this.currentThoughts = [];
@@ -868,7 +886,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
   private async extractMindmapKeywords(fileUri: string, mimeType: string): Promise<string[]> {
     if (!this.geminiClient) return [];
 
-    const modelName = this.currentConfig?.modelName || 'gemini-2.5-flash-lite';
+    let modelName = this.currentConfig?.modelName || 'gemini-2.5-flash-lite';
     const prompt = `다음 마인드맵 이미지를 보고 핵심 주제 키워드를 8~15개 이내로 추출하세요.\n- 중복 없이 간결한 명사/구로 작성\n- 결과는 JSON으로만 반환 (형식: {"keywords": ["..."]})`;
     const schema = {
       type: 'object',
@@ -879,21 +897,33 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       propertyOrdering: ['keywords']
     };
 
-    try {
-      const response = await this.geminiClient.models.generateContent({
-        model: modelName,
-        contents: [prompt, createPartFromUri(fileUri, mimeType)],
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: schema
+    let retryAttempted = false;
+    while (true) {
+      try {
+        const response = await this.geminiClient.models.generateContent({
+          model: modelName,
+          contents: [prompt, createPartFromUri(fileUri, mimeType)],
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: schema
+          }
+        });
+        const parsed = this.safeParseJson(response.text || '');
+        if (parsed && Array.isArray(parsed.keywords)) {
+          return parsed.keywords.filter((item) => typeof item === 'string' && item.trim().length > 0);
         }
-      });
-      const parsed = this.safeParseJson(response.text || '');
-      if (parsed && Array.isArray(parsed.keywords)) {
-        return parsed.keywords.filter((item) => typeof item === 'string' && item.trim().length > 0);
+        break;
+      } catch (err) {
+        if (!retryAttempted && this.isModelNotFoundError(err)) {
+          console.warn('⚠️ [AIService] Model not available for mindmap, retrying with validated model');
+          retryAttempted = true;
+          await this.validateModelAvailability(this.currentConfig?.modelName || modelName);
+          modelName = this.currentConfig?.modelName || modelName;
+          continue;
+        }
+        console.warn('⚠️ [AIService] Failed to extract mindmap keywords:', err);
+        break;
       }
-    } catch (err) {
-      console.warn('⚠️ [AIService] Failed to extract mindmap keywords:', err);
     }
 
     return [];
@@ -1024,6 +1054,27 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     if (typeof error === 'object' && 'message' in error) {
       const message = String((error as { message?: string }).message || '').toLowerCase();
       return message.includes('input token count exceeds') || message.includes('1048576');
+    }
+
+    return false;
+  }
+
+  private isModelNotFoundError(error: unknown): boolean {
+    if (!error) return false;
+
+    if (typeof error === 'object') {
+      const errObj = error as { code?: number | string; message?: string };
+      const code = typeof errObj.code === 'string' ? Number(errObj.code) : errObj.code;
+      const message = String(errObj.message || '').toLowerCase();
+      if (code === 404) return true;
+      if (message.includes('not found for api version') || message.includes('not supported for generatecontent')) {
+        return true;
+      }
+    }
+
+    if (typeof error === 'string') {
+      const message = error.toLowerCase();
+      return message.includes('not found for api version') || message.includes('not supported for generatecontent');
     }
 
     return false;
@@ -1383,6 +1434,63 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       'gemini-3-flash',          // 최신 thinkingLevel 지원
       'gemini-3-pro',            // 최신 플래그십
     ];
+  }
+
+  private normalizeModelId(modelName: string): string {
+    return modelName.replace(/^models\//, '').trim();
+  }
+
+  private async fetchAvailableModels(): Promise<string[]> {
+    if (this.availableModelsCache) return this.availableModelsCache;
+    if (!this.geminiClient) return [];
+
+    try {
+      const result: any = await this.geminiClient.models.list({ pageSize: 200, queryBase: true });
+      const rawModels: any[] = [];
+
+      if (Array.isArray(result?.models)) {
+        rawModels.push(...result.models);
+      } else if (typeof result?.iterateAll === 'function') {
+        for await (const model of result.iterateAll()) {
+          rawModels.push(model);
+        }
+      } else if (result && Symbol.asyncIterator in Object(result)) {
+        for await (const page of result as any) {
+          if (Array.isArray(page?.models)) {
+            rawModels.push(...page.models);
+          }
+        }
+      }
+
+      const names = rawModels
+        .map((model) => this.normalizeModelId(model?.name || model?.id || model?.displayName || ''))
+        .filter((name) => !!name);
+
+      this.availableModelsCache = Array.from(new Set(names));
+      return this.availableModelsCache;
+    } catch (error) {
+      console.warn('⚠️ [AIService] Failed to fetch available models:', error);
+      return [];
+    }
+  }
+
+  private async validateModelAvailability(preferredModel: string) {
+    if (!preferredModel) return;
+    const available = await this.fetchAvailableModels();
+    if (available.length === 0) return;
+
+    const normalizedPreferred = this.normalizeModelId(preferredModel);
+    if (available.includes(normalizedPreferred)) {
+      return;
+    }
+
+    const fallback = available.includes('gemini-2.5-flash-lite')
+      ? 'gemini-2.5-flash-lite'
+      : available[0];
+
+    console.warn('⚠️ [AIService] Selected model not available:', preferredModel, '→ using', fallback);
+    this.currentConfig = { ...this.currentConfig, modelName: fallback };
+    localStorage.setItem('culture-map-ai-config', JSON.stringify(this.currentConfig));
   }
 
   private normalizeModelConfig(config: AIConfig): AIConfig {
