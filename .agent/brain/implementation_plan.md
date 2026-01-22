@@ -1,3 +1,54 @@
+# Implementation Plan: 미연결 업데이트 가드
+
+## 목표
+1. Liveblocks 미연결 상태에서 로컬만 변경되는 업데이트 차단
+2. 데이터 유실 시나리오(브라우저 간 불일치, 재접속 후 소실) 방지
+
+---
+
+## 핵심 변경 범위
+
+### 1) 연결 상태 가드
+- 노드/연결선 생성·수정·삭제 진입점에서 `isConnected()` 확인
+- 미연결이면 경고 후 작업 중단
+
+### 2) 경고 스팸 방지
+- 경고는 3초 쿨다운 적용
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 오프라인 편집 불가 | UX 저하 | 연결 복구 안내 및 최소 경고만 노출 |
+| 잦은 경고 | 피로감 | 쿨다운 적용 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 정상 연결인데도 편집 불가 현상
+
+### 롤백 절차
+```bash
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. 연결 끊김 상태에서 노드/연결 변경 시 경고 후 중단되는지 확인
+2. 연결 복구 후 정상 편집 가능한지 확인
+
+---
+
 # Implementation Plan: 새로고침 시 세션 자동 재접속
 
 ## 목표

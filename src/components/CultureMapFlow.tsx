@@ -185,6 +185,22 @@ const CultureMapFlow = ({
 
   const pendingActionsRef = useRef<any[]>([]);
   const flushScheduledRef = useRef(false);
+  const lastSyncWarningRef = useRef(0);
+
+  const ensureLiveblocksConnected = useCallback((actionLabel: string) => {
+    if (liveblocksService.isConnected()) {
+      return true;
+    }
+
+    const now = Date.now();
+    if (now - lastSyncWarningRef.current > 3000) {
+      lastSyncWarningRef.current = now;
+      alert('세션 동기화 중입니다. 잠시 후 다시 시도해주세요.');
+    }
+
+    console.warn('⚠️ [React Flow] Liveblocks 미연결로 작업 중단:', actionLabel);
+    return false;
+  }, []);
 
   // AI 일괄 생성 입력 상태
   const [aiInput, setAiInput] = useState('');
@@ -444,6 +460,19 @@ ${chatHistorySection}
   const executeAiAction = useCallback((action: any) => {
     console.log('🤖 [Action Bridge] AI 액션 실행:', action);
     const { name, args } = action;
+
+    const requiresSync = [
+      'add_node',
+      'add_nodes_with_connections',
+      'update_node',
+      'delete_node',
+      'delete_connection',
+      'create_connection',
+    ];
+
+    if (requiresSync.includes(name) && !ensureLiveblocksConnected('AI 액션')) {
+      return;
+    }
 
     switch (name) {
       case 'add_node': {
@@ -815,7 +844,7 @@ ${chatHistorySection}
       default:
         console.warn('⚠️ 알 수 없는 AI 액션:', name);
     }
-  }, [layerHeights, onConnectionsChange, setEdges, setNodes, safeAutoLayout]);
+  }, [ensureLiveblocksConnected, layerHeights, onConnectionsChange, setEdges, setNodes, safeAutoLayout]);
 
   const handleAiAction = useCallback((action: any) => {
     pendingActionsRef.current.push(action);
@@ -1005,6 +1034,9 @@ ${chatHistorySection}
 
   const handleNodeContentUpdate = useCallback(
     (nodeId: string, newContent: string) => {
+      if (!ensureLiveblocksConnected('노드 편집')) {
+        return;
+      }
       console.log('📝 [React Flow] handleNodeContentUpdate', { nodeId, newContent });
 
       setNodes((currentNodes) =>
@@ -1027,7 +1059,7 @@ ${chatHistorySection}
 
       onNodeUpdate(nodeId, newContent);
     },
-    [onNodeUpdate, setNodes]
+    [ensureLiveblocksConnected, onNodeUpdate, setNodes]
   );
 
   const aiContext = useMemo(() => convertFromFlowData(nodes, edges), [nodes, edges]);
@@ -1302,10 +1334,19 @@ ${chatHistorySection}
 
     // Liveblocks 이벤트 리스너 등록
     type EventHandler = (...args: unknown[]) => void;
+    const handleNotesChanged: EventHandler = () => {
+      hydrateFromLiveblocks('notes-changed');
+    };
+    const handleConnectionsChanged: EventHandler = () => {
+      hydrateFromLiveblocks('connections-changed');
+    };
+
     liveblocksService.on('sticky-note-updated', handleStickyNoteUpdated as EventHandler);
     liveblocksService.on('sticky-note-deleted', handleStickyNoteDeleted as EventHandler);
     liveblocksService.on('connection-updated', handleConnectionUpdated as EventHandler);
     liveblocksService.on('connection-deleted', handleConnectionDeleted as EventHandler);
+    liveblocksService.on('notes-changed', handleNotesChanged);
+    liveblocksService.on('connections-changed', handleConnectionsChanged);
 
     console.log('✅ [React Flow] Liveblocks 리스너 등록 완료');
 
@@ -1315,6 +1356,8 @@ ${chatHistorySection}
       liveblocksService.off('sticky-note-deleted', handleStickyNoteDeleted as EventHandler);
       liveblocksService.off('connection-updated', handleConnectionUpdated as EventHandler);
       liveblocksService.off('connection-deleted', handleConnectionDeleted as EventHandler);
+      liveblocksService.off('notes-changed', handleNotesChanged);
+      liveblocksService.off('connections-changed', handleConnectionsChanged);
       console.log('🔌 [React Flow] Liveblocks 리스너 제거 완료');
     };
   }, [
@@ -1322,6 +1365,7 @@ ${chatHistorySection}
     handleNodeContentUpdate,
     handleStartNodeEditing,
     handleStopNodeEditing,
+    hydrateFromLiveblocks,
     setNodes,
     setEdges,
   ]);
@@ -1657,6 +1701,9 @@ ${chatHistorySection}
         (sourceSentiment === 'negative' && targetSentiment === 'positive')
       ) {
         edgeColor = '#ef4444';
+          if (!ensureLiveblocksConnected('노드 빈도 변경')) {
+            return;
+          }
         isPositive = false;
       }
       // 부정↔부정: 주황색
@@ -1799,6 +1846,9 @@ ${chatHistorySection}
   // 모바일용 포스트잇 생성 함수
   const handleMobileAddNote = useCallback((nodeType: 'result' | 'behavior' | 'tangible_lever' | 'intangible_lever') => {
     if (!reactFlowInstance) return;
+    if (!ensureLiveblocksConnected('모바일 노드 생성')) {
+      return;
+    }
 
     // 화면 중앙에 노드 생성
     const viewport = reactFlowInstance.getViewport();
@@ -1851,7 +1901,7 @@ ${chatHistorySection}
 
     console.log('📱 [Mobile] 새 노드 생성:', newNodeId, nodeType);
     setShowMobileAddMenu(false);
-  }, [reactFlowInstance, nodes, edges, onNotesChange, handleNodeContentUpdate, handleStartNodeEditing, handleStopNodeEditing, setNodes]);
+  }, [ensureLiveblocksConnected, reactFlowInstance, nodes, edges, onNotesChange, handleNodeContentUpdate, handleStartNodeEditing, handleStopNodeEditing, setNodes]);
 
   const handleEdgeContextMenu = useCallback((event: React.MouseEvent | MouseEvent, edge: Edge) => {
     event.preventDefault();
@@ -1875,6 +1925,9 @@ ${chatHistorySection}
 
       // 빈 캔버스 우클릭 → 노드 생성
       if (contextMenu.type === 'pane' && action.startsWith('create_')) {
+        if (!ensureLiveblocksConnected('노드 생성')) {
+          return;
+        }
         const nodeType = action.replace('create_', '');
         const newNodeId = `node-${Date.now()}`;
 
@@ -1935,6 +1988,9 @@ ${chatHistorySection}
         if (!node) return;
 
         if (action === 'delete') {
+          if (!ensureLiveblocksConnected('노드 삭제')) {
+            return;
+          }
           // 노드 삭제
           const updatedNodes = nodes.filter((n) => n.id !== contextMenu.targetId);
           const updatedEdges = edges.filter(
@@ -1952,6 +2008,9 @@ ${chatHistorySection}
           onConnectionsChange(updatedConnections);
           liveblocksService.deleteStickyNote(contextMenu.targetId!);
         } else if (action === 'positive' || action === 'negative' || action === 'neutral') {
+          if (!ensureLiveblocksConnected('노드 색상 변경')) {
+            return;
+          }
           // 색상 변경 + Firebase 동기화 + 연결선 색상 재계산
           const updatedNodes = nodes.map((n) =>
             n.id === contextMenu.targetId ? { ...n, data: { ...n.data, sentiment: action } } : n
@@ -2105,6 +2164,9 @@ ${chatHistorySection}
         if (!edge) return;
 
         if (action === 'delete') {
+          if (!ensureLiveblocksConnected('연결선 삭제')) {
+            return;
+          }
           // 엣지 삭제
           const updatedEdges = edges.filter((e) => e.id !== contextMenu.targetId);
           setEdges(updatedEdges);
@@ -2113,6 +2175,9 @@ ${chatHistorySection}
           onConnectionsChange(updatedConnections);
           liveblocksService.deleteConnection(contextMenu.targetId!);
         } else if (action === 'direct' || action === 'indirect') {
+          if (!ensureLiveblocksConnected('연결선 유형 변경')) {
+            return;
+          }
           // 점선/실선 전환 + Firebase 동기화
           const updatedEdges = edges.map((e) =>
             e.id === contextMenu.targetId
@@ -2152,6 +2217,7 @@ ${chatHistorySection}
       setNodes,
       setEdges,
       closeContextMenu,
+      ensureLiveblocksConnected,
       handleNodeContentUpdate,
       handleStartNodeEditing,
       handleStopNodeEditing,
