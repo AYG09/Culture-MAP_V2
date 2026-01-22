@@ -92,6 +92,16 @@ npm run test:e2e     # Playwright E2E 테스트
 
 ---
 
+## 🧩 LiteLLM 프록시 (선택)
+
+모델명 변경 대응을 줄이기 위해 LiteLLM 프록시를 별도 서비스로 운영할 수 있습니다.
+
+- 위치: [litellm-proxy/README.md](litellm-proxy/README.md)
+- 실행: Docker Compose 기반
+- Gemini 모델을 OpenAI 호환 인터페이스로 호출 가능
+
+---
+
 ## 📝 라이선스
 
 **PROPRIETARY** © 2024-2026 안영규 with AI Agent. All rights reserved.

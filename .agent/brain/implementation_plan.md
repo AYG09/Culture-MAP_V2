@@ -250,6 +250,61 @@ git checkout -- .agent/brain/implementation_plan.md
 ### 수동 검증
 1. `gemini-3-flash` 설정 시 404 발생하면 자동 전환 및 재시도되는지 확인
 2. 이미지 업로드/채팅이 중단되지 않는지 확인
+
+---
+
+# Implementation Plan: LiteLLM 프록시 추가
+
+## 목표
+1. 모델명 변경 대응을 위해 LiteLLM 프록시 구성 템플릿 제공
+2. Gemini 모델을 OpenAI 호환 인터페이스로 호출 가능하도록 설정
+3. 배포/운영 문서 제공
+
+---
+
+## 핵심 변경 범위
+
+### 1) 프록시 설정 파일
+- `litellm-proxy/config.yaml`에 gemini-3-flash-preview, gemini-3-pro-preview 등 모델 매핑
+- API 키는 환경 변수로 주입
+
+### 2) 실행/배포 스크립트
+- Docker 실행/compose 예시 제공
+- `.env.example`로 환경 변수 가이드 제공
+
+### 3) 문서화
+- README에 LiteLLM 프록시 사용법 및 별도 운영 안내
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 프록시 운영 부담 | 비용/관리 증가 | 별도 서비스로 분리 운영, 필요 시만 사용 |
+| 키 노출 위험 | 보안 이슈 | 환경 변수로만 주입, 문서에 경고 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 프록시 운영 불필요 판단
+
+### 롤백 절차
+```bash
+git checkout -- README.md
+git checkout -- litellm-proxy
+git checkout -- .agent/brain/implementation_plan.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. Docker로 프록시 실행 후 `/v1/chat/completions` 호출 성공 확인
+2. Gemini API 키 미설정 시 명확한 오류 발생 확인
 - 보고서 생성용 프롬프트에도 동일 지침 반영
 
 ### 2) 빈 응답 처리
