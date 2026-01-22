@@ -250,6 +250,16 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
   }
 
   /**
+   * 챗봇 세션/히스토리 초기화
+   */
+  public resetChatSession(): void {
+    this.chatHistory = [];
+    this.currentThoughts = [];
+    this.chatSession = null;
+    console.log('🧹 [AIService] Chat session reset');
+  }
+
+  /**
    * 챗봇 메시지 전송 (스트리밍 버전)
    */
   public async *sendChatMessageStream(

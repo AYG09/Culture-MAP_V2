@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Paperclip, X, Sparkles, Loader2, FileText, Settings, Copy, Check, Users } from 'lucide-react';
+import { Send, Paperclip, X, Sparkles, Loader2, FileText, Settings, Copy, Check, Users, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { aiService } from '../services/AIService';
@@ -95,11 +95,28 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
         }
     }, []);
 
+    const handleClearChatHistory = useCallback(() => {
+        const session = liveblocksService.getCurrentSession();
+        if (session?.code !== 'DEV-LOCAL') return;
+
+        const confirmed = window.confirm('DEV-LOCAL 세션의 채팅 내역을 초기화할까요? 이 작업은 되돌릴 수 없습니다.');
+        if (!confirmed) return;
+
+        if (liveblocksService.isConnected()) {
+            liveblocksService.clearChatMessages();
+        } else {
+            setMessages([]);
+        }
+
+        aiService.resetChatSession();
+    }, []);
+
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isLoading, uploadProgress]);
 
     const activeModelLabel = currentConfig?.modelName || 'gemini-2.5-flash-lite';
+    const isDevLocalSession = liveblocksService.getCurrentSession()?.code === 'DEV-LOCAL';
 
     // 접속자 수 업데이트 (세션 상태 감시)
     useEffect(() => {
@@ -526,6 +543,18 @@ ${layerHeightContext}
                         <Users size={14} />
                         <span>{connectedUsers}</span>
                     </div>
+                    {isDevLocalSession && (
+                        <motion.button
+                            className="header-clear-btn"
+                            onClick={handleClearChatHistory}
+                            title="DEV-LOCAL 채팅 내역 초기화"
+                            aria-label="DEV-LOCAL 채팅 내역 초기화"
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                        >
+                            <Trash2 size={16} />
+                        </motion.button>
+                    )}
                     <motion.button
                         className="header-config-btn"
                         onClick={() => setIsConfigOpen(true)}

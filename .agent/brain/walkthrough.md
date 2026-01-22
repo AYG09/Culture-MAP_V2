@@ -632,6 +632,44 @@
 
 ---
 
+# Walkthrough: DEV-LOCAL 채팅 내역 초기화
+
+## 완료 일시
+2026-01-22
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. DEV-LOCAL 세션의 채팅 기록 즉시 초기화
+2. Liveblocks 채팅 스토리지와 AI 세션 히스토리 동시 리셋
+
+---
+
+## ✅ 해결 조치
+
+1. `LiveblocksService.clearChatMessages()` 추가
+2. `AIService.resetChatSession()` 추가
+3. DEV-LOCAL 전용 초기화 버튼 추가 및 확인 팝업 적용
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/services/LiveblocksService.ts` | 채팅 메시지 초기화 메서드 추가 |
+| `src/services/AIService.ts` | 채팅 세션/히스토리 리셋 메서드 추가 |
+| `src/components/AIChatSidebar.tsx` | DEV-LOCAL 초기화 버튼/핸들러 추가 |
+| `src/components/AIChatSidebar.css` | 초기화 버튼 스타일 추가 |
+
+---
+
+## 🧪 검증
+
+1. DEV-LOCAL 접속 후 초기화 버튼 클릭 시 채팅이 비워지는지 확인
+2. 초기화 직후 새 메시지 전송이 정상 동작하는지 확인
+
+
 # Walkthrough: 세션 재접속 시 데이터 유지
 
 ## 완료 일시

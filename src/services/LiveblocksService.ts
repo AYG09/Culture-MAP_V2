@@ -261,6 +261,15 @@ class LiveblocksService {
         return this.yDoc.getArray<ChatMessage>('chatMessages').toArray();
     }
 
+    public clearChatMessages(): void {
+        if (!this.yDoc) return;
+        const messages = this.yDoc.getArray<ChatMessage>('chatMessages');
+        if (messages.length === 0) return;
+        this.yDoc.transact(() => {
+            messages.delete(0, messages.length);
+        });
+    }
+
     public getStickyNotes(): StickyNoteData[] {
         if (!this.yDoc) return [];
         return this.yDoc.getArray<StickyNoteData>('nodes').toArray();

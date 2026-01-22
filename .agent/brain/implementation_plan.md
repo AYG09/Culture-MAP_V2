@@ -1,3 +1,63 @@
+# Implementation Plan: DEV-LOCAL 채팅 내역 초기화
+
+## 목표
+1. DEV-LOCAL 세션에서 채팅 내역을 즉시 초기화
+2. Liveblocks 저장소(Yjs)와 AI 세션 히스토리를 동시에 리셋
+
+---
+
+## 핵심 변경 범위
+
+### 1) Liveblocks 채팅 삭제
+- `LiveblocksService.clearChatMessages()` 추가
+- Yjs `chatMessages` 배열 전체 삭제
+
+### 2) AI 세션 리셋
+- `AIService.resetChatSession()` 추가
+- `chatHistory`, `currentThoughts`, `chatSession` 초기화
+
+### 3) UI 버튼
+- DEV-LOCAL 세션에서만 보이는 “채팅 초기화” 버튼 추가
+- 사용자 확인 후 실행
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 실수로 초기화 | 대화 기록 손실 | 확인 팝업으로 방지 |
+| 비연결 상태 | 화면만 초기화 | 로컬 상태 초기화 + 다음 메시지부터 새 세션 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 채팅 초기화가 다른 세션까지 영향
+- 초기화 후 메시지 전송 불가
+
+### 롤백 절차
+```bash
+git checkout -- src/services/LiveblocksService.ts
+git checkout -- src/services/AIService.ts
+git checkout -- src/components/AIChatSidebar.tsx
+git checkout -- src/components/AIChatSidebar.css
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. DEV-LOCAL 접속 후 “채팅 초기화” 버튼 클릭 시 메시지가 모두 사라지는지 확인
+2. 초기화 후 새 메시지 전송이 정상 동작하는지 확인
+
+---
+
 # Implementation Plan: 클립보드 이미지 붙여넣기 지원
 
 ## 목표
