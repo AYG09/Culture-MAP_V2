@@ -1,3 +1,53 @@
+# Walkthrough: 레이어 정렬 순서/높이 동기화
+
+## 완료 일시
+2026-01-23
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. auto_layout 시 레이어 순서를 무형→유형→행동→결과로 고정
+2. 레이어 높이를 확장해 하단 노드 누락 방지
+3. 타입별 노드가 레이어 밴드 내에서만 이동하도록 보장
+
+---
+
+## 🔍 원인 분석
+
+- 레이어 표시 순서가 결과→행동→유형→무형으로 고정돼 정렬 결과가 뒤집힘.
+- auto_layout 이후 layerHeights가 확장되지 않아 캡처 영역에 하단 레이어가 누락될 수 있음.
+
+---
+
+## ✅ 해결 조치
+
+1. flowAutoLayout에 레이어 표시 순서(무형→유형→행동→결과) 및 높이 인덱스 매핑 적용
+2. auto_layout 후 레이어별 필요 높이 계산 및 layerHeights 확장
+3. 노드 Y를 레이어 밴드 중앙으로 스냅
+4. 배경 레이어 렌더링 순서 동기화
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/utils/flowAutoLayout.ts` | 레이어 순서/높이 매핑 및 Y 계산 수정 |
+| `src/components/CultureMapFlow.tsx` | auto_layout 후처리 + 배경 레이어 순서 변경 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+
+---
+
+## 🧪 검증
+
+1. 로컬 dev 서버 실행: VITE_SKIP_GATE=true, Liveblocks 키 적용
+2. 레이어 라벨 위치 확인 결과: 결과 → 행동 → 유형 → 무형 순서로 상단→하단 배치 확인
+3. PNG 내보내기 성공 (파일 다운로드 확인)
+4. auto_layout은 Gemini API 키 미설정으로 AI 요청 실패하여 검증 보류
+
+---
+
 # Walkthrough: Vercel index.html 캐시 무효화
 
 ## 완료 일시

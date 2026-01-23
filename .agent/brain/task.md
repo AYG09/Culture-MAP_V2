@@ -201,6 +201,36 @@
 
 ---
 
+# Task List: 레이어 정렬 순서/높이 동기화
+
+## 진행 상황
+- 🔲 미완료
+- 🔄 진행 중
+- ✅ 완료
+
+---
+
+## Task 1: 레이아웃 유틸 순서 정렬
+- [x] flowAutoLayout 레이어 순서 무형→유형→행동→결과로 고정
+- [x] layerHeights 타입별 인덱스 매핑 적용
+
+## Task 2: auto_layout 후처리
+- [x] 레이어별 필요 높이 계산 후 확장
+- [x] 노드 Y를 레이어 밴드 중앙으로 스냅
+
+## Task 3: 배경 레이어 순서 동기화
+- [x] 배경 레이어 순서 무형→유형→행동→결과로 변경
+
+## Task 4: 문서 업데이트
+- [x] implementation_plan.md 업데이트
+- [x] walkthrough.md에 검증 결과 기록
+
+## Task 5: 검증
+- [ ] auto_layout 실행 후 레이어 순서/높이 정상 여부 확인 (Gemini API 키 필요)
+- [x] PNG 내보내기에서 전체 레이어 포함 여부 확인
+
+---
+
 # Task List: Vercel index.html 캐시 무효화
 
 ## 진행 상황

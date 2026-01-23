@@ -20,8 +20,6 @@ import {
   type ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-
-// 커스텀 노드 컴포넌트
 import {
   ResultNode,
   BehaviorNode,
@@ -466,10 +464,76 @@ ${chatHistorySection}
       return;
     }
 
-    setNodes(layoutedNodes);
-    setEdges(layoutedEdges);
+    const layerIndexMap: Record<string, number> = {
+      result: 0,
+      behavior: 1,
+      tangible_lever: 2,
+      intangible_lever: 3,
+    };
+
+    const displayLayerOrder: Array<keyof typeof layerIndexMap> = [
+      'result',
+      'behavior',
+      'tangible_lever',
+      'intangible_lever',
+    ];
+
+    const getNodeHeight = (node: Node) => {
+      if (typeof node.measured?.height === 'number') return node.measured.height;
+      if (typeof node.height === 'number') return node.height;
+      return 120;
+    };
+
+    const layerPaddingY = 80;
+    const maxHeightsByLayer = [0, 0, 0, 0];
 
     layoutedNodes.forEach((node) => {
+      const layerIndex = layerIndexMap[node.type || 'result'] ?? 0;
+      const nodeHeight = getNodeHeight(node);
+      if (nodeHeight > maxHeightsByLayer[layerIndex]) {
+        maxHeightsByLayer[layerIndex] = nodeHeight;
+      }
+    });
+
+    const resolvedLayerHeights = layerHeights.map((height, index) => {
+      const required = maxHeightsByLayer[index] + layerPaddingY;
+      return Math.max(height, required);
+    });
+
+    const shouldUpdateHeights = resolvedLayerHeights.some(
+      (height, index) => height !== layerHeights[index]
+    );
+    if (shouldUpdateHeights) {
+      setLayerHeights(resolvedLayerHeights);
+    }
+
+    const layerStartByIndex = new Map<number, number>();
+    let cumulativeY = 0;
+    displayLayerOrder.forEach((layerKey) => {
+      const index = layerIndexMap[layerKey];
+      layerStartByIndex.set(index, cumulativeY);
+      cumulativeY += resolvedLayerHeights[index] ?? 0;
+    });
+
+    const adjustedNodes = layoutedNodes.map((node) => {
+      const layerIndex = layerIndexMap[node.type || 'result'] ?? 0;
+      const bandStart = layerStartByIndex.get(layerIndex) ?? 0;
+      const bandHeight = resolvedLayerHeights[layerIndex] ?? 0;
+      const nodeHeight = getNodeHeight(node);
+      const centeredY = bandStart + Math.max(0, (bandHeight - nodeHeight) / 2);
+      return {
+        ...node,
+        position: {
+          x: node.position.x,
+          y: centeredY,
+        },
+      };
+    });
+
+    setNodes(adjustedNodes);
+    setEdges(layoutedEdges);
+
+    adjustedNodes.forEach((node) => {
       const currentData = node.data as { content?: string; sentiment?: string };
       liveblocksService.updateStickyNote({
         id: node.id,
@@ -2754,11 +2818,12 @@ ${chatHistorySection}
                         { name: '행동', color: 'rgba(78, 205, 196, OPACITY)', index: 1 },
                         { name: '유형 레버', color: 'rgba(149, 225, 211, OPACITY)', index: 2 },
                         { name: '무형 레버', color: 'rgba(255, 230, 109, OPACITY)', index: 3 },
-                      ].map((layer) => {
-                        // 각 층위의 Y 좌표 계산 (이전 층위들의 높이 합산)
+                      ].map((layer, displayIndex, layers) => {
+                        // 각 층위의 Y 좌표 계산 (표시 순서 기준 누적)
                         let y = 0;
-                        for (let i = 0; i < layer.index; i++) {
-                          y += layerHeights[i];
+                        for (let i = 0; i < displayIndex; i++) {
+                          const previousLayer = layers[i];
+                          y += layerHeights[previousLayer.index] ?? 0;
                         }
 
                         const bgColor = layer.color.replace('OPACITY', String(layerOpacities[layer.index]));

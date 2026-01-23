@@ -135,8 +135,65 @@ git checkout -- .agent/brain/walkthrough.md
 
 ### 트리거 조건
 - Gateway 화면이 렌더링되지 않거나 세션 자동 재접속이 실패
+### 롤백 절차
+# Implementation Plan: 레이어 정렬 순서/높이 동기화
+
+## 목표
+1. auto_layout 시 레이어 순서를 무형→유형→행동→결과로 고정
+2. 레이어 높이를 노드 분포에 맞춰 확장하여 하단 노드 누락 방지
+3. 타입별 노드가 레이어 밴드 내에서만 이동하도록 보장
+
+---
+
+## 핵심 변경 범위
+
+### 1) 레이아웃 유틸 순서 정렬
+- flowAutoLayout 레이어 순서를 표시 순서로 고정
+- layerHeights는 레이어 타입 인덱스 매핑으로 참조
+
+### 2) auto_layout 후처리
+- 레이어별 필요 높이 계산 후 layerHeights 확장
+- 노드 Y를 레이어 밴드 중앙으로 스냅
+
+### 3) 배경 레이어 렌더링 순서
+- 무형→유형→행동→결과 순으로 배경 레이어 렌더링
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 레이어 높이 과도 확장 | 화면 스크롤 증가 | 필요 높이만 최소 확장 |
+| 레이아웃 순서 불일치 | 노드-배경 오정렬 | 표시 순서와 동일한 누적 계산 적용 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- auto_layout 후 노드가 레이어 밴드에서 벗어남
+- 배경 레이어 순서/높이 불일치
 
 ### 롤백 절차
+```bash
+git checkout -- src/utils/flowAutoLayout.ts
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. auto_layout 실행 후 레이어 순서가 무형→유형→행동→결과인지 확인
+2. 하단 레이어 노드가 캡처/뷰포트에서 누락되지 않는지 확인
+3. PNG 내보내기 결과에 모든 레이어가 포함되는지 확인
+
+---
 ```bash
 git checkout -- src/components/Gateway.tsx
 git checkout -- .agent/brain/implementation_plan.md

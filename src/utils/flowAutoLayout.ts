@@ -13,13 +13,26 @@ import ELK from 'elkjs/lib/elk.bundled.js';
  */
 
 // 층위별 레이아웃 설정
-// 🔧 FIX: rankdir='BT'에서 높은 rank가 위에 배치됨
 const LAYER_CONFIG = {
-  result: { rank: 3, color: '#FF6B6B' },           // rank 3 (최상위)
-  behavior: { rank: 2, color: '#4ECDC4' },         // rank 2
-  tangible_lever: { rank: 1, color: '#95E1D3' },   // rank 1
-  intangible_lever: { rank: 0, color: '#FFE66D' }  // rank 0 (최하위)
+  result: { rank: 3, color: '#FF6B6B' },
+  behavior: { rank: 2, color: '#4ECDC4' },
+  tangible_lever: { rank: 1, color: '#95E1D3' },
+  intangible_lever: { rank: 0, color: '#FFE66D' }
 };
+
+const LAYER_HEIGHT_INDEX: Record<keyof typeof LAYER_CONFIG, number> = {
+  result: 0,
+  behavior: 1,
+  tangible_lever: 2,
+  intangible_lever: 3
+};
+
+const DISPLAY_LAYER_ORDER: Array<keyof typeof LAYER_CONFIG> = [
+  'result',
+  'behavior',
+  'tangible_lever',
+  'intangible_lever'
+];
 
 // 레이아웃 옵션
 const LAYOUT_OPTIONS = {
@@ -164,20 +177,16 @@ function getBasicLayoutedElements(
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const layoutPositionById = new Map<string, { x: number; y: number }>();
 
-  // 층위 순서 (위에서 아래로) - Y 좌표 역순
-  const layerOrder: Array<keyof typeof LAYER_CONFIG> = [
-    'result',           // 최상단 (Y = 0)
-    'behavior',         // (Y = layerHeights[0])
-    'tangible_lever',   // (Y = layerHeights[0] + layerHeights[1])
-    'intangible_lever'  // 최하단 (Y = layerHeights[0] + layerHeights[1] + layerHeights[2])
-  ];
+  // 층위 순서 (위에서 아래로)
+  const layerOrder = DISPLAY_LAYER_ORDER;
 
-  const resolvedLayerHeights = layerOrder.map((layerKey, layerIndex) => {
+  const resolvedLayerHeights = layerOrder.map((layerKey) => {
     const layerNodes = nodesByLayer.get(layerKey) || [];
     const maxHeight = layerNodes.length
       ? Math.max(...layerNodes.map((node) => getNodeHeight(node)))
       : NODE_HEIGHT;
-    return Math.max(layerHeights[layerIndex] ?? NODE_HEIGHT, maxHeight + LAYER_PADDING_Y);
+    const heightIndex = LAYER_HEIGHT_INDEX[layerKey] ?? 0;
+    return Math.max(layerHeights[heightIndex] ?? NODE_HEIGHT, maxHeight + LAYER_PADDING_Y);
   });
 
   layerOrder.forEach((layerKey, layerIndex) => {
@@ -443,8 +452,10 @@ export function centerLayout(
  * 층위별 Y 좌표 계산
  */
 export function getLayerY(layer: string): number {
-  const rank = LAYER_CONFIG[layer as keyof typeof LAYER_CONFIG]?.rank ?? 0;
-  return 100 + rank * (NODE_HEIGHT + LAYOUT_OPTIONS.ranksep);
+  const layerKey = layer as keyof typeof LAYER_CONFIG;
+  const orderIndex = DISPLAY_LAYER_ORDER.indexOf(layerKey);
+  const resolvedIndex = orderIndex >= 0 ? orderIndex : 0;
+  return 100 + resolvedIndex * (NODE_HEIGHT + LAYOUT_OPTIONS.ranksep);
 }
 
 /**
