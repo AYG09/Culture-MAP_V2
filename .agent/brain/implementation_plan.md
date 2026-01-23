@@ -1440,3 +1440,55 @@ git checkout -- .agent/brain/walkthrough.md
 ### 수동 검증
 1. PNG 내보내기 선명도 개선 여부 확인
 2. 내보내기 실패/지연 발생 여부 확인
+
+---
+
+# Implementation Plan: AI 페르소나/도움말 최신화
+
+## 목표
+1. AI가 수동 UI 조작 방법을 정확히 안내
+2. 상단 ? 도움말/도움말 모달을 최신 UI 동작과 일치
+
+---
+
+## 핵심 변경 범위
+
+### 1) AI 페르소나 안내 보강
+- 시스템 프롬프트에 수동 조작 안내 원칙 추가
+
+### 2) 도움말 텍스트 업데이트
+- HelpModal과 상단 ? 알림 텍스트를 현재 조작 방식으로 수정
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 가이드와 UI 불일치 | 사용자 혼란 | 실제 동작 기준으로 문구 정정 |
+| 안내 누락 | 기능 오해 | 생성/편집/연결/내보내기 항목 포함 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 도움말 문구가 실제 UI와 맞지 않음
+
+### 롤백 절차
+```bash
+git checkout -- src/services/AIService.ts
+git checkout -- src/components/HelpModal.tsx
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. AI가 수동 조작 방법을 안내하는지 확인
+2. ? 도움말과 모달의 안내가 실제 조작과 일치하는지 확인

@@ -1,3 +1,42 @@
+# Walkthrough: AI 페르소나/도움말 최신화
+
+## 완료 일시
+2026-01-23
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. AI가 수동 UI 조작 방법을 정확히 안내
+2. 도움말 문구를 최신 UI 동작과 일치
+
+---
+
+## ✅ 해결 조치
+
+1. 시스템 프롬프트에 수동 조작 안내 원칙 추가
+2. HelpModal 및 상단 ? 도움말 문구 업데이트
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/services/AIService.ts` | 수동 조작 안내 원칙 추가 |
+| `src/components/HelpModal.tsx` | 도움말 텍스트 최신화 |
+| `src/components/CultureMapFlow.tsx` | 상단 ? 도움말 텍스트 최신화 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. AI 안내/도움말 일치 여부는 사용자 환경에서 확인 필요
+
+---
+
 # Walkthrough: PNG 고화질 내보내기
 
 ## 완료 일시

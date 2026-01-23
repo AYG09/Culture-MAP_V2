@@ -19,24 +19,24 @@ const HelpModal = ({ onClose }: HelpModalProps) => {
           <h3>기본 조작</h3>
           <ul>
             <li>
-              <strong>맵 이동:</strong> 맵의 빈 공간을 마우스 오른쪽 버튼으로 클릭 & 드래그
+              <strong>맵 이동:</strong> 맵의 빈 공간을 마우스 중간/오른쪽 버튼으로 클릭 & 드래그
             </li>
             <li>
               <strong>노트(포스트잇) 이동:</strong> 노트를 마우스 왼쪽 버튼으로 클릭 & 드래그
             </li>
             <li>
-              <strong>노트 크기 조절:</strong> 노트 우측 하단 핸들을 클릭 & 드래그
+              <strong>노트 크기 조절:</strong> 노트 리사이즈 핸들을 클릭 & 드래그
             </li>
           </ul>
 
           <h3>포스트잇 생성 및 편집</h3>
           <ul>
             <li>
-              <strong>포스트잇 생성:</strong> 맵의 빈 공간을 마우스 오른쪽 버튼으로 더블클릭 →
-              포스트잇 종류 선택
+              <strong>포스트잇 생성:</strong> 맵의 빈 공간을 마우스 오른쪽 버튼으로 클릭 →
+              레이어(결과/행동/유형/무형) 선택
             </li>
             <li>
-              <strong>포스트잇 편집:</strong> 포스트잇을 우클릭 → '편집' 메뉴 클릭
+              <strong>포스트잇 편집:</strong> 포스트잇 더블클릭
             </li>
             <li>
               <strong>편집 모드 조작:</strong>
@@ -71,10 +71,10 @@ const HelpModal = ({ onClose }: HelpModalProps) => {
           <h3>연결선 관리 (우클릭 메뉴)</h3>
           <ul>
             <li>
-              <strong>연결 시작:</strong> 노트 우클릭 → '연결 시작' 클릭 → 다른 노트 클릭
+              <strong>연결 시작:</strong> 노트 핸들을 드래그하여 다른 노트에 연결
             </li>
             <li>
-              <strong>연결선 종류 변경:</strong> 연결선 우클릭 → '점선/실선으로 전환' 클릭
+              <strong>연결선 종류 변경:</strong> 연결선 우클릭 → 직접/간접 전환
             </li>
             <li>
               <strong>연결선 삭제:</strong> 연결선 우클릭 → '연결선 삭제' 클릭
@@ -84,7 +84,7 @@ const HelpModal = ({ onClose }: HelpModalProps) => {
           <h3>노트 관리 (우클릭 메뉴)</h3>
           <ul>
             <li>
-              <strong>감성(색상) 변경:</strong> 노트 우클릭 → '색상 전환' 클릭 (긍정-부정-중립 순환)
+              <strong>감성(색상) 변경:</strong> 노트 우클릭 → 감성 전환 (긍정-부정-중립 순환)
             </li>
             <li>
               <strong>노트 삭제:</strong> 노트 우클릭 → '삭제' 클릭
@@ -94,15 +94,16 @@ const HelpModal = ({ onClose }: HelpModalProps) => {
           <h3>데이터 관리</h3>
           <ul>
             <li>
-              <strong>맵 생성/수정:</strong> 좌측 패널에 AI 분석 결과 붙여넣기 → '맵 그리기' 버튼
-              클릭
+              <strong>맵 생성/수정:</strong> 좌측 패널에서 AI 분석 결과 붙여넣기 → '맵 그리기' 버튼
             </li>
             <li>
               <strong>전체 삭제:</strong> 좌측 패널의 '전체 삭제' 버튼 클릭
             </li>
             <li>
-              <strong>이미지로 저장:</strong> 상단 헤더의 '맵 이미지로 저장' 버튼 클릭 (실제 컨텐츠
-              영역만 캡처)
+              <strong>내보내기:</strong> 상단 바의 PNG/JSON/Excel 버튼 클릭
+            </li>
+            <li>
+              <strong>세션 관리:</strong> 상단 바의 '세션 관리' 버튼 클릭
             </li>
           </ul>
 
