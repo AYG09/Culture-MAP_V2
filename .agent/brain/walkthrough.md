@@ -36,8 +36,8 @@
 
 ## 🧪 검증
 
-1. Vercel 재배포 후 최신 번들 해시 로드 확인 (예정)
-2. 프로덕션 콘솔 에러 재발 여부 확인 (예정)
+1. Vercel 접속 후 3초 대기 시 `index-BjAX5Haz.js` 로드 및 ReferenceError 재발 확인
+2. 오류 화면(ErrorBoundary) 렌더링 확인
 
 ---
 
