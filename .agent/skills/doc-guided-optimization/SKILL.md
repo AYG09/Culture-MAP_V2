@@ -27,6 +27,13 @@ applies_to: 모든 프로젝트
 - **Context7**: 핵심 클래스/함수의 최신 시그니처와 예제 코드 수집
 - **Tavily**: "Performance optimization", "Best practices 2025", "Memory leak prevention" 등의 키워드로 최신 블로그/벤치마크 검색
 
+### MCP Tool Discovery & Usage 체크리스트
+- [ ] **tools/list로 가용 도구 스냅샷을 먼저 확보**했는가?
+- [ ] 도구 **이름/설명/입력 스키마**가 명확히 전달되었는가?
+- [ ] 스키마에 **필수 파라미터(required)**와 예시가 포함되었는가?
+- [ ] **에러 처리/타임아웃/로깅** 규칙이 정의되었는가?
+- [ ] 장시간 작업은 **진행 상태 보고** 규칙을 포함했는가?
+
 ### 2단계: 패턴 대조 (Code Audit)
 - **Anti-patterns**: `any` 타입 남용, 불필요한 리렌더링, 대량의 데이터 전역 상태 관리 등을 체크
 - **Performance**: 메모이제이션(`React.memo`, `useMemo`), 가상화(Virtualization), 데이터 압축(V2 Encoding) 적용 여부 확인

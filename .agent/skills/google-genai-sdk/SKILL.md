@@ -100,7 +100,7 @@ const tools = [{
 
 ---
 
-## � 모델별 Function Calling 지원 여부 (2026.01 기준)
+## 모델별 Function Calling 지원 여부 (2026.01 기준)
 
 > ⚠️ **중요**: 2.0 버전과 2.5 버전은 완전히 다릅니다!
 
@@ -126,7 +126,7 @@ const tools = [{
 
 ---
 
-## �🧠 Thinking Mode 설정
+## 🧠 Thinking Mode 설정
 
 ### Gemini 2.5 계열
 ```typescript
