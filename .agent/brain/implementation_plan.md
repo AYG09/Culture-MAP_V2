@@ -1389,3 +1389,54 @@ git checkout -- .agent/brain/walkthrough.md
 ### 수동 검증
 1. sync/initial 복원 시 레이어 높이 계산/동기화 스킵 확인
 2. 복원 후 드래그 확장/시프트 정상 동작 확인
+
+---
+
+# Implementation Plan: PNG 고화질 내보내기
+
+## 목표
+1. PNG 내보내기 해상도 향상
+2. 메모리 사용 폭증 방지
+
+---
+
+## 핵심 변경 범위
+
+### 1) 고해상도 스케일링
+- `toPng` 옵션에 `pixelRatio` 적용
+- `devicePixelRatio` 기반으로 상한(3) 설정
+
+### 2) 캐시 무효화
+- `cacheBust: true`로 정적 캡처 안정성 확보
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 메모리 사용 증가 | 브라우저 렌더 지연 | pixelRatio 상한 적용 |
+| 대형 캔버스 캡처 실패 | 내보내기 실패 | 에러 처리 유지 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- PNG 내보내기 실패 빈도 증가
+
+### 롤백 절차
+```bash
+git checkout -- src/components/ExportMenu.tsx
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. PNG 내보내기 선명도 개선 여부 확인
+2. 내보내기 실패/지연 발생 여부 확인

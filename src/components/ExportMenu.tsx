@@ -117,11 +117,15 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
         0     // padding (이미 직접 추가함)
       );
 
+      const pixelRatio = Math.min(3, Math.max(1, window.devicePixelRatio * 2));
+
       // 5. .react-flow__viewport 요소를 타겟으로 캡처
       const dataUrl = await toPng(viewportElement, {
         backgroundColor: '#ffffff',
         width: finalBounds.width,
         height: finalBounds.height,
+        pixelRatio,
+        cacheBust: true,
         style: {
           width: `${finalBounds.width}px`,
           height: `${finalBounds.height}px`,

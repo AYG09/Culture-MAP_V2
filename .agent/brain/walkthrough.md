@@ -1,3 +1,41 @@
+# Walkthrough: PNG 고화질 내보내기
+
+## 완료 일시
+2026-01-23
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. PNG 내보내기 해상도 향상
+2. 과도한 메모리 사용 방지
+
+---
+
+## ✅ 해결 조치
+
+1. `toPng` 옵션에 `pixelRatio` 적용(상한 3)
+2. `cacheBust: true`로 캡처 안정성 보강
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/components/ExportMenu.tsx` | PNG 고화질 옵션 추가 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. npm run build 성공
+2. PNG 선명도 개선은 사용자 환경에서 확인 필요
+
+---
+
 # Walkthrough: 복원 중 레이어 자동 계산/동기화 가드
 
 ## 완료 일시

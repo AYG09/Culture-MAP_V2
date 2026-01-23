@@ -311,6 +311,29 @@
 
 ---
 
+# Task List: PNG 고화질 내보내기
+
+## 진행 상황
+- 🔲 미완료
+- 🔄 진행 중
+- ✅ 완료
+
+---
+
+## Task 1: 고화질 옵션 적용
+- [x] toPng에 pixelRatio 적용
+- [x] cacheBust 옵션 추가
+
+## Task 2: 문서 업데이트
+- [x] implementation_plan.md 업데이트
+- [x] walkthrough.md 변경 사항 기록
+
+## Task 3: 검증
+- [x] npm run build 성공
+- [ ] PNG 내보내기 선명도 개선 확인 (사용자 환경)
+
+---
+
 # Task List: 복원 중 레이어 자동 계산/동기화 가드
 
 ## 진행 상황
