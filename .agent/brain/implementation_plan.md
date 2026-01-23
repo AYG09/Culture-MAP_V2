@@ -1545,3 +1545,55 @@ git checkout -- .agent/brain/walkthrough.md
 ### 수동 검증
 1. 컨설팅 모드 전환 후 새로고침/재접속 시 UI 표시 확인
 2. 다른 사용자가 모드 변경 시 즉시 반영되는지 확인
+
+---
+
+# Implementation Plan: 컨설팅 → 워크샵 전환 버튼 추가
+
+## 목표
+1. 설정창에서 워크샵 모드 전환 지원
+2. 세션 타입 업데이트가 즉시 반영되도록 리로드 처리
+
+---
+
+## 핵심 변경 범위
+
+### 1) AIConfigModal 전환 로직 추가
+- 워크샵 전환 핸들러 및 메시지 상태 추가
+- 세션 미연결/이미 워크샵/전환 실패 처리
+
+### 2) UI 버튼 추가
+- 기존 consulting-switch 스타일 재사용
+- 전환 중 버튼 비활성화
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 잘못된 모드 전환 | UX 혼란 | 전환 확인 다이얼로그 표시 |
+| 세션 미연결 | 전환 실패 | 에러 메시지로 안내 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 워크샵 전환 후 UI가 정상적으로 전환되지 않음
+
+### 롤백 절차
+```bash
+git checkout -- src/components/AIConfigModal.tsx
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. 컨설팅 모드에서 워크샵 전환 버튼 클릭 후 새로고침 시 워크샵 UI 확인
+2. 세션 미연결/이미 워크샵 상태에서 에러 메시지 표시 확인

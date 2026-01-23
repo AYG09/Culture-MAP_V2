@@ -1513,3 +1513,41 @@
 
 1. npm run build 성공
 2. 컨설팅 모드 UI 표시는 사용자 환경에서 확인 필요
+
+---
+
+# Walkthrough: 컨설팅 → 워크샵 전환 버튼 추가
+
+## 완료 일시
+2026-01-23
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 설정창에서 워크샵 모드로 되돌리기 지원
+2. 세션 타입 변경 후 UI 즉시 반영
+
+---
+
+## ✅ 해결 조치
+
+1. AIConfigModal에 워크샵 전환 핸들러와 상태 메시지 추가
+2. 기존 consulting-switch 스타일을 재사용해 전환 버튼 추가
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/components/AIConfigModal.tsx` | 워크샵 전환 로직/버튼 추가 |
+| `.agent/brain/implementation_plan.md` | 계획 섹션 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. get_errors 확인: AIConfigModal.tsx 오류 없음
+2. 워크샵 전환 동작은 사용자 환경에서 확인 필요

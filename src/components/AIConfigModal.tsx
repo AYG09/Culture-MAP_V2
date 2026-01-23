@@ -23,6 +23,8 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
     const [consultingError, setConsultingError] = useState('');
     const [consultingSuccess, setConsultingSuccess] = useState(false);
     const [isSwitchingMode, setIsSwitchingMode] = useState(false);
+    const [workshopError, setWorkshopError] = useState('');
+    const [workshopSuccess, setWorkshopSuccess] = useState(false);
 
     // 전문 지식 파일 상태
     const [academicFiles, setAcademicFiles] = useState<FileMetadata[]>([]);
@@ -147,6 +149,8 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
     const handleSwitchToConsulting = async () => {
         setConsultingError('');
         setConsultingSuccess(false);
+        setWorkshopError('');
+        setWorkshopSuccess(false);
 
         const session = liveblocksService.getCurrentSession();
         if (!session) {
@@ -176,6 +180,42 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
         } catch (error) {
             console.error('컨설팅 모드 전환 실패:', error);
             setConsultingError('모드 전환에 실패했습니다. 잠시 후 다시 시도하세요.');
+        } finally {
+            setIsSwitchingMode(false);
+        }
+    };
+
+    const handleSwitchToWorkshop = async () => {
+        setWorkshopError('');
+        setWorkshopSuccess(false);
+        setConsultingError('');
+        setConsultingSuccess(false);
+
+        const session = liveblocksService.getCurrentSession();
+        if (!session) {
+            setWorkshopError('세션에 연결된 상태에서만 전환할 수 있습니다.');
+            return;
+        }
+
+        if (session.type === 'workshop') {
+            setWorkshopError('이미 워크샵 모드입니다.');
+            return;
+        }
+
+        if (!window.confirm('워크샵 모드로 전환하시겠습니까?\n\n보고서/빈도 기능이 숨겨지고 워크샵 UI로 전환됩니다.')) {
+            return;
+        }
+
+        setIsSwitchingMode(true);
+        try {
+            await liveblocksService.updateSessionType('workshop');
+            setWorkshopSuccess(true);
+            setTimeout(() => {
+                window.location.reload();
+            }, 800);
+        } catch (error) {
+            console.error('워크샵 모드 전환 실패:', error);
+            setWorkshopError('모드 전환에 실패했습니다. 잠시 후 다시 시도하세요.');
         } finally {
             setIsSwitchingMode(false);
         }
@@ -310,6 +350,23 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                         {consultingError && <p className="consulting-error">{consultingError}</p>}
                         {consultingSuccess && <p className="consulting-success">컨설팅 모드로 전환되었습니다.</p>}
                         <p className="help-text">* 전환은 세션 연결 상태에서만 가능하며, 비밀번호 입력이 필요합니다.</p>
+                    </div>
+
+                    <div className="config-section">
+                        <label className="section-label">워크샵 모드 전환</label>
+                        <div className="consulting-switch">
+                            <button
+                                className="save-btn consulting-switch-btn"
+                                onClick={handleSwitchToWorkshop}
+                                disabled={isSwitchingMode}
+                                type="button"
+                            >
+                                {isSwitchingMode ? '전환 중...' : '워크샵 모드로 전환'}
+                            </button>
+                        </div>
+                        {workshopError && <p className="consulting-error">{workshopError}</p>}
+                        {workshopSuccess && <p className="consulting-success">워크샵 모드로 전환되었습니다.</p>}
+                        <p className="help-text">* 전환은 세션 연결 상태에서만 가능합니다.</p>
                     </div>
 
                     {/* 전문가 지식 베이스 섹션 */}
