@@ -174,6 +174,7 @@ const CultureMapFlow = ({
   const nodesRef = useRef<Node[]>([]);
   const edgesRef = useRef<Edge[]>([]);
   const layoutSpacingRef = useRef<'compact' | 'normal' | 'wide'>('normal');
+  const previousLayerStartsRef = useRef<number[] | null>(null);
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -1383,6 +1384,69 @@ ${chatHistorySection}
       setLayerHeights(nextHeights);
     }
   }, [nodes, layerHeights]);
+
+  useEffect(() => {
+    const layerIndexMap: Record<string, number> = {
+      result: 0,
+      behavior: 1,
+      tangible_lever: 2,
+      intangible_lever: 3,
+    };
+
+    const displayLayerOrder: Array<keyof typeof layerIndexMap> = [
+      'result',
+      'behavior',
+      'tangible_lever',
+      'intangible_lever',
+    ];
+
+    const nextStarts: number[] = [];
+    let cumulativeY = 0;
+    displayLayerOrder.forEach((layerKey) => {
+      const index = layerIndexMap[layerKey];
+      nextStarts[index] = cumulativeY;
+      cumulativeY += layerHeights[index] ?? 0;
+    });
+
+    const previousStarts = previousLayerStartsRef.current ?? nextStarts;
+    previousLayerStartsRef.current = nextStarts;
+
+    const deltas = nextStarts.map((start, index) => start - (previousStarts[index] ?? start));
+    const hasShift = deltas.some((delta) => delta !== 0);
+    if (!hasShift) return;
+
+    let shifted = false;
+    const shiftedNodes = nodes.map((node) => {
+      const layerIndex = layerIndexMap[node.type || 'result'] ?? 0;
+      const delta = deltas[layerIndex] ?? 0;
+      if (!delta) return node;
+      shifted = true;
+      return {
+        ...node,
+        position: {
+          ...node.position,
+          y: node.position.y + delta,
+        },
+      };
+    });
+
+    if (!shifted) return;
+
+    setNodes(shiftedNodes);
+
+    if (liveblocksService.isConnected()) {
+      shiftedNodes.forEach((node) => {
+        liveblocksService.updateStickyNote({
+          id: node.id,
+          x: node.position.x,
+          y: node.position.y,
+        });
+      });
+    }
+
+    const updatedData = convertFromFlowData(shiftedNodes, edgesRef.current);
+    onNotesChange(updatedData.notes);
+  }, [layerHeights, nodes, onNotesChange, setNodes]);
 
   // ============================================================================
   // Liveblocks 실시간 리스너 등록
