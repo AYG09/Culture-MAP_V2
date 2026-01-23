@@ -8,6 +8,7 @@
 - **Sequential Thinking**: You MUST use `mcp_sequential-thinking` for every non-trivial task.
 - **Implementation Planning**: Always create or update `implementation_plan.md` before execution.
 - **Risk Assessment**: Proactively identify data loss risks or breaking changes in the plan.
+- **Shrimp 대체**: Shrimp MCP 불가/불안정 시 [.agent/skills/task-orchestration-fallback/SKILL.md](.agent/skills/task-orchestration-fallback/SKILL.md) 절차로 대체.
 
 ### 1.2 Documentation-First Verification
 - **Context7**: Before modifying any library-specific code (Liveblocks, Gemini SDK, XYFlow), YOU MUST call `mcp_context7_query-docs` to verify the latest API patterns.

@@ -39,15 +39,31 @@ const NODE_HEIGHT = 120;
  * ⚡ 개선: 층위별 Y 좌표 강제 고정 (순환 연결 대응)
  * ⚡ 개선2: 층위별 개별 높이 지원 (레거시 모드와 동일)
  */
+type LayoutSpacingPreset = 'compact' | 'normal' | 'wide';
+
+type LayoutOptions = {
+  layerHeights?: number[];
+  spacingPreset?: LayoutSpacingPreset;
+  horizontalSpacing?: number;
+  startX?: number;
+};
+
 export function getLayoutedElements(
   nodes: Node[],
   edges: Edge[],
-  layerHeightsOrSpacing: number[] | number = 200 // 층위별 높이 배열 또는 일괄 간격
+  layerHeightsOrSpacing: number[] | number | LayoutOptions = 200 // 층위별 높이 배열 또는 일괄 간격
 ): { nodes: Node[]; edges: Edge[] } {
+  const options =
+    typeof layerHeightsOrSpacing === 'object' && !Array.isArray(layerHeightsOrSpacing)
+      ? layerHeightsOrSpacing
+      : undefined;
+
+  const defaultHeight = typeof layerHeightsOrSpacing === 'number' ? layerHeightsOrSpacing : 200;
+
   // layerHeightsOrSpacing이 배열이면 개별 높이, 숫자면 일괄 간격
   const layerHeights = Array.isArray(layerHeightsOrSpacing)
     ? layerHeightsOrSpacing
-    : [layerHeightsOrSpacing, layerHeightsOrSpacing, layerHeightsOrSpacing, layerHeightsOrSpacing];
+    : (options?.layerHeights ?? [defaultHeight, defaultHeight, defaultHeight, defaultHeight]);
 
   // 1단계: 노드를 층위별로 그룹화
   const nodesByLayer = new Map<string, Node[]>();
@@ -104,10 +120,13 @@ export function getLayoutedElements(
     }
 
     // 수평 간격 설정 (노드가 많을수록 간격 확대)
-    const baseSpacing = 340;
-    const expandedSpacing = 460;
-    const horizontalSpacing = layerNodes.length > 4 ? expandedSpacing : baseSpacing;
-    const startX = 120; // 시작 X 좌표
+    const spacingPreset: LayoutSpacingPreset = options?.spacingPreset ?? 'normal';
+    const baseSpacing = spacingPreset === 'compact' ? 260 : spacingPreset === 'wide' ? 360 : 300;
+    const expandedSpacing = spacingPreset === 'compact' ? 320 : spacingPreset === 'wide' ? 440 : 360;
+    const horizontalSpacing = typeof options?.horizontalSpacing === 'number'
+      ? options.horizontalSpacing
+      : (layerNodes.length > 4 ? expandedSpacing : baseSpacing);
+    const startX = options?.startX ?? 120; // 시작 X 좌표
 
     const scoredNodes = layerNodes.map((node, nodeIndex) => {
       const neighborIndices: number[] = [];

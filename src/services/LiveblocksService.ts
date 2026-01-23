@@ -3,7 +3,7 @@
  */
 
 import { createClient } from '@liveblocks/client';
-import type { Client } from '@liveblocks/client';
+import type { Client, Room } from '@liveblocks/client';
 import { LiveblocksYjsProvider } from '@liveblocks/yjs';
 import * as Y from 'yjs';
 import { IndexeddbPersistence } from 'y-indexeddb';
@@ -14,6 +14,8 @@ import type {
     SessionType,
     ChatMessage,
     AcademicFileMeta,
+    Insight,
+    SessionPresence,
 } from '../types/liveblocks';
 
 type EventCallback = (...args: unknown[]) => void;
@@ -25,6 +27,7 @@ interface EventListeners {
 class LiveblocksService {
     private client: Client | null = null;
     private provider: LiveblocksYjsProvider | null = null;
+    private room: Room<SessionPresence> | null = null;
     private yDoc: Y.Doc | null = null;
     private indexeddbProvider: IndexeddbPersistence | null = null;
     private currentSession: MultiUserSession | null = null;
@@ -91,6 +94,7 @@ class LiveblocksService {
         });
 
         this.leaveRoom = leave;
+        this.room = room as Room<SessionPresence>;
         this.provider = new LiveblocksYjsProvider(room as any, this.yDoc);
         this.indexeddbProvider = new IndexeddbPersistence(roomId, this.yDoc);
         this.hasClearedIndexeddbCache = false;
@@ -166,6 +170,7 @@ class LiveblocksService {
                 this.leaveRoom();
                 this.leaveRoom = null;
             }
+            this.room = null;
             if (this.indexeddbProvider) {
                 await this.indexeddbProvider.destroy();
                 this.indexeddbProvider = null;
@@ -185,12 +190,67 @@ class LiveblocksService {
     // 편집 상태 공유 (Locks)
     // ============================================
 
-    public startEditing(_itemId: string, _itemType: 'note' | 'connection'): void {
-        if (!this.client) return;
+    public startEditing(itemId: string, itemType: 'note' | 'connection'): void {
+        if (!this.client || !this.yDoc) return;
+        const editingLocks = this.yDoc.getMap<{
+            itemId: string;
+            itemType: 'note' | 'connection';
+            userId: string;
+            displayName?: string;
+            timestamp: number;
+        }>('editingLocks');
+        const existing = editingLocks.get(itemId);
+        if (existing && existing.userId !== this.userId) {
+            return;
+        }
+        editingLocks.set(itemId, {
+            itemId,
+            itemType,
+            userId: this.userId,
+            displayName: this.displayName,
+            timestamp: Date.now(),
+        });
     }
 
-    public stopEditing(_itemId: string, _itemType: 'note' | 'connection'): void {
-        if (!this.client) return;
+    public stopEditing(itemId: string, _itemType: 'note' | 'connection'): void {
+        if (!this.client || !this.yDoc) return;
+        const editingLocks = this.yDoc.getMap<{
+            itemId: string;
+            itemType: 'note' | 'connection';
+            userId: string;
+            displayName?: string;
+            timestamp: number;
+        }>('editingLocks');
+        const existing = editingLocks.get(itemId);
+        if (!existing || existing.userId !== this.userId) {
+            return;
+        }
+        editingLocks.delete(itemId);
+    }
+
+    // ============================================
+    // Presence / 커서 공유
+    // ============================================
+
+    public updatePresence(update: Partial<SessionPresence>): void {
+        if (!this.room) return;
+        this.room.updatePresence({
+            ...update,
+            lastActivity: Date.now(),
+        });
+    }
+
+    public onOthersPresence(
+        callback: (others: Array<{ id: string; presence: SessionPresence }>) => void
+    ): () => void {
+        if (!this.room) return () => { };
+        const unsubscribe = this.room.subscribe('others', (others) => {
+            const list = typeof (others as { toArray?: () => Array<{ id: string; presence: SessionPresence }> }).toArray === 'function'
+                ? (others as { toArray: () => Array<{ id: string; presence: SessionPresence }> }).toArray()
+                : Array.from(others as Iterable<{ id: string; presence: SessionPresence }>);
+            callback(list);
+        });
+        return unsubscribe;
     }
 
     // ============================================
@@ -299,6 +359,55 @@ class LiveblocksService {
     }
 
     // ============================================
+    // AI 공용 키 동시 호출 제한 (Room-level lock)
+    // ============================================
+
+    public tryAcquireAiLock(ttlMs: number = 45000): boolean {
+        if (!this.yDoc) return true;
+        const aiStatus = this.yDoc.getMap<unknown>('aiStatus');
+        const now = Date.now();
+        const lockedBy = aiStatus.get('lockedBy') as string | undefined;
+        const expiresAt = aiStatus.get('expiresAt') as number | undefined;
+
+        if (lockedBy && expiresAt && expiresAt > now && lockedBy !== this.userId) {
+            return false;
+        }
+
+        aiStatus.set('lockedBy', this.userId);
+        aiStatus.set('lockedAt', now);
+        aiStatus.set('expiresAt', now + ttlMs);
+        return true;
+    }
+
+    public releaseAiLock(): void {
+        if (!this.yDoc) return;
+        const aiStatus = this.yDoc.getMap<unknown>('aiStatus');
+        const lockedBy = aiStatus.get('lockedBy') as string | undefined;
+        if (lockedBy && lockedBy !== this.userId) return;
+        aiStatus.set('lockedBy', '');
+        aiStatus.set('lockedAt', 0);
+        aiStatus.set('expiresAt', 0);
+    }
+
+    public getAiLockStatus(): { lockedBy?: string; lockedAt?: number; expiresAt?: number } | null {
+        if (!this.yDoc) return null;
+        const aiStatus = this.yDoc.getMap<unknown>('aiStatus');
+        return {
+            lockedBy: aiStatus.get('lockedBy') as string | undefined,
+            lockedAt: aiStatus.get('lockedAt') as number | undefined,
+            expiresAt: aiStatus.get('expiresAt') as number | undefined,
+        };
+    }
+
+    public onAiLockStatus(callback: (status: { lockedBy?: string; lockedAt?: number; expiresAt?: number } | null) => void): () => void {
+        if (!this.yDoc) return () => { };
+        const aiStatus = this.yDoc.getMap<unknown>('aiStatus');
+        const observer = () => callback(this.getAiLockStatus());
+        aiStatus.observe(observer);
+        return () => aiStatus.unobserve(observer);
+    }
+
+    // ============================================
     // 맵 데이터 관리
     // ============================================
 
@@ -375,6 +484,42 @@ class LiveblocksService {
         const observer = () => callback(report.toString());
         report.observe(observer);
         return () => report.unobserve(observer);
+    }
+
+    // ============================================
+    // 인사이트 공유 (Liveblocks)
+    // ============================================
+
+    public addInsight(insight: Insight): void {
+        if (!this.yDoc) return;
+        const insights = this.yDoc.getArray<Insight>('insights');
+        const exists = insights.toArray().some(existing =>
+            existing.id === insight.id || existing.title === insight.title
+        );
+        if (exists) return;
+        insights.push([insight]);
+    }
+
+    public getInsights(): Insight[] {
+        if (!this.yDoc) return [];
+        return this.yDoc.getArray<Insight>('insights').toArray();
+    }
+
+    public clearInsights(): void {
+        if (!this.yDoc) return;
+        const insights = this.yDoc.getArray<Insight>('insights');
+        if (insights.length === 0) return;
+        this.yDoc.transact(() => {
+            insights.delete(0, insights.length);
+        });
+    }
+
+    public onInsights(callback: (insights: Insight[]) => void): () => void {
+        if (!this.yDoc) return () => { };
+        const insights = this.yDoc.getArray<Insight>('insights');
+        const observer = () => callback(insights.toArray());
+        insights.observe(observer);
+        return () => insights.unobserve(observer);
     }
 
     // ============================================
@@ -522,6 +667,42 @@ class LiveblocksService {
                     connections.forEach((conn) => {
                         this.emit('connection-deleted', { connectionId: conn.id });
                     });
+                }
+            });
+        });
+
+        // 편집 락 변경 감지
+        const editingLocks = this.yDoc.getMap<{
+            itemId: string;
+            itemType: 'note' | 'connection';
+            userId: string;
+            displayName?: string;
+            timestamp: number;
+        }>('editingLocks');
+
+        editingLocks.observe((event) => {
+            event.changes.keys.forEach((change, key) => {
+                if (change.action === 'add' || change.action === 'update') {
+                    const lock = editingLocks.get(key);
+                    if (!lock) return;
+                    this.emit('editing-started', lock);
+                }
+
+                if (change.action === 'delete') {
+                    const oldValue = change.oldValue as {
+                        itemId: string;
+                        itemType: 'note' | 'connection';
+                        userId: string;
+                        displayName?: string;
+                        timestamp: number;
+                    } | undefined;
+
+                    if (!oldValue) {
+                        this.emit('editing-stopped', { itemId: key });
+                        return;
+                    }
+
+                    this.emit('editing-stopped', oldValue);
                 }
             });
         });

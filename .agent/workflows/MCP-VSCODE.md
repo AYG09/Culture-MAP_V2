@@ -134,6 +134,10 @@ mcp_sequentialthi_sequentialthinking:
 4. mcp_mcp-shrimp-ta_split_tasks: 태스크 분할
 ```
 
+**Shrimp 불가/불안정 시 대체**
+- [.agent/skills/task-orchestration-fallback/SKILL.md](.agent/skills/task-orchestration-fallback/SKILL.md) 절차로 전환
+- 계획/분해/검증을 문서 기반으로 수행 후 실행
+
 #### 2-2. 다이어그램 작성 (아키텍처 변경 시)
 ```
 mcp_com_mermaidch_validate_and_render_mermaid_diagram:

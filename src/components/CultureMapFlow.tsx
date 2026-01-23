@@ -174,6 +174,7 @@ const CultureMapFlow = ({
 
   const nodesRef = useRef<Node[]>([]);
   const edgesRef = useRef<Edge[]>([]);
+  const layoutSpacingRef = useRef<'compact' | 'normal' | 'wide'>('normal');
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -370,6 +371,35 @@ ${chatHistorySection}
     return unsubscribe;
   }, [isConsultingMode]);
 
+  // AI 인사이트 Liveblocks 동기화
+  useEffect(() => {
+    let unsubscribeInsights = () => { };
+
+    const syncInsights = () => {
+      if (!liveblocksService.isConnected()) {
+        return;
+      }
+
+      const currentInsights = liveblocksService.getInsights();
+      if (currentInsights.length > 0) {
+        aiService.setInsights(currentInsights);
+      }
+
+      unsubscribeInsights();
+      unsubscribeInsights = liveblocksService.onInsights((insights) => {
+        aiService.setInsights(insights);
+      });
+    };
+
+    syncInsights();
+    liveblocksService.on('sync-complete', syncInsights);
+
+    return () => {
+      liveblocksService.off('sync-complete', syncInsights);
+      unsubscribeInsights();
+    };
+  }, []);
+
   // 층위별 개별 높이 조절 상태 (레거시 모드와 동일)
   const [layerHeights, setLayerHeights] = useState<number[]>([220, 220, 220, 220]); // [결과, 행동, 유형, 무형]
   const [layerOpacities, setLayerOpacities] = useState<number[]>([0.05, 0.05, 0.05, 0.05]); // 층위별 투명도
@@ -425,7 +455,7 @@ ${chatHistorySection}
     const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
       currentNodes,
       currentEdges,
-      layerHeights
+      { layerHeights, spacingPreset: layoutSpacingRef.current }
     );
 
     if (!layoutedNodes.length || layoutedNodes.length !== currentNodes.length) {
@@ -862,11 +892,20 @@ ${chatHistorySection}
 
       let requestedLayout = false;
       let layoutNeeded = false;
+      let suppressAutoLayout = false;
 
       actions.forEach((queuedAction) => {
         const name = queuedAction?.name;
+        if (queuedAction?.__suppressAutoLayout) {
+          suppressAutoLayout = true;
+        }
+
         if (name === 'auto_layout') {
           requestedLayout = true;
+          const spacing = queuedAction?.args?.spacing;
+          if (spacing === 'compact' || spacing === 'normal' || spacing === 'wide') {
+            layoutSpacingRef.current = spacing;
+          }
           return;
         }
 
@@ -881,7 +920,7 @@ ${chatHistorySection}
         }
       });
 
-      if (requestedLayout || layoutNeeded) {
+      if (!suppressAutoLayout && (requestedLayout || layoutNeeded)) {
         requestAnimationFrame(() => safeAutoLayout(false));
       }
     }, 0);
@@ -1776,6 +1815,80 @@ ${chatHistorySection}
     setSelectedEdges(params.edges);
   }, []);
 
+  const lastPresenceUpdateRef = useRef(0);
+  const [otherCursors, setOtherCursors] = useState<Array<{
+    id: string;
+    x: number;
+    y: number;
+    userName?: string;
+    userColor?: string;
+  }>>([]);
+
+  useEffect(() => {
+    let unsubscribe = () => { };
+
+    const handleSync = () => {
+      if (!liveblocksService.isConnected()) return;
+
+      unsubscribe();
+      unsubscribe = liveblocksService.onOthersPresence((others) => {
+        const cursors = others
+          .map(({ id, presence }) => ({
+            id,
+            cursor: presence?.cursor,
+            userName: presence?.userName,
+            userColor: presence?.userColor,
+          }))
+          .filter((entry) => Boolean(entry.cursor))
+          .map((entry) => ({
+            id: entry.id,
+            x: entry.cursor!.x,
+            y: entry.cursor!.y,
+            userName: entry.userName,
+            userColor: entry.userColor,
+          }));
+
+        setOtherCursors(cursors);
+      });
+    };
+
+    handleSync();
+    liveblocksService.on('sync-complete', handleSync);
+
+    return () => {
+      liveblocksService.off('sync-complete', handleSync);
+      unsubscribe();
+    };
+  }, []);
+
+  const handlePaneMouseMove = useCallback((event: React.MouseEvent) => {
+    if (!reactFlowInstance || !liveblocksService.isConnected()) return;
+
+    const now = performance.now();
+    if (now - lastPresenceUpdateRef.current < 50) return;
+    lastPresenceUpdateRef.current = now;
+
+    const projector = reactFlowInstance as ReactFlowInstance & {
+      screenToFlowPosition?: (position: { x: number; y: number }) => {
+        x: number;
+        y: number;
+      };
+      project?: (position: { x: number; y: number }) => { x: number; y: number };
+    };
+
+    const cursor =
+      projector.screenToFlowPosition?.({ x: event.clientX, y: event.clientY }) ??
+      projector.project?.({ x: event.clientX, y: event.clientY }) ??
+      { x: event.clientX, y: event.clientY };
+
+    liveblocksService.updatePresence({ cursor });
+  }, [reactFlowInstance]);
+
+  const handlePaneMouseLeave = useCallback(() => {
+    if (!liveblocksService.isConnected()) return;
+    liveblocksService.updatePresence({ cursor: null });
+  }, []);
+
   // ============================================================================
   // 노드 클릭 이벤트
   // ============================================================================
@@ -2539,6 +2652,8 @@ ${chatHistorySection}
                 onNodeClick={handleNodeClick}
                 onNodeDoubleClick={handleNodeDoubleClick}
                 onSelectionChange={handleSelectionChange}
+                onPaneMouseMove={handlePaneMouseMove}
+                onPaneMouseLeave={handlePaneMouseLeave}
                 onPaneContextMenu={handlePaneContextMenu}
                 onNodeContextMenu={handleNodeContextMenu}
                 onEdgeContextMenu={handleEdgeContextMenu}
@@ -2566,6 +2681,53 @@ ${chatHistorySection}
                 onInit={setReactFlowInstance}
               >
                 <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+
+                {otherCursors.length > 0 && (
+                  <ViewportPortal>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        pointerEvents: 'none',
+                        zIndex: 5,
+                      }}
+                    >
+                      {otherCursors.map((cursor) => (
+                        <div
+                          key={cursor.id}
+                          style={{
+                            position: 'absolute',
+                            transform: `translate(${cursor.x}px, ${cursor.y}px)`,
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: '50%',
+                              backgroundColor: cursor.userColor || '#8b5cf6',
+                              boxShadow: '0 0 6px rgba(0, 0, 0, 0.35)',
+                            }}
+                          />
+                          <div
+                            style={{
+                              marginTop: 4,
+                              padding: '2px 6px',
+                              borderRadius: 6,
+                              backgroundColor: 'rgba(0,0,0,0.65)',
+                              color: '#fff',
+                              fontSize: 10,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {cursor.userName ?? '참여자'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ViewportPortal>
+                )}
 
                 {/* 층위 배경 레이어 (ViewportPortal 사용 - transform 적용됨) */}
                 {showLayerBackground && (

@@ -16,6 +16,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
     const [apiKey, setApiKey] = useState(currentConfig?.apiKey || '');
     const [modelName, setModelName] = useState(currentConfig?.modelName || 'gemini-2.5-flash-lite');
     const [autoExecute, setAutoExecute] = useState(currentConfig?.autoExecuteFunctionCalls || false);
+    const [sharedApiKeyMode, setSharedApiKeyMode] = useState(currentConfig?.sharedApiKeyMode || false);
     const [isSaved, setIsSaved] = useState(false);
     const [showKey, setShowKey] = useState(false);
     const [consultingPassword, setConsultingPassword] = useState('');
@@ -52,7 +53,8 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
             provider,
             apiKey: apiKey.trim(),
             modelName: modelName.trim(),
-            autoExecuteFunctionCalls: autoExecute
+            autoExecuteFunctionCalls: autoExecute,
+            sharedApiKeyMode
         };
         aiService.setConfig(newConfig);
         setIsSaved(true);
@@ -261,6 +263,27 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                             {autoExecute
                                 ? '⚡ AI가 제안하는 노드 추가/수정이 즉시 캔버스에 반영됩니다.'
                                 : '🛡️ AI 제안을 확인 후 "캔버스에 적용" 버튼을 눌러야 반영됩니다.'}
+                        </p>
+                    </div>
+
+                    <div className="config-section">
+                        <label className="section-label">공용 API 키 모드</label>
+                        <div className="toggle-row">
+                            <span className="toggle-label">
+                                {sharedApiKeyMode ? '👥 세션 단일 키(동시 호출 제한)' : '👤 개인 키(각자 호출)'}
+                            </span>
+                            <button
+                                className={`toggle-switch ${sharedApiKeyMode ? 'active' : ''}`}
+                                onClick={() => setSharedApiKeyMode(!sharedApiKeyMode)}
+                                type="button"
+                            >
+                                <span className="toggle-knob" />
+                            </button>
+                        </div>
+                        <p className="help-text">
+                            {sharedApiKeyMode
+                                ? '세션 참여자 간 AI 호출을 순차 처리해 429 오류를 줄입니다.'
+                                : '각자 API 키를 사용하면 동시 호출 제한이 없습니다.'}
                         </p>
                     </div>
 

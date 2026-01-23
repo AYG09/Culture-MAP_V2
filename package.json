@@ -29,6 +29,7 @@
     "@types/uuid": "^10.0.0",
     "@types/xlsx": "^0.0.35",
     "@xyflow/react": "^12.8.6",
+    "culture-map-v2": "file:",
     "dagre": "^0.8.5",
     "docx": "^8.5.0",
     "exceljs": "^4.4.0",

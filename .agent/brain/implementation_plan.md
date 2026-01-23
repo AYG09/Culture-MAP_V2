@@ -567,3 +567,63 @@ git checkout -- .agent/brain/walkthrough.md
 1. 보고서 생성 시 빈 응답 발생 로그가 감지되면 재시도/폴백이 동작하는지 확인
 2. AI 페르소나 규칙이 응답에 반영되는지 확인
 3. 실패 시 사용자 오류 메시지가 구체적으로 표시되는지 확인
+
+---
+
+# Implementation Plan: Presence/커서 동기화 + Shrimp 대체 절차
+
+## 목표
+1. Liveblocks presence 업데이트/구독 래퍼를 추가해 커서 동기화를 제공
+2. Shrimp MCP 불가/불안정 시 문서 기반 대체 절차를 공식화
+
+---
+
+## 핵심 변경 범위
+
+### 1) Presence 래퍼 추가
+- `LiveblocksService`에 `updatePresence`, `onOthersPresence` 추가
+- 세션 종료 시 room 참조 정리
+
+### 2) 커서 전파 및 표시
+- 캔버스 마우스 이동 시 커서 좌표 전송 (throttle)
+- 다른 사용자 커서 표시 UI 추가
+
+### 3) Shrimp 대체 문서화
+- `.agent/skills/task-orchestration-fallback/SKILL.md` 신규
+- `.agent/workflows/MCP-VSCODE.md`, `shrimp-rules.md`에 대체 절차 연결
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 커서 전송 과다 | 성능 저하 | 50ms throttle 적용 |
+| Presence 미수신 | 커서 미표시 | sync-complete 후 구독 재설정 |
+| Shrimp 규칙 충돌 | 절차 혼선 | fallback 규칙을 명시적으로 추가 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 커서 표시로 인한 성능 저하
+- Presence 업데이트 오류
+
+### 롤백 절차
+```bash
+git checkout -- src/services/LiveblocksService.ts
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- .agent/workflows/MCP-VSCODE.md
+git checkout -- shrimp-rules.md
+git checkout -- .agent/skills/task-orchestration-fallback/SKILL.md
+git checkout -- .agent/brain/implementation_plan.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. 두 브라우저에서 동일 세션 접속 후 커서가 상호 표시되는지 확인
+2. Shrimp MCP 불가 시 fallback 문서로 절차 수행 가능 여부 확인

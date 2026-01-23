@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Send, Paperclip, X, Sparkles, Loader2, FileText, Settings, Copy, Check, Users, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -78,11 +78,20 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const [connectedUsers, setConnectedUsers] = useState(1);
+    const [chatScope, setChatScope] = useState<'group' | 'direct'>('group');
+    const [aiLockStatus, setAiLockStatus] = useState<{ lockedBy?: string; lockedAt?: number; expiresAt?: number } | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     
     // 현재 사용자 ID 가져오기
     const currentUserId = liveblocksService.getCurrentUserId();
+    const sharedApiKeyMode = aiService.getConfig()?.sharedApiKeyMode ?? false;
+
+    const filteredMessages = useMemo(() => {
+        return chatScope === 'group'
+            ? messages
+            : messages.filter(msg => msg.role === 'assistant' || msg.role === 'system' || msg.userId === currentUserId || (msg.role === 'user' && !msg.userId));
+    }, [messages, chatScope, currentUserId]);
 
     // 메시지 복사 기능
     const handleCopyMessage = useCallback(async (messageId: string, content: string) => {
@@ -130,6 +139,13 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
         updateUserCount();
         const interval = setInterval(updateUserCount, 3000);
         return () => clearInterval(interval);
+    }, []);
+
+    useEffect(() => {
+        const unsubscribe = liveblocksService.onAiLockStatus((status) => {
+            setAiLockStatus(status);
+        });
+        return unsubscribe;
     }, []);
 
     // Liveblocks 채팅 메시지 구독 - 세션 연결 후 재구독 필요
@@ -221,8 +237,10 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
         if (!textToSend.trim() && attachments.length === 0) return;
 
         const currentText = textToSend;
+        const isPrivateChat = chatScope === 'direct';
         if (!overrideText) setInputValue('');
         setIsLoading(true);
+        let lockAcquired = false;
 
         // 현재 맵 상태를 AI가 이해할 수 있도록 상세하게 전달
         // AI가 노드 ID를 알아야 create_connection 등에서 사용 가능
@@ -297,16 +315,34 @@ ${layerHeightContext}
             console.log('💬 [AIChatSidebar] Sending message:', currentText);
             
             // 메시지 전송 - Liveblocks 연결 여부에 따라 분기
+            if (sharedApiKeyMode && liveblocksService.isConnected()) {
+                lockAcquired = liveblocksService.tryAcquireAiLock(60000);
+                if (!lockAcquired) {
+                    setIsLoading(false);
+                    const warningMessage: ChatMessage = {
+                        id: `system-${Date.now()}`,
+                        role: 'system' as const,
+                        content: '현재 다른 사용자가 AI를 사용 중입니다. 잠시 후 다시 시도해주세요.',
+                        userName: 'System',
+                        userColor: '#64748b',
+                        timestamp: Date.now(),
+                    };
+                    setMessages(prev => [...prev, warningMessage]);
+                    return;
+                }
+            }
+
             if (currentText.trim()) {
-                if (liveblocksService.isConnected()) {
+                if (!isPrivateChat && liveblocksService.isConnected()) {
                     liveblocksService.sendChatMessage(currentText);
                 } else {
-                    // Liveblocks 미연결 시 로컬 상태에 사용자 메시지 추가
+                    // 개인 채팅 또는 Liveblocks 미연결 시 로컬 상태에 사용자 메시지 추가
                     console.log('📝 [AIChatSidebar] Adding user message to local state');
                     setMessages(prev => [...prev, {
                         id: `user-${Date.now()}`,
                         role: 'user' as const,
                         content: currentText,
+                        userId: currentUserId,
                         userName: '나',
                         userColor: '#3b82f6',
                         timestamp: Date.now()
@@ -328,12 +364,29 @@ ${layerHeightContext}
                 }
             }
 
-            const actionKeywords = [
-                '추가', '생성', '만들', '연결', '정리', '정렬', '레이아웃',
-                '삭제', '지워', '제거', '수정', '변경', '옮겨', '이동',
-                '높이', '레이어', '노드', '포스트잇'
-            ];
-            const forceFunctionCall = actionKeywords.some(keyword => currentText.includes(keyword));
+            const actionVerbs = ['추가', '생성', '만들', '연결', '정리', '정렬', '배치', '레이아웃', '삭제', '지워', '제거', '수정', '변경', '옮겨', '이동', '높이'];
+            const actionNouns = ['노드', '포스트잇', '연결', '선', '화살표', '엣지', '레이아웃', '정렬', '배치', '맵', '레이어'];
+            const hasVerb = actionVerbs.some(keyword => currentText.includes(keyword));
+            const hasNoun = actionNouns.some(keyword => currentText.includes(keyword));
+            const layoutOnlyRequest = /정렬|정리|배치|레이아웃|높이/.test(currentText);
+            const mapEditIntentDetected = (hasVerb && hasNoun) || layoutOnlyRequest;
+            const explicitMapEditRequest = !isPrivateChat && mapEditIntentDetected;
+            const preservePositionsRequested = /(위치.*유지|현재.*위치|정렬.*하지|정렬하지|레이아웃.*하지|자동\s*정렬.*(하지|말))/i.test(currentText);
+            const forceFunctionCall = explicitMapEditRequest;
+
+            if (isPrivateChat && mapEditIntentDetected) {
+                setIsLoading(false);
+                const guidanceMessage: ChatMessage = {
+                    id: `system-${Date.now()}`,
+                    role: 'system' as const,
+                    content: '1:1 탭에서는 컬쳐맵 도구가 비활성화되어 있어요. **전체 채팅** 탭으로 전환한 뒤, “노드 추가/연결/정렬”처럼 요청해 주세요.',
+                    userName: 'System',
+                    userColor: '#64748b',
+                    timestamp: Date.now(),
+                };
+                setMessages(prev => [...prev, guidanceMessage]);
+                return;
+            }
 
             console.log('🤖 [AIChatSidebar] Requesting AI Stream...');
             // 스트리밍 시작
@@ -341,7 +394,7 @@ ${layerHeightContext}
                 `${contextString}\n\n[사용자 메시지]\n${currentText || '첨부된 파일을 분석해주세요.'}`,
                 fileUri,
                 mimeType,
-                { forceFunctionCall }
+                { forceFunctionCall, allowExternalTools: !isPrivateChat && explicitMapEditRequest }
             );
 
             let aiMsgId = '';
@@ -367,8 +420,10 @@ ${layerHeightContext}
                         console.log('🤖 [AIChatSidebar] AI First chunk received!');
                         clearTimeout(responseTimeout);
                         setIsLoading(false); // 스트리밍이 시작되면 일반 로딩 인디케이터 숨김
-                        aiMsgId = liveblocksService.startAiResponse();
-                        console.log('🤖 [AIChatSidebar] AI Message ID created:', aiMsgId);
+                        if (!isPrivateChat && liveblocksService.isConnected()) {
+                            aiMsgId = liveblocksService.startAiResponse();
+                            console.log('🤖 [AIChatSidebar] AI Message ID created:', aiMsgId);
+                        }
                         isFirstChunk = false;
 
                         // Liveblocks가 연결되지 않은 경우 로컬 상태로 폴백
@@ -403,8 +458,10 @@ ${layerHeightContext}
                             console.log('🤖 [AIChatSidebar] AI First chunk received (actions)');
                             clearTimeout(responseTimeout);
                             setIsLoading(false);
-                            aiMsgId = liveblocksService.startAiResponse();
-                            console.log('🤖 [AIChatSidebar] AI Message ID created:', aiMsgId);
+                            if (!isPrivateChat && liveblocksService.isConnected()) {
+                                aiMsgId = liveblocksService.startAiResponse();
+                                console.log('🤖 [AIChatSidebar] AI Message ID created:', aiMsgId);
+                            }
                             isFirstChunk = false;
 
                             if (!aiMsgId) {
@@ -427,11 +484,20 @@ ${layerHeightContext}
 
                         // 설정에 따라 자동 실행 또는 수동 확인
                         const autoExecute = aiService.getConfig()?.autoExecuteFunctionCalls ?? false;
+                        if (!explicitMapEditRequest) {
+                            console.warn('🛑 [AIChatSidebar] No explicit map-edit intent detected. Actions will be ignored.');
+                        }
+                        const actionsWithFlags = (!isPrivateChat && explicitMapEditRequest)
+                            ? finalActions.map(action => ({
+                                ...action,
+                                __suppressAutoLayout: preservePositionsRequested
+                            }))
+                            : [];
 
-                        if (autoExecute && finalActions.length > 0) {
+                        if (autoExecute && actionsWithFlags.length > 0) {
                             // 자동 실행 모드: 즉시 onActionExecute 호출
                             console.log('⚡ [AIChatSidebar] Auto-executing actions...');
-                            finalActions.forEach(action => onActionExecute(action));
+                            actionsWithFlags.forEach(action => onActionExecute(action));
                             // 실행 완료 후 텍스트만 업데이트 (액션은 저장하지 않음 - 이미 실행됨)
                             if (aiMsgId && !aiMsgId.startsWith('local-')) {
                                 liveblocksService.updateAiResponse(aiMsgId);
@@ -440,10 +506,10 @@ ${layerHeightContext}
                             // 수동 실행 모드: 메시지에 actions 저장하여 버튼 표시
                             console.log('🛡️ [AIChatSidebar] Manual mode - storing actions for user confirmation');
                             if (aiMsgId && !aiMsgId.startsWith('local-')) {
-                                liveblocksService.updateAiResponse(aiMsgId, undefined, finalActions);
+                                liveblocksService.updateAiResponse(aiMsgId, undefined, actionsWithFlags);
                             } else {
                                 setMessages(prev => prev.map(m =>
-                                    m.id === aiMsgId ? { ...m, suggestedActions: finalActions } : m
+                                    m.id === aiMsgId ? { ...m, suggestedActions: actionsWithFlags } : m
                                 ));
                             }
                         }
@@ -455,11 +521,25 @@ ${layerHeightContext}
 
         } catch (error: any) {
             console.error('Chat error:', error);
-            liveblocksService.sendAiResponse(`죄송합니다. 오류가 발생했습니다: ${error.message || '알 수 없는 에러'}`);
+            if (!isPrivateChat && liveblocksService.isConnected()) {
+                liveblocksService.sendAiResponse(`죄송합니다. 오류가 발생했습니다: ${error.message || '알 수 없는 에러'}`);
+            } else {
+                setMessages(prev => [...prev, {
+                    id: `ai-error-${Date.now()}`,
+                    role: 'assistant' as const,
+                    content: `죄송합니다. 오류가 발생했습니다: ${error.message || '알 수 없는 에러'}`,
+                    userName: 'AI Assistant',
+                    userColor: '#8b5cf6',
+                    timestamp: Date.now()
+                }]);
+            }
         } finally {
             setIsLoading(false);
             setUploadProgress(null);
             setAttachments([]);
+            if (lockAcquired) {
+                liveblocksService.releaseAiLock();
+            }
         }
     };
 
@@ -543,6 +623,11 @@ ${layerHeightContext}
                         <Users size={14} />
                         <span>{connectedUsers}</span>
                     </div>
+                    {sharedApiKeyMode && aiLockStatus?.lockedBy && aiLockStatus.lockedBy !== currentUserId && (
+                        <div className="ai-lock-badge" title="다른 사용자가 AI를 사용 중입니다">
+                            AI 사용 중
+                        </div>
+                    )}
                     {isDevLocalSession && (
                         <motion.button
                             className="header-clear-btn"
@@ -586,45 +671,67 @@ ${layerHeightContext}
                     </div>
                 )}
 
+                <div className="chat-tabs">
+                    <button
+                        className={`chat-tab-btn ${chatScope === 'group' ? 'active' : ''}`}
+                        onClick={() => setChatScope('group')}
+                        type="button"
+                    >
+                        전체 채팅
+                    </button>
+                    <button
+                        className={`chat-tab-btn ${chatScope === 'direct' ? 'active' : ''}`}
+                        onClick={() => setChatScope('direct')}
+                        type="button"
+                    >
+                        AI 1:1
+                    </button>
+                </div>
+
                 <div className="chat-messages">
-                    {messages.length === 0 && (
+                    {filteredMessages.length === 0 && (
                         <div className="welcome-container">
                             <div className="welcome-card">
                                 <h3>👋 반갑습니다!</h3>
-                                <p>조직문화 분석과 맵 제어를 도와드릴게요.</p>
-                                <div className="suggestion-buttons">
-                                    {suggestions.map((suggestion, idx) => (
-                                        <button
-                                            key={idx}
-                                            className="suggestion-item-btn"
-                                            onClick={() => handleSendMessage(suggestion)}
-                                            aria-label={`추천 질문: ${suggestion}`}
-                                        >
-                                            "{suggestion}"
-                                        </button>
-                                    ))}
-                                </div>
+                                <p>{chatScope === 'group' ? '조직문화 분석과 맵 제어를 도와드릴게요.' : 'AI와 1:1로 대화할 수 있어요.'}</p>
+                                {chatScope === 'group' && (
+                                    <div className="suggestion-buttons">
+                                        {suggestions.map((suggestion, idx) => (
+                                            <button
+                                                key={idx}
+                                                className="suggestion-item-btn"
+                                                onClick={() => handleSendMessage(suggestion)}
+                                                aria-label={`추천 질문: ${suggestion}`}
+                                            >
+                                                "{suggestion}"
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
-                    {messages.map((msg) => {
+                    {filteredMessages.map((msg) => {
                         const isCurrentUser = msg.role === 'user' && msg.userId === currentUserId;
                         const isOtherUser = msg.role === 'user' && msg.userId !== currentUserId && msg.userId;
                         const isAI = msg.role === 'assistant';
+                        const isSystem = msg.role === 'system';
+                        const showSenderRow = msg.role === 'user' || isAI;
+                        const senderLabel = isAI
+                            ? 'AI 컨설턴트'
+                            : (isCurrentUser ? `${msg.userName || '나'} (나)` : (msg.userName || '참여자'));
                         
                         return (
-                        <div key={msg.id} className={`message-wrapper ${isCurrentUser ? 'current-user' : ''} ${isOtherUser ? 'other-user' : ''} ${isAI ? 'ai' : ''}`}>
-                            {/* 다른 사용자나 AI 메시지일 때 아바타 표시 */}
-                            {(isOtherUser || isAI) && (
-                                <div className="message-avatar-row">
+                        <div key={msg.id} className={`message-wrapper ${isCurrentUser ? 'current-user' : ''} ${isOtherUser ? 'other-user' : ''} ${isAI ? 'ai' : ''} ${isSystem ? 'system' : ''}`}>
+                            {showSenderRow && (
+                                <div className={`message-avatar-row ${isCurrentUser ? 'current-user' : ''}`}>
                                     <UserAvatar 
                                         userName={msg.userName} 
                                         userColor={msg.userColor} 
                                         size={28}
                                         isAI={isAI}
                                     />
-                                    {isOtherUser && <span className="message-sender-name">{msg.userName}</span>}
-                                    {isAI && <span className="message-sender-name">AI 컨설턴트</span>}
+                                    <span className="message-sender-name">{senderLabel}</span>
                                 </div>
                             )}
                             <div className="message-bubble">

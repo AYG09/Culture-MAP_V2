@@ -12,6 +12,7 @@ import { MAP_TOOL_DECLARATIONS } from '../types/actions';
 import { searchKnowledge } from '../data/academicKnowledge';
 import type { ChatMessage, Insight, InsightType } from '../types/liveblocks';
 import ragService from './RagService';
+import liveblocksService from './LiveblocksService';
 
 export type AIProvider = 'gemini';
 
@@ -20,6 +21,7 @@ export interface AIConfig {
   apiKey: string;
   modelName?: string;
   autoExecuteFunctionCalls?: boolean; // true면 function call 자동 실행, false면 사용자 확인 후 실행
+  sharedApiKeyMode?: boolean; // 세션 공용 API 키 모드 (동시 호출 제한)
 }
 
 export interface FileMetadata {
@@ -97,6 +99,8 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 8. 도구 호출은 **코드 블록/print/default_api/tool_code**로 출력하지 말고 반드시 실제 function call로 실행
 9. 사용자가 "그렇게 해", "해줘", "진행해"처럼 직전 제안을 수락하면 즉시 해당 도구를 호출
 10. 코드 예시는 사용자가 명시적으로 코드 요청 시에만 제공하며, 도구 호출과는 분리
+11. 사용자가 "현재 위치 유지", "정렬하지 말고"라고 요청하면 auto_layout을 호출하지 말고 기존 좌표를 유지
+12. 간격을 좁히거나 넓히라는 요청이 있으면 auto_layout 호출 시 spacing(compact/normal/wide)을 사용
 
 ## 연결선(인과관계) 생성 규칙
 1. **노드 생성 후 연결 권장**: 새 노드 추가 후, 관련된 기존 노드와 create_connection 호출 권장
@@ -125,7 +129,22 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
         `;
   }
 
-  private createChatSession(mode: FunctionCallingConfigMode = FunctionCallingConfigMode.AUTO, history?: any[]) {
+  private isRateLimitError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const message = String((error as any).message || '').toLowerCase();
+    const status = (error as any).status || (error as any).code;
+    return status === 429 || message.includes('rate limit') || message.includes('429') || message.includes('resource_exhausted');
+  }
+
+  private async sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private createChatSession(
+    mode: FunctionCallingConfigMode = FunctionCallingConfigMode.AUTO,
+    history?: any[],
+    allowedFunctionNames?: string[]
+  ) {
     if (!this.geminiClient) throw new Error('Gemini API 설정을 먼저 완료해주세요.');
 
     const modelName = this.currentConfig?.modelName || 'gemini-2.5-flash-lite';
@@ -142,7 +161,9 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     ];
     const functionCallingConfig = {
       mode,
-      ...(mode === FunctionCallingConfigMode.ANY ? { allowedFunctionNames: mapEditTools } : {})
+      ...(mode === FunctionCallingConfigMode.ANY
+        ? { allowedFunctionNames: allowedFunctionNames ?? mapEditTools }
+        : (allowedFunctionNames ? { allowedFunctionNames } : {}))
     };
 
     return this.geminiClient.chats.create({
@@ -266,12 +287,17 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     prompt: string,
     fileUri?: string,
     mimeType?: string,
-    options?: { forceFunctionCall?: boolean }
+    options?: { forceFunctionCall?: boolean; allowExternalTools?: boolean }
   ) {
     const forceFunctionCall = options?.forceFunctionCall ?? false;
+    const allowExternalTools = options?.allowExternalTools ?? true;
+    const internalTools = ['search_academic_theory', 'load_academic_knowledge'];
+
     let session = forceFunctionCall
       ? this.createChatSession(FunctionCallingConfigMode.ANY, this.chatHistory)
-      : (this.chatSession || this.startChat());
+      : (allowExternalTools
+          ? (this.chatSession || this.startChat())
+          : this.createChatSession(FunctionCallingConfigMode.AUTO, this.chatHistory, internalTools));
 
     const parts: any[] = [{ text: prompt }];
     if (prompt) {
@@ -291,6 +317,8 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     // 스트리밍 세션 시작
     let streamResult;
     let streamRetried = false;
+    let rateLimitRetries = 0;
+    const maxRateLimitRetries = 2;
     while (true) {
       try {
         console.log('📡 [AIService] Calling sendMessageStream...');
@@ -312,7 +340,16 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
           await this.validateModelAvailability(this.currentConfig?.modelName || '');
           session = forceFunctionCall
             ? this.createChatSession(FunctionCallingConfigMode.ANY, this.chatHistory)
-            : this.startChat(this.chatHistory);
+            : (allowExternalTools
+                ? this.startChat(this.chatHistory)
+                : this.createChatSession(FunctionCallingConfigMode.AUTO, this.chatHistory, internalTools));
+          continue;
+        }
+        if (this.isRateLimitError(err) && rateLimitRetries < maxRateLimitRetries) {
+          rateLimitRetries += 1;
+          const backoffMs = 1500 * Math.pow(2, rateLimitRetries - 1);
+          console.warn(`⏳ [AIService] Rate limited. Retrying in ${backoffMs}ms (attempt ${rateLimitRetries}/${maxRateLimitRetries})`);
+          await this.sleep(backoffMs);
           continue;
         }
         console.error('❌ [AIService] Error starting stream:', err);
@@ -367,7 +404,6 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     }
 
     // 내부 도구 (load_academic_knowledge, search_academic_theory)는 자동 처리, 나머지만 외부로 dispatch
-    const internalTools = ['search_academic_theory', 'load_academic_knowledge'];
     const externalActions = accumulatedFunctionCalls.filter(fc => !internalTools.includes(fc.name));
     const internalActions = accumulatedFunctionCalls.filter(fc => internalTools.includes(fc.name));
 
@@ -1674,6 +1710,12 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     return this.insights;
   }
 
+  public setInsights(insights: Insight[]): void {
+    const next = Array.isArray(insights) ? insights.slice(-100) : [];
+    this.insights = next;
+    localStorage.setItem('culture-map-insights', JSON.stringify(this.insights));
+  }
+
   /**
    * 인사이트 추가
    */
@@ -1683,7 +1725,17 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       id: `insight-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       timestamp: Date.now(),
     };
-    this.insights.push(newInsight);
+    if (liveblocksService.isConnected()) {
+      liveblocksService.addInsight(newInsight);
+    }
+
+    const exists = this.insights.some(existing =>
+      existing.id === newInsight.id || existing.title === newInsight.title
+    );
+
+    if (!exists) {
+      this.insights.push(newInsight);
+    }
     
     // 최대 100개 인사이트 유지
     if (this.insights.length > 100) {
@@ -1699,6 +1751,9 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
    */
   public clearInsights(): void {
     this.insights = [];
+    if (liveblocksService.isConnected()) {
+      liveblocksService.clearInsights();
+    }
     localStorage.removeItem('culture-map-insights');
     console.log('💡 Insights cleared');
   }

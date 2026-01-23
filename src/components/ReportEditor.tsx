@@ -30,6 +30,13 @@ export default function ReportEditor({ initialContent, onSave, onGenerateReport,
   const [isExporting, setIsExporting] = useState(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  useEffect(() => {
+    if (isEditing) return;
+    if (initialContent !== content) {
+      setContent(initialContent);
+    }
+  }, [initialContent, content, isEditing]);
+
   /**
    * 콘텐츠 변경 핸들러 (debounce 적용)
    * 300ms 대기 후 onSave 호출하여 성능 최적화

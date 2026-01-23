@@ -222,8 +222,14 @@ export const MAP_TOOL_DECLARATIONS = [
     },
     {
         name: 'auto_layout',
-        description: 'Call when user wants to organize, arrange, or tidy up the map layout. Trigger words: 정렬, 정리, 배치. Examples: "맵 정렬해줘", "레이아웃 정리"',
-        parametersJsonSchema: { type: 'object', properties: {} }
+        description: 'Call when user wants to organize, arrange, or tidy up the map layout. Trigger words: 정렬, 정리, 배치. Examples: "맵 정렬해줘", "레이아웃 정리". spacing은 간격 조정(좁게/보통/넓게)에 사용.',
+        parametersJsonSchema: {
+            type: 'object',
+            properties: {
+                spacing: { type: 'string', enum: ['compact', 'normal', 'wide'], description: 'Node spacing preset (compact=좁게, normal=보통, wide=넓게)' }
+            },
+            propertyOrdering: ['spacing']
+        }
     },
     {
         name: 'adjust_layer_height',
