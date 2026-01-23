@@ -1,3 +1,86 @@
+# Walkthrough: 레이어 높이/투명도 동기화 및 동적 높이
+
+## 완료 일시
+2026-01-23
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 레이어 높이를 노드 위치에 맞춰 동적으로 조절하고 하단 20px 여백 유지
+2. 투명도 범위를 0~100%로 변경하고 초기값 0% 적용
+3. 레이어 높이/투명도 상태를 Liveblocks에 저장/복원
+
+---
+
+## ✅ 해결 조치
+
+1. Liveblocks에 layerSettings 저장/조회 및 변경 이벤트 추가
+2. CultureMapFlow에서 레이어 설정 복원/저장 동기화 로직 추가
+3. 노드 하단 기준 레이어 높이 계산 및 패딩 20px 통일
+4. 투명도 0%에서도 색상 계산이 안전하도록 로직 보정
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/services/LiveblocksService.ts` | 레이어 설정 저장/조회 및 이벤트 추가 |
+| `src/types/liveblocks.ts` | LayerSettings 타입 추가 |
+| `src/components/CultureMapFlow.tsx` | 투명도 범위/복원, 동적 높이 계산, 색상 계산 보정 |
+| `src/utils/flowAutoLayout.ts` | 레이어 패딩 20px 통일 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+
+---
+
+## 🧪 검증
+
+1. get_errors 확인: CultureMapFlow에 기존 TypeScript 오류 다수(변경과 무관) 존재
+2. 수동 검증(재입장 복원/20px 여백)은 사용자 환경에서 확인 필요
+
+---
+
+# Walkthrough: AI 액션 의도 판별 보강 + 레이어 밴드 클램프
+
+## 완료 일시
+2026-01-23
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 요약/축약 요청에서 노드 편집 액션이 무시되지 않도록 의도 판별 보강
+2. explicit 의도 없더라도 AI 액션을 수동 확인용으로 저장
+3. 노드가 레이어 영역 밖으로 이동되지 않도록 드래그 y 좌표 제한
+
+---
+
+## ✅ 해결 조치
+
+1. AIChatSidebar 의도 키워드 확장(요약/축약/간략/내용 등)
+2. explicit 의도 없더라도 액션을 수동 확인용으로 저장
+3. handleNodesChange에서 레이어 밴드 기반 y 클램프 적용
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/components/AIChatSidebar.tsx` | 의도 판별 키워드 확장 및 액션 저장 로직 개선 |
+| `src/components/CultureMapFlow.tsx` | 레이어 밴드 기반 드래그 y 클램프 적용 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+
+---
+
+## 🧪 검증
+
+1. 타입 오류 확인: AIChatSidebar는 오류 없음. CultureMapFlow에 기존 TypeScript 오류 다수(변경과 무관) 존재
+2. 수동 검증(요약 요청/레이어 드래그 제한)은 사용자 환경에서 확인 필요
+
+---
+
 # Walkthrough: 레이어 정렬 순서/높이 동기화
 
 ## 완료 일시

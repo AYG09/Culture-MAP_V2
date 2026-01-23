@@ -47,7 +47,7 @@ const LAYOUT_OPTIONS = {
 // 노드 크기 (dagre 계산용)
 const NODE_WIDTH = 250;
 const NODE_HEIGHT = 120;
-const LAYER_PADDING_Y = 80;
+const LAYER_PADDING_Y = 20;
 
 /**
  * 4층위 계층 구조로 노드 자동 배치

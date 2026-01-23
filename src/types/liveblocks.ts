@@ -116,6 +116,11 @@ export interface SessionMetadata {
     hostUserId: string;
 }
 
+export interface LayerSettings {
+    layerHeights: number[];
+    layerOpacities: number[];
+}
+
 // ============================================
 // 룸 스토리지 구조
 // ============================================

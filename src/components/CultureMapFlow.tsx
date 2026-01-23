@@ -36,7 +36,7 @@ import ReportEditor from './ReportEditor'; // 보고서 편집기
 import type { NoteData, ConnectionData, PerceptionIntensity } from '../types/culture';
 import type { AiAction, BatchConnectionInput, BatchNodeInput } from '../types/actions';
 import { INTENSITY_MAP } from '../types/culture';
-import type { StickyNoteData, ConnectionData as LBConnectionData } from '../types/liveblocks';
+import type { StickyNoteData, ConnectionData as LBConnectionData, LayerSettings } from '../types/liveblocks';
 
 // 유틸리티
 import { convertToFlowData, convertFromFlowData } from '../utils/flowDataConverter';
@@ -199,6 +199,20 @@ const CultureMapFlow = ({
 
     console.warn('⚠️ [React Flow] Liveblocks 미연결로 작업 중단:', actionLabel);
     return false;
+  }, []);
+
+  const applyLayerSettings = useCallback((settings: LayerSettings | null, reason: string) => {
+    if (!settings) return;
+
+    applyingLayerSettingsRef.current = true;
+    setLayerHeights(settings.layerHeights);
+    setLayerOpacities(settings.layerOpacities);
+
+    requestAnimationFrame(() => {
+      applyingLayerSettingsRef.current = false;
+    });
+
+    console.log('✅ [React Flow] 레이어 설정 복원:', { reason, settings });
   }, []);
 
   // AI 일괄 생성 입력 상태
@@ -400,8 +414,10 @@ ${chatHistorySection}
 
   // 층위별 개별 높이 조절 상태 (레거시 모드와 동일)
   const [layerHeights, setLayerHeights] = useState<number[]>([220, 220, 220, 220]); // [결과, 행동, 유형, 무형]
-  const [layerOpacities, setLayerOpacities] = useState<number[]>([0.05, 0.05, 0.05, 0.05]); // 층위별 투명도
+  const [layerOpacities, setLayerOpacities] = useState<number[]>([0, 0, 0, 0]); // 층위별 투명도
   const [showLayerBackground, setShowLayerBackground] = useState(true);
+
+  const applyingLayerSettingsRef = useRef(false);
 
   // 선택된 층위 (높이 조절용, null = 선택 없음)
   const [selectedLayerIndex, setSelectedLayerIndex] = useState<number | null>(0);
@@ -484,7 +500,7 @@ ${chatHistorySection}
       return 120;
     };
 
-    const layerPaddingY = 80;
+    const layerPaddingY = 20;
     const maxHeightsByLayer = [0, 0, 0, 0];
 
     layoutedNodes.forEach((node) => {
@@ -1271,6 +1287,100 @@ ${chatHistorySection}
     };
   }, [hydrateFromLiveblocks]);
 
+  useEffect(() => {
+    const handleLayerSettingsChanged = (settings: LayerSettings) => {
+      applyLayerSettings(settings, 'layer-settings-changed');
+    };
+
+    const handleSyncComplete = () => {
+      const settings = liveblocksService.getLayerSettings();
+      if (settings) {
+        applyLayerSettings(settings, 'sync-complete');
+      }
+    };
+
+    liveblocksService.on('layer-settings-changed', handleLayerSettingsChanged);
+    liveblocksService.on('sync-complete', handleSyncComplete);
+
+    if (liveblocksService.isConnected()) {
+      const settings = liveblocksService.getLayerSettings();
+      if (settings) {
+        applyLayerSettings(settings, 'initial');
+      }
+    }
+
+    return () => {
+      liveblocksService.off('layer-settings-changed', handleLayerSettingsChanged);
+      liveblocksService.off('sync-complete', handleSyncComplete);
+    };
+  }, [applyLayerSettings]);
+
+  useEffect(() => {
+    if (applyingLayerSettingsRef.current) return;
+    if (!liveblocksService.isConnected()) return;
+
+    liveblocksService.updateLayerSettings({
+      layerHeights,
+      layerOpacities,
+    });
+  }, [layerHeights, layerOpacities]);
+
+  useEffect(() => {
+    if (!nodes.length) return;
+
+    const layerIndexMap: Record<string, number> = {
+      result: 0,
+      behavior: 1,
+      tangible_lever: 2,
+      intangible_lever: 3,
+    };
+
+    const displayLayerOrder: Array<keyof typeof layerIndexMap> = [
+      'result',
+      'behavior',
+      'tangible_lever',
+      'intangible_lever',
+    ];
+
+    const getNodeHeight = (node: Node) => {
+      if (typeof node.measured?.height === 'number') return node.measured.height;
+      if (typeof node.height === 'number') return node.height;
+      return 120;
+    };
+
+    const maxBottomByLayer = [0, 0, 0, 0];
+    nodes.forEach((node) => {
+      const layerIndex = layerIndexMap[node.type || 'result'] ?? 0;
+      const nodeHeight = getNodeHeight(node);
+      const bottom = node.position.y + nodeHeight;
+      if (bottom > maxBottomByLayer[layerIndex]) {
+        maxBottomByLayer[layerIndex] = bottom;
+      }
+    });
+
+    const layerPaddingY = 20;
+    const minHeight = 100;
+    const nextHeights: number[] = [];
+    let cumulativeY = 0;
+
+    displayLayerOrder.forEach((layerKey) => {
+      const index = layerIndexMap[layerKey];
+      const maxBottom = maxBottomByLayer[index];
+      const currentHeight = layerHeights[index] ?? minHeight;
+      const required = maxBottom
+        ? Math.max(minHeight, maxBottom - cumulativeY + layerPaddingY)
+        : Math.max(minHeight, currentHeight);
+
+      nextHeights[index] = required;
+      cumulativeY += required;
+    });
+
+    const shouldUpdate = nextHeights.some((height, index) => height !== layerHeights[index]);
+    if (shouldUpdate) {
+      setLayerHeights(nextHeights);
+    }
+  }, [nodes, layerHeights]);
+
   // ============================================================================
   // Liveblocks 실시간 리스너 등록
   // ============================================================================
@@ -1694,10 +1804,57 @@ ${chatHistorySection}
   // ============================================================================
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      onNodesChange(changes);
+      const layerIndexMap: Record<string, number> = {
+        result: 0,
+        behavior: 1,
+        tangible_lever: 2,
+        intangible_lever: 3,
+      };
+      const displayLayerOrder: Array<keyof typeof layerIndexMap> = [
+        'result',
+        'behavior',
+        'tangible_lever',
+        'intangible_lever',
+      ];
+      const layerStartByIndex = new Map<number, number>();
+      let cumulativeY = 0;
+      displayLayerOrder.forEach((layerKey) => {
+        const index = layerIndexMap[layerKey];
+        layerStartByIndex.set(index, cumulativeY);
+        cumulativeY += layerHeights[index] ?? 0;
+      });
+
+      const getNodeHeight = (node: Node) => {
+        if (typeof node.measured?.height === 'number') return node.measured.height;
+        if (typeof node.height === 'number') return node.height;
+        return 120;
+      };
+
+      const clampedChanges = changes.map((change) => {
+        if (change.type !== 'position' || !change.position) return change;
+        const node = nodesRef.current.find((n) => n.id === change.id);
+        if (!node) return change;
+        const layerIndex = layerIndexMap[node.type || 'result'] ?? 0;
+        const bandStart = layerStartByIndex.get(layerIndex) ?? 0;
+        const bandHeight = layerHeights[layerIndex] ?? 0;
+        const nodeHeight = getNodeHeight(node);
+        const minY = bandStart;
+        const maxY = bandStart + Math.max(0, bandHeight - nodeHeight);
+        const clampedY = Math.min(maxY, Math.max(minY, change.position.y));
+        if (clampedY === change.position.y) return change;
+        return {
+          ...change,
+          position: {
+            ...change.position,
+            y: clampedY,
+          },
+        };
+      });
+
+      onNodesChange(clampedChanges);
 
       // 위치 변경 완료 시 Firebase 동기화
-      changes.forEach((change) => {
+      clampedChanges.forEach((change) => {
         if (change.type === 'position' && !change.dragging && change.position) {
           const node = nodes.find((n) => n.id === change.id);
           if (node) {
@@ -1752,7 +1909,7 @@ ${chatHistorySection}
       const updatedData = convertFromFlowData(nodes, edges);
       onNotesChange(updatedData.notes);
     },
-    [getCurrentUserId, nodes, edges, isConsultingMode, onNodesChange, onNotesChange]
+    [getCurrentUserId, layerHeights, nodes, edges, isConsultingMode, onNodesChange, onNotesChange]
   );
 
   // ============================================================================
@@ -2826,7 +2983,8 @@ ${chatHistorySection}
                           y += layerHeights[previousLayer.index] ?? 0;
                         }
 
-                        const bgColor = layer.color.replace('OPACITY', String(layerOpacities[layer.index]));
+                        const getLayerColor = (opacity: number) => layer.color.replace('OPACITY', String(opacity));
+                        const bgColor = getLayerColor(layerOpacities[layer.index]);
 
                         return (
                           <div
@@ -2839,7 +2997,7 @@ ${chatHistorySection}
                               width: '100%',
                               height: `${layerHeights[layer.index]}px`,
                               backgroundColor: bgColor,
-                              borderBottom: layer.index < 3 ? `2px dashed ${bgColor.replace(String(layerOpacities[layer.index]), '0.3')}` : 'none',
+                              borderBottom: layer.index < 3 ? `2px dashed ${getLayerColor(0.3)}` : 'none',
                             }}
                           >
                             <div
@@ -2861,7 +3019,7 @@ ${chatHistorySection}
                                 left: '32px',
                                 padding: '6px 16px',
                                 backgroundColor: selectedLayerIndex === layer.index ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.9)',
-                                border: `2px solid ${selectedLayerIndex === layer.index ? bgColor.replace(String(layerOpacities[layer.index]), '0.8') : bgColor.replace(String(layerOpacities[layer.index]), '0.5')}`,
+                                border: `2px solid ${selectedLayerIndex === layer.index ? getLayerColor(0.8) : getLayerColor(0.5)}`,
                                 borderRadius: '12px',
                                 fontSize: '12px',
                                 fontWeight: 'bold',
@@ -3087,7 +3245,7 @@ ${chatHistorySection}
                         type="range"
                         id="global-opacity"
                         min="0"
-                        max="0.2"
+                        max="1"
                         step="0.01"
                         value={layerOpacities[selectedLayerIndex ?? 0]}
                         onChange={(e) => {

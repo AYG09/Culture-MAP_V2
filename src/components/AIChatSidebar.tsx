@@ -372,8 +372,8 @@ ${layerHeightContext}
                 }
             }
 
-            const actionVerbs = ['추가', '생성', '만들', '연결', '정리', '정렬', '배치', '레이아웃', '삭제', '지워', '제거', '수정', '변경', '옮겨', '이동', '높이'];
-            const actionNouns = ['노드', '포스트잇', '연결', '선', '화살표', '엣지', '레이아웃', '정렬', '배치', '맵', '레이어'];
+            const actionVerbs = ['추가', '생성', '만들', '연결', '정리', '정렬', '배치', '레이아웃', '삭제', '지워', '제거', '수정', '변경', '옮겨', '이동', '높이', '요약', '축약', '줄여', '간략', '다듬', '정제', '편집', '바꿔'];
+            const actionNouns = ['노드', '포스트잇', '연결', '선', '화살표', '엣지', '레이아웃', '정렬', '배치', '맵', '레이어', '내용', '문장', '텍스트'];
             const hasVerb = actionVerbs.some(keyword => currentText.includes(keyword));
             const hasNoun = actionNouns.some(keyword => currentText.includes(keyword));
             const layoutOnlyRequest = /정렬|정리|배치|레이아웃|높이/.test(currentText);
@@ -495,17 +495,17 @@ ${layerHeightContext}
 
                         // 설정에 따라 자동 실행 또는 수동 확인
                         const autoExecute = aiService.getConfig()?.autoExecuteFunctionCalls ?? false;
-                        if (!explicitMapEditRequest) {
-                            console.warn('🛑 [AIChatSidebar] No explicit map-edit intent detected. Actions will be ignored.');
+                        if (!explicitMapEditRequest && finalActions.length > 0) {
+                            console.warn('🛑 [AIChatSidebar] No explicit map-edit intent detected. Actions require confirmation.');
                         }
-                        const actionsWithFlags = (!isPrivateChat && explicitMapEditRequest)
+                        const actionsWithFlags = !isPrivateChat
                             ? finalActions.map(action => ({
                                 ...action,
                                 __suppressAutoLayout: preservePositionsRequested
                             }))
                             : [];
 
-                        if (autoExecute && actionsWithFlags.length > 0) {
+                        if (autoExecute && actionsWithFlags.length > 0 && explicitMapEditRequest) {
                             // 자동 실행 모드: 즉시 onActionExecute 호출
                             console.log('⚡ [AIChatSidebar] Auto-executing actions...');
                             actionsWithFlags.forEach(action => onActionExecute(action));

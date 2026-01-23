@@ -948,3 +948,125 @@ git checkout -- .agent/brain/walkthrough.md
 1. auto_layout 실행 시 연결선 겹침이 완화되는지 확인
 2. spacing preset(좁게/보통/넓게) 적용이 과도한 간격 없이 반영되는지 확인
 3. 레이아웃 실패 시 기존 레이아웃으로 fallback되는지 확인
+
+---
+
+# Implementation Plan: 레이어 높이/투명도 동기화 및 동적 높이(20px 패딩)
+
+## 목표
+1. 레이어 높이를 노드 위치 기반으로 동적으로 조절하고 하단 20px 여백 유지
+2. 레이어 투명도 범위를 0~100%로 변경하고 초기값 0%
+3. 레이어 높이/투명도 상태를 Liveblocks에 저장해 재입장 시 복원
+
+---
+
+## 핵심 변경 범위
+
+### 1) Liveblocks 레이어 설정 저장/리스너
+- Y.Doc의 `layerSettings` Map에 layerHeights/layerOpacities 저장
+- 변경 이벤트 `layer-settings-changed` emit
+- 유효성 검사(배열 길이 4, 유한수) 및 기본값 폴백
+
+### 2) CultureMapFlow 동기화
+- layerOpacities 초기값 0
+- 투명도 슬라이더 범위 0~1
+- sync-complete 및 layer-settings-changed에서 상태 복원
+- 로컬 변경 시 Liveblocks에 저장(루프 방지)
+
+### 3) 동적 레이어 높이 계산
+- 노드의 y+height 최대값을 기준으로 레이어 높이 계산
+- 레이어 하단 여백 20px 유지
+- 레이아웃 유틸의 패딩 상수 20px로 통일
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 레이어 설정 루프 | 값 덮어쓰기 | 적용 플래그로 저장 루프 방지 |
+| 투명도 0%에서 색상 계산 오류 | 경계선 색상 붕괴 | 색상 생성 함수를 분리해 OPACITY 치환 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 레이어 상태가 복원되지 않거나 드래그 시 레이아웃 이상 발생
+
+### 롤백 절차
+```bash
+git checkout -- src/services/LiveblocksService.ts
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- src/utils/flowAutoLayout.ts
+git checkout -- src/types/liveblocks.ts
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. 요약/편집 후 재입장 시 레이어 높이/투명도 복원 확인
+2. 노드 하단과 레이어 경계가 최소 20px 여백 유지 확인
+3. 투명도 0%에서 경계선 렌더링 정상 확인
+
+---
+
+# Implementation Plan: AI 액션 의도 판별 보강 + 레이어 밴드 클램프
+
+## 목표
+1. 요약/축약 요청 시 노드 편집 액션이 무시되지 않도록 의도 판별 보강
+2. AI가 반환한 액션을 explicit 의도 없이도 수동 확인 가능하게 저장
+3. 노드가 레이어 영역 밖으로 이동하지 않도록 드래그 y 좌표 제한
+
+---
+
+## 핵심 변경 범위
+
+### 1) AIChatSidebar 의도 판별 개선
+- actionVerbs/actionNouns에 요약/축약/간략/내용 등 키워드 추가
+- explicit 의도 없을 때도 수동 확인용 액션 저장
+- 자동 실행은 explicit 요청 시에만 허용
+
+### 2) 레이어 밴드 클램프
+- layerHeights 기반으로 레이어 밴드 시작/높이 계산
+- handleNodesChange에서 position 변경 y를 밴드 범위로 제한
+- Liveblocks 동기화는 클램프된 좌표 사용
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 의도 판별 과대 | 원치 않는 액션 제안 | 자동 실행은 explicit 요청에서만 허용 |
+| 과도한 클램프 | 노드 이동 불편 | 노드 높이 반영, 레이어 높이 변경 시 자동 반영 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 요약 요청에도 액션이 표시되지 않음
+- 노드 드래그가 정상적으로 동작하지 않음
+
+### 롤백 절차
+```bash
+git checkout -- src/components/AIChatSidebar.tsx
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. "요약해줘" 요청 시 update_node 액션이 수동 확인에 표시되는지 확인
+2. 노드가 레이어 영역 밖으로 드래그되지 않는지 확인

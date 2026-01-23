@@ -16,6 +16,7 @@ import type {
     AcademicFileMeta,
     Insight,
     SessionPresence,
+    LayerSettings,
 } from '../types/liveblocks';
 import type { AiAction } from '../types/actions';
 
@@ -38,6 +39,9 @@ class LiveblocksService {
     private userColor: string;
     private hasClearedIndexeddbCache = false;
     private listeners: EventListeners = {};
+
+    private readonly defaultLayerHeights: number[] = [220, 220, 220, 220];
+    private readonly defaultLayerOpacities: number[] = [0, 0, 0, 0];
 
     constructor() {
         this.userId = this.generateUserId();
@@ -711,6 +715,54 @@ class LiveblocksService {
                 }
             });
         });
+
+        const layerSettings = this.yDoc.getMap<unknown>('layerSettings');
+        layerSettings.observe(() => {
+            const settings = this.getLayerSettings();
+            if (!settings) return;
+            this.emit('layer-settings-changed', settings);
+        });
+    }
+
+    public updateLayerSettings(settings: LayerSettings): void {
+        if (!this.yDoc) {
+            console.warn('⚠️ [Liveblocks] updateLayerSettings: yDoc이 없음');
+            return;
+        }
+
+        const layerHeights = this.normalizeLayerArray(settings.layerHeights, this.defaultLayerHeights);
+        const layerOpacities = this.normalizeLayerArray(settings.layerOpacities, this.defaultLayerOpacities);
+
+        const layerSettings = this.yDoc.getMap<unknown>('layerSettings');
+        layerSettings.set('layerHeights', layerHeights);
+        layerSettings.set('layerOpacities', layerOpacities);
+    }
+
+    public getLayerSettings(): LayerSettings | null {
+        if (!this.yDoc) return null;
+        const layerSettings = this.yDoc.getMap<unknown>('layerSettings');
+        const layerHeights = this.normalizeLayerArray(layerSettings.get('layerHeights'), this.defaultLayerHeights);
+        const layerOpacities = this.normalizeLayerArray(layerSettings.get('layerOpacities'), this.defaultLayerOpacities);
+
+        return {
+            layerHeights,
+            layerOpacities,
+        };
+    }
+
+    private normalizeLayerArray(value: unknown, fallback: number[]): number[] {
+        if (!Array.isArray(value) || value.length !== 4) {
+            return [...fallback];
+        }
+
+        const normalized = value.map((item, index) => {
+            const numeric = typeof item === 'number' && Number.isFinite(item)
+                ? item
+                : fallback[index];
+            return numeric;
+        });
+
+        return normalized.length === 4 ? normalized : [...fallback];
     }
 
     // ============================================
