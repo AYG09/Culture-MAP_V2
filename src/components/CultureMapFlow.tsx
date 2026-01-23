@@ -500,7 +500,7 @@ ${chatHistorySection}
       return 120;
     };
 
-    const layerPaddingY = 20;
+    const layerPaddingY = 40;
     const maxHeightsByLayer = [0, 0, 0, 0];
 
     layoutedNodes.forEach((node) => {
@@ -940,7 +940,7 @@ ${chatHistorySection}
         if (args.layer && args.height) {
           const layerIndex = args.layer - 1;
           const newHeights = [...layerHeights];
-          newHeights[layerIndex] = Math.min(600, Math.max(100, args.height));
+          newHeights[layerIndex] = Math.min(800, Math.max(100, args.height));
           setLayerHeights(newHeights);
 
           setTimeout(() => safeAutoLayout(false), 100);
@@ -1349,12 +1349,17 @@ ${chatHistorySection}
     };
 
     const maxBottomByLayer = [0, 0, 0, 0];
+    const minTopByLayer = [Infinity, Infinity, Infinity, Infinity];
     nodes.forEach((node) => {
       const layerIndex = layerIndexMap[node.type || 'result'] ?? 0;
       const nodeHeight = getNodeHeight(node);
       const bottom = node.position.y + nodeHeight;
+      const top = node.position.y;
       if (bottom > maxBottomByLayer[layerIndex]) {
         maxBottomByLayer[layerIndex] = bottom;
+      }
+      if (top < minTopByLayer[layerIndex]) {
+        minTopByLayer[layerIndex] = top;
       }
     });
 
@@ -1366,9 +1371,10 @@ ${chatHistorySection}
     displayLayerOrder.forEach((layerKey) => {
       const index = layerIndexMap[layerKey];
       const maxBottom = maxBottomByLayer[index];
+      const minTop = Number.isFinite(minTopByLayer[index]) ? minTopByLayer[index] : cumulativeY;
       const currentHeight = layerHeights[index] ?? minHeight;
       const required = maxBottom
-        ? Math.max(minHeight, maxBottom - cumulativeY + layerPaddingY)
+        ? Math.max(minHeight, maxBottom - minTop + layerPaddingY * 2)
         : Math.max(minHeight, currentHeight);
 
       nextHeights[index] = required;
@@ -1838,9 +1844,10 @@ ${chatHistorySection}
         const bandStart = layerStartByIndex.get(layerIndex) ?? 0;
         const bandHeight = layerHeights[layerIndex] ?? 0;
         const nodeHeight = getNodeHeight(node);
-        const minY = bandStart;
-        const maxY = bandStart + Math.max(0, bandHeight - nodeHeight);
-        const clampedY = Math.min(maxY, Math.max(minY, change.position.y));
+        const layerPaddingY = 20;
+        const minY = bandStart + layerPaddingY;
+        const maxY = bandStart + Math.max(0, bandHeight - nodeHeight - layerPaddingY);
+        const clampedY = Math.min(Math.max(minY, maxY), Math.max(minY, change.position.y));
         if (clampedY === change.position.y) return change;
         return {
           ...change,
@@ -3195,7 +3202,7 @@ ${chatHistorySection}
                         type="range"
                         id="layer-height-input"
                         min="100"
-                        max="600"
+                        max="800"
                         step="20"
                         value={layerHeights[selectedLayerIndex ?? 0]}
                         onChange={(e) => {
@@ -3210,12 +3217,12 @@ ${chatHistorySection}
                         <input
                           type="number"
                           min="100"
-                          max="600"
+                          max="800"
                           step="20"
                           value={layerHeights[selectedLayerIndex ?? 0]}
                           onChange={(e) => {
                             if (selectedLayerIndex === null) return;
-                            const value = Math.min(600, Math.max(100, Number(e.target.value)));
+                            const value = Math.min(800, Math.max(100, Number(e.target.value)));
                             const newHeights = [...layerHeights];
                             newHeights[selectedLayerIndex] = value;
                             setLayerHeights(newHeights);
