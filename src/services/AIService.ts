@@ -8,7 +8,7 @@
  */
 
 import { GoogleGenAI, createPartFromUri, FunctionCallingConfigMode, type ThinkingConfig, type ThinkingLevel } from '@google/genai';
-import { MAP_TOOL_DECLARATIONS } from '../types/actions';
+import { MAP_TOOL_DECLARATIONS, type AiFunctionCall, type ToolDeclaration } from '../types/actions';
 import { searchKnowledge } from '../data/academicKnowledge';
 import type { ChatMessage, Insight, InsightType } from '../types/liveblocks';
 import ragService from './RagService';
@@ -33,6 +33,43 @@ export interface FileMetadata {
   keywords?: string[]; // 키워드 (지능형 선택용)
 }
 
+type MessagePart =
+  | { text?: string }
+  | ReturnType<typeof createPartFromUri>
+  | { functionResponse?: { name: string; response: { content: string } } }
+  | { functionCall?: AiFunctionCall };
+
+type ChatHistoryItem = {
+  role: 'user' | 'model';
+  parts: MessagePart[];
+};
+
+type StreamPart = {
+  text?: string;
+  thought?: string | boolean;
+  functionCall?: AiFunctionCall;
+};
+
+type StreamChunk = {
+  candidates?: Array<{ content?: { parts?: StreamPart[] } }>;
+  text?: string;
+};
+
+export type AIStreamChunk =
+  | { type: 'text'; content: string; fullText: string }
+  | { type: 'thought'; content: string }
+  | { type: 'actions'; actions: AiFunctionCall[] };
+
+type SendMessageResult = {
+  response?: unknown;
+  parts?: StreamPart[];
+};
+
+type ChatSessionLike = {
+  sendMessageStream: (input: { message: string | MessagePart[] }) => Promise<AsyncIterable<StreamChunk>>;
+  sendMessage: (input: { message: string | MessagePart[] }) => Promise<SendMessageResult>;
+};
+
 /**
  * 외부 AI API 직접 호출 서비스
  * BYOK(Bring Your Own Key) 방식 - API 키는 localStorage에 저장
@@ -40,8 +77,8 @@ export interface FileMetadata {
 class AIService {
   private geminiClient: GoogleGenAI | null = null;
   private currentConfig: AIConfig | null = null;
-  private chatSession: any = null;
-  private chatHistory: any[] = [];
+  private chatSession: ChatSessionLike | null = null;
+  private chatHistory: ChatHistoryItem[] = [];
   private currentThoughts: string[] = []; // 현재 세션의 사고 과정 저장
   private academicFiles: FileMetadata[] = []; // 전문 서적 지식 파일 목록
   private insights: Insight[] = []; // AI 동적 인사이트 캐싱
@@ -131,8 +168,10 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 
   private isRateLimitError(error: unknown): boolean {
     if (!error || typeof error !== 'object') return false;
-    const message = String((error as any).message || '').toLowerCase();
-    const status = (error as any).status || (error as any).code;
+    const message = error instanceof Error ? error.message.toLowerCase() : '';
+    const status = typeof (error as { status?: unknown }).status === 'number'
+      ? (error as { status?: number }).status
+      : (typeof (error as { code?: unknown }).code === 'number' ? (error as { code?: number }).code : undefined);
     return status === 429 || message.includes('rate limit') || message.includes('429') || message.includes('resource_exhausted');
   }
 
@@ -142,7 +181,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 
   private createChatSession(
     mode: FunctionCallingConfigMode = FunctionCallingConfigMode.AUTO,
-    history?: any[],
+    history?: ChatHistoryItem[],
     allowedFunctionNames?: string[]
   ) {
     if (!this.geminiClient) throw new Error('Gemini API 설정을 먼저 완료해주세요.');
@@ -162,7 +201,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     const allowedToolNames = mode === FunctionCallingConfigMode.ANY
       ? (allowedFunctionNames ?? mapEditTools)
       : allowedFunctionNames;
-    const toolDeclarations = allowedToolNames
+    const toolDeclarations: ToolDeclaration[] = allowedToolNames
       ? MAP_TOOL_DECLARATIONS.filter((tool) => allowedToolNames.includes(tool.name))
       : MAP_TOOL_DECLARATIONS;
     const functionCallingConfig = mode === FunctionCallingConfigMode.ANY
@@ -173,14 +212,14 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       model: modelName,
       config: {
         systemInstruction: this.getSystemInstruction(),
-        tools: [{ functionDeclarations: toolDeclarations as any }],
+        tools: [{ functionDeclarations: toolDeclarations }],
         toolConfig: {
           functionCallingConfig
         },
         ...(thinkingConfig ? { thinkingConfig } : {})
       },
-      ...(history && history.length > 0 ? { history: history as any } : {})
-    });
+      ...(history && history.length > 0 ? { history } : {})
+    }) as ChatSessionLike;
   }
 
   /**
@@ -263,12 +302,12 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
   /**
    * 챗봇 세션 시작
    */
-  public startChat(history: any[] = []) {
+  public startChat(history: ChatHistoryItem[] = []) {
     this.chatHistory = Array.isArray(history) ? [...history] : [];
     this.chatSession = this.createChatSession(FunctionCallingConfigMode.AUTO, this.chatHistory);
 
     console.log('🔧 [AIService] startChat: Model =', this.currentConfig?.modelName || 'gemini-2.5-flash-lite', 'Tools count =', MAP_TOOL_DECLARATIONS.length);
-    console.log('🔧 [AIService] Tool names:', MAP_TOOL_DECLARATIONS.map((t: any) => t.name).join(', '));
+    console.log('🔧 [AIService] Tool names:', MAP_TOOL_DECLARATIONS.map((t) => t.name).join(', '));
 
     return this.chatSession;
   }
@@ -291,7 +330,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     fileUri?: string,
     mimeType?: string,
     options?: { forceFunctionCall?: boolean; allowExternalTools?: boolean }
-  ) {
+  ): AsyncGenerator<AIStreamChunk, void, void> {
     const forceFunctionCall = options?.forceFunctionCall ?? false;
     const allowExternalTools = options?.allowExternalTools ?? true;
     const internalTools = ['search_academic_theory', 'load_academic_knowledge'];
@@ -302,7 +341,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
           ? (this.chatSession || this.startChat())
           : this.createChatSession(FunctionCallingConfigMode.AUTO, this.chatHistory, internalTools));
 
-    const parts: any[] = [{ text: prompt }];
+    const parts: MessagePart[] = [{ text: prompt }];
     if (prompt) {
       this.chatHistory.push({ role: 'user', parts: [{ text: prompt }] });
     }
@@ -318,7 +357,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     }
 
     // 스트리밍 세션 시작
-    let streamResult;
+    let streamResult: AsyncIterable<StreamChunk> | null = null;
     let streamRetried = false;
     let rateLimitRetries = 0;
     const maxRateLimitRetries = 2;
@@ -362,18 +401,22 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 
     this.currentThoughts = [];
     let fullText = '';
-    let accumulatedFunctionCalls: any[] = [];
+    const accumulatedFunctionCalls: AiFunctionCall[] = [];
     let chunkCount = 0;
 
     // 스트림 반복 처리
     // @google/genai v2.0 SDK: sendMessageStream 반환값 자체가 AsyncIterable (stream 속성 없음)
     try {
+      if (!streamResult) {
+        throw new Error('Stream result is not available');
+      }
+
       for await (const chunk of streamResult) {
         chunkCount++;
 
         // candidates에서 parts 직접 추출 (chunk.text 접근 시 SDK 내부 경고 방지)
-        const candidates = (chunk as any).candidates;
-        const parts = candidates?.[0]?.content?.parts || [];
+        const candidates = chunk.candidates;
+        const parts = candidates?.[0]?.content?.parts ?? [];
 
         // parts에서 텍스트, 사고 과정, 함수 호출 분리 추출
         let chunkText = '';
@@ -410,16 +453,20 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     const externalActions = accumulatedFunctionCalls.filter(fc => !internalTools.includes(fc.name));
     const internalActions = accumulatedFunctionCalls.filter(fc => internalTools.includes(fc.name));
 
-    const extractPartsFromResponse = (result: any) => {
-      const response = result?.response ?? result;
-      if (!response) return [] as any[];
-      if (response.candidates?.[0]?.content?.parts) {
-        return response.candidates[0].content.parts as any[];
+    const extractPartsFromResponse = (result: unknown): StreamPart[] => {
+      const response = (result as { response?: unknown })?.response ?? result;
+      if (!response || typeof response !== 'object') return [];
+      const candidates = (response as { candidates?: unknown }).candidates;
+      const firstCandidate = Array.isArray(candidates) ? candidates[0] : undefined;
+      const partsCandidate = (firstCandidate as { content?: { parts?: unknown } })?.content?.parts;
+      if (Array.isArray(partsCandidate)) {
+        return partsCandidate.filter((part): part is StreamPart => typeof part === 'object' && part !== null);
       }
-      if (response.text) {
-        return [{ text: response.text }];
+      const text = (response as { text?: unknown }).text;
+      if (typeof text === 'string') {
+        return [{ text }];
       }
-      return [] as any[];
+      return [];
     };
 
     // 내부 도구 자동 처리 (학술 지식 검색 등)
@@ -575,7 +622,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       yield { type: 'text', content: fallbackText, fullText };
     }
 
-    const modelParts: any[] = [];
+    const modelParts: MessagePart[] = [];
     if (fullText) {
       modelParts.push({ text: fullText });
     }
@@ -601,8 +648,8 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
 
     // 등록된 학술 지식 파일 중 관련성 높은 파일만 동적으로 추가
     const selectedFiles = this.selectRelevantFiles(prompt, 1);
-    const buildParts = (messageText: string, includeAcademicFiles: boolean) => {
-      const messageParts: Array<{ text?: string } | ReturnType<typeof createPartFromUri>> = [{ text: messageText }];
+    const buildParts = (messageText: string, includeAcademicFiles: boolean): MessagePart[] => {
+      const messageParts: MessagePart[] = [{ text: messageText }];
 
       if (includeAcademicFiles) {
         selectedFiles.forEach(file => {
@@ -617,24 +664,32 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       return messageParts;
     };
 
-    const runSendMessage = async (messageParts: Array<{ text?: string } | ReturnType<typeof createPartFromUri>>) => {
+    const runSendMessage = async (messageParts: MessagePart[]): Promise<SendMessageResult> => {
       if (messageParts.length === 1 && messageParts[0].text) {
         return this.chatSession!.sendMessage({ message: messageParts[0].text });
       }
       return this.chatSession!.sendMessage({ message: messageParts });
     };
 
-    const parseResponse = (response: any, fallbackParts?: any[]) => {
-      const candidate = response?.candidates?.[0];
-      const responseParts = candidate?.content?.parts || [];
-      const responseText = typeof response?.text === 'string' ? response.text : '';
+    const coerceParts = (value: unknown): StreamPart[] =>
+      Array.isArray(value)
+        ? value.filter((part): part is StreamPart => typeof part === 'object' && part !== null)
+        : [];
+
+    const parseResponse = (response: unknown, fallbackParts?: StreamPart[]) => {
+      const candidate = (response as { candidates?: unknown })?.candidates;
+      const firstCandidate = Array.isArray(candidate) ? candidate[0] : undefined;
+      const responseParts = coerceParts((firstCandidate as { content?: { parts?: unknown } })?.content?.parts);
+      const responseText = typeof (response as { text?: unknown })?.text === 'string'
+        ? String((response as { text?: string }).text)
+        : '';
 
       console.log('📡 AI Raw Result Parts Count:', responseParts.length);
 
       this.currentThoughts = [];
       let parsedText = '';
 
-      responseParts.forEach((part: any) => {
+      responseParts.forEach((part) => {
         if (part.thought) {
           const thoughtText = typeof part.thought === 'string' ? part.thought : part.text;
           if (thoughtText) {
@@ -651,13 +706,13 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       }
 
       let parsedFunctionCalls = responseParts
-        .filter((p: any) => p.functionCall)
-        .map((p: any) => p.functionCall);
+        .filter((p) => p.functionCall)
+        .map((p) => p.functionCall as AiFunctionCall);
 
-      if ((!parsedFunctionCalls || parsedFunctionCalls.length === 0) && Array.isArray(fallbackParts)) {
+      if (parsedFunctionCalls.length === 0 && Array.isArray(fallbackParts)) {
         parsedFunctionCalls = fallbackParts
-          .filter((p: any) => p.functionCall)
-          .map((p: any) => p.functionCall);
+          .filter((p) => p.functionCall)
+          .map((p) => p.functionCall as AiFunctionCall);
       }
 
       if (!parsedText && parsedFunctionCalls && parsedFunctionCalls.length > 0) {
@@ -679,7 +734,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       console.warn('⚠️ [AIService] Empty response payload from sendMessage');
     }
 
-    let { parsedText: text, parsedFunctionCalls: functionCalls } = parseResponse(response, (result as any).parts);
+    let { parsedText: text, parsedFunctionCalls: functionCalls } = parseResponse(response, result.parts);
 
     if (!text?.trim() && (!functionCalls || functionCalls.length === 0)) {
       console.warn('⚠️ [AIService] Empty content detected, retrying without academic attachments');
@@ -695,17 +750,18 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
         throw new Error('AI 응답이 비어 있습니다. 잠시 후 다시 시도해주세요.');
       }
 
-      const retryParsed = parseResponse(response, (result as any).parts);
+      const retryParsed = parseResponse(response, result.parts);
       text = retryParsed.parsedText;
       functionCalls = retryParsed.parsedFunctionCalls;
     }
 
     // 학술 지식 검색 도구가 호출된 경우 자동 처리
     if (functionCalls && functionCalls.length > 0) {
-      const academicSearch = functionCalls.find((fc: any) => fc.name === 'search_academic_theory');
+      const academicSearch = functionCalls.find((fc) => fc.name === 'search_academic_theory');
       if (academicSearch) {
-        console.log('🔍 AI is searching academic knowledge:', academicSearch.args.topic);
-        const knowledgeResult = searchKnowledge(academicSearch.args.topic);
+        const topic = typeof academicSearch.args?.topic === 'string' ? academicSearch.args.topic : '';
+        console.log('🔍 AI is searching academic knowledge:', topic);
+        const knowledgeResult = searchKnowledge(topic);
 
         // 검색 결과를 도구 출력으로 다시 AI에게 전송
         const toolResponse = await this.chatSession!.sendMessage({
@@ -722,27 +778,36 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
         if (!toolResponsePayload) {
           console.warn('⚠️ [AIService] Empty tool response payload for academic search');
         }
-        const toolParts = toolResponsePayload?.candidates?.[0]?.content?.parts || [];
+        const toolParts = coerceParts(
+          (toolResponsePayload as { candidates?: unknown })?.candidates &&
+            (Array.isArray((toolResponsePayload as { candidates?: unknown }).candidates)
+              ? ((toolResponsePayload as { candidates?: unknown }).candidates as unknown[])[0]
+              : undefined)
+              ? ((Array.isArray((toolResponsePayload as { candidates?: unknown }).candidates)
+                  ? ((toolResponsePayload as { candidates?: unknown }).candidates as unknown[])[0]
+                  : undefined) as { content?: { parts?: unknown } })?.content?.parts
+              : undefined
+        );
 
         // 최종 답변 업데이트
         const toolText = toolParts
-          .map((part: any) => (typeof part?.text === 'string' ? part.text : ''))
+          .map((part) => (typeof part?.text === 'string' ? part.text : ''))
           .filter(Boolean)
           .join('');
         if (toolText) {
           text = toolText;
         }
         functionCalls = toolParts
-          .filter((part: any) => part?.functionCall)
-          .map((part: any) => part.functionCall);
+          .filter((part) => part?.functionCall)
+          .map((part) => part.functionCall as AiFunctionCall);
       }
     }
 
-    const responsePartsForHistory: any[] = [];
+    const responsePartsForHistory: MessagePart[] = [];
     if (text) {
       responsePartsForHistory.push({ text });
     }
-    (functionCalls || []).forEach((call: any) => responsePartsForHistory.push({ functionCall: call }));
+    (functionCalls || []).forEach((call) => responsePartsForHistory.push({ functionCall: call }));
     if (responsePartsForHistory.length > 0) {
       this.chatHistory.push({ role: 'model', parts: responsePartsForHistory });
     }
@@ -1460,7 +1525,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     return response.text || '';
   }
 
-  private async callGemini(prompt: string, schema?: object): Promise<string> {
+  private async callGemini(prompt: string, schema?: Record<string, unknown>): Promise<string> {
     if (!this.geminiClient) throw new Error('Gemini 클라이언트가 초기화되지 않았습니다.');
     const modelName = this.currentConfig?.modelName || 'gemini-2.5-flash-lite';
     const thinkingConfig = this.getThinkingConfig(modelName);
@@ -1468,7 +1533,7 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       model: modelName,
       contents: prompt,
       config: {
-        ...(schema ? { responseMimeType: 'application/json', responseSchema: schema as any } : {}),
+        ...(schema ? { responseMimeType: 'application/json', responseSchema: schema } : {}),
         ...(thinkingConfig ? { thinkingConfig } : {})
       },
     });
@@ -1526,25 +1591,36 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
     if (!this.geminiClient) return [];
 
     try {
-      const result: any = await this.geminiClient.models.list();
-      const rawModels: any[] = [];
+      const result = await this.geminiClient.models.list();
+      const rawModels: Array<Record<string, unknown>> = [];
+      const resultObj = result as {
+        models?: unknown;
+        iterateAll?: () => AsyncIterable<unknown>;
+      };
 
-      if (Array.isArray(result?.models)) {
-        rawModels.push(...result.models);
-      } else if (typeof result?.iterateAll === 'function') {
-        for await (const model of result.iterateAll()) {
-          rawModels.push(model);
+      if (Array.isArray(resultObj?.models)) {
+        rawModels.push(...(resultObj.models as Array<Record<string, unknown>>));
+      } else if (typeof resultObj?.iterateAll === 'function') {
+        for await (const model of resultObj.iterateAll()) {
+          if (model && typeof model === 'object') {
+            rawModels.push(model as Record<string, unknown>);
+          }
         }
-      } else if (result && Symbol.asyncIterator in Object(result)) {
-        for await (const page of result as any) {
-          if (Array.isArray(page?.models)) {
-            rawModels.push(...page.models);
+      } else if (result && typeof result === 'object' && Symbol.asyncIterator in result) {
+        for await (const page of result as AsyncIterable<unknown>) {
+          if (page && typeof page === 'object' && Array.isArray((page as { models?: unknown }).models)) {
+            rawModels.push(...((page as { models?: unknown }).models as Array<Record<string, unknown>>));
           }
         }
       }
 
       const names = rawModels
-        .map((model) => this.normalizeModelId(model?.name || model?.id || model?.displayName || ''))
+        .map((model) => {
+          const info = model as { name?: unknown; id?: unknown; displayName?: unknown };
+          return this.normalizeModelId(
+            String(info?.name || info?.id || info?.displayName || '')
+          );
+        })
         .filter((name) => !!name);
 
       this.availableModelsCache = Array.from(new Set(names));

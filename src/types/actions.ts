@@ -18,8 +18,19 @@ export type ActionType =
 
 export interface MapAction {
     type: ActionType;
-    payload: any;
+    payload: MapActionPayload;
 }
+
+export type AiFunctionCallArgs = Record<string, unknown>;
+
+export interface AiFunctionCall {
+    name: string;
+    args?: AiFunctionCallArgs;
+}
+
+export type AiAction = AiFunctionCall & {
+    __suppressAutoLayout?: boolean;
+};
 
 /**
  * 노드 추가 액션 페이로드
@@ -96,6 +107,52 @@ export interface CreateConnectionPayload {
  */
 export interface DeleteConnectionPayload {
     id: string;
+}
+
+/**
+ * 노드 삭제 액션 페이로드
+ */
+export interface DeleteNodePayload {
+    id: string;
+}
+
+/**
+ * 자동 레이아웃 액션 페이로드
+ */
+export interface AutoLayoutPayload {
+    spacing?: 'compact' | 'normal' | 'wide';
+}
+
+/**
+ * 레이어 높이 조절 액션 페이로드
+ */
+export interface AdjustLayerHeightPayload {
+    layer: 1 | 2 | 3 | 4;
+    height: number;
+}
+
+/**
+ * 학술 검색 액션 페이로드
+ */
+export interface SearchAcademicTheoryPayload {
+    topic: string;
+}
+
+export type MapActionPayload =
+    | AddNodePayload
+    | UpdateNodePayload
+    | DeleteNodePayload
+    | AddNodesWithConnectionsPayload
+    | CreateConnectionPayload
+    | DeleteConnectionPayload
+    | AutoLayoutPayload
+    | AdjustLayerHeightPayload
+    | SearchAcademicTheoryPayload;
+
+export interface ToolDeclaration {
+    name: string;
+    description: string;
+    parametersJsonSchema: Record<string, unknown>;
 }
 
 /**

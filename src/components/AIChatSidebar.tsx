@@ -8,6 +8,7 @@ import AIConfigModal from './AIConfigModal';
 import ConsultingToolsPanel from './ConsultingToolsPanel';
 import liveblocksService from '../services/LiveblocksService';
 import type { ChatMessage } from '../types/liveblocks';
+import type { AiAction } from '../types/actions';
 import type { NoteData, ConnectionData } from '../types/culture';
 import type { PasswordType } from '../services/GatewayAdminService';
 import './AIChatSidebar.css';
@@ -53,7 +54,7 @@ const UserAvatar: React.FC<UserAvatarProps> = ({ userName, userColor, size = 32,
 };
 
 interface AIChatSidebarProps {
-    onActionExecute: (action: any) => void;
+    onActionExecute: (action: AiAction) => void;
     notes: NoteData[];
     connections: ConnectionData[];
     layerHeights?: number[];
@@ -405,7 +406,7 @@ ${layerHeightContext}
             );
 
             let aiMsgId = '';
-            let finalActions: any[] = [];
+            let finalActions: AiAction[] = [];
             let isFirstChunk = true;
 
             const hasAcademicFiles = aiService.getAcademicFiles().length > 0;
@@ -488,7 +489,7 @@ ${layerHeightContext}
                             }
                         }
 
-                        finalActions = chunk.actions || [];
+                        finalActions = Array.isArray(chunk.actions) ? chunk.actions : [];
                         console.log('🎯 [AIChatSidebar] Actions received:', finalActions.length, 'items');
 
                         // 설정에 따라 자동 실행 또는 수동 확인
@@ -528,15 +529,16 @@ ${layerHeightContext}
                 clearTimeout(responseTimeout);
             }
 
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : '알 수 없는 에러';
             console.error('Chat error:', error);
             if (!isPrivateChat && liveblocksService.isConnected()) {
-                liveblocksService.sendAiResponse(`죄송합니다. 오류가 발생했습니다: ${error.message || '알 수 없는 에러'}`);
+                liveblocksService.sendAiResponse(`죄송합니다. 오류가 발생했습니다: ${message}`);
             } else {
                 setMessages(prev => [...prev, {
                     id: `ai-error-${Date.now()}`,
                     role: 'assistant' as const,
-                    content: `죄송합니다. 오류가 발생했습니다: ${error.message || '알 수 없는 에러'}`,
+                    content: `죄송합니다. 오류가 발생했습니다: ${message}`,
                     userName: 'AI Assistant',
                     userColor: '#8b5cf6',
                     timestamp: Date.now(),

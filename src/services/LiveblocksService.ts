@@ -17,6 +17,7 @@ import type {
     Insight,
     SessionPresence,
 } from '../types/liveblocks';
+import type { AiAction } from '../types/actions';
 
 type EventCallback = (...args: unknown[]) => void;
 
@@ -82,7 +83,7 @@ class LiveblocksService {
         await this.leaveSession();
         this.yDoc = new Y.Doc();
         const roomId = `culturemap-v2-${code}`;
-        const { room, leave } = this.client.enterRoom(roomId, {
+        const { room, leave } = this.client.enterRoom<SessionPresence>(roomId, {
             initialPresence: {
                 cursor: null,
                 selection: [],
@@ -95,7 +96,7 @@ class LiveblocksService {
 
         this.leaveRoom = leave;
         this.room = room as Room<SessionPresence>;
-        this.provider = new LiveblocksYjsProvider(room as any, this.yDoc);
+        this.provider = new LiveblocksYjsProvider(room, this.yDoc);
         this.indexeddbProvider = new IndexeddbPersistence(roomId, this.yDoc);
         this.hasClearedIndexeddbCache = false;
 
@@ -212,8 +213,9 @@ class LiveblocksService {
         });
     }
 
-    public stopEditing(itemId: string, _itemType: 'note' | 'connection'): void {
+    public stopEditing(itemId: string, itemType: 'note' | 'connection'): void {
         if (!this.client || !this.yDoc) return;
+        console.log('✏️ [Liveblocks] stopEditing:', { itemId, itemType });
         const editingLocks = this.yDoc.getMap<{
             itemId: string;
             itemType: 'note' | 'connection';
@@ -257,7 +259,7 @@ class LiveblocksService {
     // 채팅 동기화 기능
     // ============================================
 
-    public sendChatMessage(content: string, suggestedActions?: any[]): void {
+    public sendChatMessage(content: string, suggestedActions?: AiAction[]): void {
         if (!this.yDoc) return;
         const messages = this.yDoc.getArray<ChatMessage>('chatMessages');
         const newMessage: ChatMessage = {
@@ -274,7 +276,7 @@ class LiveblocksService {
         messages.push([newMessage]);
     }
 
-    public sendAiResponse(content: string, functionCalls?: any[]): void {
+    public sendAiResponse(content: string, functionCalls?: AiAction[]): void {
         if (!this.yDoc) return;
         const messages = this.yDoc.getArray<ChatMessage>('chatMessages');
         const newMessage: ChatMessage = {
@@ -313,7 +315,7 @@ class LiveblocksService {
     /**
      * 특정 ID의 AI 메시지 내용을 업데이트합니다
      */
-    public updateAiResponse(id: string, content?: string, functionCalls?: any[]): void {
+    public updateAiResponse(id: string, content?: string, functionCalls?: AiAction[]): void {
         if (!this.yDoc) return;
         const messages = this.yDoc.getArray<ChatMessage>('chatMessages');
         const index = messages.toArray().findIndex(m => m.id === id);
@@ -733,12 +735,12 @@ class LiveblocksService {
         this.configDoc = new Y.Doc();
         const roomId = 'culturemap-admin-config';
 
-        const { room, leave } = this.client.enterRoom(roomId, {
+        const { room, leave } = this.client.enterRoom<{ cursor: null }>(roomId, {
             initialPresence: { cursor: null },
         });
 
         this.configLeave = leave;
-        this.configProvider = new LiveblocksYjsProvider(room as any, this.configDoc);
+        this.configProvider = new LiveblocksYjsProvider(room, this.configDoc);
 
         // 동기화 대기
         await new Promise<void>((resolve) => {

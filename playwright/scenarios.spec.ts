@@ -49,7 +49,7 @@ test.describe('Culture-MAP V2 Full Scenarios', () => {
         await expect(page.locator('.gateway-container')).toBeVisible();
     });
 
-    test('User can login and use the editor', async ({ page }) => {
+    test('User can login and use the editor', async () => {
         // Note: This test depends on the previous test having run or the password being persistent in localStorage
         // Since Playwright runs tests in isolation, we need to recreate the state or do it in one test.
         // Let's do it in one long test for simplicity in this environment.

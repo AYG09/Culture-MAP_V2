@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import liveblocksService from '../services/LiveblocksService';
 import type { PasswordType } from '../services/GatewayAdminService';
 import type { SessionType } from '../types/liveblocks';
-import { formatRelativeTime } from '../utils/timeFormat';
 import './ModalBase.css';
 import './SessionManager.css';
 

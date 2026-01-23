@@ -43,11 +43,11 @@ class LocalSyncService {
     return this.doc;
   }
 
-  public getMap(name: string): Y.Map<any> {
+  public getMap(name: string): Y.Map<unknown> {
     return this.doc.getMap(name);
   }
 
-  public getArray(name: string): Y.Array<any> {
+  public getArray(name: string): Y.Array<unknown> {
     return this.doc.getArray(name);
   }
 

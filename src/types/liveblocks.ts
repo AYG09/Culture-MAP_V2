@@ -4,6 +4,7 @@
  */
 
 import type { PerceptionIntensity } from './culture';
+import type { AiAction } from './actions';
 
 export type SessionType = 'workshop' | 'consulting';
 
@@ -27,7 +28,7 @@ export interface ChatMessage {
         uri: string;
         mimeType: string;
     }>;
-    suggestedActions?: any[]; // AI가 제안한 맵 수정 액션
+    suggestedActions?: AiAction[]; // AI가 제안한 맵 수정 액션
 }
 
 // ============================================

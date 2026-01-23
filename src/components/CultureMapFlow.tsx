@@ -36,7 +36,7 @@ import ReportEditor from './ReportEditor'; // 보고서 편집기
 
 // 타입
 import type { NoteData, ConnectionData, PerceptionIntensity } from '../types/culture';
-import type { BatchConnectionInput, BatchNodeInput } from '../types/actions';
+import type { AiAction, BatchConnectionInput, BatchNodeInput } from '../types/actions';
 import { INTENSITY_MAP } from '../types/culture';
 import type { StickyNoteData, ConnectionData as LBConnectionData } from '../types/liveblocks';
 
@@ -184,7 +184,7 @@ const CultureMapFlow = ({
     edgesRef.current = edges;
   }, [edges]);
 
-  const pendingActionsRef = useRef<any[]>([]);
+  const pendingActionsRef = useRef<AiAction[]>([]);
   const flushScheduledRef = useRef(false);
   const lastSyncWarningRef = useRef(0);
 
@@ -470,7 +470,7 @@ ${chatHistorySection}
     setEdges(layoutedEdges);
 
     layoutedNodes.forEach((node) => {
-      const currentData = node.data as any;
+      const currentData = node.data as { content?: string; sentiment?: string };
       liveblocksService.updateStickyNote({
         id: node.id,
         x: node.position.x,
@@ -487,7 +487,7 @@ ${chatHistorySection}
   }, [layerHeights, setEdges, setNodes]);
 
   // AI 액션 실행 핸들러 (배치 처리)
-  const executeAiAction = useCallback((action: any) => {
+  const executeAiAction = useCallback((action: AiAction) => {
     console.log('🤖 [Action Bridge] AI 액션 실행:', action);
     const { name, args } = action;
 
@@ -876,7 +876,7 @@ ${chatHistorySection}
     }
   }, [ensureLiveblocksConnected, layerHeights, onConnectionsChange, setEdges, setNodes, safeAutoLayout]);
 
-  const handleAiAction = useCallback((action: any) => {
+  const handleAiAction = useCallback((action: AiAction) => {
     pendingActionsRef.current.push(action);
 
     if (flushScheduledRef.current) {

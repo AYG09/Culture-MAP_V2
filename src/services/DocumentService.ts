@@ -28,7 +28,13 @@ class DocumentService {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
       const pageText = textContent.items
-        .map((item: any) => item.str)
+        .map((item) => {
+          if (typeof item === 'string') return item;
+          if (item && typeof item === 'object' && 'str' in item) {
+            return String((item as { str?: unknown }).str ?? '');
+          }
+          return '';
+        })
         .join(' ');
       fullText += pageText + '\n';
     }

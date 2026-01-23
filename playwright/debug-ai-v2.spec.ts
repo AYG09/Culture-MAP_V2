@@ -30,7 +30,7 @@ test('Robust Debug AI Streaming', async ({ page }) => {
         await skipBtn.waitFor({ state: 'visible', timeout: 15000 });
         await skipBtn.click();
         console.log('--- Splash Skipped ---');
-    } catch (e) {
+    } catch {
         console.log('--- Splash skip button not found, moving on ---');
     }
 
@@ -54,8 +54,9 @@ test('Robust Debug AI Streaming', async ({ page }) => {
         } else {
             console.log('--- Session input not visible, assuming joined ---');
         }
-    } catch (e) {
-        console.log('--- Session modal handling failed or timed out:', e.message);
+    } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : String(e);
+        console.log('--- Session modal handling failed or timed out:', message);
     }
 
     // AI Chat - Desktop에서는 이미 좌측에 표시됨
