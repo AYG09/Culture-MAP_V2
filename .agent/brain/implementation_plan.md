@@ -1492,3 +1492,56 @@ git checkout -- .agent/brain/walkthrough.md
 ### 수동 검증
 1. AI가 수동 조작 방법을 안내하는지 확인
 2. ? 도움말과 모달의 안내가 실제 조작과 일치하는지 확인
+
+---
+
+# Implementation Plan: 컨설팅 모드 세션 타입 동기화
+
+## 목표
+1. 컨설팅 모드 전환 후 재접속/새로고침 시 UI가 정상 노출
+2. Liveblocks metadata 변경이 UI 상태에 즉시 반영
+
+---
+
+## 핵심 변경 범위
+
+### 1) Liveblocks metadata 동기화
+- provider sync 시 metadata에서 session type 복원
+- metadata observe에서 변경 감지 및 이벤트 emit
+
+### 2) UI 구독 및 반영
+- CultureMapFlow에서 session type 상태 유지
+- session-type-changed 이벤트로 UI 토글 갱신
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| metadata 누락 | 기본 모드로 고정 | 기본값 유지 + 변경 이벤트 수신 시 갱신 |
+| 이벤트 누락 | UI 미갱신 | sync 시점 강제 동기화 + observe 추가 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 재접속 후 컨설팅 모드 UI가 계속 미표시
+
+### 롤백 절차
+```bash
+git checkout -- src/services/LiveblocksService.ts
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. 컨설팅 모드 전환 후 새로고침/재접속 시 UI 표시 확인
+2. 다른 사용자가 모드 변경 시 즉시 반영되는지 확인

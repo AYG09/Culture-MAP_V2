@@ -1474,3 +1474,42 @@
 
 1. 전체 탭에서 1:1 메시지가 보이지 않는지 확인
 2. 1:1 탭에서 전체 메시지가 섞이지 않는지 확인
+
+---
+
+# Walkthrough: 컨설팅 모드 세션 타입 동기화
+
+## 완료 일시
+2026-01-23
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 컨설팅 모드 전환 후 재접속 시 UI가 정상 노출
+2. 세션 타입 변경이 UI에 즉시 반영
+
+---
+
+## ✅ 해결 조치
+
+1. Liveblocks metadata sync 시 session type 복원 및 변경 이벤트 emit
+2. CultureMapFlow에서 sessionType 상태 구독으로 UI 토글 갱신
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/services/LiveblocksService.ts` | metadata 동기화 및 session-type-changed emit 추가 |
+| `src/components/CultureMapFlow.tsx` | sessionType 상태/구독 반영 |
+| `.agent/brain/implementation_plan.md` | 계획 섹션 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. npm run build 성공
+2. 컨설팅 모드 UI 표시는 사용자 환경에서 확인 필요

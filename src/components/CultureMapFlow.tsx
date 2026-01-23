@@ -37,7 +37,7 @@ import ReportEditor from './ReportEditor'; // 보고서 편집기
 import type { NoteData, ConnectionData, PerceptionIntensity } from '../types/culture';
 import type { AiAction, BatchConnectionInput, BatchNodeInput } from '../types/actions';
 import { INTENSITY_MAP } from '../types/culture';
-import type { StickyNoteData, ConnectionData as LBConnectionData, LayerSettings } from '../types/liveblocks';
+import type { StickyNoteData, ConnectionData as LBConnectionData, LayerSettings, SessionType } from '../types/liveblocks';
 
 // 유틸리티
 import { convertToFlowData, convertFromFlowData } from '../utils/flowDataConverter';
@@ -164,8 +164,9 @@ const CultureMapFlow = ({
 }: CultureMapFlowProps) => {
   // 세션 타입 기반 모드 결정
   const currentSession = liveblocksService.getCurrentSession();
-  const mode = (currentSession?.type || 'workshop') as 'workshop' | 'consulting';
-  const isConsultingMode = mode === 'consulting';
+  const [sessionType, setSessionType] = useState<SessionType>(currentSession?.type ?? 'workshop');
+  const mode = sessionType;
+  const isConsultingMode = sessionType === 'consulting';
 
   // React Flow 노드/엣지 상태
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -184,6 +185,24 @@ const CultureMapFlow = ({
   useEffect(() => {
     edgesRef.current = edges;
   }, [edges]);
+
+  useEffect(() => {
+    const handleSessionTypeChange = (value: unknown) => {
+      if (value === 'workshop' || value === 'consulting') {
+        setSessionType(value);
+      }
+    };
+
+    const initialType = liveblocksService.getCurrentSession()?.type;
+    if (initialType) {
+      setSessionType(initialType);
+    }
+
+    liveblocksService.on('session-type-changed', handleSessionTypeChange);
+    return () => {
+      liveblocksService.off('session-type-changed', handleSessionTypeChange);
+    };
+  }, []);
 
   const pendingActionsRef = useRef<AiAction[]>([]);
   const flushScheduledRef = useRef(false);

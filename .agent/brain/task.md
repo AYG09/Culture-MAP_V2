@@ -131,6 +131,30 @@
 
 ## Task 3: 검증
 
+
+# Task List: 컨설팅 모드 세션 타입 동기화
+
+## 진행 상황
+- 🔲 미완료
+- 🔄 진행 중
+- ✅ 완료
+
+---
+
+## Task 1: session type 동기화 이벤트 추가
+- [x] metadata observe/sync에서 session-type-changed emit
+
+## Task 2: UI 구독 및 반영
+- [x] CultureMapFlow에서 sessionType 상태/구독 적용
+
+## Task 3: 문서 업데이트
+- [x] implementation_plan.md 업데이트
+- [x] walkthrough.md 변경 사항 기록
+
+## Task 4: 검증
+- [x] npm run build 성공
+- [ ] 컨설팅 모드 재접속 UI 표시 (사용자 환경)
+
  # Task List: AI 액션 의도 판별 보강 + 레이어 밴드 클램프
 
  ## 진행 상황

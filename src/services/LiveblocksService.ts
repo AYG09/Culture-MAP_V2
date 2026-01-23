@@ -133,6 +133,7 @@ class LiveblocksService {
             if (!isSynced || this.hasClearedIndexeddbCache) return;
             this.hasClearedIndexeddbCache = true;
             await this.resetIndexeddbCacheAfterSync(code);
+            this.syncSessionMetadata();
             this.provider?.off('sync', handleProviderSync);
         };
         this.provider.on('sync', handleProviderSync);
@@ -150,6 +151,7 @@ class LiveblocksService {
         metadata.set('type', sessionType);
 
         this.currentSession = { ...this.currentSession, type: sessionType };
+        this.emit('session-type-changed', sessionType);
 
         try {
             await this.connectToConfigRoom();
@@ -728,6 +730,27 @@ class LiveblocksService {
             if (!settings) return;
             this.emit('layer-settings-changed', settings);
         });
+
+        const metadata = this.yDoc.getMap<unknown>('metadata');
+        metadata.observe(() => {
+            this.syncSessionMetadata();
+        });
+    }
+
+    private syncSessionMetadata(): void {
+        if (!this.yDoc || !this.currentSession) return;
+        const metadata = this.yDoc.getMap<unknown>('metadata');
+        const nextType = metadata.get('type');
+        if (nextType === 'workshop' || nextType === 'consulting') {
+            if (this.currentSession.type !== nextType) {
+                this.currentSession = { ...this.currentSession, type: nextType };
+                this.emit('session-type-changed', nextType);
+            }
+        }
+        const nextName = metadata.get('name');
+        if (typeof nextName === 'string' && nextName && this.currentSession.name !== nextName) {
+            this.currentSession = { ...this.currentSession, name: nextName };
+        }
     }
 
     public updateLayerSettings(settings: LayerSettings): void {
