@@ -1,4 +1,90 @@
+# Walkthrough: Vercel index.html 캐시 무효화
+
+## 완료 일시
+2026-01-23
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. Vercel에서 오래된 번들이 계속 로드되는 문제 방지
+2. 최신 `index.html`이 항상 제공되도록 캐시 정책 강화
+
+---
+
+## 🔍 원인 분석
+
+- 프로덕션에서 오래된 번들 해시가 계속 로드되어 TDZ 오류가 재발할 가능성 존재.
+
+---
+
+## ✅ 해결 조치
+
+1. `vercel.json`에 `/`, `/index.html` 캐시 무효화 헤더 추가
+2. 해시된 정적 자산 캐시는 유지
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `vercel.json` | index.html 캐시 무효화 헤더 추가 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+
+---
+
+## 🧪 검증
+
+1. Vercel 재배포 후 최신 번들 해시 로드 확인 (예정)
+2. 프로덕션 콘솔 에러 재발 여부 확인 (예정)
+
+---
+
 # Walkthrough: 클립보드 이미지 붙여넣기 지원
+
+# Walkthrough: Gateway TDZ 오류 수정
+
+## 완료 일시
+2026-01-23
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. Gateway 초기화 시 `Cannot access before initialization` 오류 제거
+2. useEffect 의존성 참조 순서 안정화
+
+---
+
+## 🔍 원인 분석
+
+- useEffect 의존성 배열이 useCallback 선언 이전 참조 가능(TDZ)하여 빌드 번들에서 ReferenceError 발생.
+
+---
+
+## ✅ 해결 조치
+
+1. `handleDevModeAutoJoin`, `loadSessions` 선언을 useEffect 상단으로 이동
+2. 의존성 배열과 기존 로직은 그대로 유지
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/components/Gateway.tsx` | useCallback 선언 순서 조정 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+
+---
+
+## 🧪 검증
+
+1. `npm run build` 성공 확인
+2. preview 실행 후 브라우저 콘솔에서 ReferenceError 미발생 확인
+	- Liveblocks API 키 미설정 경고는 예상된 동작
+
+---
 
 ## 완료 일시
 2026-01-21

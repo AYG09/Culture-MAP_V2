@@ -198,4 +198,26 @@
 
 ## Task 4: 검증
 - [ ] auto_layout 실행 시 연결선 겹침 완화 확인
+
+---
+
+# Task List: Vercel index.html 캐시 무효화
+
+## 진행 상황
+- 🔲 미완료
+- 🔄 진행 중
+- ✅ 완료
+
+---
+
+## Task 1: 캐시 헤더 설정
+- [x] vercel.json에 index.html 캐시 무효화 헤더 추가
+
+## Task 2: 문서 업데이트
+- [x] implementation_plan.md 업데이트
+- [ ] walkthrough.md에 변경 사항 기록
+
+## Task 3: 검증
+- [ ] Vercel 재배포 후 최신 번들 해시 로드 확인
+- [ ] 프로덕션 콘솔 에러 재발 여부 확인
 - [ ] spacing preset 반영 여부 확인

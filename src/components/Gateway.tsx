@@ -51,42 +51,6 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
     localStorage.removeItem(LAST_SESSION_STORAGE_KEY);
   }, []);
 
-  // 초기화
-  useEffect(() => {
-    const init = async () => {
-      const skipGate = import.meta.env.VITE_SKIP_GATE;
-      console.log('🚪 [Gateway] VITE_SKIP_GATE 값:', skipGate, '타입:', typeof skipGate);
-
-      if (skipGate === 'true') {
-        console.log('🚪 [Gateway] 개발 모드 - 자동 연결');
-        await handleDevModeAutoJoin();
-        persistLastSession('DEV-LOCAL', true);
-      } else {
-        const stored = localStorage.getItem(LAST_SESSION_STORAGE_KEY);
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored) as { code: string; isHost?: boolean };
-            if (parsed.code) {
-              console.log('🔁 [Gateway] 마지막 세션 자동 재접속 시도:', parsed.code);
-              await liveblocksService.joinSession(parsed.code, parsed.isHost ?? false);
-              setIsAuth(true);
-              if (onAuthenticated) onAuthenticated(parsed.code);
-              setIsLoading(false);
-              return;
-            }
-          } catch {
-            clearLastSession();
-          }
-        }
-
-        console.log('🚪 [Gateway] 일반 모드 - 세션 목록 로드');
-        await loadSessions();
-        setIsLoading(false);
-      }
-    };
-    init();
-  }, [clearLastSession, handleDevModeAutoJoin, onAuthenticated, persistLastSession, loadSessions]);
-
   const handleDevModeAutoJoin = useCallback(async () => {
     try {
       await liveblocksService.joinSession('DEV-LOCAL', true, '개발 모드', 'workshop');
@@ -131,6 +95,42 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
       }
     }
   }, [setSessions]);
+
+  // 초기화
+  useEffect(() => {
+    const init = async () => {
+      const skipGate = import.meta.env.VITE_SKIP_GATE;
+      console.log('🚪 [Gateway] VITE_SKIP_GATE 값:', skipGate, '타입:', typeof skipGate);
+
+      if (skipGate === 'true') {
+        console.log('🚪 [Gateway] 개발 모드 - 자동 연결');
+        await handleDevModeAutoJoin();
+        persistLastSession('DEV-LOCAL', true);
+      } else {
+        const stored = localStorage.getItem(LAST_SESSION_STORAGE_KEY);
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored) as { code: string; isHost?: boolean };
+            if (parsed.code) {
+              console.log('🔁 [Gateway] 마지막 세션 자동 재접속 시도:', parsed.code);
+              await liveblocksService.joinSession(parsed.code, parsed.isHost ?? false);
+              setIsAuth(true);
+              if (onAuthenticated) onAuthenticated(parsed.code);
+              setIsLoading(false);
+              return;
+            }
+          } catch {
+            clearLastSession();
+          }
+        }
+
+        console.log('🚪 [Gateway] 일반 모드 - 세션 목록 로드');
+        await loadSessions();
+        setIsLoading(false);
+      }
+    };
+    init();
+  }, [clearLastSession, handleDevModeAutoJoin, onAuthenticated, persistLastSession, loadSessions]);
 
   const saveSession = (session: SessionInfo) => {
     const updated = [...sessions.filter(s => s.code !== session.code), session];

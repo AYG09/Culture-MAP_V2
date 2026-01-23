@@ -103,6 +103,105 @@ git checkout -- .agent/brain/walkthrough.md
 
 ---
 
+# Implementation Plan: Gateway TDZ 오류 수정
+
+## 목표
+1. Gateway 컴포넌트에서 발생하는 `Cannot access before initialization` 오류 제거
+2. useEffect 의존성 배열과 useCallback 선언 순서를 일치시켜 TDZ 방지
+
+---
+
+## 핵심 변경 범위
+
+### 1) 선언 순서 정리
+- `handleDevModeAutoJoin`, `loadSessions` useCallback 선언을 useEffect보다 위로 이동
+- useEffect 의존성 배열은 그대로 유지
+
+### 2) 기존 로직 유지
+- 게이트 초기화 흐름 및 세션 저장/복구 로직 변경 없음
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 의존성 배열 누락 | 상태 동기화 불일치 | 의존성 배열 변경 금지, 선언 순서만 조정 |
+| 리팩토링으로 로직 변경 | 세션 자동 재접속 실패 | 선언 위치만 이동하고 로직 그대로 유지 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- Gateway 화면이 렌더링되지 않거나 세션 자동 재접속이 실패
+
+### 롤백 절차
+```bash
+git checkout -- src/components/Gateway.tsx
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. 앱 로드 직후 콘솔에 `Cannot access before initialization` 오류가 없는지 확인
+2. 게이트 초기화/세션 목록 로드 정상 동작 확인
+
+---
+
+# Implementation Plan: Vercel index.html 캐시 무효화
+
+## 목표
+1. Vercel에서 오래된 번들이 계속 로드되는 문제를 방지
+2. 새 배포 시 항상 최신 `index.html`이 제공되도록 캐시 정책 강화
+
+---
+
+## 핵심 변경 범위
+
+### 1) Vercel 캐시 헤더 설정
+- `/` 및 `/index.html`에 `Cache-Control: no-store, must-revalidate` 적용
+- 해시된 정적 자산 캐시는 변경하지 않음
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| index.html 응답 캐시 미사용 | 초기 로드 시 약간의 오버헤드 | 정적 자산 캐시는 유지해 영향 최소화 |
+| 배포 후에도 오류 지속 | 원인이 캐시가 아닐 가능성 | Vercel 재배포 후 재검증, 코드 레벨 추가 조사 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 캐시 정책 변경으로 응답 지연/오작동 발생
+
+### 롤백 절차
+```bash
+git checkout -- vercel.json
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. Vercel 재배포 후 최신 번들 해시가 로드되는지 확인
+2. 브라우저 콘솔에서 `Cannot access before initialization` 오류 재발 여부 확인
+
+---
+
 # Implementation Plan: 동기화 완료 후 IndexedDB 캐시 리셋
 
 ## 목표
