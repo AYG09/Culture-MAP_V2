@@ -175,6 +175,7 @@ const CultureMapFlow = ({
   const edgesRef = useRef<Edge[]>([]);
   const layoutSpacingRef = useRef<'compact' | 'normal' | 'wide'>('normal');
   const previousLayerStartsRef = useRef<number[] | null>(null);
+  const isHydratingRef = useRef(false);
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -1205,6 +1206,9 @@ ${chatHistorySection}
       const mappedNotes = rawNotes.map(mapLiveblocksNoteToNoteData);
       const mappedConnections = rawConnections.map(mapLiveblocksConnectionToConnectionData);
 
+      isHydratingRef.current = true;
+      previousLayerStartsRef.current = null;
+
       const { nodes: flowNodes, edges: flowEdges } = convertToFlowData(
         mappedNotes,
         mappedConnections,
@@ -1225,6 +1229,10 @@ ${chatHistorySection}
       setEdges(() => {
         edgesRef.current = flowEdges;
         return flowEdges;
+      });
+
+      requestAnimationFrame(() => {
+        isHydratingRef.current = false;
       });
 
       onNotesChange(mappedNotes);
@@ -1386,6 +1394,11 @@ ${chatHistorySection}
   }, [nodes, layerHeights]);
 
   useEffect(() => {
+    if (isHydratingRef.current || applyingLayerSettingsRef.current) {
+      previousLayerStartsRef.current = null;
+      return;
+    }
+
     const layerIndexMap: Record<string, number> = {
       result: 0,
       behavior: 1,

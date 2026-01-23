@@ -1288,3 +1288,54 @@ git checkout -- .agent/brain/walkthrough.md
 ### 수동 검증
 1. 상위 레이어 확장 시 하위 레이어 노드가 함께 내려가는지 확인
 2. 레이어 경계 내에서만 이동하는지 확인
+
+---
+
+# Implementation Plan: 세션 복원 중 레이어 시프트 가드
+
+## 목표
+1. 세션 복원(sync/initial) 시 레이어 시프트/동기화가 실행되지 않도록 억제
+2. 드래그/레이어 확장 동작은 유지
+
+---
+
+## 핵심 변경 범위
+
+### 1) 복원 플래그 도입
+- `isHydratingRef`로 복원 중 상태 표시
+- 복원 시작 시 `previousLayerStartsRef` 초기화
+
+### 2) 시프트 이펙트 가드
+- `isHydratingRef` 또는 `applyingLayerSettingsRef` 활성 시 노드 시프트/Liveblocks 업데이트 스킵
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 복원 직후 레이어 이동 누락 | 노드 위치 오차 | 복원 완료 후 정상 시프트 허용 |
+| 플래그 해제 타이밍 오류 | 시프트 미작동 | requestAnimationFrame으로 한 프레임만 차단 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 복원 후 드래그 시 레이어 확장/시프트 불가
+
+### 롤백 절차
+```bash
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. sync/initial 복원 시 시프트/업데이트가 실행되지 않는지 확인
+2. 복원 후 드래그 시 레이어 확장/시프트 정상 동작 확인
