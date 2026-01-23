@@ -734,3 +734,61 @@ git checkout -- .agent/brain/walkthrough.md
 ### 수동 검증
 1. 전체 탭에서 1:1 메시지가 보이지 않는지 확인
 2. 1:1 탭에서 전체 메시지가 섞이지 않는지 확인
+
+---
+
+# Implementation Plan: ELK 기반 auto_layout 및 edge 겹침 완화
+
+## 목표
+1. ELK layered 레이아웃 도입으로 연결선 겹침/교차를 최소화
+2. 과도한 간격 증가 없이 spacing preset을 반영
+3. 레이아웃 실패 시 기존 앵커 보존 레이아웃으로 fallback
+
+---
+
+## 핵심 변경 범위
+
+### 1) 레이아웃 엔진 도입
+- `elkjs` 의존성 추가
+- `flowAutoLayout.ts`에 ELK 레이아웃 함수 추가
+
+### 2) async 레이아웃 적용
+- `safeAutoLayout` 및 AI 일괄 생성 레이아웃을 async 처리
+- 레이아웃 완료 후 Liveblocks 동기화 유지
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| ELK 레이아웃 실패 | 레이아웃 미적용 | 기존 앵커 보존 레이아웃으로 fallback |
+| 간격 과대 | 화면 비효율 | spacing preset별 옵션 튜닝 |
+| 비동기 적용 지연 | UX 지연 | auto_layout 호출 시점만 async 실행 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- auto_layout 실행 후 위치 이상/멈춤
+- 레이아웃 적용 시 UI 멈춤 현상
+
+### 롤백 절차
+```bash
+git checkout -- src/utils/flowAutoLayout.ts
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- package.json
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. auto_layout 실행 시 연결선 겹침이 완화되는지 확인
+2. spacing preset(좁게/보통/넓게) 적용이 과도한 간격 없이 반영되는지 확인
+3. 레이아웃 실패 시 기존 레이아웃으로 fallback되는지 확인

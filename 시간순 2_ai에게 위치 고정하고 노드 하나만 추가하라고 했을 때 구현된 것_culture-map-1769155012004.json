@@ -1,0 +1,1037 @@
+{
+  "nodes": [
+    {
+      "id": "node-1769068700311-0-hvrz",
+      "type": "result",
+      "position": {
+        "x": 120,
+        "y": 0
+      },
+      "data": {
+        "content": "매일 매일이 행복한 팀",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 120
+      }
+    },
+    {
+      "id": "node-1769068700311-1-tprb",
+      "type": "behavior",
+      "position": {
+        "x": 120,
+        "y": 200
+      },
+      "data": {
+        "content": "동료의 노력과 성과에 대해 진심으로 칭찬하고 인정하는 행동",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 179
+      }
+    },
+    {
+      "id": "node-1769068700311-2-95u8",
+      "type": "behavior",
+      "position": {
+        "x": 480,
+        "y": 200
+      },
+      "data": {
+        "content": "자신의 생각과 아이디어를 자유롭게 공유하고, 건설적인 피드백을 주고받는 행동",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 218
+      }
+    },
+    {
+      "id": "node-1769068700311-3-3kfl",
+      "type": "behavior",
+      "position": {
+        "x": 840,
+        "y": 200
+      },
+      "data": {
+        "content": "동료를 존중하고, 어려움을 겪을 때 기꺼이 돕고 지원하는 행동",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 159
+      }
+    },
+    {
+      "id": "node-1769068700311-4-k2eo",
+      "type": "behavior",
+      "position": {
+        "x": 1200,
+        "y": 200
+      },
+      "data": {
+        "content": "주어진 업무에 대해 스스로 판단하고 실행할 수 있는 자율성과 권한을 누리는 행동",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 198
+      }
+    },
+    {
+      "id": "node-1769068700311-5-5nvh",
+      "type": "behavior",
+      "position": {
+        "x": 1560,
+        "y": 200
+      },
+      "data": {
+        "content": "새로운 지식 습득, 기술 향상 등 개인적/직업적 성장을 위한 노력을 지속하는 행동",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 198
+      }
+    },
+    {
+      "id": "node-1769068700311-6-j8v6",
+      "type": "behavior",
+      "position": {
+        "x": 1920,
+        "y": 200
+      },
+      "data": {
+        "content": "개인의 삶과 업무의 균형을 맞추기 위해 노력하고, 이를 서로 존중하는 행동",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 198
+      }
+    },
+    {
+      "id": "node-1769068700311-7-vz3i",
+      "type": "behavior",
+      "position": {
+        "x": 2280,
+        "y": 200
+      },
+      "data": {
+        "content": "개인의 목표를 넘어 팀 전체의 성공을 위해 동료들과 적극적으로 협력하는 행동",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 198
+      }
+    },
+    {
+      "id": "node-1769068700311-8-23fm",
+      "type": "tangible_lever",
+      "position": {
+        "x": 120,
+        "y": 500
+      },
+      "data": {
+        "content": "동료 간에 감사와 성과를 공식적으로 인정하고 포인트 등을 지급하는 제도",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 198
+      }
+    },
+    {
+      "id": "node-1769068700311-9-i1q3",
+      "type": "tangible_lever",
+      "position": {
+        "x": 480,
+        "y": 500
+      },
+      "data": {
+        "content": "버크만 '완고성 92' 대상자가 주도하여 설계한 '자율 근무 의사결정 로직-트리'. 기술적 툴을 통해 업무 성격별 최적 근무 방식(장소/시간)을 스스로 진단하고 결정함.",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 296
+      }
+    },
+    {
+      "id": "node-1769068700311-10-q0j5",
+      "type": "tangible_lever",
+      "position": {
+        "x": 840,
+        "y": 500
+      },
+      "data": {
+        "content": "버크만 '완고성 92' 강점을 가진 대상자가 설계한, 체계적이고 부담 없는 상호 지원 프로세스",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 198
+      }
+    },
+    {
+      "id": "node-1769068700311-11-w4nn",
+      "type": "tangible_lever",
+      "position": {
+        "x": 1200,
+        "y": 500
+      },
+      "data": {
+        "content": "교육, 멘토링, 스터디 그룹 등을 통해 개인의 역량 강화를 지원하는 제도",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 179
+      }
+    },
+    {
+      "id": "node-1769068700311-12-g21h",
+      "type": "tangible_lever",
+      "position": {
+        "x": 1560,
+        "y": 500
+      },
+      "data": {
+        "content": "직원들이 업무 시간과 장소를 유연하게 조절하여 일과 삶의 균형을 맞출 수 있도록 지원하는 제도 ",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 218
+      }
+    },
+    {
+      "id": "node-1769068700311-13-f7a8",
+      "type": "tangible_lever",
+      "position": {
+        "x": 1920,
+        "y": 500
+      },
+      "data": {
+        "content": "팀원 간의 정보 공유, 작업 진척 관리, 공동 작업이 용이하도록 지원하는 시스템 및 도구",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 198
+      }
+    },
+    {
+      "id": "node-1769068700311-14-2q4i",
+      "type": "tangible_lever",
+      "position": {
+        "x": 2280,
+        "y": 500
+      },
+      "data": {
+        "content": "자연광과 탁 트인 조망을 갖춘 개방적이고 수평적인 회의 공간 구조",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 179
+      }
+    },
+    {
+      "id": "node-1769068700311-15-bfbp",
+      "type": "tangible_lever",
+      "position": {
+        "x": 2640,
+        "y": 500
+      },
+      "data": {
+        "content": "버크만 진단을 반영하여 피드백의 절차와 형식을 체계화한 가이드라인",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 179
+      }
+    },
+    {
+      "id": "node-1769068700311-16-ubne",
+      "type": "intangible_lever",
+      "position": {
+        "x": 120,
+        "y": 1100
+      },
+      "data": {
+        "content": "어떤 의견이나 질문을 해도 안전하다는 팀 내의 깊은 믿음",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 159
+      }
+    },
+    {
+      "id": "node-1769068700311-17-tckp",
+      "type": "intangible_lever",
+      "position": {
+        "x": 480,
+        "y": 1100
+      },
+      "data": {
+        "content": "개인의 성장을 적극 지원하고 권장하는 조직의 핵심 가치관",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 159
+      }
+    },
+    {
+      "id": "node-1769068700311-18-ka69",
+      "type": "intangible_lever",
+      "position": {
+        "x": 840,
+        "y": 1100
+      },
+      "data": {
+        "content": "팀원들이 서로의 업무를 지지하고 돕는 것을 당연하게 여기는 문화",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 179
+      }
+    },
+    {
+      "id": "node-1769068700311-19-rbn2",
+      "type": "intangible_lever",
+      "position": {
+        "x": 1200,
+        "y": 1100
+      },
+      "data": {
+        "content": "구성원의 개인적인 삶과 업무의 균형을 존중하고 지원하는 조직의 문화적 토대",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 198
+      }
+    },
+    {
+      "id": "node-1769068700311-20-4hux",
+      "type": "intangible_lever",
+      "position": {
+        "x": 1560,
+        "y": 1100
+      },
+      "data": {
+        "content": "개인의 성공보다 팀 전체의 성공을 더 중요하게 생각하고 협력하는 것을 당연하게 여기는 신념",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 218
+      }
+    },
+    {
+      "id": "node-1769068700311-21-pcyl",
+      "type": "intangible_lever",
+      "position": {
+        "x": 1920,
+        "y": 1100
+      },
+      "data": {
+        "content": "리더가 팀원과의 긍정적인 관계 구축을 핵심 역할로 인식하는 믿음",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 179
+      }
+    },
+    {
+      "id": "node-1769068700311-22-bbz7",
+      "type": "tangible_lever",
+      "position": {
+        "x": 3000,
+        "y": 500
+      },
+      "data": {
+        "content": "예술적 흥미와 체계성을 활용한 '무언의 감사 갤러리'. 동료의 강점을 시각적으로 큐레이션하여 정서적 유대감을 극대화함.",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 257
+      }
+    },
+    {
+      "id": "node-1769154996195-lczi",
+      "type": "intangible_lever",
+      "position": {
+        "x": 2504.821590429691,
+        "y": 1144.320790023052
+      },
+      "data": {
+        "content": "변화에 대한 개방성을 가지고, 실패를 학습의 기회로 삼으며 끊임없이 조직의 프로세스와 방법을 개선하려는 조직 구성원들의 기본적인 믿음.",
+        "sentiment": "positive",
+        "isLocked": false
+      },
+      "selected": false,
+      "measured": {
+        "width": 150,
+        "height": 277
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-node-1769068700311-1-tprb-node-1769068700311-0-hvrz-1769068700311-0",
+      "source": "node-1769068700311-1-tprb",
+      "target": "node-1769068700311-0-hvrz",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-2-95u8-node-1769068700311-0-hvrz-1769068700311-1",
+      "source": "node-1769068700311-2-95u8",
+      "target": "node-1769068700311-0-hvrz",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-3-3kfl-node-1769068700311-0-hvrz-1769068700311-2",
+      "source": "node-1769068700311-3-3kfl",
+      "target": "node-1769068700311-0-hvrz",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-4-k2eo-node-1769068700311-0-hvrz-1769068700311-3",
+      "source": "node-1769068700311-4-k2eo",
+      "target": "node-1769068700311-0-hvrz",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-5-5nvh-node-1769068700311-0-hvrz-1769068700311-4",
+      "source": "node-1769068700311-5-5nvh",
+      "target": "node-1769068700311-0-hvrz",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-6-j8v6-node-1769068700311-0-hvrz-1769068700311-5",
+      "source": "node-1769068700311-6-j8v6",
+      "target": "node-1769068700311-0-hvrz",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-7-vz3i-node-1769068700311-0-hvrz-1769068700311-6",
+      "source": "node-1769068700311-7-vz3i",
+      "target": "node-1769068700311-0-hvrz",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-16-ubne-node-1769068700311-8-23fm-1769068700311-7",
+      "source": "node-1769068700311-16-ubne",
+      "target": "node-1769068700311-8-23fm",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-16-ubne-node-1769068700311-2-95u8-1769068700311-8",
+      "source": "node-1769068700311-16-ubne",
+      "target": "node-1769068700311-2-95u8",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-8-23fm-node-1769068700311-1-tprb-1769068700311-9",
+      "source": "node-1769068700311-8-23fm",
+      "target": "node-1769068700311-1-tprb",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-17-tckp-node-1769068700311-9-i1q3-1769068700311-10",
+      "source": "node-1769068700311-17-tckp",
+      "target": "node-1769068700311-9-i1q3",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-9-i1q3-node-1769068700311-4-k2eo-1769068700311-11",
+      "source": "node-1769068700311-9-i1q3",
+      "target": "node-1769068700311-4-k2eo",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-18-ka69-node-1769068700311-10-q0j5-1769068700311-12",
+      "source": "node-1769068700311-18-ka69",
+      "target": "node-1769068700311-10-q0j5",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-10-q0j5-node-1769068700311-3-3kfl-1769068700311-13",
+      "source": "node-1769068700311-10-q0j5",
+      "target": "node-1769068700311-3-3kfl",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-17-tckp-node-1769068700311-11-w4nn-1769068700311-14",
+      "source": "node-1769068700311-17-tckp",
+      "target": "node-1769068700311-11-w4nn",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-11-w4nn-node-1769068700311-5-5nvh-1769068700311-15",
+      "source": "node-1769068700311-11-w4nn",
+      "target": "node-1769068700311-5-5nvh",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-19-rbn2-node-1769068700311-12-g21h-1769068700311-16",
+      "source": "node-1769068700311-19-rbn2",
+      "target": "node-1769068700311-12-g21h",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-12-g21h-node-1769068700311-6-j8v6-1769068700311-17",
+      "source": "node-1769068700311-12-g21h",
+      "target": "node-1769068700311-6-j8v6",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-20-4hux-node-1769068700311-13-f7a8-1769068700311-18",
+      "source": "node-1769068700311-20-4hux",
+      "target": "node-1769068700311-13-f7a8",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-13-f7a8-node-1769068700311-7-vz3i-1769068700311-19",
+      "source": "node-1769068700311-13-f7a8",
+      "target": "node-1769068700311-7-vz3i",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-16-ubne-node-1769068700311-14-2q4i-1769068700311-20",
+      "source": "node-1769068700311-16-ubne",
+      "target": "node-1769068700311-14-2q4i",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-14-2q4i-node-1769068700311-2-95u8-1769068700311-21",
+      "source": "node-1769068700311-14-2q4i",
+      "target": "node-1769068700311-2-95u8",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-16-ubne-node-1769068700311-15-bfbp-1769068700311-22",
+      "source": "node-1769068700311-16-ubne",
+      "target": "node-1769068700311-15-bfbp",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-15-bfbp-node-1769068700311-2-95u8-1769068700311-23",
+      "source": "node-1769068700311-15-bfbp",
+      "target": "node-1769068700311-2-95u8",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-21-pcyl-node-1769068700311-10-q0j5-1769068700311-24",
+      "source": "node-1769068700311-21-pcyl",
+      "target": "node-1769068700311-10-q0j5",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-16-ubne-node-1769068700311-22-bbz7-1769068700311-25",
+      "source": "node-1769068700311-16-ubne",
+      "target": "node-1769068700311-22-bbz7",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-22-bbz7-node-1769068700311-8-23fm-1769068700311-26",
+      "source": "node-1769068700311-22-bbz7",
+      "target": "node-1769068700311-8-23fm",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    },
+    {
+      "id": "edge-node-1769068700311-22-bbz7-node-1769068700311-0-hvrz-1769068700311-27",
+      "source": "node-1769068700311-22-bbz7",
+      "target": "node-1769068700311-0-hvrz",
+      "type": "default",
+      "animated": true,
+      "style": {
+        "strokeWidth": 2,
+        "stroke": "#10b981"
+      },
+      "markerEnd": {
+        "type": "arrowclosed",
+        "width": 20,
+        "height": 20,
+        "color": "#10b981"
+      },
+      "data": {
+        "relationType": "direct",
+        "isPositive": true
+      }
+    }
+  ],
+  "viewport": {
+    "x": 177.05398417139486,
+    "y": 142.58348931943115,
+    "zoom": 0.451255494082971
+  },
+  "metadata": {
+    "exportedAt": "2026-01-23T07:56:52.003Z",
+    "version": "1.0",
+    "nodeCount": 24,
+    "edgeCount": 28
+  }
+}

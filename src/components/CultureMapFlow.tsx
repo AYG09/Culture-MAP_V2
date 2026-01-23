@@ -42,7 +42,7 @@ import type { StickyNoteData, ConnectionData as LBConnectionData } from '../type
 
 // 유틸리티
 import { convertToFlowData, convertFromFlowData } from '../utils/flowDataConverter';
-import { getLayoutedElements } from '../utils/flowAutoLayout';
+import { buildElkLayoutOptions, getElkLayoutedElements } from '../utils/flowAutoLayout';
 import { parseAIOutput } from '../utils/parser';
 
 // Liveblocks 서비스
@@ -440,7 +440,7 @@ ${chatHistorySection}
   const [collaborationLocks, setCollaborationLocks] = useState<Record<string, CollaborationLock>>({});
   const collaborationLocksRef = useRef<Record<string, CollaborationLock>>({});
 
-  const safeAutoLayout = useCallback((showAlert = false) => {
+  const safeAutoLayout = useCallback(async (showAlert = false) => {
     const currentNodes = nodesRef.current;
     const currentEdges = edgesRef.current;
 
@@ -452,10 +452,10 @@ ${chatHistorySection}
       return;
     }
 
-    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+    const { nodes: layoutedNodes, edges: layoutedEdges } = await getElkLayoutedElements(
       currentNodes,
       currentEdges,
-      { layerHeights, spacingPreset: layoutSpacingRef.current }
+      buildElkLayoutOptions(layoutSpacingRef.current)
     );
 
     if (!layoutedNodes.length || layoutedNodes.length !== currentNodes.length) {
@@ -1511,7 +1511,7 @@ ${chatHistorySection}
   // ============================================================================
   // AI 일괄 생성 기능
   // ============================================================================
-  const handleGenerateFromAI = useCallback(() => {
+  const handleGenerateFromAI = useCallback(async () => {
     if (!aiInput.trim()) {
       alert('AI 출력 텍스트를 입력해주세요.');
       return;
@@ -1545,7 +1545,11 @@ ${chatHistorySection}
       );
 
       // 자동 레이아웃 적용
-      const layouted = getLayoutedElements(flowNodes, flowEdges);
+      const layouted = await getElkLayoutedElements(
+        flowNodes,
+        flowEdges,
+        buildElkLayoutOptions(layoutSpacingRef.current)
+      );
 
       // 상태 업데이트
       setNodes(layouted.nodes);

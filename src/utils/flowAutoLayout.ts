@@ -1,5 +1,6 @@
 import type { Node, Edge } from '@xyflow/react';
 import { Position } from '@xyflow/react';
+import ELK from 'elkjs/lib/elk.bundled.js';
 
 /**
  * dagre를 사용한 4층위 시스템 자동 레이아웃
@@ -33,6 +34,7 @@ const LAYOUT_OPTIONS = {
 // 노드 크기 (dagre 계산용)
 const NODE_WIDTH = 250;
 const NODE_HEIGHT = 120;
+const LAYER_PADDING_Y = 80;
 
 /**
  * 4층위 계층 구조로 노드 자동 배치
@@ -48,7 +50,88 @@ type LayoutOptions = {
   startX?: number;
 };
 
-export function getLayoutedElements(
+type ElkLayoutOptions = Record<string, string>;
+
+type ElkNode = {
+  id: string;
+  width: number;
+  height: number;
+  x?: number;
+  y?: number;
+  layoutOptions?: ElkLayoutOptions;
+};
+
+type ElkEdge = {
+  id: string;
+  sources: string[];
+  targets: string[];
+};
+
+type ElkGraph = {
+  id: string;
+  layoutOptions?: ElkLayoutOptions;
+  children: ElkNode[];
+  edges: ElkEdge[];
+};
+
+type ElkLayoutEngine = {
+  layout: (graph: ElkGraph, options?: { layoutOptions?: ElkLayoutOptions }) => Promise<ElkGraph>;
+};
+
+const elk = new ELK() as unknown as ElkLayoutEngine;
+
+const DEFAULT_ELK_OPTIONS: ElkLayoutOptions = {
+  'elk.algorithm': 'layered',
+  'elk.direction': 'DOWN',
+  'elk.layered.spacing.nodeNodeBetweenLayers': '110',
+  'elk.spacing.nodeNode': '80',
+  'elk.layered.spacing.edgeNodeBetweenLayers': '60',
+  'elk.edgeRouting': 'ORTHOGONAL'
+};
+
+export function buildElkLayoutOptions(
+  spacingPreset: LayoutSpacingPreset = 'normal'
+): ElkLayoutOptions {
+  if (spacingPreset === 'compact') {
+    return {
+      ...DEFAULT_ELK_OPTIONS,
+      'elk.layered.spacing.nodeNodeBetweenLayers': '90',
+      'elk.spacing.nodeNode': '60',
+      'elk.layered.spacing.edgeNodeBetweenLayers': '50'
+    };
+  }
+
+  if (spacingPreset === 'wide') {
+    return {
+      ...DEFAULT_ELK_OPTIONS,
+      'elk.layered.spacing.nodeNodeBetweenLayers': '140',
+      'elk.spacing.nodeNode': '110',
+      'elk.layered.spacing.edgeNodeBetweenLayers': '80'
+    };
+  }
+
+  return { ...DEFAULT_ELK_OPTIONS };
+}
+
+const getNodeWidth = (node: Node): number => {
+  if (typeof node.measured?.width === 'number') return node.measured.width;
+  if (typeof node.width === 'number') return node.width;
+  return NODE_WIDTH;
+};
+
+const getNodeHeight = (node: Node): number => {
+  if (typeof node.measured?.height === 'number') return node.measured.height;
+  if (typeof node.height === 'number') return node.height;
+  return NODE_HEIGHT;
+};
+
+const getNodeX = (node?: Node): number | undefined => {
+  if (!node) return undefined;
+  const currentX = node.position?.x;
+  return typeof currentX === 'number' ? currentX : undefined;
+};
+
+function getBasicLayoutedElements(
   nodes: Node[],
   edges: Edge[],
   layerHeightsOrSpacing: number[] | number | LayoutOptions = 200 // 층위별 높이 배열 또는 일괄 간격
@@ -78,6 +161,9 @@ export function getLayoutedElements(
   // 2단계: 각 층위별로 Y 좌표 고정, X 좌표만 수평 배치
   const layoutedNodes: Node[] = [];
 
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const layoutPositionById = new Map<string, { x: number; y: number }>();
+
   // 층위 순서 (위에서 아래로) - Y 좌표 역순
   const layerOrder: Array<keyof typeof LAYER_CONFIG> = [
     'result',           // 최상단 (Y = 0)
@@ -85,6 +171,14 @@ export function getLayoutedElements(
     'tangible_lever',   // (Y = layerHeights[0] + layerHeights[1])
     'intangible_lever'  // 최하단 (Y = layerHeights[0] + layerHeights[1] + layerHeights[2])
   ];
+
+  const resolvedLayerHeights = layerOrder.map((layerKey, layerIndex) => {
+    const layerNodes = nodesByLayer.get(layerKey) || [];
+    const maxHeight = layerNodes.length
+      ? Math.max(...layerNodes.map((node) => getNodeHeight(node)))
+      : NODE_HEIGHT;
+    return Math.max(layerHeights[layerIndex] ?? NODE_HEIGHT, maxHeight + LAYER_PADDING_Y);
+  });
 
   layerOrder.forEach((layerKey, layerIndex) => {
     const layerNodes = nodesByLayer.get(layerKey) || [];
@@ -95,8 +189,8 @@ export function getLayoutedElements(
     const previousLayerNodes = previousLayerKey ? (nodesByLayer.get(previousLayerKey) || []) : [];
     const nextLayerNodes = nextLayerKey ? (nodesByLayer.get(nextLayerKey) || []) : [];
 
-    const previousIndexMap = new Map(previousLayerNodes.map((node, index) => [node.id, index]));
-    const nextIndexMap = new Map(nextLayerNodes.map((node, index) => [node.id, index]));
+    const previousLayerIdSet = new Set(previousLayerNodes.map((node) => node.id));
+    const nextLayerIdSet = new Set(nextLayerNodes.map((node) => node.id));
 
     const edgeTargetsBySource = new Map<string, string[]>();
     const edgeSourcesByTarget = new Map<string, string[]>();
@@ -116,7 +210,7 @@ export function getLayoutedElements(
     // 각 층위의 Y 좌표를 개별 높이에 따라 계산
     let fixedY = 0;
     for (let i = 0; i < layerIndex; i++) {
-      fixedY += layerHeights[i];
+      fixedY += resolvedLayerHeights[i] ?? 0;
     }
 
     // 수평 간격 설정 (노드가 많을수록 간격 확대)
@@ -126,17 +220,18 @@ export function getLayoutedElements(
     const horizontalSpacing = typeof options?.horizontalSpacing === 'number'
       ? options.horizontalSpacing
       : (layerNodes.length > 4 ? expandedSpacing : baseSpacing);
-    const startX = options?.startX ?? 120; // 시작 X 좌표
+    const minGap = Math.max(60, Math.round(horizontalSpacing * 0.4));
 
     const scoredNodes = layerNodes.map((node, nodeIndex) => {
-      const neighborIndices: number[] = [];
+      const neighborX: number[] = [];
 
       if (previousLayerKey) {
         const sources = edgeSourcesByTarget.get(node.id) || [];
         sources.forEach((sourceId) => {
-          const index = previousIndexMap.get(sourceId);
-          if (index !== undefined) {
-            neighborIndices.push(index);
+          if (!previousLayerIdSet.has(sourceId)) return;
+          const positionX = layoutPositionById.get(sourceId)?.x ?? getNodeX(nodeById.get(sourceId));
+          if (typeof positionX === 'number') {
+            neighborX.push(positionX);
           }
         });
       }
@@ -144,21 +239,23 @@ export function getLayoutedElements(
       if (nextLayerKey) {
         const targets = edgeTargetsBySource.get(node.id) || [];
         targets.forEach((targetId) => {
-          const index = nextIndexMap.get(targetId);
-          if (index !== undefined) {
-            neighborIndices.push(index);
+          if (!nextLayerIdSet.has(targetId)) return;
+          const positionX = layoutPositionById.get(targetId)?.x ?? getNodeX(nodeById.get(targetId));
+          if (typeof positionX === 'number') {
+            neighborX.push(positionX);
           }
         });
       }
 
-      const averageIndex = neighborIndices.length > 0
-        ? neighborIndices.reduce((sum, value) => sum + value, 0) / neighborIndices.length
-        : nodeIndex;
+      const averageX = neighborX.length > 0
+        ? neighborX.reduce((sum, value) => sum + value, 0) / neighborX.length
+        : getNodeX(node) ?? (nodeIndex * horizontalSpacing + 120);
 
       return {
         node,
-        score: averageIndex,
+        score: averageX,
         fallbackIndex: nodeIndex,
+        anchorX: averageX,
       };
     });
 
@@ -171,18 +268,34 @@ export function getLayoutedElements(
       })
       .map(item => item.node);
 
-    // 같은 층위의 노드들을 수평으로 나열
-    orderedNodes.forEach((node, nodeIndex) => {
+    const anchorXs = scoredNodes.map((item) => item.anchorX);
+    const minAnchorX = anchorXs.length ? Math.min(...anchorXs) : 120;
+    const startX = options?.startX ?? Math.max(80, Math.floor(minAnchorX));
+
+    let cursorX = startX;
+
+    // 같은 층위의 노드들을 수평으로 나열 (앵커 보존 + 충돌 최소화)
+    orderedNodes.forEach((node) => {
+      const scored = scoredNodes.find((item) => item.node.id === node.id);
+      const anchorX = scored?.anchorX ?? cursorX;
+      const width = getNodeWidth(node);
+      const nextX = Math.max(anchorX, cursorX);
+
+      const position = {
+        x: nextX,
+        y: fixedY,
+      };
+
       layoutedNodes.push({
         ...node,
-        position: {
-          x: startX + nodeIndex * horizontalSpacing, // 수평으로 간격을 두고 배치
-          y: fixedY // 층위별 Y 좌표 강제 고정
-        },
+        position,
         // Handle 위치 설정
         targetPosition: Position.Top,
-        sourcePosition: Position.Bottom
+        sourcePosition: Position.Bottom,
       });
+
+      layoutPositionById.set(node.id, position);
+      cursorX = nextX + width + minGap;
     });
   });
 
@@ -190,6 +303,68 @@ export function getLayoutedElements(
     nodes: layoutedNodes,
     edges
   };
+}
+
+export function getLayoutedElements(
+  nodes: Node[],
+  edges: Edge[],
+  layerHeightsOrSpacing: number[] | number | LayoutOptions = 200
+): { nodes: Node[]; edges: Edge[] } {
+  return getBasicLayoutedElements(nodes, edges, layerHeightsOrSpacing);
+}
+
+export async function getElkLayoutedElements(
+  nodes: Node[],
+  edges: Edge[],
+  layoutOptions: ElkLayoutOptions = DEFAULT_ELK_OPTIONS
+): Promise<{ nodes: Node[]; edges: Edge[] }> {
+  const elkNodes: ElkNode[] = nodes.map((node) => ({
+    id: node.id,
+    width: getNodeWidth(node),
+    height: getNodeHeight(node)
+  }));
+
+  const elkEdges: ElkEdge[] = edges.map((edge) => ({
+    id: edge.id,
+    sources: [edge.source],
+    targets: [edge.target]
+  }));
+
+  const graph: ElkGraph = {
+    id: 'root',
+    layoutOptions: { ...DEFAULT_ELK_OPTIONS, ...layoutOptions },
+    children: elkNodes,
+    edges: elkEdges
+  };
+
+  try {
+    const layoutedGraph = await elk.layout(graph, {
+      layoutOptions: graph.layoutOptions
+    });
+
+    const layoutedById = new Map(
+      (layoutedGraph.children ?? []).map((node) => [node.id, node])
+    );
+
+    const layoutedNodes = nodes.map((node) => {
+      const layouted = layoutedById.get(node.id);
+      if (!layouted || typeof layouted.x !== 'number' || typeof layouted.y !== 'number') {
+        return node;
+      }
+
+      return {
+        ...node,
+        position: { x: layouted.x, y: layouted.y },
+        targetPosition: Position.Top,
+        sourcePosition: Position.Bottom
+      };
+    });
+
+    return { nodes: layoutedNodes, edges };
+  } catch (error) {
+    console.warn('⚠️ [Layout] ELK 레이아웃 실패, 기본 레이아웃으로 대체합니다.', error);
+    return getBasicLayoutedElements(nodes, edges);
+  }
 }
 
 /**

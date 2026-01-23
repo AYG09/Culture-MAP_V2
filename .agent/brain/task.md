@@ -172,3 +172,30 @@
 ## Task 4: 검증
 - [ ] 전체 탭에서 1:1 메시지가 보이지 않는지 확인
 - [ ] 1:1 탭에서 전체 메시지가 섞이지 않는지 확인
+
+---
+
+# Task List: ELK 기반 auto_layout 및 edge 겹침 완화
+
+## 진행 상황
+- 🔲 미완료
+- 🔄 진행 중
+- ✅ 완료
+
+---
+
+## Task 1: ELK 레이아웃 엔진 도입
+- [x] elkjs 의존성 추가
+- [x] ELK 레이아웃 함수 구현 및 fallback 처리
+
+## Task 2: async 레이아웃 적용
+- [x] safeAutoLayout async 처리
+- [x] AI 일괄 생성 레이아웃 async 적용
+
+## Task 3: 문서 업데이트
+- [x] implementation_plan.md 업데이트
+- [ ] walkthrough.md에 변경 사항 기록
+
+## Task 4: 검증
+- [ ] auto_layout 실행 시 연결선 겹침 완화 확인
+- [ ] spacing preset 반영 여부 확인

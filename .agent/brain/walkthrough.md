@@ -201,6 +201,53 @@
 
 ---
 
+# Walkthrough: ELK 기반 auto_layout 및 edge 겹침 완화
+
+## 완료 일시
+2026-01-23
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. ELK layered 레이아웃 도입으로 연결선 겹침/교차 최소화
+2. spacing preset에 따라 간격을 과도하게 늘리지 않도록 제어
+3. 레이아웃 실패 시 기존 앵커 보존 레이아웃으로 fallback
+
+---
+
+## 🔍 원인 분석
+
+- 기존 auto_layout은 노드 위치만 재배치하며 edge routing을 처리하지 않아 연결선/노드 겹침이 잦았음.
+
+---
+
+## ✅ 해결 조치
+
+1. `elkjs` 도입 및 `getElkLayoutedElements` 구현
+2. `safeAutoLayout` 및 AI 일괄 생성 레이아웃을 async 처리
+3. spacing preset에 따라 ELK 옵션을 조정하고 실패 시 fallback 처리
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `package.json` | elkjs 의존성 추가 |
+| `src/utils/flowAutoLayout.ts` | ELK 레이아웃 함수/옵션 추가 |
+| `src/components/CultureMapFlow.tsx` | auto_layout async 적용 |
+| `.agent/brain/implementation_plan.md` | 계획 갱신 |
+| `.agent/brain/task.md` | 체크리스트 갱신 |
+
+---
+
+## 🧪 검증
+
+1. auto_layout 실행 시 연결선 겹침 완화 여부 확인
+2. spacing preset(좁게/보통/넓게) 반영 여부 확인
+
+---
+
 ## ✅ 해결 조치
 
 1. 학술 첨부를 PDF 1개 + 이미지 1개로 제한
