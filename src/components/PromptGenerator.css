@@ -1,15 +1,15 @@
 /* 🚨 임시 강제 수정 - 아코디언 문제 해결용 (업데이트) */
 
 /* 모든 텍스트 세로 방향 강제 차단 */
-.left-panel,
-.left-panel *,
-.step,
-.step *,
-.step-title,
-.step-header,
-.step-header *,
-.step-content,
-.step-content * {
+.left-panel .prompt-generator,
+.left-panel .prompt-generator *,
+.left-panel .prompt-generator .step,
+.left-panel .prompt-generator .step *,
+.left-panel .prompt-generator .step-title,
+.left-panel .prompt-generator .step-header,
+.left-panel .prompt-generator .step-header *,
+.left-panel .prompt-generator .step-content,
+.left-panel .prompt-generator .step-content * {
   writing-mode: horizontal-tb !important;
   text-orientation: mixed !important;
   direction: ltr !important;
@@ -174,14 +174,14 @@
 
 /* 🚨 임시 강제 수정 - 아코디언 문제 해결용 */
 /* 🎯 아코디언 올바른 세로 레이아웃 */
-.left-panel .step-item {
+.left-panel .prompt-generator .step-item {
   display: flex !important;
   flex-direction: column !important; /* 세로 방향으로 펼치기 */
   width: 100% !important;
   margin-bottom: 1rem !important;
 }
 
-.left-panel .step-header {
+.left-panel .prompt-generator .step-header {
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;
@@ -195,7 +195,7 @@
   background-color: #f8f9fa !important;
 }
 
-.left-panel .step-title {
+.left-panel .prompt-generator .step-title {
   display: flex !important;
   flex-direction: row !important;
   align-items: center !important;
@@ -217,7 +217,7 @@
 }
 
 /* 아코디언 내용 - 세로로 펼쳐지기 */
-.left-panel .step-content {
+.left-panel .prompt-generator .step-content {
   display: block !important; /* 세로로 배치 */
   width: 100% !important;
   padding: 1rem !important;
@@ -230,8 +230,8 @@
   max-height: 400px !important; /* 너무 길어지지 않도록 제한 */
 }
 
-.left-panel .step-icon,
-.left-panel .step-toggle {
+.left-panel .prompt-generator .step-icon,
+.left-panel .prompt-generator .step-toggle {
   flex-shrink: 0 !important;
   width: 24px !important;
   height: 24px !important;
@@ -560,7 +560,7 @@
 }
 
 /* 아코디언 내용 세부 스타일링 */
-.left-panel .step-content h4 {
+.left-panel .prompt-generator .step-content h4 {
   color: #2c3e50 !important;
   font-size: 1rem !important;
   font-weight: 600 !important;
@@ -568,39 +568,39 @@
   margin-top: 1rem !important;
 }
 
-.left-panel .step-content h4:first-child {
+.left-panel .prompt-generator .step-content h4:first-child {
   margin-top: 0 !important;
 }
 
-.left-panel .step-content p {
+.left-panel .prompt-generator .step-content p {
   color: #495057 !important;
   font-size: 0.9rem !important;
   line-height: 1.5 !important;
   margin-bottom: 1rem !important;
 }
 
-.left-panel .step-content ol {
+.left-panel .prompt-generator .step-content ol {
   padding-left: 1.2rem !important;
   margin-bottom: 1rem !important;
 }
 
-.left-panel .step-content li {
+.left-panel .prompt-generator .step-content li {
   color: #495057 !important;
   font-size: 0.9rem !important;
   line-height: 1.4 !important;
   margin-bottom: 0.3rem !important;
 }
 
-.left-panel .button-group {
+.left-panel .prompt-generator .button-group {
   display: flex !important;
   flex-direction: column !important;
   gap: 0.5rem !important;
   margin-top: 1rem !important;
 }
 
-.left-panel .btn-llm,
-.left-panel .btn-primary,
-.left-panel button {
+.left-panel .prompt-generator .btn-llm,
+.left-panel .prompt-generator .btn-primary,
+.left-panel .prompt-generator button {
   width: 100% !important;
   padding: 0.6rem 1rem !important;
   border: none !important;
@@ -611,25 +611,25 @@
   transition: background-color 0.2s ease !important;
 }
 
-.left-panel .btn-llm {
+.left-panel .prompt-generator .btn-llm {
   background-color: #007bff !important;
   color: white !important;
 }
 
-.left-panel .btn-llm:hover {
+.left-panel .prompt-generator .btn-llm:hover {
   background-color: #0056b3 !important;
 }
 
-.left-panel .btn-primary {
+.left-panel .prompt-generator .btn-primary {
   background-color: #28a745 !important;
   color: white !important;
 }
 
-.left-panel .btn-primary:hover {
+.left-panel .prompt-generator .btn-primary:hover {
   background-color: #1e7e34 !important;
 }
 
-.left-panel textarea {
+.left-panel .prompt-generator textarea {
   width: 100% !important;
   padding: 0.8rem !important;
   border: 1px solid #ddd !important;

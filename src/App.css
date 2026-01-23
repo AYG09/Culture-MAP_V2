@@ -227,7 +227,7 @@
   overflow-wrap: break-word;
 }
 
-.left-panel h2 {
+.left-panel .prompt-generator h2 {
   margin-top: 0;
   margin-bottom: 15px;
   font-size: 1.1rem;
@@ -236,7 +236,7 @@
   line-height: 1.3;
 }
 
-.left-panel h3 {
+.left-panel .prompt-generator h3 {
   margin-top: 20px;
   margin-bottom: 10px;
   font-size: 1rem;
@@ -247,7 +247,7 @@
   line-height: 1.3;
 }
 
-.left-panel p {
+.left-panel .prompt-generator p {
   margin-bottom: 10px;
   font-size: 0.9rem;
   line-height: 1.4;
@@ -256,12 +256,12 @@
   word-wrap: break-word;
 }
 
-.left-panel ul {
+.left-panel .prompt-generator ul {
   margin: 10px 0;
   padding-left: 20px;
 }
 
-.left-panel li {
+.left-panel .prompt-generator li {
   margin-bottom: 5px;
   font-size: 0.9rem;
   line-height: 1.4;
@@ -280,7 +280,7 @@
   resize: vertical;
 }
 
-.left-panel button {
+.left-panel .prompt-generator button {
   width: 100%;
   padding: 10px 0;
   margin-top: 10px;
@@ -294,7 +294,7 @@
   transition: background-color 0.2s;
 }
 
-.left-panel button:hover {
+.left-panel .prompt-generator button:hover {
   background-color: #1565c0;
 }
 

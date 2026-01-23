@@ -88,10 +88,8 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     const sharedApiKeyMode = aiService.getConfig()?.sharedApiKeyMode ?? false;
 
     const filteredMessages = useMemo(() => {
-        return chatScope === 'group'
-            ? messages
-            : messages.filter(msg => msg.role === 'assistant' || msg.role === 'system' || msg.userId === currentUserId || (msg.role === 'user' && !msg.userId));
-    }, [messages, chatScope, currentUserId]);
+        return messages.filter((msg) => (msg.scope ?? 'group') === chatScope);
+    }, [messages, chatScope]);
 
     // 메시지 복사 기능
     const handleCopyMessage = useCallback(async (messageId: string, content: string) => {
@@ -160,12 +158,18 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
                 console.log('🔗 [AIChatSidebar] Setting up Liveblocks chat subscription');
                 unsub = liveblocksService.onChatMessages((msgs) => {
                     console.log('💬 [AIChatSidebar] Chat messages updated:', msgs.length);
-                    setMessages(msgs);
+                    setMessages(msgs.map((msg) => ({
+                        ...msg,
+                        scope: msg.scope ?? 'group'
+                    })));
                 });
 
                 const initialMsgs = liveblocksService.getChatMessages();
                 if (initialMsgs.length > 0) {
-                    setMessages(initialMsgs);
+                    setMessages(initialMsgs.map((msg) => ({
+                        ...msg,
+                        scope: msg.scope ?? 'group'
+                    })));
                 }
                 return true;
             }
@@ -326,6 +330,7 @@ ${layerHeightContext}
                         userName: 'System',
                         userColor: '#64748b',
                         timestamp: Date.now(),
+                        scope: chatScope,
                     };
                     setMessages(prev => [...prev, warningMessage]);
                     return;
@@ -345,7 +350,8 @@ ${layerHeightContext}
                         userId: currentUserId,
                         userName: '나',
                         userColor: '#3b82f6',
-                        timestamp: Date.now()
+                        timestamp: Date.now(),
+                        scope: chatScope
                     }]);
                 }
             }
@@ -383,6 +389,7 @@ ${layerHeightContext}
                     userName: 'System',
                     userColor: '#64748b',
                     timestamp: Date.now(),
+                    scope: 'direct',
                 };
                 setMessages(prev => [...prev, guidanceMessage]);
                 return;
@@ -437,7 +444,8 @@ ${layerHeightContext}
                                 content: '',
                                 userName: 'AI Assistant',
                                 userColor: '#8b5cf6',
-                                timestamp: Date.now()
+                                timestamp: Date.now(),
+                                scope: chatScope
                             }]);
                         }
                     }
@@ -474,7 +482,8 @@ ${layerHeightContext}
                                     content: '',
                                     userName: 'AI Assistant',
                                     userColor: '#8b5cf6',
-                                    timestamp: Date.now()
+                                    timestamp: Date.now(),
+                                    scope: chatScope
                                 }]);
                             }
                         }
@@ -530,7 +539,8 @@ ${layerHeightContext}
                     content: `죄송합니다. 오류가 발생했습니다: ${error.message || '알 수 없는 에러'}`,
                     userName: 'AI Assistant',
                     userColor: '#8b5cf6',
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    scope: chatScope
                 }]);
             }
         } finally {

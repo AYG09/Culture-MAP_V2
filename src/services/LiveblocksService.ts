@@ -268,6 +268,7 @@ class LiveblocksService {
             userName: this.displayName,
             userColor: this.userColor,
             timestamp: Date.now(),
+            scope: 'group',
             suggestedActions
         };
         messages.push([newMessage]);
@@ -283,6 +284,7 @@ class LiveblocksService {
             userName: 'AI Assistant',
             userColor: '#8b5cf6',
             timestamp: Date.now(),
+            scope: 'group',
             suggestedActions: functionCalls
         };
         messages.push([newMessage]);
@@ -301,7 +303,8 @@ class LiveblocksService {
             content: '',
             userName: 'AI Assistant',
             userColor: '#8b5cf6',
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            scope: 'group'
         };
         messages.push([newMessage]);
         return id;

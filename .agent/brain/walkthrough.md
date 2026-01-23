@@ -837,3 +837,94 @@
 |------|-----------|
 | `src/services/AIService.ts` | 모델 목록/정규화/추론 설정 자동화 |
 | `src/components/AIConfigModal.tsx` | 모델 기본값/목록/설명 갱신 |
+
+---
+
+# Walkthrough: Gemini Function Calling mode 조건 오류 수정
+
+## 완료 일시
+2026-01-23
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. allowedFunctionNames를 mode=ANY에서만 전달하도록 수정
+2. AUTO/NONE 모드에서도 내부 도구 제한 동작 유지
+
+---
+
+## 🔍 원인 분석
+
+- @google/genai 문서상 allowedFunctionNames는 mode=ANY일 때만 허용되는데, AUTO 모드에서도 전달되어 400 INVALID_ARGUMENT 발생.
+
+---
+
+## ✅ 해결 조치
+
+1. mode=ANY일 때만 allowedFunctionNames 포함
+2. AUTO/NONE에서는 tools 선언을 이름 기준으로 필터링하여 내부 도구만 노출
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/services/AIService.ts` | functionCallingConfig 조건 분기 및 tools 필터링 적용 |
+| `.agent/brain/implementation_plan.md` | 계획 섹션 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+
+---
+
+## 🧪 검증
+
+1. 채팅 스트림 호출에서 400 INVALID_ARGUMENT 오류 재발 여부 확인
+2. allowExternalTools=false 경로에서 내부 도구만 호출되는지 확인
+
+---
+
+# Walkthrough: 전체/1:1 채팅 분리
+
+## 완료 일시
+2026-01-23
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 전체 채팅과 1:1 채팅 메시지가 섞이는 문제 해결
+2. 탭별로 분리된 대화 목록 제공
+
+---
+
+## 🔍 원인 분석
+
+- chatScope 탭은 존재했지만 메시지에 범위 정보가 없어서 필터링이 사용자/역할 기준으로만 수행됨.
+- Liveblocks와 로컬 메시지가 동일 배열에서 렌더링되어 탭 간 대화가 섞임.
+
+---
+
+## ✅ 해결 조치
+
+1. `ChatMessage.scope` 필드 추가 (group/direct)
+2. Liveblocks 저장 메시지에 `scope: group` 지정
+3. UI 필터를 scope 기반으로 변경하고 scope 미존재 시 group으로 보정
+4. 로컬 메시지 생성 시 현재 탭 scope 기록
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/types/liveblocks.ts` | ChatMessage scope 타입/필드 추가 |
+| `src/services/LiveblocksService.ts` | group 메시지 scope 저장 |
+| `src/components/AIChatSidebar.tsx` | scope 기반 필터/로컬 메시지 분리 |
+| `.agent/brain/implementation_plan.md` | 계획 섹션 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+
+---
+
+## 🧪 검증
+
+1. 전체 탭에서 1:1 메시지가 보이지 않는지 확인
+2. 1:1 탭에서 전체 메시지가 섞이지 않는지 확인

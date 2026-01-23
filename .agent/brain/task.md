@@ -121,3 +121,54 @@
 ## Task 4: 검증
 - [ ] 이미지 붙여넣기 시 첨부/미리보기 표시 확인
 - [ ] 텍스트 붙여넣기 정상 동작 확인
+
+---
+
+# Task List: Gemini Function Calling mode 조건 수정
+
+## 진행 상황
+- 🔲 미완료
+- 🔄 진행 중
+- ✅ 완료
+
+---
+
+## Task 1: functionCallingConfig 수정
+- [x] mode=ANY에서만 allowedFunctionNames 전달
+- [x] AUTO/NONE에서 tools 필터링으로 도구 제한 유지
+
+## Task 2: 문서 업데이트
+- [x] implementation_plan.md 업데이트
+- [x] walkthrough.md에 변경 사항 기록
+
+## Task 3: 검증
+- [ ] 스트리밍 호출에서 400 INVALID_ARGUMENT 오류 재발 여부 확인
+- [ ] allowExternalTools=false 경로에서 내부 도구만 호출되는지 확인
+
+---
+
+# Task List: 전체/1:1 채팅 분리
+
+## 진행 상황
+- 🔲 미완료
+- 🔄 진행 중
+- ✅ 완료
+
+---
+
+## Task 1: 메시지 scope 적용
+- [x] ChatMessage에 scope 추가
+- [x] Liveblocks 메시지에 scope: group 저장
+
+## Task 2: 탭별 분리 처리
+- [x] UI 필터링을 scope 기반으로 변경
+- [x] 기존 메시지 scope 미존재 시 group 보정
+- [x] 로컬 메시지에 탭 scope 기록
+
+## Task 3: 문서 업데이트
+- [x] implementation_plan.md 업데이트
+- [x] walkthrough.md에 변경 사항 기록
+
+## Task 4: 검증
+- [ ] 전체 탭에서 1:1 메시지가 보이지 않는지 확인
+- [ ] 1:1 탭에서 전체 메시지가 섞이지 않는지 확인

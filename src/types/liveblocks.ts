@@ -11,6 +11,8 @@ export type SessionType = 'workshop' | 'consulting';
 // 채팅 메시지 타입
 // ============================================
 
+export type ChatScope = 'group' | 'direct';
+
 export interface ChatMessage {
     id: string;
     role: 'user' | 'assistant' | 'system';
@@ -19,6 +21,7 @@ export interface ChatMessage {
     userName: string;
     userColor: string;
     timestamp: number;
+    scope?: ChatScope;      // 채팅 범위 (group=전체, direct=1:1)
     attachments?: Array<{
         name: string;
         uri: string;

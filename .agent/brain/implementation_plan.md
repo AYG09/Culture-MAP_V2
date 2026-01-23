@@ -627,3 +627,110 @@ git checkout -- .agent/brain/implementation_plan.md
 ### 수동 검증
 1. 두 브라우저에서 동일 세션 접속 후 커서가 상호 표시되는지 확인
 2. Shrimp MCP 불가 시 fallback 문서로 절차 수행 가능 여부 확인
+
+---
+
+# Implementation Plan: Gemini Function Calling mode 조건 수정
+
+## 목표
+1. allowedFunctionNames를 mode=ANY일 때만 전달하여 400 오류 제거
+2. AUTO/NONE 모드에서도 내부 도구만 노출되도록 tool declarations 필터링 유지
+
+---
+
+## 핵심 변경 범위
+
+### 1) FunctionCallingConfig 규칙 준수
+- mode=ANY에서만 allowedFunctionNames 포함
+- AUTO/NONE에서는 allowedFunctionNames 미전달
+
+### 2) 도구 노출 제한 유지
+- allowedFunctionNames가 있을 때 tools 배열을 이름 기준으로 필터링
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| AUTO 모드에서 도구 제한 해제 | 내부 도구만 사용해야 하는 흐름에 영향 | tools 필터링으로 제한 유지 |
+| ANY 모드에서 툴 누락 | 기능 호출 실패 | allowedFunctionNames 기본값에 mapEditTools 사용 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- AUTO/NONE 모드에서 도구 호출이 비정상적으로 동작
+- function calling 전반에서 오류 발생
+
+### 롤백 절차
+```bash
+git checkout -- src/services/AIService.ts
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. 채팅 스트림 호출 시 400 INVALID_ARGUMENT 오류 재발 여부 확인
+2. allowExternalTools=false 경로에서 내부 도구만 사용되는지 확인
+
+---
+
+# Implementation Plan: 전체/1:1 채팅 분리
+
+## 목표
+1. 전체 채팅과 1:1 채팅 메시지를 탭별로 분리해 혼합 표시를 방지
+2. 전체 채팅은 Liveblocks 공유, 1:1 채팅은 로컬로 분리 유지
+
+---
+
+## 핵심 변경 범위
+
+### 1) 메시지 스코프 필드 추가
+- `ChatMessage.scope`에 `group/direct` 구분 필드 추가
+- Liveblocks에 저장되는 메시지는 `scope: group` 지정
+
+### 2) 탭별 필터링 적용
+- UI 렌더링 시 `scope`로 메시지 분리
+- 기존 메시지는 `scope` 미존재 시 `group`으로 보정
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 기존 메시지에 scope 없음 | 필터 누락/미표시 | scope 기본값을 group으로 보정 |
+| 1:1 메시지 공유 | UX 혼란 | direct는 로컬만 유지 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 탭 전환 시 메시지 표시가 비정상
+- Liveblocks 채팅 동기화 오류 발생
+
+### 롤백 절차
+```bash
+git checkout -- src/types/liveblocks.ts
+git checkout -- src/services/LiveblocksService.ts
+git checkout -- src/components/AIChatSidebar.tsx
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. 전체 탭에서 1:1 메시지가 보이지 않는지 확인
+2. 1:1 탭에서 전체 메시지가 섞이지 않는지 확인

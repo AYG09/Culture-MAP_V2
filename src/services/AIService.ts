@@ -159,18 +159,21 @@ Culture-MAP V2는 에드가 샤인(Edgar Schein)의 조직문화 3계층 이론�
       'auto_layout',
       'adjust_layer_height'
     ];
-    const functionCallingConfig = {
-      mode,
-      ...(mode === FunctionCallingConfigMode.ANY
-        ? { allowedFunctionNames: allowedFunctionNames ?? mapEditTools }
-        : (allowedFunctionNames ? { allowedFunctionNames } : {}))
-    };
+    const allowedToolNames = mode === FunctionCallingConfigMode.ANY
+      ? (allowedFunctionNames ?? mapEditTools)
+      : allowedFunctionNames;
+    const toolDeclarations = allowedToolNames
+      ? MAP_TOOL_DECLARATIONS.filter((tool) => allowedToolNames.includes(tool.name))
+      : MAP_TOOL_DECLARATIONS;
+    const functionCallingConfig = mode === FunctionCallingConfigMode.ANY
+      ? { mode, allowedFunctionNames: allowedToolNames }
+      : { mode };
 
     return this.geminiClient.chats.create({
       model: modelName,
       config: {
         systemInstruction: this.getSystemInstruction(),
-        tools: [{ functionDeclarations: MAP_TOOL_DECLARATIONS as any }],
+        tools: [{ functionDeclarations: toolDeclarations as any }],
         toolConfig: {
           functionCallingConfig
         },
