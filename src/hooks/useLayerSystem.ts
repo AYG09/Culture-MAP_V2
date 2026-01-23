@@ -531,9 +531,10 @@ export const useLayerSystem = (
 
   // 정리
   useEffect(() => {
+    const timeouts = validationTimeouts.current;
     return () => {
-      validationTimeouts.current.forEach(timeout => clearTimeout(timeout));
-      validationTimeouts.current.clear();
+      timeouts.forEach(timeout => clearTimeout(timeout));
+      timeouts.clear();
     };
   }, []);
 

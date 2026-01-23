@@ -1,5 +1,5 @@
 // src/components/Gateway.tsx - 새로운 UI/UX
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { Search, Plus, Users, Clock, Settings, LogIn, X } from 'lucide-react';
 import liveblocksService from '../services/LiveblocksService';
 import AdminGateway from './AdminGateway';
@@ -40,16 +40,16 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const persistLastSession = (code: string, isHost: boolean) => {
+  const persistLastSession = useCallback((code: string, isHost: boolean) => {
     localStorage.setItem(
       LAST_SESSION_STORAGE_KEY,
       JSON.stringify({ code, isHost })
     );
-  };
+  }, []);
 
-  const clearLastSession = () => {
+  const clearLastSession = useCallback(() => {
     localStorage.removeItem(LAST_SESSION_STORAGE_KEY);
-  };
+  }, []);
 
   // 초기화
   useEffect(() => {
@@ -85,9 +85,9 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
       }
     };
     init();
-  }, []);
+  }, [clearLastSession, handleDevModeAutoJoin, onAuthenticated, persistLastSession, loadSessions]);
 
-  const handleDevModeAutoJoin = async () => {
+  const handleDevModeAutoJoin = useCallback(async () => {
     try {
       await liveblocksService.joinSession('DEV-LOCAL', true, '개발 모드', 'workshop');
       setIsAuth(true);
@@ -96,9 +96,9 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
       console.error('Dev mode auto-join failed:', e);
     }
     setIsLoading(false);
-  };
+  }, [onAuthenticated]);
 
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     try {
       // Liveblocks 세션 레지스트리에서 로드
       const isDev = import.meta.env.VITE_APP_ENV === 'development';
@@ -130,7 +130,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
         }
       }
     }
-  };
+  }, [setSessions]);
 
   const saveSession = (session: SessionInfo) => {
     const updated = [...sessions.filter(s => s.code !== session.code), session];

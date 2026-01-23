@@ -484,7 +484,7 @@ ${chatHistorySection}
     if (showAlert) {
       alert('컬처맵이 데이브 그레이 모델 구조에 맞춰 정렬되었습니다.');
     }
-  }, [layerHeights, setEdges, setNodes]);
+  }, [setEdges, setNodes]);
 
   // AI 액션 실행 핸들러 (배치 처리)
   const executeAiAction = useCallback((action: AiAction) => {
@@ -1803,7 +1803,7 @@ ${chatHistorySection}
       const updatedData = convertFromFlowData(nodes, [...edges, newEdge]);
       onConnectionsChange(updatedData.connections);
     },
-    [edges, nodes, setEdges, onConnectionsChange]
+    [edges, nodes, setEdges, onConnectionsChange, ensureLiveblocksConnected]
   );
 
 

@@ -75,6 +75,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     const [uploadProgress, setUploadProgress] = useState<string | null>(null);
     const [attachments, setAttachments] = useState<File[]>([]);
     const [attachmentPreviews, setAttachmentPreviews] = useState<Record<string, string>>({});
+    const attachmentPreviewsRef = useRef<Record<string, string>>({});
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -584,31 +585,35 @@ ${layerHeightContext}
     };
 
     useEffect(() => {
+        const previousPreviews = attachmentPreviewsRef.current;
         const nextPreviews: Record<string, string> = {};
 
         attachments.forEach((file) => {
             if (!file.type.startsWith('image/')) return;
             const key = `${file.name}-${file.size}-${file.lastModified}`;
-            if (attachmentPreviews[key]) {
-                nextPreviews[key] = attachmentPreviews[key];
+            if (previousPreviews[key]) {
+                nextPreviews[key] = previousPreviews[key];
                 return;
             }
             const objectUrl = URL.createObjectURL(file);
             nextPreviews[key] = objectUrl;
         });
 
-        Object.entries(attachmentPreviews).forEach(([key, url]) => {
+        Object.entries(previousPreviews).forEach(([key, url]) => {
             if (!nextPreviews[key]) {
                 URL.revokeObjectURL(url);
             }
         });
 
+        attachmentPreviewsRef.current = nextPreviews;
         setAttachmentPreviews(nextPreviews);
-
-        return () => {
-            Object.values(nextPreviews).forEach((url) => URL.revokeObjectURL(url));
-        };
     }, [attachments]);
+
+    useEffect(() => {
+        return () => {
+            Object.values(attachmentPreviewsRef.current).forEach((url) => URL.revokeObjectURL(url));
+        };
+    }, []);
 
     return (
         <div className="ai-chat-sidebar">
