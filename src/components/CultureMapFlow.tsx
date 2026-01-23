@@ -1327,6 +1327,7 @@ ${chatHistorySection}
 
   useEffect(() => {
     if (applyingLayerSettingsRef.current) return;
+    if (isHydratingRef.current) return;
     if (!liveblocksService.isConnected()) return;
 
     liveblocksService.updateLayerSettings({
@@ -1336,6 +1337,9 @@ ${chatHistorySection}
   }, [layerHeights, layerOpacities]);
 
   useEffect(() => {
+    if (isHydratingRef.current || applyingLayerSettingsRef.current) {
+      return;
+    }
     if (!nodes.length) return;
 
     const layerIndexMap: Record<string, number> = {

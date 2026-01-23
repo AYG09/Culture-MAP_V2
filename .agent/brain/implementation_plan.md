@@ -1339,3 +1339,53 @@ git checkout -- .agent/brain/walkthrough.md
 ### 수동 검증
 1. sync/initial 복원 시 시프트/업데이트가 실행되지 않는지 확인
 2. 복원 후 드래그 시 레이어 확장/시프트 정상 동작 확인
+
+---
+
+# Implementation Plan: 복원 중 레이어 자동 계산/동기화 가드
+
+## 목표
+1. 복원 중 레이어 자동 높이 계산/동기화를 억제
+2. 복원 이후 드래그 확장/시프트 동작 유지
+
+---
+
+## 핵심 변경 범위
+
+### 1) 자동 높이 계산 가드
+- `isHydratingRef` 또는 `applyingLayerSettingsRef` 활성 시 자동 높이 계산 중단
+
+### 2) layerSettings 동기화 가드
+- 복원 중 `updateLayerSettings` 호출 차단
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 복원 직후 레이어 높이 미갱신 | 레이어 높이 지연 | 복원 종료 후 자동 계산 재개 |
+| 가드 누락 | 반복 동기화 | 복원 플래그/설정 적용 플래그 동시 체크 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 복원 후 드래그 확장/시프트 미동작
+
+### 롤백 절차
+```bash
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. sync/initial 복원 시 레이어 높이 계산/동기화 스킵 확인
+2. 복원 후 드래그 확장/시프트 정상 동작 확인

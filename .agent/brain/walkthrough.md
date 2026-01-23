@@ -1,3 +1,41 @@
+# Walkthrough: 복원 중 레이어 자동 계산/동기화 가드
+
+## 완료 일시
+2026-01-23
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 복원 중 레이어 자동 높이 계산/동기화 억제
+2. 복원 이후 드래그 확장/시프트 동작 유지
+
+---
+
+## ✅ 해결 조치
+
+1. 자동 높이 계산 useEffect에 복원/설정 적용 가드 추가
+2. layerSettings 동기화 useEffect에 복원 가드 추가
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/components/CultureMapFlow.tsx` | 복원 중 레이어 계산/동기화 가드 추가 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. npm run build 성공
+2. 복원 시 레이어 계산/동기화 스킵 및 복원 후 드래그 동작은 사용자 환경에서 확인 필요
+
+---
+
 # Walkthrough: 세션 복원 중 레이어 시프트 가드
 
 ## 완료 일시
