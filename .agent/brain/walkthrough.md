@@ -1,3 +1,84 @@
+# Walkthrough: 드래그 중 레이어 자동 확장 보강
+
+## 완료 일시
+2026-01-23
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 드래그 중 변경된 노드 위치를 즉시 반영해 레이어 높이 자동 확장
+2. 레이어 밴드 클램프 규칙 유지
+
+---
+
+## ✅ 해결 조치
+
+1. handleNodesChange에서 applyNodeChanges로 임시 노드 상태 생성
+2. 임시 노드 기준으로 레이어 높이를 계산해 확장 필요 시 즉시 반영
+3. 확장된 높이를 기준으로 클램프 적용
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/components/CultureMapFlow.tsx` | 드래그 중 레이어 높이 확장 계산 및 클램프 기준 보강 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. get_errors 확인: 기존 TypeScript 오류 다수(변경과 무관) 존재
+2. 드래그 시 레이어 자동 확장/클램프 동작은 사용자 환경에서 확인 필요
+
+---
+
+# Walkthrough: 학술 파일 공유 목록 정리
+
+## 완료 일시
+2026-01-23
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 세션 공유 목록에 스테일/빈 학술 파일 항목이 표시되지 않도록 정리
+2. 파일 0개인 사용자 메타데이터 제거로 목록 정확도 향상
+
+---
+
+## ✅ 해결 조치
+
+1. SessionPresence에 userId를 추가해 사용자 식별 일관성 확보
+2. publish 시 파일 0개면 academicFiles 엔트리 삭제
+3. 공유 목록 UI에서 파일 1개 이상 항목만 렌더링
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/types/liveblocks.ts` | SessionPresence에 userId 추가 |
+| `src/services/LiveblocksService.ts` | academicFiles 빈 목록 삭제 처리 및 presence 보강 |
+| `src/components/AIConfigModal.tsx` | 공유 목록 필터링 및 빈 목록 메시지 기준 수정 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. get_errors 확인: 변경 파일 오류 없음
+2. 공유 목록에 파일 없는 사용자 항목 미표시 여부는 사용자 환경에서 확인 필요
+3. 파일 업로드/삭제 후 목록 반영은 사용자 환경에서 확인 필요
+
+---
+
 # Walkthrough: 레이어 높이/투명도 동기화 및 동적 높이
 
 ## 완료 일시

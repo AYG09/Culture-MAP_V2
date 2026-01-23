@@ -66,6 +66,7 @@ export interface AcademicFileMeta {
 // ============================================
 
 export interface SessionPresence {
+    userId: string;
     cursor: { x: number; y: number } | null;
     selection: string[];
     userName: string;

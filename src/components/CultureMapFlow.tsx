@@ -10,6 +10,7 @@ import {
   useNodesState,
   useEdgesState,
   addEdge,
+  applyNodeChanges,
   type Connection,
   type Edge,
   type Node,
@@ -1818,13 +1819,6 @@ ${chatHistorySection}
         'tangible_lever',
         'intangible_lever',
       ];
-      const layerStartByIndex = new Map<number, number>();
-      let cumulativeY = 0;
-      displayLayerOrder.forEach((layerKey) => {
-        const index = layerIndexMap[layerKey];
-        layerStartByIndex.set(index, cumulativeY);
-        cumulativeY += layerHeights[index] ?? 0;
-      });
 
       const getNodeHeight = (node: Node) => {
         if (typeof node.measured?.height === 'number') return node.measured.height;
@@ -1832,15 +1826,61 @@ ${chatHistorySection}
         return 120;
       };
 
+      const draftNodes = applyNodeChanges(changes, nodesRef.current);
+      const maxBottomByLayer = [0, 0, 0, 0];
+      draftNodes.forEach((node) => {
+        const layerIndex = layerIndexMap[node.type || 'result'] ?? 0;
+        const nodeHeight = getNodeHeight(node);
+        const bottom = node.position.y + nodeHeight;
+        if (bottom > maxBottomByLayer[layerIndex]) {
+          maxBottomByLayer[layerIndex] = bottom;
+        }
+      });
+
+      const layerPaddingY = 20;
+      const minHeight = 100;
+      const maxHeight = 800;
+      const nextHeights: number[] = [];
+      let cumulativeForHeights = 0;
+
+      displayLayerOrder.forEach((layerKey) => {
+        const index = layerIndexMap[layerKey];
+        const maxBottom = maxBottomByLayer[index];
+        const currentHeight = layerHeights[index] ?? minHeight;
+        const required = maxBottom
+          ? Math.max(minHeight, maxBottom - cumulativeForHeights + layerPaddingY)
+          : Math.max(minHeight, currentHeight);
+        const clamped = Math.min(maxHeight, required);
+        nextHeights[index] = clamped;
+        cumulativeForHeights += clamped;
+      });
+
+      const hasDraggingChange = changes.some(
+        (change) => change.type === 'position' && change.dragging
+      );
+      const shouldExpand = nextHeights.some((height, index) => height > layerHeights[index]);
+      const effectiveLayerHeights = hasDraggingChange && shouldExpand ? nextHeights : layerHeights;
+
+      if (hasDraggingChange && shouldExpand) {
+        setLayerHeights(nextHeights);
+      }
+
+      const layerStartByIndex = new Map<number, number>();
+      let cumulativeY = 0;
+      displayLayerOrder.forEach((layerKey) => {
+        const index = layerIndexMap[layerKey];
+        layerStartByIndex.set(index, cumulativeY);
+        cumulativeY += effectiveLayerHeights[index] ?? 0;
+      });
+
       const clampedChanges = changes.map((change) => {
         if (change.type !== 'position' || !change.position) return change;
-        const node = nodesRef.current.find((n) => n.id === change.id);
+        const node = draftNodes.find((n) => n.id === change.id) || nodesRef.current.find((n) => n.id === change.id);
         if (!node) return change;
         const layerIndex = layerIndexMap[node.type || 'result'] ?? 0;
         const bandStart = layerStartByIndex.get(layerIndex) ?? 0;
-        const bandHeight = layerHeights[layerIndex] ?? 0;
+        const bandHeight = effectiveLayerHeights[layerIndex] ?? 0;
         const nodeHeight = getNodeHeight(node);
-        const layerPaddingY = 20;
         const minY = bandStart + layerPaddingY;
         const maxY = bandStart + Math.max(0, bandHeight - nodeHeight - layerPaddingY);
         const clampedY = Math.min(Math.max(minY, maxY), Math.max(minY, change.position.y));

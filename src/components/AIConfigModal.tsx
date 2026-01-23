@@ -30,6 +30,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
     const [sharedAcademicFiles, setSharedAcademicFiles] = useState<Record<string, AcademicFileMeta[]>>({});
     const currentUserId = liveblocksService.getCurrentUserId();
     const hasSharedForCurrentUser = !!sharedAcademicFiles[currentUserId]?.length;
+    const sharedAcademicEntries = Object.entries(sharedAcademicFiles).filter(([, files]) => files.length > 0);
 
     useEffect(() => {
         if (isOpen) {
@@ -382,26 +383,22 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                             </div>
 
                             <div className="file-list">
-                                {Object.keys(sharedAcademicFiles).length === 0 && (
+                                {sharedAcademicEntries.length === 0 && (
                                     <p style={{ fontSize: '0.8rem', color: '#9ca3af', textAlign: 'center', margin: '10px 0' }}>
                                         공유된 지식 파일이 없습니다.
                                     </p>
                                 )}
-                                {Object.entries(sharedAcademicFiles).map(([userId, files]) => (
+                                {sharedAcademicEntries.map(([userId, files]) => (
                                     <div key={userId} className="file-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
                                         <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
                                             {files[0]?.ownerName || userId}의 업로드
                                         </div>
-                                        {files.length === 0 ? (
-                                            <span style={{ fontSize: '0.8rem', color: '#9ca3af' }}>등록된 파일 없음</span>
-                                        ) : (
-                                            files.map((file) => (
-                                                <div key={file.name} className="file-info" style={{ paddingLeft: '4px' }}>
-                                                    <FileText size={14} />
-                                                    <span className="file-name" title={file.displayName}>{file.displayName}</span>
-                                                </div>
-                                            ))
-                                        )}
+                                        {files.map((file) => (
+                                            <div key={file.name} className="file-info" style={{ paddingLeft: '4px' }}>
+                                                <FileText size={14} />
+                                                <span className="file-name" title={file.displayName}>{file.displayName}</span>
+                                            </div>
+                                        ))}
                                     </div>
                                 ))}
                             </div>

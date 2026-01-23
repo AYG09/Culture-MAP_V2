@@ -89,6 +89,7 @@ class LiveblocksService {
         const roomId = `culturemap-v2-${code}`;
         const { room, leave } = this.client.enterRoom<SessionPresence>(roomId, {
             initialPresence: {
+                userId: this.userId,
                 cursor: null,
                 selection: [],
                 userName: this.displayName,
@@ -241,6 +242,7 @@ class LiveblocksService {
     public updatePresence(update: Partial<SessionPresence>): void {
         if (!this.room) return;
         this.room.updatePresence({
+            userId: this.userId,
             ...update,
             lastActivity: Date.now(),
         });
@@ -538,6 +540,10 @@ class LiveblocksService {
     public publishAcademicFiles(files: AcademicFileMeta[]): void {
         if (!this.yDoc) return;
         const academicFiles = this.yDoc.getMap<AcademicFileMeta[]>('academicFiles');
+        if (files.length === 0) {
+            academicFiles.delete(this.userId);
+            return;
+        }
         academicFiles.set(this.userId, files);
     }
 

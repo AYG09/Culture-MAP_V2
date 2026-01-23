@@ -1127,3 +1127,112 @@ git checkout -- .agent/brain/walkthrough.md
 ### 수동 검증
 1. "요약해줘" 요청 시 update_node 액션이 수동 확인에 표시되는지 확인
 2. 노드가 레이어 영역 밖으로 드래그되지 않는지 확인
+
+---
+
+# Implementation Plan: 학술 파일 공유 목록 정리
+
+## 목표
+1. 세션 공유 목록에 스테일/빈 학술 파일 항목이 표시되지 않도록 정리
+2. 파일 0개인 사용자 메타데이터는 공유 맵에서 제거
+
+---
+
+## 핵심 변경 범위
+
+### 1) Liveblocks academicFiles 정리
+- publish 시 파일 0개면 해당 userId 엔트리 삭제
+- presence에 userId 포함해 사용자 식별 일관성 유지
+
+### 2) 공유 목록 UI 필터링
+- 파일 1개 이상인 항목만 렌더링
+- "공유된 지식 파일이 없습니다" 메시지는 필터링 결과 기준
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| presence 확장 부작용 | 타입 불일치 가능 | SessionPresence 타입 동기화 및 최소 변경 |
+| 공유 목록 과소 표시 | 실제 파일 누락 | files.length>0 기준만 적용 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 공유 목록이 비정상적으로 비어 보임
+- 학술 파일 공유가 갱신되지 않음
+
+### 롤백 절차
+```bash
+git checkout -- src/services/LiveblocksService.ts
+git checkout -- src/types/liveblocks.ts
+git checkout -- src/components/AIConfigModal.tsx
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. 학술 파일이 없는 사용자 항목이 공유 목록에 표시되지 않는지 확인
+2. 파일 업로드 후 공유 목록에 표시되는지 확인
+3. 모든 파일 삭제 시 공유 목록에서 해당 사용자 항목이 사라지는지 확인
+
+---
+
+# Implementation Plan: 드래그 중 레이어 자동 확장 보강
+
+## 목표
+1. 드래그 중 변경된 노드 위치를 즉시 반영해 레이어 높이 자동 확장
+2. 레이어 밴드 클램프 규칙은 유지하며 확장을 막지 않도록 개선
+
+---
+
+## 핵심 변경 범위
+
+### 1) 드래그 기반 레이어 높이 계산
+- handleNodesChange에서 applyNodeChanges로 임시 노드 상태 생성
+- 임시 노드 기준으로 레이어별 maxBottom 계산 후 nextHeights 산출
+- 드래그 중에는 확장(증가)만 즉시 반영
+
+### 2) 클램프 기준 높이 갱신
+- 확장된 레이어 높이를 기준으로 bandStart/bandHeight 계산
+- 다른 레이어 침범은 기존 클램프 로직으로 차단
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 드래그 중 과도한 확장 | 레이어 높이 급변 | 확장만 허용, 축소는 기존 useEffect에서 처리 |
+| 성능 저하 | 드래그 시 계산 비용 증가 | 확장 필요 시에만 setLayerHeights 호출 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 드래그 중 레이어가 확장되지 않거나 위치가 튀는 현상
+
+### 롤백 절차
+```bash
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. 노드 드래그 시 레이어 하단으로 자동 확장되는지 확인
+2. 다른 레이어로 침범하지 않고 밴드 내에서만 이동하는지 확인
