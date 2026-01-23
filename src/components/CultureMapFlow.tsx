@@ -414,7 +414,7 @@ ${chatHistorySection}
 
   // 층위별 개별 높이 조절 상태 (레거시 모드와 동일)
   const [layerHeights, setLayerHeights] = useState<number[]>([220, 220, 220, 220]); // [결과, 행동, 유형, 무형]
-  const [layerOpacities, setLayerOpacities] = useState<number[]>([0, 0, 0, 0]); // 층위별 투명도
+  const [layerOpacities, setLayerOpacities] = useState<number[]>([1, 1, 1, 1]); // 층위별 투명도
   const [showLayerBackground, setShowLayerBackground] = useState(true);
 
   const applyingLayerSettingsRef = useRef(false);
@@ -513,7 +513,7 @@ ${chatHistorySection}
 
     const resolvedLayerHeights = layerHeights.map((height, index) => {
       const required = maxHeightsByLayer[index] + layerPaddingY;
-      return Math.max(height, required);
+      return Math.min(800, Math.max(height, required));
     });
 
     const shouldUpdateHeights = resolvedLayerHeights.some(
@@ -1349,36 +1349,32 @@ ${chatHistorySection}
     };
 
     const maxBottomByLayer = [0, 0, 0, 0];
-    const minTopByLayer = [Infinity, Infinity, Infinity, Infinity];
     nodes.forEach((node) => {
       const layerIndex = layerIndexMap[node.type || 'result'] ?? 0;
       const nodeHeight = getNodeHeight(node);
       const bottom = node.position.y + nodeHeight;
-      const top = node.position.y;
       if (bottom > maxBottomByLayer[layerIndex]) {
         maxBottomByLayer[layerIndex] = bottom;
-      }
-      if (top < minTopByLayer[layerIndex]) {
-        minTopByLayer[layerIndex] = top;
       }
     });
 
     const layerPaddingY = 20;
     const minHeight = 100;
+    const maxHeight = 800;
     const nextHeights: number[] = [];
     let cumulativeY = 0;
 
     displayLayerOrder.forEach((layerKey) => {
       const index = layerIndexMap[layerKey];
       const maxBottom = maxBottomByLayer[index];
-      const minTop = Number.isFinite(minTopByLayer[index]) ? minTopByLayer[index] : cumulativeY;
       const currentHeight = layerHeights[index] ?? minHeight;
       const required = maxBottom
-        ? Math.max(minHeight, maxBottom - minTop + layerPaddingY * 2)
+        ? Math.max(minHeight, maxBottom - cumulativeY + layerPaddingY)
         : Math.max(minHeight, currentHeight);
 
-      nextHeights[index] = required;
-      cumulativeY += required;
+      const clamped = Math.min(maxHeight, required);
+      nextHeights[index] = clamped;
+      cumulativeY += clamped;
     });
 
     const shouldUpdate = nextHeights.some((height, index) => height !== layerHeights[index]);

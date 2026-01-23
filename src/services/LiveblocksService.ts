@@ -41,7 +41,7 @@ class LiveblocksService {
     private listeners: EventListeners = {};
 
     private readonly defaultLayerHeights: number[] = [220, 220, 220, 220];
-    private readonly defaultLayerOpacities: number[] = [0, 0, 0, 0];
+    private readonly defaultLayerOpacities: number[] = [1, 1, 1, 1];
 
     constructor() {
         this.userId = this.generateUserId();

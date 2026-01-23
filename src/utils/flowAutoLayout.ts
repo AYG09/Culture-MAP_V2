@@ -186,7 +186,7 @@ function getBasicLayoutedElements(
       ? Math.max(...layerNodes.map((node) => getNodeHeight(node)))
       : NODE_HEIGHT;
     const heightIndex = LAYER_HEIGHT_INDEX[layerKey] ?? 0;
-    return Math.max(layerHeights[heightIndex] ?? NODE_HEIGHT, maxHeight + LAYER_PADDING_Y);
+    return Math.min(800, Math.max(layerHeights[heightIndex] ?? NODE_HEIGHT, maxHeight + LAYER_PADDING_Y));
   });
 
   layerOrder.forEach((layerKey, layerIndex) => {
