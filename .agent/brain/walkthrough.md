@@ -15,8 +15,9 @@
 ## ✅ 해결 조치
 
 1. 모달 오픈 시 로컬 학술 파일이 비어 있으면 본인 공유 메타데이터 삭제
-2. Liveblocks presence 기반 활성 사용자 목록을 수집해 공유 목록 필터링
-3. 세션 종료 시 publishAcademicFiles([]) 호출
+2. 공유 메타데이터가 늦게 동기화되는 경우에도 로컬 비어 있음 감지 시 자동 정리
+3. Liveblocks presence 기반 활성 사용자 목록을 수집해 공유 목록 필터링
+4. 세션 종료 시 publishAcademicFiles([]) 호출
 
 ---
 

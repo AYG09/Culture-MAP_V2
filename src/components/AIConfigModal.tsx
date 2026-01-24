@@ -55,6 +55,14 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
 
     useEffect(() => {
         if (!isOpen) return;
+        if (academicFiles.length > 0) return;
+        if (sharedAcademicFiles[currentUserId]?.length) {
+            liveblocksService.publishAcademicFiles([]);
+        }
+    }, [academicFiles, currentUserId, isOpen, sharedAcademicFiles]);
+
+    useEffect(() => {
+        if (!isOpen) return;
         const unsubscribe = liveblocksService.onAcademicFiles((data) => {
             setSharedAcademicFiles(data);
         });

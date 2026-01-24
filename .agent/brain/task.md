@@ -9,6 +9,7 @@
 
 ## Task 1: 공유 목록 동기화/필터링 개선
 - [x] 모달 오픈 시 로컬 비어있으면 본인 공유 메타데이터 삭제
+- [x] 공유 메타데이터 늦은 동기화 시 자동 정리
 - [x] Liveblocks presence 기반 activeUserIds 수집
 - [x] 공유 목록 렌더링 시 activeUserIds 기준 필터링
 - [x] 세션 종료 시 publishAcademicFiles([]) 호출
