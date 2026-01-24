@@ -34,11 +34,24 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
 
   // 입력 상태
   const [newSessionName, setNewSessionName] = useState('');
+  const [newSessionCode, setNewSessionCode] = useState('');
   const [hostPassword, setHostPassword] = useState('');
   const [sessionCode, setSessionCode] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const normalizeSessionCode = useCallback((code: string) => {
+    return code.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
+  }, []);
+
+  const isValidSessionCode = useCallback((code: string) => {
+    return /^[A-Z0-9-]{3,12}$/.test(code);
+  }, []);
+
+  const generateRandomSessionCode = useCallback(() => {
+    return Math.random().toString(36).substr(2, 6).toUpperCase();
+  }, []);
 
   const persistLastSession = useCallback((code: string, isHost: boolean) => {
     localStorage.setItem(
@@ -165,7 +178,28 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
         return;
       }
 
-      const code = await liveblocksService.createSession(newSessionName || '새 세션', 'workshop');
+      const normalizedCode = newSessionCode ? normalizeSessionCode(newSessionCode) : '';
+      if (normalizedCode && !isValidSessionCode(normalizedCode)) {
+        setError('세션 코드는 3~12자 영문/숫자/하이픈만 사용할 수 있습니다.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (normalizedCode) {
+        const registry = await liveblocksService.getSessionRegistry();
+        const isDuplicate = registry.some((session) => session.code === normalizedCode);
+        if (isDuplicate) {
+          setError('이미 사용 중인 세션 코드입니다. 다른 코드를 입력해주세요.');
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      const code = await liveblocksService.createSession(
+        newSessionName || '새 세션',
+        'workshop',
+        normalizedCode || undefined
+      );
 
       persistLastSession(code, true);
 
@@ -286,6 +320,9 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
             className="create-session-btn"
             onClick={() => {
               setError('');
+              setNewSessionName('');
+              setNewSessionCode('');
+              setHostPassword('');
               setShowCreateModal(true);
             }}
           >
@@ -370,6 +407,30 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
               <div className="form-group">
                 <label>세션 이름</label>
                 <input type="text" value={newSessionName} onChange={(e) => setNewSessionName(e.target.value)} placeholder="예: 1조 토론방" autoFocus />
+              </div>
+              <div className="form-group">
+                <label>세션 코드 (선택)</label>
+                <div className="session-code-row">
+                  <input
+                    type="text"
+                    value={newSessionCode}
+                    onChange={(e) => setNewSessionCode(normalizeSessionCode(e.target.value))}
+                    placeholder="자동 생성됨"
+                    maxLength={12}
+                    style={{ textTransform: 'uppercase', letterSpacing: '0.2em', textAlign: 'center' }}
+                  />
+                  <button
+                    type="button"
+                    className="session-code-btn"
+                    onClick={() => {
+                      setError('');
+                      setNewSessionCode(generateRandomSessionCode());
+                    }}
+                  >
+                    랜덤
+                  </button>
+                </div>
+                <div className="session-code-help">3~12자 영문/숫자/하이픈 사용 가능. 비워두면 자동 생성됩니다.</div>
               </div>
               <div className="form-group">
                 <label>호스트 비밀번호</label>

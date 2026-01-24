@@ -75,8 +75,12 @@ class LiveblocksService {
         return this.currentSession;
     }
 
-    public async createSession(sessionName?: string, sessionType: SessionType = 'workshop'): Promise<string> {
-        const code = this.generateSessionCode();
+    public async createSession(sessionName?: string, sessionType: SessionType = 'workshop', customCode?: string): Promise<string> {
+        const normalizedCode = customCode ? this.normalizeSessionCode(customCode) : null;
+        if (normalizedCode && !this.isValidSessionCode(normalizedCode)) {
+            throw new Error('세션 코드가 올바르지 않습니다. 3~12자 영문/숫자/하이픈만 사용할 수 있습니다.');
+        }
+        const code = normalizedCode ?? this.generateSessionCode();
         await this.joinSession(code, true, sessionName, sessionType);
         return code;
     }
@@ -597,6 +601,14 @@ class LiveblocksService {
 
     private generateSessionCode(): string {
         return Math.random().toString(36).substr(2, 6).toUpperCase();
+    }
+
+    private normalizeSessionCode(code: string): string {
+        return code.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    }
+
+    private isValidSessionCode(code: string): boolean {
+        return /^[A-Z0-9-]{3,12}$/.test(code);
     }
 
     private generateUserId(): string {

@@ -285,6 +285,39 @@
   border-color: #667eea;
 }
 
+.gateway-modal .session-code-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.gateway-modal .session-code-row input {
+  flex: 1;
+}
+
+.gateway-modal .session-code-btn {
+  white-space: nowrap;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+  color: #374151;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.gateway-modal .session-code-btn:hover {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.gateway-modal .session-code-help {
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
 .gateway-modal .error-message {
   background: #fef2f2;
   color: #dc2626;
