@@ -80,17 +80,30 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
   const loadSessions = async () => {
     setLoading(true);
     try {
-      // localStorage에서 세션 목록 가져오기
-      const stored = localStorage.getItem('culture-map-sessions');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setSessions(parsed);
-      } else {
-        setSessions([]);
-      }
+      const registrySessions = await liveblocksService.getSessionRegistry();
+      const formattedSessions = registrySessions.map((session) => ({
+        code: session.code,
+        name: session.name,
+        userCount: 0,
+        lastActivity: new Date(session.createdAt).toLocaleString('ko-KR'),
+        createdAt: new Date(session.createdAt).toISOString(),
+        type: session.type
+      }));
+      setSessions(formattedSessions);
       setError('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '세션 목록을 불러올 수 없습니다.');
+      try {
+        const stored = localStorage.getItem('culture-map-sessions');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setSessions(parsed);
+        } else {
+          setSessions([]);
+        }
+        setError('');
+      } catch (fallbackError) {
+        setError(fallbackError instanceof Error ? fallbackError.message : '세션 목록을 불러올 수 없습니다.');
+      }
     } finally {
       setLoading(false);
     }
@@ -103,14 +116,25 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
     }
 
     try {
-      // localStorage에서 세션 제거 (Liveblocks 룸 삭제는 클라우드 룸 관리에서)
+      await liveblocksService.unregisterSession(code);
 
-      // localStorage에서 세션 제거
       const stored = localStorage.getItem('culture-map-sessions');
       if (stored) {
-        const sessions = JSON.parse(stored);
-        const updated = sessions.filter((s: SessionInfo) => s.code !== code);
+        const sessions = JSON.parse(stored) as SessionInfo[];
+        const updated = sessions.filter((session) => session.code !== code);
         localStorage.setItem('culture-map-sessions', JSON.stringify(updated));
+      }
+
+      const lastSession = localStorage.getItem('culture-map-last-session');
+      if (lastSession) {
+        try {
+          const parsed = JSON.parse(lastSession) as { code?: string };
+          if (parsed.code === code) {
+            localStorage.removeItem('culture-map-last-session');
+          }
+        } catch {
+          localStorage.removeItem('culture-map-last-session');
+        }
       }
 
       // 목록 새로고침
@@ -121,13 +145,21 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
   };
 
   // 모든 세션 삭제
-  const handleClearAllSessions = () => {
+  const handleClearAllSessions = async () => {
     if (!window.confirm('모든 세션을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
       return;
     }
 
+    try {
+      const codes = sessions.map((session) => session.code);
+      await Promise.all(codes.map((code) => liveblocksService.unregisterSession(code)));
+    } catch (err) {
+      console.warn('⚠️ 레지스트리 전체 삭제 중 일부 실패:', err);
+    }
+
     localStorage.removeItem('culture-map-sessions');
-    setSessions([]);
+    localStorage.removeItem('culture-map-last-session');
+    await loadSessions();
   };
 
   // 시간 포맷
