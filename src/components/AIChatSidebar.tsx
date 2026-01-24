@@ -106,10 +106,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     }, []);
 
     const handleClearChatHistory = useCallback(() => {
-        const session = liveblocksService.getCurrentSession();
-        if (session?.code !== 'DEV-LOCAL') return;
-
-        const confirmed = window.confirm('DEV-LOCAL 세션의 채팅 내역을 초기화할까요? 이 작업은 되돌릴 수 없습니다.');
+        const confirmed = window.confirm('채팅 내역을 초기화할까요? 이 작업은 되돌릴 수 없습니다.');
         if (!confirmed) return;
 
         if (liveblocksService.isConnected()) {
@@ -126,7 +123,6 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     }, [messages, isLoading, uploadProgress]);
 
     const activeModelLabel = currentConfig?.modelName || 'gemini-2.5-flash-lite';
-    const isDevLocalSession = liveblocksService.getCurrentSession()?.code === 'DEV-LOCAL';
 
     // 접속자 수 업데이트 (세션 상태 감시)
     useEffect(() => {
@@ -690,18 +686,16 @@ ${layerHeightContext}
                             AI 사용 중
                         </div>
                     )}
-                    {isDevLocalSession && (
-                        <motion.button
-                            className="header-clear-btn"
-                            onClick={handleClearChatHistory}
-                            title="DEV-LOCAL 채팅 내역 초기화"
-                            aria-label="DEV-LOCAL 채팅 내역 초기화"
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                        >
-                            <Trash2 size={16} />
-                        </motion.button>
-                    )}
+                    <motion.button
+                        className="header-clear-btn"
+                        onClick={handleClearChatHistory}
+                        title="채팅 내역 초기화"
+                        aria-label="채팅 내역 초기화"
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                    >
+                        <Trash2 size={16} />
+                    </motion.button>
                     <motion.button
                         className="header-config-btn"
                         onClick={() => setIsConfigOpen(true)}

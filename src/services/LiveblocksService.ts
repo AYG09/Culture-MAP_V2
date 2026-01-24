@@ -596,12 +596,6 @@ class LiveblocksService {
     }
 
     private generateSessionCode(): string {
-        // 개발 환경에서는 고정 코드 사용하여 불필요한 룸 생성 방지
-        const isDev = import.meta.env.VITE_APP_ENV === 'development';
-        if (isDev) {
-            console.log('🔧 [DEV] 고정 세션 코드 사용: DEV-LOCAL');
-            return 'DEV-LOCAL';
-        }
         return Math.random().toString(36).substr(2, 6).toUpperCase();
     }
 

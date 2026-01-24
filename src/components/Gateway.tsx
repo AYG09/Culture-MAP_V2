@@ -51,27 +51,39 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
     localStorage.removeItem(LAST_SESSION_STORAGE_KEY);
   }, []);
 
-  const handleDevModeAutoJoin = useCallback(async () => {
+  const handleSkipGateAutoJoin = useCallback(async () => {
     try {
-      await liveblocksService.joinSession('DEV-LOCAL', true, '개발 모드', 'workshop');
+      const stored = localStorage.getItem(LAST_SESSION_STORAGE_KEY);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored) as { code: string; isHost?: boolean };
+          if (parsed.code) {
+            console.log('🔁 [Gateway] 마지막 세션 자동 재접속 시도:', parsed.code);
+            await liveblocksService.joinSession(parsed.code, parsed.isHost ?? false);
+            setIsAuth(true);
+            if (onAuthenticated) onAuthenticated(parsed.code);
+            return;
+          }
+        } catch {
+          clearLastSession();
+        }
+      }
+
+      const code = await liveblocksService.createSession('새 세션', 'workshop');
+      persistLastSession(code, true);
       setIsAuth(true);
-      if (onAuthenticated) onAuthenticated('DEV-LOCAL');
+      if (onAuthenticated) onAuthenticated(code);
     } catch (e) {
-      console.error('Dev mode auto-join failed:', e);
+      console.error('Skip gate auto-join failed:', e);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
-  }, [onAuthenticated]);
+  }, [clearLastSession, onAuthenticated, persistLastSession]);
 
   const loadSessions = useCallback(async () => {
     try {
       // Liveblocks 세션 레지스트리에서 로드
-      const isDev = import.meta.env.VITE_APP_ENV === 'development';
       let registrySessions = await liveblocksService.getSessionRegistry();
-
-      if (isDev && registrySessions.length === 0) {
-        await liveblocksService.registerSession('DEV-LOCAL', '개발 모드', 'workshop');
-        registrySessions = await liveblocksService.getSessionRegistry();
-      }
 
       const formattedSessions = registrySessions.map(s => ({
         code: s.code,
@@ -103,9 +115,8 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
       console.log('🚪 [Gateway] VITE_SKIP_GATE 값:', skipGate, '타입:', typeof skipGate);
 
       if (skipGate === 'true') {
-        console.log('🚪 [Gateway] 개발 모드 - 자동 연결');
-        await handleDevModeAutoJoin();
-        persistLastSession('DEV-LOCAL', true);
+        console.log('🚪 [Gateway] 게이트웨이 스킵 - 자동 연결');
+        await handleSkipGateAutoJoin();
       } else {
         const stored = localStorage.getItem(LAST_SESSION_STORAGE_KEY);
         if (stored) {
@@ -130,7 +141,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
       }
     };
     init();
-  }, [clearLastSession, handleDevModeAutoJoin, onAuthenticated, persistLastSession, loadSessions]);
+  }, [clearLastSession, handleSkipGateAutoJoin, onAuthenticated, loadSessions]);
 
   const saveSession = (session: SessionInfo) => {
     const updated = [...sessions.filter(s => s.code !== session.code), session];
