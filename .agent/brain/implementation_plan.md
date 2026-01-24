@@ -1597,3 +1597,66 @@ git checkout -- .agent/brain/walkthrough.md
 ### 수동 검증
 1. 컨설팅 모드에서 워크샵 전환 버튼 클릭 후 새로고침 시 워크샵 UI 확인
 2. 세션 미연결/이미 워크샵 상태에서 에러 메시지 표시 확인
+
+---
+
+# Implementation Plan: JSON 가져오기 + 채팅 JSON 첨부 읽기
+
+## 목표
+1. JSON 내보내기 파일을 다시 불러와 컬쳐맵을 복원
+2. 채팅 첨부로 JSON을 읽고 AI 프롬프트에 포함
+
+---
+
+## 핵심 변경 범위
+
+### 1) ExportMenu JSON 가져오기
+- JSON 가져오기 버튼 및 숨김 file input 추가
+- CultureMapFlow로 파일 전달
+
+### 2) CultureMapFlow JSON 파싱/동기화
+- JSON 구조 검증(nodes/edges/viewport)
+- convertFromFlowData → convertToFlowData 재사용
+- Liveblocks clearMapData 후 updateStickyNote/updateConnection으로 반영
+- viewport 포함 시 reactFlowInstance.setViewport 적용
+
+### 3) AIChatSidebar JSON 첨부 읽기
+- input accept에 .json 추가
+- JSON 파일은 로컬에서 읽어 prompt에 포함
+- 길이 제한 및 파싱 오류 메시지 처리
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| JSON 구조 불일치 | 로드 실패 | 최소 필드 검증 후 오류 메시지 표시 |
+| 대용량 JSON | 느린 응답 | 프롬프트 첨부 길이 제한 적용 |
+| 동기화 불일치 | 맵 손상 | Liveblocks clearMapData 후 순차 업데이트 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- JSON 가져오기 후 맵이 비어 있거나 레이아웃이 깨짐
+
+### 롤백 절차
+```bash
+git checkout -- src/components/ExportMenu.tsx
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- src/components/AIChatSidebar.tsx
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. JSON 가져오기 후 노드/연결 수가 일치하는지 확인
+2. 새로고침/재접속 후에도 맵이 유지되는지 확인
+3. 채팅에서 JSON 첨부 시 업로드 없이 AI 응답이 생성되는지 확인

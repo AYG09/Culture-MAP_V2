@@ -84,6 +84,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     const [aiLockStatus, setAiLockStatus] = useState<{ lockedBy?: string; lockedAt?: number; expiresAt?: number } | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const MAX_JSON_ATTACH_CHARS = 30000;
     
     // 현재 사용자 ID 가져오기
     const currentUserId = liveblocksService.getCurrentUserId();
@@ -316,6 +317,8 @@ ${layerHeightContext}
 
         let fileUri: string | undefined;
         let mimeType: string | undefined;
+        let jsonAttachmentText: string | null = null;
+        let jsonAttachmentName: string | null = null;
 
         try {
             console.log('💬 [AIChatSidebar] Sending message:', currentText);
@@ -360,15 +363,36 @@ ${layerHeightContext}
 
             // 파일 업로드 처리 (있는 경우 첫 번째 파일만)
             if (attachments.length > 0) {
-                try {
-                    setUploadProgress('파일 업로드 중...');
-                    const metadata = await aiService.uploadAcademicFile(attachments[0]);
-                    fileUri = metadata.uri;
-                    mimeType = metadata.mimeType;
-                } catch (uploadErr) {
-                    console.error('File upload failed:', uploadErr);
-                    const errorMessage = uploadErr instanceof Error ? uploadErr.message : '업로드 실패';
-                    setUploadProgress(errorMessage);
+                const attachment = attachments[0];
+                const isJsonAttachment =
+                    attachment.type === 'application/json' || attachment.name.toLowerCase().endsWith('.json');
+
+                if (isJsonAttachment) {
+                    try {
+                        setUploadProgress('JSON 파일 읽는 중...');
+                        const rawText = await attachment.text();
+                        JSON.parse(rawText);
+                        jsonAttachmentName = attachment.name;
+                        jsonAttachmentText = rawText.length > MAX_JSON_ATTACH_CHARS
+                            ? `${rawText.slice(0, MAX_JSON_ATTACH_CHARS)}\n\n...[중략: ${rawText.length - MAX_JSON_ATTACH_CHARS}자 생략]`
+                            : rawText;
+                        setUploadProgress(null);
+                    } catch (jsonErr) {
+                        console.error('JSON parse failed:', jsonErr);
+                        setUploadProgress('JSON 형식이 올바르지 않습니다.');
+                        return;
+                    }
+                } else {
+                    try {
+                        setUploadProgress('파일 업로드 중...');
+                        const metadata = await aiService.uploadAcademicFile(attachment);
+                        fileUri = metadata.uri;
+                        mimeType = metadata.mimeType;
+                    } catch (uploadErr) {
+                        console.error('File upload failed:', uploadErr);
+                        const errorMessage = uploadErr instanceof Error ? uploadErr.message : '업로드 실패';
+                        setUploadProgress(errorMessage);
+                    }
                 }
             }
 
@@ -399,8 +423,12 @@ ${layerHeightContext}
 
             console.log('🤖 [AIChatSidebar] Requesting AI Stream...');
             // 스트리밍 시작
+            const jsonAttachmentSection = jsonAttachmentText
+                ? `\n\n[첨부된 JSON 파일: ${jsonAttachmentName ?? 'unknown'}]\n${jsonAttachmentText}`
+                : '';
+
             const aiStream = aiService.sendChatMessageStream(
-                `${contextString}\n\n[사용자 메시지]\n${currentText || '첨부된 파일을 분석해주세요.'}`,
+                `${contextString}\n\n[사용자 메시지]\n${currentText || '첨부된 파일을 분석해주세요.'}${jsonAttachmentSection}`,
                 fileUri,
                 mimeType,
                 { forceFunctionCall, allowExternalTools: !isPrivateChat && explicitMapEditRequest }
@@ -575,6 +603,23 @@ ${layerHeightContext}
         const file = imageItem.getAsFile();
         if (!file) return;
 
+        e.preventDefault();
+        setAttachments([file]);
+        setUploadProgress(null);
+    };
+
+    const handleDragOver = (e: React.DragEvent<HTMLTextAreaElement>) => {
+        e.preventDefault();
+    };
+
+    const handleDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
+        const files = e.dataTransfer?.files;
+        if (!files || files.length === 0) return;
+        const file = files[0];
+        const isJson = file.type === 'application/json' || file.name.toLowerCase().endsWith('.json');
+        const isPdf = file.type === 'application/pdf';
+        const isImage = file.type.startsWith('image/');
+        if (!isJson && !isPdf && !isImage) return;
         e.preventDefault();
         setAttachments([file]);
         setUploadProgress(null);
@@ -846,7 +891,7 @@ ${layerHeightContext}
                         ref={fileInputRef}
                         style={{ display: 'none' }}
                         onChange={handleFileChange}
-                        accept=".pdf,image/*"
+                        accept=".pdf,.json,application/json,image/*"
                     />
                     <button
                         className="footer-icon-btn"
@@ -863,6 +908,8 @@ ${layerHeightContext}
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         onPaste={handlePaste}
+                        onDragOver={handleDragOver}
+                        onDrop={handleDrop}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter' && !e.shiftKey) {
                                 e.preventDefault();

@@ -109,6 +109,7 @@ const NOTE_TYPE_MAP: Record<string, NoteData['type']> = {
   무형_레버: '무형_레버',
 };
 
+
 const NOTE_TYPE_TO_LAYER: Record<NoteData['type'], NoteData['layer']> = {
   결과: 1,
   행동: 2,
@@ -156,6 +157,7 @@ const mapLiveblocksConnectionToConnectionData = (
   relationType: connection.relationType === 'indirect' ? 'indirect' : 'direct',
   isPositive: connection.isPositive !== false,
 });
+
 
 const CultureMapFlow = ({
   onNotesChange,
