@@ -1,3 +1,60 @@
+# Implementation Plan: 학술 파일 공유 목록 동기화 보강
+
+## 목표
+1. 로컬 저장소가 비어 있을 때 세션 공유 목록의 본인 메타데이터 자동 정리
+2. 공유 목록에서 현재 접속 사용자 기준으로만 표시
+3. 세션 종료 시 공유 메타데이터 잔존 최소화
+
+---
+
+## 핵심 변경 범위
+
+### 1) 모달 오픈 시 정리
+- 로컬 학술 파일이 0개인데 공유 목록에 본인 항목이 있으면 삭제(publishAcademicFiles([]))
+
+### 2) 활성 사용자 기반 필터링
+- Liveblocks presence로 현재 접속 사용자 ID를 수집
+- 공유 목록 렌더링 시 activeUserIds 기준으로 필터링
+
+### 3) 세션 종료 정리
+- leaveSession 시 publishAcademicFiles([]) 호출
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 오프라인 사용자의 공유 목록 비표시 | 목록 혼란 가능 | 접속 사용자만 사용 가능한 구조임을 안내 문구 유지 |
+| 세션 종료 타이밍 누락 | 스테일 항목 잔존 | 모달 오픈 시 추가 정리로 보완 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 공유 목록이 비어 있거나 접속 사용자도 표시되지 않음
+
+### 롤백 절차
+```bash
+git checkout -- src/components/AIConfigModal.tsx
+git checkout -- src/services/LiveblocksService.ts
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. 로컬 지식 파일 삭제/초기화 후 모달 오픈 시 공유 목록에서 본인 항목 제거 확인
+2. 다른 사용자 접속 종료 후 공유 목록에서 해당 사용자 항목 숨김 확인
+3. 세션 나가기 후 재입장 시 본인 스테일 항목 미표시 확인
+
+---
+
 # Implementation Plan: 미연결 업데이트 가드
 
 ## 목표

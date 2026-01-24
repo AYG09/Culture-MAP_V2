@@ -170,6 +170,9 @@ class LiveblocksService {
 
     public async leaveSession(): Promise<void> {
         try {
+            if (this.yDoc) {
+                this.publishAcademicFiles([]);
+            }
             if (this.provider) {
                 this.provider.destroy();
                 this.provider = null;

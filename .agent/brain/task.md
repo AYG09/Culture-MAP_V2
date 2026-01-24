@@ -1,3 +1,28 @@
+# Task List: 학술 파일 공유 목록 동기화 보강
+
+## 진행 상황
+- 🔲 미완료
+- 🔄 진행 중
+- ✅ 완료
+
+---
+
+## Task 1: 공유 목록 동기화/필터링 개선
+- [x] 모달 오픈 시 로컬 비어있으면 본인 공유 메타데이터 삭제
+- [x] Liveblocks presence 기반 activeUserIds 수집
+- [x] 공유 목록 렌더링 시 activeUserIds 기준 필터링
+- [x] 세션 종료 시 publishAcademicFiles([]) 호출
+
+## Task 2: 문서 업데이트
+- [x] implementation_plan.md 업데이트
+- [x] walkthrough.md 변경 사항 기록
+
+## Task 3: 검증
+- [ ] 로컬 비어 있을 때 공유 목록에서 본인 항목 제거 확인
+- [ ] 접속 사용자만 공유 목록에 표시되는지 확인
+- [ ] 세션 종료 후 스테일 항목 미표시 확인
+
+
 # Task List: 미연결 업데이트 가드
 
 ## 진행 상황

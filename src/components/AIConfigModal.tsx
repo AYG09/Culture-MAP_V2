@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { X, Save, Key, Info, CheckCircle2, BookOpen, Upload, Trash2, Loader2, FileText, Eye, EyeOff, Users } from 'lucide-react';
 import { aiService, type AIProvider, type AIConfig, type FileMetadata } from '../services/AIService';
 import type { AcademicFileMeta } from '../types/liveblocks';
@@ -26,20 +26,32 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
     const [workshopError, setWorkshopError] = useState('');
     const [workshopSuccess, setWorkshopSuccess] = useState(false);
 
+    const currentUserId = liveblocksService.getCurrentUserId();
+
     // 전문 지식 파일 상태
     const [academicFiles, setAcademicFiles] = useState<FileMetadata[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [sharedAcademicFiles, setSharedAcademicFiles] = useState<Record<string, AcademicFileMeta[]>>({});
-    const currentUserId = liveblocksService.getCurrentUserId();
+    const [activeUserIds, setActiveUserIds] = useState<string[]>(() => [currentUserId]);
     const hasSharedForCurrentUser = !!sharedAcademicFiles[currentUserId]?.length;
-    const sharedAcademicEntries = Object.entries(sharedAcademicFiles).filter(([, files]) => files.length > 0);
+    const activeUserIdSet = useMemo(() => new Set(activeUserIds), [activeUserIds]);
+    const sharedAcademicEntries = Object.entries(sharedAcademicFiles).filter(
+        ([userId, files]) => files.length > 0 && activeUserIdSet.has(userId)
+    );
 
     useEffect(() => {
-        if (isOpen) {
-            setAcademicFiles(aiService.getAcademicFiles());
-            setSharedAcademicFiles(liveblocksService.getAcademicFilesByUser());
+        if (!isOpen) return;
+
+        const localFiles = aiService.getAcademicFiles();
+        const sharedFiles = liveblocksService.getAcademicFilesByUser();
+
+        setAcademicFiles(localFiles);
+        setSharedAcademicFiles(sharedFiles);
+
+        if (localFiles.length === 0 && sharedFiles[currentUserId]?.length) {
+            liveblocksService.publishAcademicFiles([]);
         }
-    }, [isOpen]);
+    }, [currentUserId, isOpen]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -48,6 +60,19 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
         });
         return unsubscribe;
     }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setActiveUserIds([currentUserId]);
+        const unsubscribe = liveblocksService.onOthersPresence((others) => {
+            const otherIds = others
+                .map((entry) => entry.presence?.userId)
+                .filter((id): id is string => typeof id === 'string' && id.length > 0);
+            const nextIds = Array.from(new Set([currentUserId, ...otherIds]));
+            setActiveUserIds(nextIds);
+        });
+        return unsubscribe;
+    }, [currentUserId, isOpen]);
 
     if (!isOpen) return null;
 
