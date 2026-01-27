@@ -145,6 +145,13 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
         return unsubscribe;
     }, []);
 
+    const lastChatLogRef = useRef<{ count: number; lastId: string | null }>({
+        count: 0,
+        lastId: null
+    });
+    const pendingAiTextRef = useRef<{ id: string; text: string } | null>(null);
+    const pendingAiTimerRef = useRef<number | null>(null);
+
     // Liveblocks 채팅 메시지 구독 - 세션 연결 후 재구독 필요
     useEffect(() => {
         let unsub: (() => void) | null = null;
@@ -156,7 +163,13 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
             if (liveblocksService.isConnected()) {
                 console.log('🔗 [AIChatSidebar] Setting up Liveblocks chat subscription');
                 unsub = liveblocksService.onChatMessages((msgs) => {
-                    console.log('💬 [AIChatSidebar] Chat messages updated:', msgs.length);
+                    const lastMsg = msgs[msgs.length - 1];
+                    const lastId = lastMsg?.id ?? null;
+                    const lastLog = lastChatLogRef.current;
+                    if (msgs.length !== lastLog.count || lastId !== lastLog.lastId) {
+                        console.log('💬 [AIChatSidebar] Chat messages updated:', msgs.length);
+                        lastChatLogRef.current = { count: msgs.length, lastId };
+                    }
                     setMessages(msgs.map((msg) => ({
                         ...msg,
                         scope: msg.scope ?? 'group'
@@ -485,14 +498,23 @@ ${layerHeightContext}
 
                     if (chunk.type === 'text') {
                         console.log('🤖 [AIChatSidebar] Received text chunk, fullText length:', chunk.fullText?.length);
-                        // Liveblocks 연결 시
-                        if (aiMsgId && !aiMsgId.startsWith('local-')) {
-                            liveblocksService.updateAiResponse(aiMsgId, chunk.fullText || '');
-                        } else {
-                            // 로컬 상태 업데이트
-                            setMessages(prev => prev.map(m =>
-                                m.id === aiMsgId ? { ...m, content: chunk.fullText || '' } : m
-                            ));
+                        const pendingId = aiMsgId;
+                        const pendingText = chunk.fullText || '';
+                        pendingAiTextRef.current = { id: pendingId, text: pendingText };
+                        if (!pendingAiTimerRef.current) {
+                            pendingAiTimerRef.current = window.setTimeout(() => {
+                                const pending = pendingAiTextRef.current;
+                                pendingAiTimerRef.current = null;
+                                if (!pending) return;
+                                if (pending.id && !pending.id.startsWith('local-')) {
+                                    liveblocksService.updateAiResponse(pending.id, pending.text);
+                                } else {
+                                    setMessages(prev => prev.map(m =>
+                                        m.id === pending.id ? { ...m, content: pending.text } : m
+                                    ));
+                                }
+                                pendingAiTextRef.current = null;
+                            }, 120);
                         }
                     } else if (chunk.type === 'actions') {
                         if (isFirstChunk) {
@@ -560,6 +582,21 @@ ${layerHeightContext}
                 }
             } finally {
                 clearTimeout(responseTimeout);
+                if (pendingAiTimerRef.current) {
+                    window.clearTimeout(pendingAiTimerRef.current);
+                    pendingAiTimerRef.current = null;
+                }
+                const pending = pendingAiTextRef.current;
+                if (pending?.id) {
+                    if (!pending.id.startsWith('local-')) {
+                        liveblocksService.updateAiResponse(pending.id, pending.text);
+                    } else {
+                        setMessages(prev => prev.map(m =>
+                            m.id === pending.id ? { ...m, content: pending.text } : m
+                        ));
+                    }
+                }
+                pendingAiTextRef.current = null;
             }
 
         } catch (error: unknown) {
