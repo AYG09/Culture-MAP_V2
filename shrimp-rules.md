@@ -1,66 +1,65 @@
-# Culture-MAP V2 AI Agent Development Rules
+# Development Guidelines
+Last updated: 2026-01-27 (auto-6)
 
-**Mandatory project standards for all AI Agents (Copilot, Cursor, etc.).**
+## Project Scope and Stack
+- Use React 19 + Vite 7 + @xyflow/react + Liveblocks + @google/genai.
+- Treat AI tooling and collaboration state as first-class features; never bypass them.
 
-## 1. Core Workflow Standards
+## Architecture and Directory Rules
+- Keep UI in src/components, services in src/services, shared types in src/types, utilities in src/utils.
+- Do NOT introduce new cross-cutting layers without updating this document.
+- Use LiveblocksService.ts for all shared state access and updates.
 
-### 1.1 Reasoning & Planning
-- **Sequential Thinking**: You MUST use `mcp_sequential-thinking` for every non-trivial task.
-- **Implementation Planning**: Always create or update `implementation_plan.md` before execution.
-- **Risk Assessment**: Proactively identify data loss risks or breaking changes in the plan.
-- **Shrimp 대체**: Shrimp MCP 불가/불안정 시 [.agent/skills/task-orchestration-fallback/SKILL.md](.agent/skills/task-orchestration-fallback/SKILL.md) 절차로 대체.
+## Mandatory Workflow
+- Use Sequential Thinking MCP for any non-trivial change.
+- Use Context7 before changing Liveblocks, @google/genai, or @xyflow/react usage.
+- Use Tavily to check 2025/2026 best practices and deprecations.
+- Create .agent/brain/implementation_plan.md before execution, and update task.md + walkthrough.md after.
 
-### 1.2 Documentation-First Verification
-- **Context7**: Before modifying any library-specific code (Liveblocks, Gemini SDK, XYFlow), YOU MUST call `mcp_context7_query-docs` to verify the latest API patterns.
-- **Tavily**: Use `mcp_tavily_tavily-search` to check for 2025/2026 best practices and potential deprecations.
-- **No Speculation**: Strictly prohibited from guessing API signatures. Use the tools.
+## AI Tooling Standards (Gemini)
+- Use @google/genai only. Do NOT use @google/generative-ai.
+- Every parametersJsonSchema MUST include propertyOrdering.
+- Include required arrays for mandatory fields.
+- Use enums for constrained choices.
+- When adding tools, update these files together:
+  - src/types/actions.ts (MAP_TOOL_DECLARATIONS + payload interfaces)
+  - src/services/AIService.ts (system instruction + allowed tools)
+  - src/components/AIChatSidebar.tsx (UI wiring if needed)
+- Use model defaults: gemini-2.5-flash-lite unless explicitly changed.
 
-## 2. Technology Specific Standards
+## Canvas (XYFlow) Standards
+- Use ReactFlowInstance APIs (getNodes/getEdges/getViewport/setViewport/fitView).
+- Add runtime guards before calling instance methods.
+- Keep node state synchronized to Liveblocks immediately after changes.
+- Custom nodes must use React.memo.
 
-### 2.1 AI Service (Gemini)
-- **Primary Model**: Use `gemini-2.5-flash-lite` for default chatbot and analysis.
-- **Skills 자동 검토**: AI 관련 코드 수정 전 `.cursor/rules/` 내 관련 Skills 확인 필수
-  - `gemini-api-rules.mdc`: Gemini API 필수 규칙 (propertyOrdering, 파일 제한 등)
-  - `ai-service-guard.mdc`: AI 서비스 수정 시 체크리스트
-- **Thinking Configuration**:
-  - For Gemini 2.x: Set `thinkingBudget: -1` (automatic) or specific token count.
-  - For Gemini 3.x: Set `thinkingLevel: 'HIGH'`.
-- **Schema 필수 규칙** (Gemini Function Calling):
-  - `propertyOrdering`: 모든 parametersJsonSchema에 필수 포함 (출력 순서 강제)
-  - `required`: 필수 파라미터 배열 명시
-  - `enum`: 제한된 선택지는 enum으로 정의
-- **파일 처리 제한**:
-  - PDF: 최대 1000 페이지 (초과 시 `LARGE_PDF_EXCLUSIONS`에 추가)
-  - 이미지: 최대 3600x3600 픽셀
-- **Tool Updates**: When adding new AI capabilities, you MUST update:
-  1. `src/types/actions.ts`: Add to `MAP_TOOL_DECLARATIONS` (with `propertyOrdering`!).
-  2. `src/services/AIService.ts`: Update system instructions.
-  3. `src/components/AIChatSidebar.tsx`: Ensure UI triggers the action.
+## Collaboration (Liveblocks/Yjs)
+- Use LiveblocksService singleton only.
+- Multi-node updates must use Yjs transactions via LiveblocksService helpers.
+- Respect StickyNoteData and ConnectionData shapes.
 
-### 2.2 Collaboration (Liveblocks & Yjs)
-- **Doc Access**: Access the shared state ONLY via `LiveblocksService.ts`.
-- **Data Types**: All shared nodes must follow `StickyNoteData` interface.
-- **Sync Integrity**: Ensure `yDoc` transactions are used for multi-node updates to prevent sync conflicts.
+## UI/Styling Rules
+- Use lucide-react for icons only.
+- Use adjacent .css files for styling. Avoid inline global overrides.
+- Prefer CSS variables for themeable values (colors, borders, text).
+- Do NOT use direct DOM manipulation.
 
-### 2.3 Canvas (XYFlow)
-- **Node Component**: Custom nodes must be memoized using `React.memo`.
-- **State Flow**: Canvas changes must sync to Liveblocks immediately to maintain multi-user consistency.
+## Multi-File Coordination Rules
+- If you add an AI tool, update src/types/actions.ts, src/services/AIService.ts, and execute handler in src/components/CultureMapFlow.tsx.
+- If you change user flows, update playwright/scenarios.spec.ts.
+- If you change setup or required env vars, update README.md.
 
-## 3. Interaction & Maintenance Rules
+## Prohibited Actions
+- Do NOT bypass Gateway authentication.
+- Do NOT hardcode secrets; use import.meta.env.
+- Do NOT use "Lines omitted" markers in edit tools.
+- Do NOT infer API signatures without Context7/Tavily.
 
-### 3.1 Concurrent File Updates
-- When changing core business logic, check and update:
-  - `shrimp-rules.md`: If architectural rules change.
-  - `README.md`: If setup instructions or features change.
-  - `playwright/scenarios.spec.ts`: If user flows are affected.
+## Decision Rules for Ambiguity
+- Prefer existing patterns in src/components/CultureMapFlow.tsx and src/services/AIService.ts.
+- If unsure, perform code search and reference current usage before making changes.
+- Avoid speculative changes; gather evidence first.
 
-### 3.2 Prohibited Actions
-- **Do NOT** use direct DOM manipulation (e.g., `document.getElementById`).
-- **Do NOT** bypass the Gateway authentication logic.
-- **Do NOT** hardcode API keys. Use `import.meta.env`.
-- **Do NOT** provide "Lines omitted" in code snippets for edit tools.
-
-## 4. UI/UX Standards
-- **Icons**: Use `lucide-react`.
-- **Styling**: Prefer modular CSS (`.css` files adjacent to components).
-- **Transitions**: Use `framer-motion` for splash and modal animations.
+## Examples
+- ✅ Add tool: update MAP_TOOL_DECLARATIONS + AIService system instruction + CultureMapFlow execute handler.
+- ❌ Add tool in actions only; missing AIService or handler changes.

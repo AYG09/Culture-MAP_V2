@@ -198,6 +198,73 @@ git checkout -- .agent/brain/walkthrough.md
 ## 목표
 1. auto_layout 시 레이어 순서를 무형→유형→행동→결과로 고정
 2. 레이어 높이를 노드 분포에 맞춰 확장하여 하단 노드 누락 방지
+
+---
+
+# Implementation Plan: AI 컨트롤(뷰포트/스타일/백업) 확장
+
+## 목표
+1. AI가 뷰포트 줌/팬/포커스/전체 보기 제어 가능
+2. 레이어 투명도/배경/컨트롤/미니맵/내보내기 UI 토글 지원
+3. 노드/엣지 스타일을 CSS 변수로 제어하고 기본 스타일 유지
+4. 로컬 스냅샷 저장/복원 및 Liveblocks 동기화
+
+---
+
+## 핵심 변경 범위
+
+### 1) AI 도구 스키마 확장
+- MAP_TOOL_DECLARATIONS에 뷰포트/UI/스타일/스냅샷 도구 추가
+
+### 2) AI 시스템 지침 확장
+- 도구 사용 규칙에 신규 액션 사용 조건 추가
+- 허용 도구 목록 확장
+
+### 3) Canvas 핸들러 확장
+- executeAiAction에 신규 액션 분기 추가
+- ReactFlowInstance 가드 적용
+
+### 4) 스타일 변수 적용
+- FlowNodes.css 하드코딩 값을 CSS 변수로 교체
+- CultureMapFlow에서 CSS 변수 주입
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| Liveblocks 복원 동기화 불일치 | 협업 상태 꼬임 | clearMapData 후 updateStickyNote/updateConnection 재삽입 |
+| ReactFlow 인스턴스 미존재 | 런타임 오류 | 모든 뷰포트 제어에서 가드 처리 |
+| 스타일 회귀 | UI 이질감 | CSS 변수에 기존 색상 fallback 유지 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- AI 액션에서 뷰포트/스타일 변경 시 런타임 오류 발생
+
+### 롤백 절차
+```bash
+git checkout -- src/types/actions.ts
+git checkout -- src/services/AIService.ts
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- src/components/flow-nodes/FlowNodes.css
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. AI 액션으로 줌/팬/포커스/전체보기 동작 확인
+2. 레이어 투명도 및 배경/컨트롤/미니맵/내보내기 토글 확인
+3. 스타일 변수 변경 시 노드/엣지 스타일 즉시 반영 확인
+4. 스냅샷 저장/복원 후 노드/연결 및 뷰포트 복원 확인
 3. 타입별 노드가 레이어 밴드 내에서만 이동하도록 보장
 
 ---

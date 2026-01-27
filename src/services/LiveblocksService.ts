@@ -485,6 +485,34 @@ class LiveblocksService {
         });
     }
 
+    /**
+     * 스냅샷 복원용 트랜잭션 메서드 - 노드/연결선 전체 교체를 단일 트랜잭션으로 수행
+     * @param notes 복원할 노드 배열
+     * @param connections 복원할 연결선 배열
+     */
+    public restoreMapData(notes: StickyNoteData[], connections: LBConnectionData[]): void {
+        if (!this.yDoc) return;
+        const nodesArray = this.yDoc.getArray<StickyNoteData>('nodes');
+        const connectionsArray = this.yDoc.getArray<LBConnectionData>('connections');
+        this.yDoc.transact(() => {
+            // 기존 데이터 삭제
+            if (nodesArray.length > 0) {
+                nodesArray.delete(0, nodesArray.length);
+            }
+            if (connectionsArray.length > 0) {
+                connectionsArray.delete(0, connectionsArray.length);
+            }
+            // 새 데이터 일괄 삽입
+            if (notes.length > 0) {
+                nodesArray.push(notes);
+            }
+            if (connections.length > 0) {
+                connectionsArray.push(connections);
+            }
+        });
+        console.log('✅ [Liveblocks] restoreMapData 완료:', { nodes: notes.length, connections: connections.length });
+    }
+
     public deleteConnection(connectionId: string): void {
         if (!this.yDoc) return;
         const connections = this.yDoc.getArray<LBConnectionData>('connections');
@@ -774,6 +802,11 @@ class LiveblocksService {
         const layerSettings = this.yDoc.getMap<unknown>('layerSettings');
         layerSettings.set('layerHeights', layerHeights);
         layerSettings.set('layerOpacities', layerOpacities);
+        
+        // showLayerBackground 동기화 (optional 필드)
+        if (typeof settings.showLayerBackground === 'boolean') {
+            layerSettings.set('showLayerBackground', settings.showLayerBackground);
+        }
     }
 
     public getLayerSettings(): LayerSettings | null {
@@ -781,10 +814,15 @@ class LiveblocksService {
         const layerSettings = this.yDoc.getMap<unknown>('layerSettings');
         const layerHeights = this.normalizeLayerArray(layerSettings.get('layerHeights'), this.defaultLayerHeights);
         const layerOpacities = this.normalizeLayerArray(layerSettings.get('layerOpacities'), this.defaultLayerOpacities);
+        
+        // showLayerBackground 읽기 (optional 필드)
+        const showLayerBackgroundRaw = layerSettings.get('showLayerBackground');
+        const showLayerBackground = typeof showLayerBackgroundRaw === 'boolean' ? showLayerBackgroundRaw : undefined;
 
         return {
             layerHeights,
             layerOpacities,
+            showLayerBackground,
         };
     }
 

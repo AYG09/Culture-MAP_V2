@@ -120,6 +120,7 @@ export interface SessionMetadata {
 export interface LayerSettings {
     layerHeights: number[];
     layerOpacities: number[];
+    showLayerBackground?: boolean;
 }
 
 // ============================================

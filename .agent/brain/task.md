@@ -146,6 +146,38 @@
 ## Task 5: 검증
 
 
+# Task List: AI 컨트롤(뷰포트/스타일/백업) 확장
+
+## 진행 상황
+- 🔲 미완료
+- 🔄 진행 중
+- ✅ 완료
+
+---
+
+## Task 1: 도구 스키마 확장
+- [x] MAP_TOOL_DECLARATIONS 신규 액션 추가
+
+## Task 2: AI 시스템 지침 업데이트
+- [x] 도구 사용 규칙/허용 목록 확장
+
+## Task 3: CultureMapFlow 핸들러 추가
+- [x] 뷰포트/레이어/UI/스타일/스냅샷 액션 처리
+- [x] Liveblocks 복원 동기화 처리
+
+## Task 4: CSS 변수 적용
+- [x] FlowNodes.css 스타일 변수화
+
+## Task 5: 문서 업데이트
+- [x] implementation_plan.md 업데이트
+- [x] walkthrough.md 변경 사항 기록
+
+## Task 6: 검증
+- [ ] AI 액션으로 줌/팬/포커스 동작 확인
+- [ ] UI 토글 및 스타일 변경 반영 확인
+- [ ] 스냅샷 저장/복원 동작 확인
+
+
 # Task List: Vercel index.html 캐시 무효화
 
 ## 진행 상황

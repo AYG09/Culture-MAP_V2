@@ -145,6 +145,12 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
 10. 코드 예시는 사용자가 명시적으로 코드 요청 시에만 제공하며, 도구 호출과는 분리
 11. 사용자가 "현재 위치 유지", "정렬하지 말고"라고 요청하면 auto_layout을 호출하지 말고 기존 좌표를 유지
 12. 간격을 좁히거나 넓히라는 요청이 있으면 auto_layout 호출 시 spacing(compact/normal/wide)을 사용
+13. 줌/팬/전체 보기 요청은 set_viewport, pan_viewport, zoom_viewport, fit_view를 사용
+14. 특정 노드로 이동 요청은 focus_node를 사용
+15. 레이어 투명도/배경 표시 요청은 set_layer_opacity, toggle_layer_background를 사용
+16. UI 표시/숨김 요청(컨트롤, 미니맵, 레이어 패널, 배경, 내보내기)은 set_ui_visibility를 사용
+17. 노드/엣지 스타일(색상, 폰트, 테두리, 그림자) 변경 요청은 set_style_variables를 사용
+18. 백업/복원 요청은 save_snapshot, restore_snapshot을 사용
 
 ## 연결선(인과관계) 생성 규칙
 1. **노드 생성 후 연결 권장**: 새 노드 추가 후, 관련된 기존 노드와 create_connection 호출 권장
@@ -203,7 +209,18 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
       'delete_connection',
       'create_connection',
       'auto_layout',
-      'adjust_layer_height'
+      'adjust_layer_height',
+      'set_viewport',
+      'pan_viewport',
+      'zoom_viewport',
+      'fit_view',
+      'focus_node',
+      'set_layer_opacity',
+      'toggle_layer_background',
+      'set_ui_visibility',
+      'set_style_variables',
+      'save_snapshot',
+      'restore_snapshot'
     ];
     const allowedToolNames = mode === FunctionCallingConfigMode.ANY
       ? (allowedFunctionNames ?? mapEditTools)

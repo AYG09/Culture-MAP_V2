@@ -197,6 +197,50 @@
 
 # Walkthrough: 레이어 확장 시 하위 레이어 노드 동적 이동
 
+# Walkthrough: AI 컨트롤(뷰포트/스타일/백업) 확장
+
+## 완료 일시
+2026-01-27
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. AI가 뷰포트 줌/팬/포커스/전체 보기 제어 가능
+2. 레이어 투명도/배경/컨트롤/미니맵/내보내기 UI 토글 지원
+3. 노드/엣지 스타일을 CSS 변수로 제어하고 기본 스타일 유지
+4. 로컬 스냅샷 저장/복원 및 Liveblocks 동기화
+
+---
+
+## ✅ 해결 조치
+
+1. 신규 AI 도구 스키마 및 시스템 지침 확장
+2. CultureMapFlow에 뷰포트/레이어/UI/스타일/스냅샷 액션 분기 추가
+3. FlowNodes.css 하드코딩 스타일을 CSS 변수로 전환
+4. 스냅샷 복원 시 Liveblocks clear + 재삽입 동기화
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/types/actions.ts` | 신규 AI 도구 스키마/페이로드 추가 |
+| `src/services/AIService.ts` | 시스템 지침 및 허용 도구 목록 확장 |
+| `src/components/CultureMapFlow.tsx` | AI 액션 처리 및 UI/뷰포트/스냅샷 제어 추가 |
+| `src/components/flow-nodes/FlowNodes.css` | 노드 스타일 CSS 변수화 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. AI 액션으로 줌/팬/포커스/전체보기 동작 확인 필요
+2. UI 토글 및 스타일 변경 반영 확인 필요
+3. 스냅샷 저장/복원 동작 확인 필요
+
 ## 완료 일시
 2026-01-23
 

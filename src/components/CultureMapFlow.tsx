@@ -1,5 +1,5 @@
 // src/components/CultureMapFlow.tsx - 완전히 재작성된 버전
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   ReactFlow,
   Background,
@@ -35,7 +35,29 @@ import ReportEditor from './ReportEditor'; // 보고서 편집기
 
 // 타입
 import type { NoteData, ConnectionData, PerceptionIntensity } from '../types/culture';
-import type { AiAction, BatchConnectionInput, BatchNodeInput } from '../types/actions';
+import type {
+  AddNodePayload,
+  AddNodesWithConnectionsPayload,
+  AdjustLayerHeightPayload,
+  AiAction,
+  BatchConnectionInput,
+  BatchNodeInput,
+  CreateConnectionPayload,
+  DeleteConnectionPayload,
+  DeleteNodePayload,
+  FitViewPayload,
+  FocusNodePayload,
+  PanViewportPayload,
+  RestoreSnapshotPayload,
+  SaveSnapshotPayload,
+  SetLayerOpacityPayload,
+  SetStyleVariablesPayload,
+  SetUiVisibilityPayload,
+  SetViewportPayload,
+  ToggleLayerBackgroundPayload,
+  UpdateNodePayload,
+  ZoomViewportPayload,
+} from '../types/actions';
 import { INTENSITY_MAP } from '../types/culture';
 import type { StickyNoteData, ConnectionData as LBConnectionData, LayerSettings, SessionType } from '../types/liveblocks';
 
@@ -231,6 +253,11 @@ const CultureMapFlow = ({
     applyingLayerSettingsRef.current = true;
     setLayerHeights(settings.layerHeights);
     setLayerOpacities(settings.layerOpacities);
+    
+    // showLayerBackground 동기화 수신 (optional 필드)
+    if (typeof settings.showLayerBackground === 'boolean') {
+      setShowLayerBackground(settings.showLayerBackground);
+    }
 
     requestAnimationFrame(() => {
       applyingLayerSettingsRef.current = false;
@@ -440,6 +467,21 @@ ${chatHistorySection}
   const [layerHeights, setLayerHeights] = useState<number[]>([220, 220, 220, 220]); // [결과, 행동, 유형, 무형]
   const [layerOpacities, setLayerOpacities] = useState<number[]>([1, 1, 1, 1]); // 층위별 투명도
   const [showLayerBackground, setShowLayerBackground] = useState(true);
+  const [showControls, setShowControls] = useState(true);
+  const [showMiniMap, setShowMiniMap] = useState(true);
+  const [showExportMenu, setShowExportMenu] = useState(true);
+
+  const [styleVariables, setStyleVariables] = useState({
+    nodeBackground: 'rgba(255, 255, 255, 0.95)',
+    nodeBorderColor: '#d1d5db',
+    nodeTextColor: '#1f2937',
+    nodeBorderRadius: 12,
+    nodeShadow: '0 8px 32px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.8)',
+    nodeFontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    nodeFontSize: 14,
+    edgeColor: '#10b981',
+    edgeWidth: 2,
+  });
 
   const applyingLayerSettingsRef = useRef(false);
 
@@ -590,10 +632,23 @@ ${chatHistorySection}
     }
   }, [setEdges, setNodes]);
 
+  const applyStyleVariables = useCallback((variables: typeof styleVariables) => ({
+    '--node-bg': variables.nodeBackground,
+    '--node-border-color': variables.nodeBorderColor,
+    '--node-text-color': variables.nodeTextColor,
+    '--node-border-radius': `${variables.nodeBorderRadius}px`,
+    '--node-shadow': variables.nodeShadow,
+    '--node-font-family': variables.nodeFontFamily,
+    '--node-font-size': `${variables.nodeFontSize}px`,
+    '--edge-color': variables.edgeColor,
+    '--edge-width': `${variables.edgeWidth}px`,
+  }), []);
+
   // AI 액션 실행 핸들러 (배치 처리)
   const executeAiAction = useCallback((action: AiAction) => {
     console.log('🤖 [Action Bridge] AI 액션 실행:', action);
-    const { name, args } = action;
+    const { name } = action;
+    const args = (action.args ?? {}) as Record<string, unknown>;
 
     const requiresSync = [
       'add_node',
@@ -610,8 +665,10 @@ ${chatHistorySection}
 
     switch (name) {
       case 'add_node': {
+        const payload = (args as unknown) as AddNodePayload;
         const newNodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-        const layerIndex = (args.layer || 2) - 1;
+        const layerValue = payload.layer ?? 2;
+        const layerIndex = layerValue - 1;
 
         let currentY = 0;
         for (let i = 0; i < layerIndex; i++) {
@@ -619,10 +676,10 @@ ${chatHistorySection}
         }
         const defaultY = currentY + (layerHeights[layerIndex] / 2);
 
-        const existingNodesInLayer = nodesRef.current.filter(n => n.data?.layer === args.layer).length;
+        const existingNodesInLayer = nodesRef.current.filter(n => n.data?.layer === layerValue).length;
         const baseX = 150 + (existingNodesInLayer * 220);
-        const x = args.x || baseX;
-        const y = args.y || defaultY + (Math.random() * 20 - 10);
+        const x = typeof payload.x === 'number' ? payload.x : baseX;
+        const y = typeof payload.y === 'number' ? payload.y : defaultY + (Math.random() * 20 - 10);
 
         const typeMap: Record<string, string> = {
           '결과': 'result',
@@ -634,18 +691,20 @@ ${chatHistorySection}
           'tangible_lever': 'tangible_lever',
           'intangible_lever': 'intangible_lever',
         };
-        const nodeType = typeMap[args.type] || 'result';
+        const nodeType = typeMap[payload.type] || 'result';
 
-        const content = args.content || args.label || '새 노드';
-        const sentiment = args.sentiment === 'positive' ? 'positive' : (args.sentiment === 'negative' ? 'negative' : 'neutral');
-        const frequency = typeof args.intensity === 'number' ? INTENSITY_MAP.TO_STRING(args.intensity) : (args.intensity || '보통');
+        const content = payload.content || payload.label || '새 노드';
+        const sentiment = payload.sentiment === 'positive' ? 'positive' : (payload.sentiment === 'negative' ? 'negative' : 'neutral');
+        const frequency = typeof payload.intensity === 'number'
+          ? INTENSITY_MAP.TO_STRING(payload.intensity)
+          : (payload.intensity ?? 'medium');
 
         liveblocksService.updateStickyNote({
           id: newNodeId,
           content,
           x,
           y,
-          layer: args.layer || 2,
+          layer: layerValue,
           sentiment,
           type: nodeType,
           frequency,
@@ -663,7 +722,7 @@ ${chatHistorySection}
             sentiment,
             frequency,
             type: nodeType,
-            layer: args.layer || 2,
+            layer: layerValue,
           },
           draggable: true,
         };
@@ -673,13 +732,14 @@ ${chatHistorySection}
           nodesRef.current = updated;
           return updated;
         });
-        console.log('✅ [Action Bridge] New node added to UI:', newNodeId, 'type:', nodeType, 'layer:', args.layer);
+        console.log('✅ [Action Bridge] New node added to UI:', newNodeId, 'type:', nodeType, 'layer:', layerValue);
         break;
       }
 
       case 'add_nodes_with_connections': {
-        const nodeInputs = Array.isArray(args.nodes) ? (args.nodes as BatchNodeInput[]) : [];
-        const connectionInputs = Array.isArray(args.connections) ? (args.connections as BatchConnectionInput[]) : [];
+        const payload = (args as unknown) as AddNodesWithConnectionsPayload;
+        const nodeInputs = Array.isArray(payload.nodes) ? (payload.nodes as BatchNodeInput[]) : [];
+        const connectionInputs = Array.isArray(payload.connections) ? (payload.connections as BatchConnectionInput[]) : [];
 
         if (!nodeInputs.length) break;
 
@@ -832,31 +892,34 @@ ${chatHistorySection}
       }
 
       case 'update_node': {
-        if (!args.id) break;
-        const sentiment = args.sentiment === 'positive' ? 'positive' : (args.sentiment === 'negative' ? 'negative' : 'neutral');
-        const frequency = typeof args.intensity === 'number' ? INTENSITY_MAP.TO_STRING(args.intensity) : args.intensity;
-        const content = args.content || args.label;
-        const hasX = typeof args.x === 'number' && Number.isFinite(args.x);
-        const hasY = typeof args.y === 'number' && Number.isFinite(args.y);
+        const payload = (args as unknown) as UpdateNodePayload & { layer?: number; type?: string };
+        if (!payload.id) break;
+        const sentiment = payload.sentiment === 'positive' ? 'positive' : (payload.sentiment === 'negative' ? 'negative' : 'neutral');
+        const frequency = typeof payload.intensity === 'number' ? INTENSITY_MAP.TO_STRING(payload.intensity) : payload.intensity;
+        const content = payload.content || payload.label;
+        const hasX = typeof payload.x === 'number' && Number.isFinite(payload.x);
+        const hasY = typeof payload.y === 'number' && Number.isFinite(payload.y);
+        const layerValue = typeof payload.layer === 'number' ? payload.layer : undefined;
+        const typeValue = typeof payload.type === 'string' ? payload.type : undefined;
 
         liveblocksService.updateStickyNote({
-          id: args.id,
+          id: payload.id,
           content,
           sentiment,
           frequency,
-          ...(hasX ? { x: args.x } : {}),
-          ...(hasY ? { y: args.y } : {}),
-          ...(args.layer ? { layer: args.layer } : {}),
-          ...(args.type ? { type: args.type } : {}),
+          ...(hasX ? { x: payload.x } : {}),
+          ...(hasY ? { y: payload.y } : {}),
+          ...(layerValue ? { layer: layerValue } : {}),
+          ...(typeValue ? { type: typeValue } : {}),
         });
 
         setNodes((nds) => {
           const updated = nds.map((node) => {
-            if (node.id === args.id) {
+            if (node.id === payload.id) {
               const nextPosition = hasX || hasY
                 ? {
-                    x: hasX ? args.x : node.position.x,
-                    y: hasY ? args.y : node.position.y,
+                    x: hasX ? payload.x! : node.position.x,
+                    y: hasY ? payload.y! : node.position.y,
                   }
                 : node.position;
               return {
@@ -867,8 +930,8 @@ ${chatHistorySection}
                   ...(content ? { content } : {}),
                   ...(sentiment ? { sentiment } : {}),
                   ...(frequency ? { frequency } : {}),
-                  ...(args.type ? { type: args.type } : {}),
-                  ...(args.layer ? { layer: args.layer } : {}),
+                  ...(typeValue ? { type: typeValue } : {}),
+                  ...(layerValue ? { layer: layerValue } : {}),
                 },
               };
             }
@@ -877,45 +940,50 @@ ${chatHistorySection}
           nodesRef.current = updated;
           return updated;
         });
-        console.log('✅ [Action Bridge] Node updated in UI:', args.id);
+        console.log('✅ [Action Bridge] Node updated in UI:', payload.id);
         break;
       }
 
       case 'delete_node':
-        if (args.id) {
-          liveblocksService.deleteStickyNote(args.id);
+        {
+          const payload = (args as unknown) as DeleteNodePayload;
+          if (!payload.id) break;
+          liveblocksService.deleteStickyNote(payload.id);
           setNodes((nds) => {
-            const updated = nds.filter((node) => node.id !== args.id);
+            const updated = nds.filter((node) => node.id !== payload.id);
             nodesRef.current = updated;
             return updated;
           });
           setEdges((eds) => {
-            const updated = eds.filter((edge) => edge.source !== args.id && edge.target !== args.id);
+            const updated = eds.filter((edge) => edge.source !== payload.id && edge.target !== payload.id);
             edgesRef.current = updated;
             return updated;
           });
-          console.log('✅ [Action Bridge] Node deleted from UI:', args.id);
+          console.log('✅ [Action Bridge] Node deleted from UI:', payload.id);
         }
         break;
 
       case 'delete_connection':
-        if (args.id) {
-          liveblocksService.deleteConnection(args.id);
+        {
+          const payload = (args as unknown) as DeleteConnectionPayload;
+          if (!payload.id) break;
+          liveblocksService.deleteConnection(payload.id);
           setEdges((eds) => {
-            const updated = eds.filter((edge) => edge.id !== args.id);
+            const updated = eds.filter((edge) => edge.id !== payload.id);
             edgesRef.current = updated;
             return updated;
           });
           const { connections: updatedConnections } = convertFromFlowData(nodesRef.current, edgesRef.current);
           onConnectionsChange(updatedConnections);
-          console.log('✅ [Action Bridge] Connection deleted from UI:', args.id);
+          console.log('✅ [Action Bridge] Connection deleted from UI:', payload.id);
         }
         break;
 
       case 'create_connection':
         {
-          const sourceId = args.sourceId || args.source;
-          const targetId = args.targetId || args.target;
+          const payload = (args as unknown) as CreateConnectionPayload & { source?: string; target?: string };
+          const sourceId = payload.sourceId || payload.source;
+          const targetId = payload.targetId || payload.target;
           if (!sourceId || !targetId) break;
 
           const edgeId = `edge-${sourceId}-${targetId}`;
@@ -926,14 +994,14 @@ ${chatHistorySection}
             type: 'default',
             animated: false,
             style: {
-              strokeWidth: 2,
-              stroke: '#10b981',
+              strokeWidth: styleVariables.edgeWidth,
+              stroke: styleVariables.edgeColor,
             },
             markerEnd: {
               type: 'arrowclosed',
               width: 20,
               height: 20,
-              color: '#10b981',
+              color: styleVariables.edgeColor,
             },
             data: {
               relationType: 'direct',
@@ -961,13 +1029,228 @@ ${chatHistorySection}
         break;
 
       case 'adjust_layer_height': {
-        if (args.layer && args.height) {
-          const layerIndex = args.layer - 1;
+        const payload = (args as unknown) as AdjustLayerHeightPayload;
+        if (payload.layer && payload.height) {
+          const layerIndex = payload.layer - 1;
           const newHeights = [...layerHeights];
-          newHeights[layerIndex] = Math.min(800, Math.max(100, args.height));
+          newHeights[layerIndex] = Math.min(800, Math.max(100, payload.height));
           setLayerHeights(newHeights);
 
           setTimeout(() => safeAutoLayout(false), 100);
+        }
+        break;
+      }
+
+      case 'set_viewport': {
+        const payload = (args as unknown) as SetViewportPayload;
+        if (!reactFlowInstance) break;
+        const duration = typeof payload.duration === 'number' ? payload.duration : 0;
+        const viewport = reactFlowInstance.getViewport();
+        const x = typeof payload.x === 'number' ? payload.x : viewport.x;
+        const y = typeof payload.y === 'number' ? payload.y : viewport.y;
+        const zoom = typeof payload.zoom === 'number' ? payload.zoom : viewport.zoom;
+        void reactFlowInstance.setViewport({ x, y, zoom }, duration > 0 ? { duration } : undefined);
+        break;
+      }
+
+      case 'pan_viewport': {
+        const payload = (args as unknown) as PanViewportPayload;
+        if (!reactFlowInstance) break;
+        if (typeof payload.dx !== 'number' || typeof payload.dy !== 'number') break;
+        const duration = typeof payload.duration === 'number' ? payload.duration : 0;
+        const viewport = reactFlowInstance.getViewport();
+        void reactFlowInstance.setViewport(
+          { x: viewport.x + payload.dx, y: viewport.y + payload.dy, zoom: viewport.zoom },
+          duration > 0 ? { duration } : undefined
+        );
+        break;
+      }
+
+      case 'zoom_viewport': {
+        const payload = (args as unknown) as ZoomViewportPayload;
+        if (!reactFlowInstance) break;
+        const duration = typeof payload.duration === 'number' ? payload.duration : 0;
+        const viewport = reactFlowInstance.getViewport();
+        const nextZoom = typeof payload.zoom === 'number'
+          ? payload.zoom
+          : typeof payload.delta === 'number'
+            ? viewport.zoom + payload.delta
+            : viewport.zoom;
+        void reactFlowInstance.setViewport({ x: viewport.x, y: viewport.y, zoom: nextZoom }, duration > 0 ? { duration } : undefined);
+        break;
+      }
+
+      case 'fit_view': {
+        const payload = (args as unknown) as FitViewPayload;
+        if (!reactFlowInstance) break;
+        const duration = typeof payload.duration === 'number' ? payload.duration : 0;
+        const padding = typeof payload.padding === 'number' ? payload.padding : 0.1;
+        void reactFlowInstance.fitView(duration > 0 ? { duration, padding } : { padding });
+        break;
+      }
+
+      case 'focus_node': {
+        const payload = (args as unknown) as FocusNodePayload;
+        if (!reactFlowInstance || !payload.id) break;
+        const target = nodesRef.current.find((node) => node.id === payload.id);
+        if (!target) break;
+        const duration = typeof payload.duration === 'number' ? payload.duration : 0;
+        const zoom = typeof payload.zoom === 'number' ? payload.zoom : reactFlowInstance.getViewport().zoom;
+        const nodeWidth = typeof target.measured?.width === 'number' ? target.measured.width : 250;
+        const nodeHeight = typeof target.measured?.height === 'number' ? target.measured.height : 120;
+        const centerX = target.position.x + nodeWidth / 2;
+        const centerY = target.position.y + nodeHeight / 2;
+        const viewport = reactFlowInstance.getViewport();
+        const x = viewport.x + (viewport.zoom - zoom) * centerX;
+        const y = viewport.y + (viewport.zoom - zoom) * centerY;
+        void reactFlowInstance.setViewport({ x, y, zoom }, duration > 0 ? { duration } : undefined);
+        break;
+      }
+
+      case 'set_layer_opacity': {
+        const payload = (args as unknown) as SetLayerOpacityPayload;
+        if (!payload.layer || typeof payload.opacity !== 'number') break;
+        const index = Math.max(1, Math.min(4, payload.layer)) - 1;
+        const next = [...layerOpacities];
+        next[index] = Math.max(0, Math.min(1, payload.opacity));
+        setLayerOpacities(next);
+        break;
+      }
+
+      case 'toggle_layer_background': {
+        const payload = (args as unknown) as ToggleLayerBackgroundPayload;
+        if (typeof payload.visible !== 'boolean') break;
+        setShowLayerBackground(payload.visible);
+        // Liveblocks 동기화 추가
+        if (liveblocksService.isConnected()) {
+          liveblocksService.updateLayerSettings({
+            layerHeights,
+            layerOpacities,
+            showLayerBackground: payload.visible,
+          });
+        }
+        break;
+      }
+
+      case 'set_ui_visibility': {
+        const payload = (args as unknown) as SetUiVisibilityPayload;
+        if (typeof payload.controls === 'boolean') setShowControls(payload.controls);
+        if (typeof payload.minimap === 'boolean') setShowMiniMap(payload.minimap);
+        if (typeof payload.layerPanel === 'boolean') setShowLayerControlPanel(payload.layerPanel);
+        if (typeof payload.layerBackground === 'boolean') setShowLayerBackground(payload.layerBackground);
+        if (typeof payload.exportMenu === 'boolean') setShowExportMenu(payload.exportMenu);
+        break;
+      }
+
+      case 'set_style_variables': {
+        const payload = (args as unknown) as SetStyleVariablesPayload;
+        setStyleVariables((prev) => {
+          const nextEdgeColor = payload.edgeColor ?? prev.edgeColor;
+          const nextEdgeWidth = typeof payload.edgeWidth === 'number' ? payload.edgeWidth : prev.edgeWidth;
+          if (payload.edgeColor || typeof payload.edgeWidth === 'number') {
+            setEdges((eds) => {
+              const updated = eds.map((edge) => {
+                const markerEnd = edge.markerEnd;
+                const nextMarkerEnd: Edge['markerEnd'] = markerEnd && typeof markerEnd === 'object'
+                  ? { ...markerEnd, color: nextEdgeColor }
+                  : markerEnd ?? { type: 'arrowclosed' as const, width: 20, height: 20, color: nextEdgeColor };
+                return {
+                  ...edge,
+                  style: {
+                    ...(edge.style ?? {}),
+                    stroke: nextEdgeColor,
+                    strokeWidth: nextEdgeWidth,
+                  },
+                  markerEnd: nextMarkerEnd,
+                };
+              });
+              edgesRef.current = updated;
+              return updated;
+            });
+          }
+
+          return {
+            ...prev,
+            nodeBackground: payload.nodeBackground ?? prev.nodeBackground,
+            nodeBorderColor: payload.nodeBorderColor ?? prev.nodeBorderColor,
+            nodeTextColor: payload.nodeTextColor ?? prev.nodeTextColor,
+            nodeBorderRadius: typeof payload.nodeBorderRadius === 'number' ? payload.nodeBorderRadius : prev.nodeBorderRadius,
+            nodeShadow: payload.nodeShadow ?? prev.nodeShadow,
+            nodeFontFamily: payload.nodeFontFamily ?? prev.nodeFontFamily,
+            nodeFontSize: typeof payload.nodeFontSize === 'number' ? payload.nodeFontSize : prev.nodeFontSize,
+            edgeColor: nextEdgeColor,
+            edgeWidth: nextEdgeWidth,
+          };
+        });
+        break;
+      }
+
+      case 'save_snapshot': {
+        const payload = (args as unknown) as SaveSnapshotPayload;
+        if (!reactFlowInstance) break;
+        const snapshotName = payload.name?.trim() || 'default';
+        const flow = {
+          nodes: reactFlowInstance.getNodes(),
+          edges: reactFlowInstance.getEdges(),
+          viewport: reactFlowInstance.getViewport(),
+        };
+        localStorage.setItem(`culture-map-snapshot:${snapshotName}`, JSON.stringify(flow));
+        break;
+      }
+
+      case 'restore_snapshot': {
+        const payload = (args as unknown) as RestoreSnapshotPayload;
+        if (!reactFlowInstance) break;
+        const snapshotName = payload.name?.trim() || 'default';
+        const raw = localStorage.getItem(`culture-map-snapshot:${snapshotName}`);
+        if (!raw) break;
+        try {
+          const flow = JSON.parse(raw) as { nodes?: Node[]; edges?: Edge[]; viewport?: { x?: number; y?: number; zoom?: number } };
+          const nextNodes = Array.isArray(flow.nodes) ? flow.nodes : [];
+          const nextEdges = Array.isArray(flow.edges) ? flow.edges : [];
+          setNodes(nextNodes);
+          setEdges(nextEdges);
+          nodesRef.current = nextNodes;
+          edgesRef.current = nextEdges;
+
+          const { notes, connections } = convertFromFlowData(nextNodes, nextEdges);
+          onNotesChange(notes);
+          onConnectionsChange(connections);
+
+          if (liveblocksService.isConnected()) {
+            // 단일 트랜잭션으로 복원 (원자성 보장)
+            const lbNotes = notes.map((note) => ({
+              id: note.id,
+              content: note.content,
+              x: note.position.x,
+              y: note.position.y,
+              layer: note.layer,
+              sentiment: note.sentiment,
+              type: note.type,
+              width: note.width,
+              height: note.height,
+              frequency: note.perceptionIntensity,
+              basis: note.basis,
+              timestamp: Date.now(),
+              author: liveblocksService.getCurrentUserDisplayName(),
+            }));
+            const lbConnections = connections.map((connection) => ({
+              id: connection.id,
+              sourceId: connection.sourceId,
+              targetId: connection.targetId,
+              relationType: connection.relationType,
+              isPositive: connection.isPositive,
+            }));
+            liveblocksService.restoreMapData(lbNotes, lbConnections);
+          }
+
+          const viewport = flow.viewport ?? {};
+          const x = typeof viewport.x === 'number' ? viewport.x : 0;
+          const y = typeof viewport.y === 'number' ? viewport.y : 0;
+          const zoom = typeof viewport.zoom === 'number' ? viewport.zoom : 1;
+          void reactFlowInstance.setViewport({ x, y, zoom });
+        } catch (err) {
+          console.error('❌ 스냅샷 복원 실패:', err);
         }
         break;
       }
@@ -978,7 +1261,25 @@ ${chatHistorySection}
       default:
         console.warn('⚠️ 알 수 없는 AI 액션:', name);
     }
-  }, [ensureLiveblocksConnected, layerHeights, onConnectionsChange, setEdges, setNodes, safeAutoLayout]);
+  }, [
+    ensureLiveblocksConnected,
+    layerHeights,
+    layerOpacities,
+    onConnectionsChange,
+    onNotesChange,
+    reactFlowInstance,
+    safeAutoLayout,
+    setEdges,
+    setLayerOpacities,
+    setNodes,
+    setShowControls,
+    setShowExportMenu,
+    setShowLayerBackground,
+    setShowLayerControlPanel,
+    setShowMiniMap,
+    setStyleVariables,
+    styleVariables,
+  ]);
 
   const handleAiAction = useCallback((action: AiAction) => {
     pendingActionsRef.current.push(action);
@@ -1319,8 +1620,11 @@ ${chatHistorySection}
   }, [hydrateFromLiveblocks]);
 
   useEffect(() => {
-    const handleLayerSettingsChanged = (settings: LayerSettings) => {
-      applyLayerSettings(settings, 'layer-settings-changed');
+    const handleLayerSettingsChanged = (...args: unknown[]) => {
+      const settings = args[0] as LayerSettings | undefined;
+      if (settings) {
+        applyLayerSettings(settings, 'layer-settings-changed');
+      }
     };
 
     const handleSyncComplete = () => {
@@ -2723,7 +3027,8 @@ ${chatHistorySection}
       flexDirection: 'column',
       width: '100%',
       height: '100vh',  // 뷰포트 기준 고정 (아코디언 펼쳐도 높이 변하지 않음)
-      overflow: 'hidden' // 자식 요소가 부모를 넘치지 못하게
+      overflow: 'hidden', // 자식 요소가 부모를 넘치지 못하게
+      ...(applyStyleVariables(styleVariables) as CSSProperties)
     }}>
       {/* 상단 바 */}
       <div className="culture-top-bar no-print">
@@ -2783,11 +3088,13 @@ ${chatHistorySection}
 
         <div className="top-bar-right">
           {/* 컬쳐맵 내보내기 메뉴 */}
-          <ExportMenu
-            reactFlowInstance={reactFlowInstance}
-            nodes={nodes}
-            edges={edges}
-          />
+          {showExportMenu && (
+            <ExportMenu
+              reactFlowInstance={reactFlowInstance}
+              nodes={nodes}
+              edges={edges}
+            />
+          )}
 
           {/* 세션 정보 */}
           {(() => {
@@ -3410,24 +3717,26 @@ ${chatHistorySection}
                 )}
 
                 {/* Controls의 top 제거 - 기본 위치(top: 10px) 사용 */}
-                <Controls style={{ left: 16, bottom: 'auto' }} />
-                <MiniMap
-                  nodeStrokeWidth={3}
-                  zoomable
-                  pannable
-                  nodeColor={(node) => {
-                    const data = node.data as { sentiment?: string };
-                    const sentiment = data.sentiment || 'neutral';
+                {showControls && <Controls style={{ left: 16, bottom: 'auto' }} />}
+                {showMiniMap && (
+                  <MiniMap
+                    nodeStrokeWidth={3}
+                    zoomable
+                    pannable
+                    nodeColor={(node) => {
+                      const data = node.data as { sentiment?: string };
+                      const sentiment = data.sentiment || 'neutral';
 
-                    // sentiment에 따른 색상 반환
-                    if (sentiment === 'positive') return '#10b981'; // 녹색
-                    if (sentiment === 'negative') return '#ef4444'; // 빨강
-                    return '#6b7280'; // 회색 (중립)
-                  }}
-                  style={{
-                    backgroundColor: '#f8f9fa',
-                  }}
-                />
+                      // sentiment에 따른 색상 반환
+                      if (sentiment === 'positive') return '#10b981'; // 녹색
+                      if (sentiment === 'negative') return '#ef4444'; // 빨강
+                      return '#6b7280'; // 회색 (중립)
+                    }}
+                    style={{
+                      backgroundColor: '#f8f9fa',
+                    }}
+                  />
+                )}
               </ReactFlow>
             </div> {/* 메인 React Flow 영역 닫기 */}
           </>
