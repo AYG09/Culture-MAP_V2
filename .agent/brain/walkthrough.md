@@ -1,3 +1,43 @@
+# Walkthrough: ExportMenu 상단 버튼 스타일 통일
+
+## 완료 일시
+2026-01-27
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 상단 PNG/JSON/Excel 버튼을 흰색 글래스 스타일로 통일
+2. 새로고침/재접속 후에도 스타일 일관성 유지
+
+---
+
+## ✅ 해결 조치
+
+1. ExportMenu 버튼에 `glass-button` 클래스 추가
+2. ExportMenu.css의 파란 배경/테두리/색상 오버라이드 제거
+3. ExportMenu.css는 레이아웃/간격/disabled만 유지
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/components/ExportMenu.tsx` | export 버튼에 glass-button 클래스 추가 |
+| `src/components/ExportMenu.css` | 파란 배경/색상 제거, 레이아웃만 유지 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. 빌드 성공 확인
+2. 상단 버튼 스타일 유지 여부는 사용자 환경에서 확인 필요
+
+---
+
 # Walkthrough: 학술 파일 공유 목록 동기화 보강
 
 ## 완료 일시

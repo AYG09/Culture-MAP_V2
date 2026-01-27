@@ -291,7 +291,7 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
   return (
     <div className="export-menu">
       <button
-        className="export-button export-button-png"
+        className="glass-button export-button export-button-png"
         onClick={handleExportPNG}
         disabled={isExporting}
         title="컬쳐맵을 PNG 이미지로 다운로드"
@@ -300,7 +300,7 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
       </button>
 
       <button
-        className="export-button export-button-json"
+        className="glass-button export-button export-button-json"
         onClick={handleExportJSON}
         disabled={isExporting}
         title="컬쳐맵을 JSON 파일로 다운로드"
@@ -309,7 +309,7 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
       </button>
 
       <button
-        className="export-button export-button-excel"
+        className="glass-button export-button export-button-excel"
         onClick={handleExportExcel}
         disabled={isExporting}
         title="컬쳐맵을 Excel 파일로 다운로드"

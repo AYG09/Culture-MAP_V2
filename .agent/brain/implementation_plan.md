@@ -1,3 +1,56 @@
+# Implementation Plan: ExportMenu 상단 버튼 스타일 통일
+
+## 목표
+1. 상단 PNG/JSON/Excel 버튼을 흰색 글래스 스타일로 통일
+2. 새로고침/재접속 이후에도 스타일 일관성 유지
+3. 전역 디자인 덮어쓰기 방지
+
+---
+
+## 핵심 변경 범위
+
+### 1) ExportMenu 버튼 클래스 통일
+- ExportMenu 버튼에 `glass-button` 클래스를 추가하여 상단 UI와 일관성 유지
+
+### 2) ExportMenu CSS 오버라이드 제거
+- `.export-button`의 배경/테두리/색상/그림자 오버라이드를 제거
+- 레이아웃/간격/disabled 처리만 유지
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| ExportMenu 버튼 시각적 식별 저하 | UX 혼란 가능 | 아이콘/텍스트 유지, `glass-button--accent` 필요 시 도입 | 
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 상단 내보내기 버튼이 식별 어려움
+
+### 롤백 절차
+```bash
+git checkout -- src/components/ExportMenu.tsx
+git checkout -- src/components/ExportMenu.css
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. 새로고침/재접속 후 상단 PNG/JSON/Excel 버튼이 흰색 글래스 스타일인지 확인
+2. 보고서 탭 진입 여부와 상관없이 스타일 유지 확인
+3. 내보내기 버튼 동작 및 로딩 스피너 정상 확인
+
+---
+
 # Implementation Plan: 학술 파일 공유 목록 동기화 보강
 
 ## 목표

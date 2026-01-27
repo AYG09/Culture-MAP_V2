@@ -1,3 +1,25 @@
+# Task List: ExportMenu 상단 버튼 스타일 통일
+
+## 진행 상황
+- 🔲 미완료
+- 🔄 진행 중
+- ✅ 완료
+
+---
+
+## Task 1: ExportMenu 버튼 클래스 통일
+- [x] ExportMenu 버튼에 glass-button 클래스 추가
+
+## Task 2: ExportMenu CSS 오버라이드 제거
+- [x] export-button 배경/색상/그림자 제거
+- [x] 레이아웃/간격/disabled 유지
+
+## Task 3: 검증
+- [ ] 새로고침/재접속 후 상단 버튼 스타일 유지
+- [ ] 보고서 탭 전환 후에도 스타일 유지
+- [x] 내보내기 기능 및 스피너 동작 확인
+
+
 # Task List: 학술 파일 공유 목록 동기화 보강
 
 ## 진행 상황
