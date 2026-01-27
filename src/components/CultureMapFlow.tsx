@@ -569,9 +569,14 @@ ${chatHistorySection}
       return;
     }
 
+    const nodeIdSet = new Set(currentNodes.map((node) => node.id));
+    const filteredEdges = currentEdges.filter(
+      (edge) => nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target)
+    );
+
     const { nodes: layoutedNodes, edges: layoutedEdges } = await getElkLayoutedElements(
       currentNodes,
-      currentEdges,
+      filteredEdges,
       buildElkLayoutOptions(layoutSpacingRef.current)
     );
 
@@ -995,7 +1000,11 @@ ${chatHistorySection}
         {
           const payload = (args as unknown) as DeleteNodePayload;
           if (!payload.id) break;
+          const edgesToDelete = edgesRef.current.filter(
+            (edge) => edge.source === payload.id || edge.target === payload.id
+          );
           liveblocksService.deleteStickyNote(payload.id);
+          edgesToDelete.forEach((edge) => liveblocksService.deleteConnection(edge.id));
           setNodes((nds) => {
             const updated = nds.filter((node) => node.id !== payload.id);
             nodesRef.current = updated;
@@ -1006,6 +1015,12 @@ ${chatHistorySection}
             edgesRef.current = updated;
             return updated;
           });
+          const { notes: updatedNotes, connections: updatedConnections } = convertFromFlowData(
+            nodesRef.current,
+            edgesRef.current
+          );
+          onNotesChange(updatedNotes);
+          onConnectionsChange(updatedConnections);
           console.log('✅ [Action Bridge] Node deleted from UI:', payload.id);
         }
         break;
@@ -2845,6 +2860,9 @@ ${chatHistorySection}
           if (!ensureLiveblocksConnected('노드 삭제')) {
             return;
           }
+          const edgesToDelete = edges.filter(
+            (edge) => edge.source === contextMenu.targetId || edge.target === contextMenu.targetId
+          );
           // 노드 삭제
           const updatedNodes = nodes.filter((n) => n.id !== contextMenu.targetId);
           const updatedEdges = edges.filter(
@@ -2861,6 +2879,7 @@ ${chatHistorySection}
           onNotesChange(updatedNotes);
           onConnectionsChange(updatedConnections);
           liveblocksService.deleteStickyNote(contextMenu.targetId!);
+          edgesToDelete.forEach((edge) => liveblocksService.deleteConnection(edge.id));
         } else if (action === 'positive' || action === 'negative' || action === 'neutral') {
           if (!ensureLiveblocksConnected('노드 색상 변경')) {
             return;
