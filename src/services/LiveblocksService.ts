@@ -800,12 +800,32 @@ class LiveblocksService {
         const layerOpacities = this.normalizeLayerArray(settings.layerOpacities, this.defaultLayerOpacities);
 
         const layerSettings = this.yDoc.getMap<unknown>('layerSettings');
-        layerSettings.set('layerHeights', layerHeights);
-        layerSettings.set('layerOpacities', layerOpacities);
+        const currentHeights = this.normalizeLayerArray(
+            layerSettings.get('layerHeights'),
+            this.defaultLayerHeights
+        );
+        const currentOpacities = this.normalizeLayerArray(
+            layerSettings.get('layerOpacities'),
+            this.defaultLayerOpacities
+        );
+
+        if (!this.areNumberArraysEqual(layerHeights, currentHeights)) {
+            layerSettings.set('layerHeights', layerHeights);
+        }
+
+        if (!this.areNumberArraysEqual(layerOpacities, currentOpacities)) {
+            layerSettings.set('layerOpacities', layerOpacities);
+        }
         
         // showLayerBackground 동기화 (optional 필드)
         if (typeof settings.showLayerBackground === 'boolean') {
-            layerSettings.set('showLayerBackground', settings.showLayerBackground);
+            const currentBackgroundRaw = layerSettings.get('showLayerBackground');
+            const currentBackground = typeof currentBackgroundRaw === 'boolean'
+                ? currentBackgroundRaw
+                : undefined;
+            if (currentBackground !== settings.showLayerBackground) {
+                layerSettings.set('showLayerBackground', settings.showLayerBackground);
+            }
         }
     }
 
@@ -839,6 +859,11 @@ class LiveblocksService {
         });
 
         return normalized.length === 4 ? normalized : [...fallback];
+    }
+
+    private areNumberArraysEqual(left: number[], right: number[]): boolean {
+        if (left.length !== right.length) return false;
+        return left.every((value, index) => value === right[index]);
     }
 
     // ============================================

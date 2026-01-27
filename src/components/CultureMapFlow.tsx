@@ -249,17 +249,33 @@ const CultureMapFlow = ({
     return false;
   }, []);
 
+  const areNumberArraysEqual = (left: number[], right: number[]) =>
+    left.length === right.length && left.every((value, index) => value === right[index]);
+
   const applyLayerSettings = useCallback((settings: LayerSettings | null, reason: string) => {
     if (!settings) return;
+
+    const hasBackgroundUpdate = typeof settings.showLayerBackground === 'boolean';
+    const heightsEqual = areNumberArraysEqual(settings.layerHeights, layerHeightsRef.current);
+    const opacitiesEqual = areNumberArraysEqual(settings.layerOpacities, layerOpacitiesRef.current);
+    const backgroundEqual = !hasBackgroundUpdate
+      || settings.showLayerBackground === showLayerBackgroundRef.current;
+
+    if (heightsEqual && opacitiesEqual && backgroundEqual) return;
 
     applyingLayerSettingsRef.current = true;
     setLayerHeights(settings.layerHeights);
     setLayerOpacities(settings.layerOpacities);
     
     // showLayerBackground 동기화 수신 (optional 필드)
-    if (typeof settings.showLayerBackground === 'boolean') {
-      setShowLayerBackground(settings.showLayerBackground);
+    if (hasBackgroundUpdate) {
+      setShowLayerBackground(settings.showLayerBackground as boolean);
     }
+
+    lastSyncedLayerSettingsRef.current = {
+      layerHeights: [...settings.layerHeights],
+      layerOpacities: [...settings.layerOpacities],
+    };
 
     requestAnimationFrame(() => {
       applyingLayerSettingsRef.current = false;
@@ -469,6 +485,25 @@ ${chatHistorySection}
   const [layerHeights, setLayerHeights] = useState<number[]>([220, 220, 220, 220]); // [결과, 행동, 유형, 무형]
   const [layerOpacities, setLayerOpacities] = useState<number[]>([1, 1, 1, 1]); // 층위별 투명도
   const [showLayerBackground, setShowLayerBackground] = useState(true);
+  const layerHeightsRef = useRef(layerHeights);
+  const layerOpacitiesRef = useRef(layerOpacities);
+  const showLayerBackgroundRef = useRef(showLayerBackground);
+  const lastSyncedLayerSettingsRef = useRef<{
+    layerHeights: number[];
+    layerOpacities: number[];
+  } | null>(null);
+
+  useEffect(() => {
+    layerHeightsRef.current = layerHeights;
+  }, [layerHeights]);
+
+  useEffect(() => {
+    layerOpacitiesRef.current = layerOpacities;
+  }, [layerOpacities]);
+
+  useEffect(() => {
+    showLayerBackgroundRef.current = showLayerBackground;
+  }, [showLayerBackground]);
   const [showControls, setShowControls] = useState(true);
   const [showMiniMap, setShowMiniMap] = useState(true);
   const [showExportMenu, setShowExportMenu] = useState(true);
@@ -1663,10 +1698,24 @@ ${chatHistorySection}
     if (isHydratingRef.current) return;
     if (!liveblocksService.isConnected()) return;
 
+    const lastSynced = lastSyncedLayerSettingsRef.current;
+    if (
+      lastSynced
+      && areNumberArraysEqual(layerHeights, lastSynced.layerHeights)
+      && areNumberArraysEqual(layerOpacities, lastSynced.layerOpacities)
+    ) {
+      return;
+    }
+
     liveblocksService.updateLayerSettings({
       layerHeights,
       layerOpacities,
     });
+
+    lastSyncedLayerSettingsRef.current = {
+      layerHeights: [...layerHeights],
+      layerOpacities: [...layerOpacities],
+    };
   }, [layerHeights, layerOpacities]);
 
   useEffect(() => {
