@@ -747,9 +747,11 @@ ${chatHistorySection}
 
         const content = payload.content || payload.label || '새 노드';
         const sentiment = payload.sentiment === 'positive' ? 'positive' : (payload.sentiment === 'negative' ? 'negative' : 'neutral');
-        const frequency = typeof payload.intensity === 'number'
-          ? INTENSITY_MAP.TO_STRING(payload.intensity)
-          : (payload.intensity ?? 'medium');
+        const frequency = isConsultingMode
+          ? (typeof payload.intensity === 'number'
+            ? INTENSITY_MAP.TO_STRING(payload.intensity)
+            : (payload.intensity ?? 'medium'))
+          : undefined;
 
         liveblocksService.updateStickyNote({
           id: newNodeId,
@@ -759,7 +761,7 @@ ${chatHistorySection}
           layer: layerValue,
           sentiment,
           type: nodeType,
-          frequency,
+          ...(isConsultingMode && frequency ? { frequency } : {}),
         });
 
         const newNode: Node = {
@@ -772,7 +774,7 @@ ${chatHistorySection}
             author: liveblocksService.getCurrentUserDisplayName(),
             timestamp: Date.now(),
             sentiment,
-            frequency,
+            ...(isConsultingMode && frequency ? { frequency } : {}),
             type: nodeType,
             layer: layerValue,
           },
@@ -841,9 +843,11 @@ ${chatHistorySection}
           const nodeType = typeMap[input.type] || getNodeTypeFromLayer(layerValue);
           const content = input.content || input.label || '새 노드';
           const sentiment = input.sentiment === 'positive' ? 'positive' : (input.sentiment === 'negative' ? 'negative' : 'neutral');
-          const frequency = typeof input.intensity === 'number'
-            ? INTENSITY_MAP.TO_STRING(input.intensity)
-            : input.intensity;
+          const frequency = isConsultingMode
+            ? (typeof input.intensity === 'number'
+              ? INTENSITY_MAP.TO_STRING(input.intensity)
+              : input.intensity)
+            : undefined;
 
           const newNodeId = `node-${batchTimestamp}-${index}-${Math.random().toString(36).substr(2, 4)}`;
           if (input.tempId) {
@@ -858,7 +862,7 @@ ${chatHistorySection}
             layer: layerValue,
             sentiment,
             type: nodeType,
-            frequency,
+            ...(isConsultingMode && frequency ? { frequency } : {}),
           });
 
           newNodes.push({
@@ -871,7 +875,7 @@ ${chatHistorySection}
               author: liveblocksService.getCurrentUserDisplayName(),
               timestamp: Date.now(),
               sentiment,
-              frequency,
+              ...(isConsultingMode && frequency ? { frequency } : {}),
               type: nodeType,
               layer: layerValue,
             },
@@ -947,7 +951,11 @@ ${chatHistorySection}
         const payload = (args as unknown) as UpdateNodePayload & { layer?: number; type?: string };
         if (!payload.id) break;
         const sentiment = payload.sentiment === 'positive' ? 'positive' : (payload.sentiment === 'negative' ? 'negative' : 'neutral');
-        const frequency = typeof payload.intensity === 'number' ? INTENSITY_MAP.TO_STRING(payload.intensity) : payload.intensity;
+        const frequency = isConsultingMode
+          ? (typeof payload.intensity === 'number'
+            ? INTENSITY_MAP.TO_STRING(payload.intensity)
+            : payload.intensity)
+          : undefined;
         const content = payload.content || payload.label;
         const hasX = typeof payload.x === 'number' && Number.isFinite(payload.x);
         const hasY = typeof payload.y === 'number' && Number.isFinite(payload.y);
@@ -958,7 +966,7 @@ ${chatHistorySection}
           id: payload.id,
           content,
           sentiment,
-          frequency,
+          ...(isConsultingMode && frequency ? { frequency } : {}),
           ...(hasX ? { x: payload.x } : {}),
           ...(hasY ? { y: payload.y } : {}),
           ...(layerValue ? { layer: layerValue } : {}),
@@ -981,7 +989,7 @@ ${chatHistorySection}
                   ...node.data,
                   ...(content ? { content } : {}),
                   ...(sentiment ? { sentiment } : {}),
-                  ...(frequency ? { frequency } : {}),
+                  ...(isConsultingMode && frequency ? { frequency } : {}),
                   ...(typeValue ? { type: typeValue } : {}),
                   ...(layerValue ? { layer: layerValue } : {}),
                 },
@@ -1172,9 +1180,10 @@ ${chatHistorySection}
       case 'set_layer_opacity': {
         const payload = (args as unknown) as SetLayerOpacityPayload;
         // Fallback: AI may send layer as string like "Layer 2" instead of number 2
-        let layerNum = payload.layer;
-        if (typeof layerNum === 'string') {
-          const match = (layerNum as string).match(/\d+/);
+        const layerRaw = (payload as { layer?: unknown }).layer;
+        let layerNum = typeof layerRaw === 'number' ? layerRaw : 0;
+        if (typeof layerRaw === 'string') {
+          const match = layerRaw.match(/\d+/);
           layerNum = match ? parseInt(match[0], 10) : 0;
         }
         if (!layerNum || typeof payload.opacity !== 'number') break;

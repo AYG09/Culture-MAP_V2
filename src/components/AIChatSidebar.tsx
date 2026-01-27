@@ -287,7 +287,10 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
 `
             : '';
 
+        const modeLabel = passwordType === 'consulting' ? '컨설팅' : '워크샵';
         const contextString = `[현재 컬처맵 상태]
+    현재 모드: ${modeLabel} 모드
+    워크샵 모드에서는 빈도/강도 표기를 사용하지 말고 도구에서도 intensity/frequency를 사용하지 마세요.
 총 노드 수: ${_notes.length}개, 총 연결선 수: ${_connections.length}개
 
 � 층위 구조 (상위→하위 = 원인→결과):
@@ -394,11 +397,15 @@ ${layerHeightContext}
 
             const actionVerbs = ['추가', '생성', '만들', '연결', '정리', '정렬', '배치', '레이아웃', '삭제', '지워', '제거', '수정', '변경', '옮겨', '이동', '높이', '요약', '축약', '줄여', '간략', '다듬', '정제', '편집', '바꿔'];
             const actionNouns = ['노드', '포스트잇', '연결', '선', '화살표', '엣지', '레이아웃', '정렬', '배치', '맵', '레이어', '내용', '문장', '텍스트'];
+            const explicitActionPattern = /(추가해|추가해줘|생성해|생성해줘|만들어|만들어줘|연결해|연결해줘|삭제해|지워줘|제거해|수정해|변경해|옮겨줘|이동해|정렬해|배치해|레이아웃해|높여|줄여)/;
+            const explanationKeywords = ['설명', '왜', '근거', '의미', '정의', '차이', '무슨', '뭐야', '무엇', '말해', '알려', '이유', '해석'];
             const hasVerb = actionVerbs.some(keyword => currentText.includes(keyword));
             const hasNoun = actionNouns.some(keyword => currentText.includes(keyword));
             const layoutOnlyRequest = /정렬|정리|배치|레이아웃|높이/.test(currentText);
             const mapEditIntentDetected = (hasVerb && hasNoun) || layoutOnlyRequest;
-            const explicitMapEditRequest = !isPrivateChat && mapEditIntentDetected;
+            const explanationRequest = explanationKeywords.some(keyword => currentText.includes(keyword));
+            const explicitActionDetected = explicitActionPattern.test(currentText);
+            const explicitMapEditRequest = !isPrivateChat && (explicitActionDetected || layoutOnlyRequest) && !explanationRequest;
             const preservePositionsRequested = /(위치.*유지|현재.*위치|정렬.*하지|정렬하지|레이아웃.*하지|자동\s*정렬.*(하지|말))/i.test(currentText);
             const forceFunctionCall = explicitMapEditRequest;
 
@@ -522,7 +529,8 @@ ${layerHeightContext}
                         if (!explicitMapEditRequest && finalActions.length > 0) {
                             console.warn('🛑 [AIChatSidebar] No explicit map-edit intent detected. Actions require confirmation.');
                         }
-                        const actionsWithFlags = !isPrivateChat
+                        const shouldIgnoreActions = explanationRequest && !explicitMapEditRequest;
+                        const actionsWithFlags = !isPrivateChat && !shouldIgnoreActions
                             ? finalActions.map(action => ({
                                 ...action,
                                 __suppressAutoLayout: preservePositionsRequested
