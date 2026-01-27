@@ -687,6 +687,16 @@ ${chatHistorySection}
     const { name } = action;
     const args = (action.args ?? {}) as Record<string, unknown>;
 
+    const getNodeTypeFromLayer = (layerValue: number) => {
+      const layerToType: Record<number, string> = {
+        1: 'result',
+        2: 'behavior',
+        3: 'tangible_lever',
+        4: 'intangible_lever',
+      };
+      return layerToType[Math.max(1, Math.min(4, layerValue))] || 'result';
+    };
+
     const requiresSync = [
       'add_node',
       'add_nodes_with_connections',
@@ -728,7 +738,7 @@ ${chatHistorySection}
           'tangible_lever': 'tangible_lever',
           'intangible_lever': 'intangible_lever',
         };
-        const nodeType = typeMap[payload.type] || 'result';
+        const nodeType = typeMap[payload.type] || getNodeTypeFromLayer(layerValue);
 
         const content = payload.content || payload.label || '새 노드';
         const sentiment = payload.sentiment === 'positive' ? 'positive' : (payload.sentiment === 'negative' ? 'negative' : 'neutral');
@@ -823,7 +833,7 @@ ${chatHistorySection}
             ? input.y
             : defaultY + (Math.random() * 20 - 10);
 
-          const nodeType = typeMap[input.type] || 'result';
+          const nodeType = typeMap[input.type] || getNodeTypeFromLayer(layerValue);
           const content = input.content || input.label || '새 노드';
           const sentiment = input.sentiment === 'positive' ? 'positive' : (input.sentiment === 'negative' ? 'negative' : 'neutral');
           const frequency = typeof input.intensity === 'number'

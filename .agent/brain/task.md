@@ -20,6 +20,32 @@
 - [x] 내보내기 기능 및 스피너 동작 확인
 
 
+# Task List: AI 노드 위치/동기화 소실 방지
+
+## 진행 상황
+- 🔲 미완료
+- 🔄 진행 중
+- ✅ 완료
+
+---
+
+## Task 1: AI 노드 타입 기본값 보정
+- [x] add_node type 누락 시 layer 기반 타입 보정
+- [x] add_nodes_with_connections 동일 보정 적용
+
+## Task 2: Liveblocks observe 이벤트 스팸/소실 방지
+- [x] 로컬 단건 변경 snapshot emit 억제
+- [x] 업데이트로 인한 삭제 이벤트 필터링
+
+## Task 3: 문서 업데이트
+- [x] implementation_plan.md 업데이트
+- [x] walkthrough.md 변경 사항 기록
+
+## Task 4: 검증
+- [ ] AI 생성 노드 위치 정상 여부 확인
+- [ ] 드래그 중 노드 소실 재현 여부 확인
+
+
 # Task List: 학술 파일 공유 목록 동기화 보강
 
 ## 진행 상황

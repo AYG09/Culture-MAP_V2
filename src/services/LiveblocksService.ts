@@ -671,8 +671,16 @@ class LiveblocksService {
 
         // 노드 변경 감지 - 개별 노드마다 이벤트 발생
         this.yDoc.getArray<StickyNoteData>('nodes').observe((event) => {
-            // 전체 목록 변경 이벤트
-            this.emit('notes-changed', this.yDoc!.getArray('nodes').toArray());
+            const nodesArray = this.yDoc!.getArray<StickyNoteData>('nodes');
+            const transaction = event.transaction;
+            const hasManyAdds = event.changes.added.size > 1;
+            const hasManyDeletes = event.changes.deleted.size > 1;
+            const shouldEmitSnapshot = !transaction.local || hasManyAdds || hasManyDeletes;
+
+            // 전체 목록 변경 이벤트 (원격 or 대량 변경만)
+            if (shouldEmitSnapshot) {
+                this.emit('notes-changed', nodesArray.toArray());
+            }
 
             // 개별 노드 변경 이벤트 (추가/수정)
             event.changes.added.forEach((item) => {
@@ -685,13 +693,16 @@ class LiveblocksService {
                 }
             });
 
-            // 삭제 이벤트
+            // 삭제 이벤트 (업데이트로 인한 삭제는 무시)
             event.changes.deleted.forEach((item) => {
                 const content = item.content as unknown;
                 if (content && typeof (content as { toArray?: () => StickyNoteData[] }).toArray === 'function') {
                     const notes = (content as { toArray: () => StickyNoteData[] }).toArray();
                     notes.forEach((note) => {
-                        this.emit('sticky-note-deleted', { noteId: note.id });
+                        const stillExists = nodesArray.toArray().some((n) => n.id === note.id);
+                        if (!stillExists) {
+                            this.emit('sticky-note-deleted', { noteId: note.id });
+                        }
                     });
                 }
             });
@@ -699,8 +710,16 @@ class LiveblocksService {
 
         // 연결선 변경 감지 - 개별 연결선마다 이벤트 발생
         this.yDoc.getArray<LBConnectionData>('connections').observe((event) => {
-            // 전체 목록 변경 이벤트
-            this.emit('connections-changed', this.yDoc!.getArray('connections').toArray());
+            const connectionsArray = this.yDoc!.getArray<LBConnectionData>('connections');
+            const transaction = event.transaction;
+            const hasManyAdds = event.changes.added.size > 1;
+            const hasManyDeletes = event.changes.deleted.size > 1;
+            const shouldEmitSnapshot = !transaction.local || hasManyAdds || hasManyDeletes;
+
+            // 전체 목록 변경 이벤트 (원격 or 대량 변경만)
+            if (shouldEmitSnapshot) {
+                this.emit('connections-changed', connectionsArray.toArray());
+            }
 
             // 개별 연결선 변경 이벤트 (추가/수정)
             event.changes.added.forEach((item) => {
@@ -719,7 +738,10 @@ class LiveblocksService {
                 if (content && typeof (content as { toArray?: () => LBConnectionData[] }).toArray === 'function') {
                     const connections = (content as { toArray: () => LBConnectionData[] }).toArray();
                     connections.forEach((conn) => {
-                        this.emit('connection-deleted', { connectionId: conn.id });
+                        const stillExists = connectionsArray.toArray().some((c) => c.id === conn.id);
+                        if (!stillExists) {
+                            this.emit('connection-deleted', { connectionId: conn.id });
+                        }
                     });
                 }
             });

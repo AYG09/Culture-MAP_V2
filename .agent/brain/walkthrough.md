@@ -81,6 +81,47 @@
 
 ---
 
+# Walkthrough: AI 노드 위치/동기화 소실 방지
+
+## 완료 일시
+2026-01-27
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. AI 노드 생성 시 layer 기반 타입 보정으로 위치 불일치 제거
+2. Liveblocks observe 이벤트 과다와 드래그 중 노드 소실 방지
+
+---
+
+## ✅ 해결 조치
+
+1. add_node/add_nodes_with_connections에서 type 누락 시 layer 기반 nodeType 보정
+2. Liveblocks nodes/connections observe에서 로컬 단건 snapshot emit 억제
+3. 업데이트로 인한 삭제 이벤트는 실제 삭제일 때만 emit
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/components/CultureMapFlow.tsx` | AI 노드 타입 fallback 추가 |
+| `src/services/LiveblocksService.ts` | observe 이벤트 필터링 적용 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. AI가 layer만 준 노드 위치 정상 여부 확인 필요(사용자 환경)
+2. 드래그 중 노드 소실 재현 여부 확인 필요(사용자 환경)
+3. notes-changed/ connections-changed 복원 빈도 감소 확인 필요(사용자 환경)
+
+---
+
 # Walkthrough: AI 페르소나/도움말 최신화
 
 ## 완료 일시

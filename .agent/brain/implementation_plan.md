@@ -7,6 +7,60 @@
 
 ---
 
+# Implementation Plan: AI 노드 위치/동기화 소실 방지
+
+## 목표
+1. AI 노드 생성 시 layer 기반 타입 보정으로 위치 불일치 제거
+2. Liveblocks observe 이벤트 과다 발생 및 드래그 중 노드 소실 방지
+
+---
+
+## 핵심 변경 범위
+
+### 1) AI 노드 타입 보정
+- add_node/add_nodes_with_connections에서 type 누락 시 layer 기반 nodeType 선택
+- 레이어 범위 1~4 보정 후 타입 매핑
+
+### 2) Liveblocks observe 이벤트 필터링
+- 로컬 단건 변경 시 notes-changed/ connections-changed emit 억제
+- updateStickyNote 업데이트로 인한 삭제 이벤트는 실제 삭제일 때만 emit
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 로컬 단건 변경에서 전체 복원 미발생 | 일부 뷰 갱신 누락 가능 | sticky-note-updated/connection-updated 유지로 UI 갱신 보장 |
+| 삭제 이벤트 필터 오탐 | 실제 삭제 누락 가능 | 현재 배열에 존재 여부로 필터링 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 드래그/편집 중 노드/연결 동기화 이상 지속
+
+### 롤백 절차
+```bash
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- src/services/LiveblocksService.ts
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. AI가 layer만 준 노드가 올바른 층위에 생성되는지 확인
+2. 드래그 중 노드가 사라지지 않는지 확인
+3. notes-changed/ connections-changed 로그 및 복원 호출 빈도 감소 확인
+
+---
+
 ## 핵심 변경 범위
 
 ### 1) ExportMenu 버튼 클래스 통일
