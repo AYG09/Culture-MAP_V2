@@ -22,23 +22,32 @@ export default defineConfig({
           // 앱 코드는 기본 청킹에 맡김
           if (!id.includes('node_modules')) return;
 
-          // 기존 수동 매핑 유지 (청크명 일관성)
-          if (id.includes('react-dom') || id.includes('/react/')) return 'vendor';
-          if (id.includes('@liveblocks') || id.includes('/yjs') || id.includes('y-indexeddb')) return 'liveblocks';
-          if (id.includes('@google/genai')) return 'ai-google';
-          if (id.includes('jspdf') || id.includes('html2pdf') || id.includes('html2canvas') || id.includes('pdfjs-dist')) return 'docs-pdf';
-          if (id.includes('/docx/')) return 'docs-word';
-          if (id.includes('exceljs') || id.includes('/xlsx')) return 'docs-excel';
-          if (id.includes('file-saver')) return 'docs-utils';
-          if (id.includes('@xyflow') || id.includes('/dagre') || id.includes('elkjs')) return 'ui-flow';
-          if (id.includes('quill') || id.includes('react-quill')) return 'ui-editor';
-          if (id.includes('framer-motion')) return 'ui-motion';
-          if (id.includes('lucide-react')) return 'ui-icons';
-          if (id.includes('/uuid') || id.includes('/qrcode') || id.includes('html-to-image')) return 'utils';
+          // Windows/Unix 경로 모두 처리를 위해 정규화
+          const normalizedId = id.replace(/\\/g, '/');
+
+          // React 코어 + React Router (함께 번들링 필수 - 순환 의존성 방지)
+          // React 19의 Activity API를 위해 react, react-dom, scheduler, react-router를 같은 청크로
+          if (
+            normalizedId.includes('/node_modules/react/') ||
+            normalizedId.includes('/node_modules/react-dom/') ||
+            normalizedId.includes('/node_modules/react-router/') ||
+            normalizedId.includes('/node_modules/react-router-dom/') ||
+            normalizedId.includes('/node_modules/scheduler/')
+          ) return 'vendor';
+          
+          if (normalizedId.includes('@liveblocks') || normalizedId.includes('/yjs/') || normalizedId.includes('y-indexeddb')) return 'liveblocks';
+          if (normalizedId.includes('@google/genai')) return 'ai-google';
+          if (normalizedId.includes('jspdf') || normalizedId.includes('html2pdf') || normalizedId.includes('html2canvas') || normalizedId.includes('pdfjs-dist')) return 'docs-pdf';
+          if (normalizedId.includes('/docx/')) return 'docs-word';
+          if (normalizedId.includes('exceljs') || normalizedId.includes('/xlsx/')) return 'docs-excel';
+          if (normalizedId.includes('file-saver')) return 'docs-utils';
+          if (normalizedId.includes('@xyflow') || normalizedId.includes('/dagre/') || normalizedId.includes('elkjs')) return 'ui-flow';
+          if (normalizedId.includes('quill') || normalizedId.includes('react-quill')) return 'ui-editor';
+          if (normalizedId.includes('framer-motion')) return 'ui-motion';
+          if (normalizedId.includes('lucide-react')) return 'ui-icons';
+          if (normalizedId.includes('/uuid/') || normalizedId.includes('/qrcode/') || normalizedId.includes('html-to-image')) return 'utils';
           // Markdown 렌더링 (react-markdown, remark, rehype, unified 등)
-          if (id.includes('react-markdown') || id.includes('remark') || id.includes('rehype') || id.includes('unified') || id.includes('mdast') || id.includes('hast') || id.includes('micromark')) return 'ui-markdown';
-          // React Router
-          if (id.includes('react-router')) return 'vendor';
+          if (normalizedId.includes('react-markdown') || normalizedId.includes('remark') || normalizedId.includes('rehype') || normalizedId.includes('unified') || normalizedId.includes('mdast') || normalizedId.includes('hast') || normalizedId.includes('micromark')) return 'ui-markdown';
 
           // 나머지 node_modules는 공통 vendor 청크로 통합
           return 'vendor-common';
