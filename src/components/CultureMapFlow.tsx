@@ -1,5 +1,5 @@
 // src/components/CultureMapFlow.tsx - 완전히 재작성된 버전
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   ReactFlow,
   Background,
@@ -30,8 +30,10 @@ import {
 import MobileGestureGuide from './MobileGestureGuide';
 import AIChatSidebar from './AIChatSidebar'; // 좌측 사이드메뉴 (AI 챗봇)
 import { useIsMobile } from '../hooks/useResponsive'; // 반응형 훅 추가
-import ExportMenu from './ExportMenu'; // 컬쳐맵 내보내기 메뉴
-import ReportEditor from './ReportEditor'; // 보고서 편집기
+
+// Lazy loaded components for code splitting
+const ExportMenu = lazy(() => import('./ExportMenu'));
+const ReportEditor = lazy(() => import('./ReportEditor'));
 
 // 타입
 import type { NoteData, ConnectionData, PerceptionIntensity } from '../types/culture';
@@ -1109,8 +1111,14 @@ ${chatHistorySection}
 
       case 'set_layer_opacity': {
         const payload = (args as unknown) as SetLayerOpacityPayload;
-        if (!payload.layer || typeof payload.opacity !== 'number') break;
-        const index = Math.max(1, Math.min(4, payload.layer)) - 1;
+        // Fallback: AI may send layer as string like "Layer 2" instead of number 2
+        let layerNum = payload.layer;
+        if (typeof layerNum === 'string') {
+          const match = (layerNum as string).match(/\d+/);
+          layerNum = match ? parseInt(match[0], 10) : 0;
+        }
+        if (!layerNum || typeof payload.opacity !== 'number') break;
+        const index = Math.max(1, Math.min(4, layerNum)) - 1;
         const next = [...layerOpacities];
         next[index] = Math.max(0, Math.min(1, payload.opacity));
         setLayerOpacities(next);
@@ -3089,11 +3097,13 @@ ${chatHistorySection}
         <div className="top-bar-right">
           {/* 컬쳐맵 내보내기 메뉴 */}
           {showExportMenu && (
-            <ExportMenu
-              reactFlowInstance={reactFlowInstance}
-              nodes={nodes}
-              edges={edges}
-            />
+            <Suspense fallback={<div className="lazy-loading">로딩...</div>}>
+              <ExportMenu
+                reactFlowInstance={reactFlowInstance}
+                nodes={nodes}
+                edges={edges}
+              />
+            </Suspense>
           )}
 
           {/* 세션 정보 */}
@@ -3745,12 +3755,14 @@ ${chatHistorySection}
         {/* 보고서 탭 */}
         {activeTab === 'report' && (
           <div style={{ width: '100%', height: '100%', overflow: 'auto', padding: '24px' }}>
-            <ReportEditor
-              initialContent={reportContent}
-              onSave={handleReportChange}
-              onGenerateReport={handleGenerateReport}
-              isGenerating={isGeneratingReport}
-            />
+            <Suspense fallback={<div className="lazy-loading">보고서 에디터 로딩 중...</div>}>
+              <ReportEditor
+                initialContent={reportContent}
+                onSave={handleReportChange}
+                onGenerateReport={handleGenerateReport}
+                isGenerating={isGeneratingReport}
+              />
+            </Suspense>
           </div>
         )}
 

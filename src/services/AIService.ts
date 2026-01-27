@@ -151,6 +151,7 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
 16. UI 표시/숨김 요청(컨트롤, 미니맵, 레이어 패널, 배경, 내보내기)은 set_ui_visibility를 사용
 17. 노드/엣지 스타일(색상, 폰트, 테두리, 그림자) 변경 요청은 set_style_variables를 사용
 18. 백업/복원 요청은 save_snapshot, restore_snapshot을 사용
+19. set_layer_opacity 사용 시 opacity는 CSS 표준 (1=완전불투명, 0=완전투명). "투명도 50%" 요청 시 opacity=0.5, "불투명도 50%" 요청 시에도 opacity=0.5를 사용. layer 파라미터는 반드시 숫자(1,2,3,4)로 전달
 
 ## 연결선(인과관계) 생성 규칙
 1. **노드 생성 후 연결 권장**: 새 노드 추가 후, 관련된 기존 노드와 create_connection 호출 권장

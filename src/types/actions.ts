@@ -481,12 +481,12 @@ export const MAP_TOOL_DECLARATIONS = [
     },
     {
         name: 'set_layer_opacity',
-        description: 'Call when user wants to change layer opacity. Trigger words: 투명도, 레이어 투명도. Examples: "행동 레이어 60%"',
+        description: 'Call when user wants to change layer opacity. Trigger words: 투명도, 레이어 투명도, 불투명도. Examples: "행동 레이어 60%", "2번 레이어 투명도 50%"',
         parametersJsonSchema: {
             type: 'object',
             properties: {
-                layer: { type: 'number', enum: [1, 2, 3, 4], description: 'Layer index (1:결과, 2:행동, 3:유형, 4:무형)' },
-                opacity: { type: 'number', description: 'Opacity (0~1)' }
+                layer: { type: 'number', enum: [1, 2, 3, 4], description: 'Layer number as INTEGER (MUST be 1, 2, 3, or 4). 1=결과, 2=행동, 3=유형레버, 4=무형레버. NEVER use strings like "Layer 2".' },
+                opacity: { type: 'number', description: 'Opacity value from 0 to 1. CSS standard: 1=fully opaque, 0=fully transparent. Example: 0.5 means 50% opacity.' }
             },
             required: ['layer', 'opacity'],
             propertyOrdering: ['layer', 'opacity']

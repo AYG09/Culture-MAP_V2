@@ -12,6 +12,7 @@ export interface RagChunkRecord {
   docName: string;
   content: string;
   embedding: number[];
+  pageNumber?: number; // Optional for backward compatibility with existing chunks
 }
 
 export interface RagQueryOptions {
@@ -22,7 +23,7 @@ export interface RagQueryOptions {
 
 interface RagQueryResult {
   contextText: string;
-  sources: Array<{ docId: string; docName: string; score: number }>;
+  sources: Array<{ docId: string; docName: string; score: number; pageNumber?: number }>;
 }
 
 type EmbedContentResponse = {
@@ -208,23 +209,36 @@ class RagService {
     const minScore = options.minScore ?? 0.2;
     const maxContextChars = options.maxContextChars ?? 6000;
 
+    // Hybrid search weights (tunable)
+    const VECTOR_WEIGHT = 0.7;
+    const KEYWORD_WEIGHT = 0.3;
+
     const scored = chunks
-      .map((chunk) => ({
-        chunk,
-        score: cosineSimilarity(queryEmbedding, chunk.embedding)
-      }))
+      .map((chunk) => {
+        const vectorScore = cosineSimilarity(queryEmbedding, chunk.embedding);
+        const keywordScore = keywordMatchScore(query, chunk.content);
+        // Hybrid score: weighted combination of vector similarity and keyword match
+        const hybridScore = vectorScore * VECTOR_WEIGHT + keywordScore * KEYWORD_WEIGHT;
+        return {
+          chunk,
+          score: hybridScore,
+          vectorScore,
+          keywordScore
+        };
+      })
       .filter((item) => Number.isFinite(item.score) && item.score >= minScore)
       .sort((a, b) => b.score - a.score)
       .slice(0, topK);
 
     if (scored.length === 0) return null;
 
-    const sources: Array<{ docId: string; docName: string; score: number }> = [];
+    const sources: Array<{ docId: string; docName: string; score: number; pageNumber?: number }> = [];
     const contextParts: string[] = [];
     let usedChars = 0;
 
     scored.forEach((item, index) => {
-      const header = `[출처 ${index + 1}] ${item.chunk.docName}`;
+      const pageInfo = item.chunk.pageNumber ? ` (p.${item.chunk.pageNumber})` : '';
+      const header = `[출처 ${index + 1}] ${item.chunk.docName}${pageInfo}`;
       const body = item.chunk.content.trim();
       const block = `${header}\n${body}`;
       if (usedChars + block.length > maxContextChars) {
@@ -232,7 +246,7 @@ class RagService {
       }
       usedChars += block.length;
       contextParts.push(block);
-      sources.push({ docId: item.chunk.docId, docName: item.chunk.docName, score: item.score });
+      sources.push({ docId: item.chunk.docId, docName: item.chunk.docName, score: item.score, pageNumber: item.chunk.pageNumber });
     });
 
     return {
@@ -263,14 +277,17 @@ class RagService {
     this.cachedChunks = await this.store.getAllChunks();
   }
 
-  private async buildChunksFromPdf(file: File, docName: string): Promise<Array<{ content: string; docName: string }>> {
+  private async buildChunksFromPdf(file: File, docName: string): Promise<Array<{ content: string; docName: string; pageNumber?: number }>> {
     const chunkSize = 1600;
     const overlap = 200;
     let buffer = '';
-    const chunks: Array<{ content: string; docName: string }> = [];
+    let currentPageNum = 1;
+    const chunks: Array<{ content: string; docName: string; pageNumber?: number }> = [];
 
     for await (const page of documentService.iteratePdfPages(file)) {
       const cleaned = normalizeText(page.text);
+      const pageNum = page.pageNumber ?? currentPageNum;
+      currentPageNum = pageNum + 1;
       if (!cleaned) continue;
 
       buffer = buffer ? `${buffer}\n${cleaned}` : cleaned;
@@ -281,7 +298,7 @@ class RagService {
           const last = split.pop();
           split.forEach((part) => {
             const trimmed = part.trim();
-            if (trimmed) chunks.push({ content: trimmed, docName });
+            if (trimmed) chunks.push({ content: trimmed, docName, pageNumber: pageNum });
           });
           buffer = last ? last.trim() : '';
         }
@@ -291,7 +308,7 @@ class RagService {
     if (buffer.trim()) {
       splitTextWithOverlap(buffer, chunkSize, overlap).forEach((part) => {
         const trimmed = part.trim();
-        if (trimmed) chunks.push({ content: trimmed, docName });
+        if (trimmed) chunks.push({ content: trimmed, docName, pageNumber: currentPageNum });
       });
     }
 
@@ -299,7 +316,7 @@ class RagService {
   }
 
   private async embedChunks(
-    chunks: Array<{ content: string; docName: string }>,
+    chunks: Array<{ content: string; docName: string; pageNumber?: number }>,
     info: RagDocumentInfo
   ): Promise<RagChunkRecord[]> {
     if (!this.client) return [];
@@ -319,7 +336,8 @@ class RagService {
           docId: info.id,
           docName: info.name,
           content: item.content,
-          embedding
+          embedding,
+          pageNumber: item.pageNumber
         });
       });
     }
@@ -396,6 +414,27 @@ function splitTextWithOverlap(text: string, chunkSize: number, overlap: number):
   }
 
   return chunks;
+}
+
+/**
+ * Keyword matching score for hybrid search.
+ * Returns a score between 0 and 1 based on how many query terms appear in the content.
+ */
+function keywordMatchScore(query: string, content: string): number {
+  // Extract terms (2+ chars) from query
+  const queryTerms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 1);
+  if (queryTerms.length === 0) return 0;
+
+  const contentLower = content.toLowerCase();
+  let matches = 0;
+
+  queryTerms.forEach((term) => {
+    if (contentLower.includes(term)) {
+      matches += 1;
+    }
+  });
+
+  return matches / queryTerms.length;
 }
 
 function cosineSimilarity(a: number[], b: number[]): number {
