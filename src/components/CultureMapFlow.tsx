@@ -266,7 +266,7 @@ const CultureMapFlow = ({
     applyingLayerSettingsRef.current = true;
     setLayerHeights(settings.layerHeights);
     setLayerOpacities(settings.layerOpacities);
-    
+
     // showLayerBackground 동기화 수신 (optional 필드)
     if (hasBackgroundUpdate) {
       setShowLayerBackground(settings.showLayerBackground as boolean);
@@ -326,33 +326,33 @@ const CultureMapFlow = ({
       const connectionsList = liveblocksService.getConnections();
 
       const layerNames = ['결과 (Layer 1)', '행동 (Layer 2)', '유형 레버 (Layer 3)', '무형 레버 (Layer 4)'];
-      
+
       const mapDataSection = `
 ### 노드 목록 (${notesList.length}개)
 ${notesList.map((note: import('../types/liveblocks').StickyNoteData) => {
-  const layerName = layerNames[note.layer - 1] || `Layer ${note.layer}`;
-  return `- [${layerName}] ${note.content} (감정: ${note.sentiment || 'neutral'})`;
-}).join('\n')}
+        const layerName = layerNames[note.layer - 1] || `Layer ${note.layer}`;
+        return `- [${layerName}] ${note.content} (감정: ${note.sentiment || 'neutral'})`;
+      }).join('\n')}
 
 ### 연결 관계 (${connectionsList.length}개)
 ${connectionsList.map((conn: import('../types/liveblocks').ConnectionData) => {
-  const sourceNote = notesList.find((n: import('../types/liveblocks').StickyNoteData) => n.id === conn.sourceId);
-  const targetNote = notesList.find((n: import('../types/liveblocks').StickyNoteData) => n.id === conn.targetId);
-  const relation = conn.relationType || 'direct';
-  return `- "${sourceNote?.content || conn.sourceId}" → "${targetNote?.content || conn.targetId}" (${relation})`;
-}).join('\n')}
+        const sourceNote = notesList.find((n: import('../types/liveblocks').StickyNoteData) => n.id === conn.sourceId);
+        const targetNote = notesList.find((n: import('../types/liveblocks').StickyNoteData) => n.id === conn.targetId);
+        const relation = conn.relationType || 'direct';
+        return `- "${sourceNote?.content || conn.sourceId}" → "${targetNote?.content || conn.targetId}" (${relation})`;
+      }).join('\n')}
 `;
 
       // 3. AI가 캐싱한 핵심 인사이트 가져오기 (동적으로 추출된 분석 결과)
       const cachedInsights = aiService.getInsights();
-      
+
       // 인사이트를 유형별로 그룹화하여 정리
       const insightsByType = cachedInsights.reduce((acc, insight) => {
         if (!acc[insight.type]) acc[insight.type] = [];
         acc[insight.type].push(insight);
         return acc;
       }, {} as Record<string, typeof cachedInsights>);
-      
+
       const typeLabels: Record<string, string> = {
         'berkman': '📊 버크만 진단 분석',
         'raci': '📋 RACI 매트릭스 분석',
@@ -362,16 +362,16 @@ ${connectionsList.map((conn: import('../types/liveblocks').ConnectionData) => {
         'recommendation': '✅ 핵심 추천 사항',
         'general': '📝 기타 분석 결과'
       };
-      
+
       const chatHistorySection = cachedInsights.length > 0
         ? Object.entries(insightsByType).map(([type, insights]) => {
-            const label = typeLabels[type] || type;
-            const insightContents = insights.map(ins => {
-              const personsInfo = ins.persons?.length ? `\n[관련 인물: ${ins.persons.join(', ')}]` : '';
-              return `### ${ins.title}\n${ins.content}${personsInfo}`;
-            }).join('\n\n');
-            return `## ${label}\n\n${insightContents}`;
-          }).join('\n\n---\n\n')
+          const label = typeLabels[type] || type;
+          const insightContents = insights.map(ins => {
+            const personsInfo = ins.persons?.length ? `\n[관련 인물: ${ins.persons.join(', ')}]` : '';
+            return `### ${ins.title}\n${ins.content}${personsInfo}`;
+          }).join('\n\n');
+          return `## ${label}\n\n${insightContents}`;
+        }).join('\n\n---\n\n')
         : '(캐싱된 분석 인사이트 없음)';
 
       // 4. 통합 컨텍스트 생성
@@ -399,10 +399,10 @@ ${chatHistorySection}
 
       const chatSummary = summaryInputBudget > 0
         ? await aiService.summarizeChatMessages(chatMessages, {
-            maxInputTokens: summaryInputBudget,
-            maxOutputChars: 1200,
-            maxMessages: 160,
-          })
+          maxInputTokens: summaryInputBudget,
+          maxOutputChars: 1200,
+          maxMessages: 160,
+        })
         : '';
 
       const fullContextWithSummary = chatSummary
@@ -413,7 +413,7 @@ ${chatHistorySection}
       const fullPrompt = `${promptTemplate}\n\n${fullContextWithSummary}\n\n위 Culture Map 데이터와 캐싱된 AI 분석 인사이트를 바탕으로 종합 분석 보고서를 작성해주세요.
 인사이트에 포함된 버크만 진단, RACI, 조직도 분석 결과가 있다면 솔루션 제안에 적극 반영해주세요.
 특히 솔루션 실행 담당자 배정 시 관련 인물 정보와 개인별 특성을 참고해주세요.`;
-      
+
       // 단발성 생성 (채팅 세션/히스토리와 분리)
       const responseText = await aiService.analyzeCulture(fullPrompt);
 
@@ -777,6 +777,11 @@ ${chatHistorySection}
             ...(isConsultingMode && frequency ? { frequency } : {}),
             type: nodeType,
             layer: layerValue,
+            onUpdate: handleNodeContentUpdate,
+            onEditStart: handleStartNodeEditing,
+            onEditEnd: handleStopNodeEditing,
+            isLocked: false,
+            lockedBy: undefined,
           },
           draggable: true,
         };
@@ -878,6 +883,11 @@ ${chatHistorySection}
               ...(isConsultingMode && frequency ? { frequency } : {}),
               type: nodeType,
               layer: layerValue,
+              onUpdate: handleNodeContentUpdate,
+              onEditStart: handleStartNodeEditing,
+              onEditEnd: handleStopNodeEditing,
+              isLocked: false,
+              lockedBy: undefined,
             },
             draggable: true,
           });
@@ -978,9 +988,9 @@ ${chatHistorySection}
             if (node.id === payload.id) {
               const nextPosition = hasX || hasY
                 ? {
-                    x: hasX ? payload.x! : node.position.x,
-                    y: hasY ? payload.y! : node.position.y,
-                  }
+                  x: hasX ? payload.x! : node.position.x,
+                  y: hasY ? payload.y! : node.position.y,
+                }
                 : node.position;
               return {
                 ...node,
@@ -1530,6 +1540,8 @@ ${chatHistorySection}
 
   // 컨텍스트 메뉴 상태
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
+  const contextMenuAdjustedRef = useRef(false);
 
   // 컨텍스트 메뉴 외부 클릭 시 닫기
   useEffect(() => {
@@ -1552,6 +1564,54 @@ ${chatHistorySection}
       document.removeEventListener('click', handleClickOutside);
     };
   }, [contextMenu]);
+
+  useEffect(() => {
+    if (!contextMenu) {
+      contextMenuAdjustedRef.current = false;
+      return;
+    }
+
+    if (contextMenuAdjustedRef.current) {
+      return;
+    }
+
+    const menuEl = contextMenuRef.current;
+    if (!menuEl) {
+      return;
+    }
+
+    const rect = menuEl.getBoundingClientRect();
+    const margin = 12;
+    const maxX = Math.max(margin, window.innerWidth - rect.width - margin);
+    const maxY = Math.max(margin, window.innerHeight - rect.height - margin);
+    const desiredX = Math.min(Math.max(contextMenu.x, margin), maxX);
+    const desiredY = Math.min(Math.max(contextMenu.y, margin), maxY);
+
+    const deltaX = desiredX - rect.left;
+    const deltaY = desiredY - rect.top;
+
+    if ((deltaX !== 0 || deltaY !== 0) && reactFlowInstance) {
+      const viewport = reactFlowInstance.getViewport();
+      void reactFlowInstance.setViewport(
+        {
+          x: viewport.x + deltaX,
+          y: viewport.y + deltaY,
+          zoom: viewport.zoom,
+        },
+        { duration: 0 }
+      );
+    }
+
+    if (deltaX !== 0 || deltaY !== 0) {
+      setContextMenu((prev) => {
+        if (!prev) return prev;
+        if (prev.x === desiredX && prev.y === desiredY) return prev;
+        return { ...prev, x: desiredX, y: desiredY };
+      });
+    }
+
+    contextMenuAdjustedRef.current = true;
+  }, [contextMenu, reactFlowInstance]);
 
   const handleNodeContentUpdate = useCallback(
     (nodeId: string, newContent: string) => {
@@ -1890,14 +1950,14 @@ ${chatHistorySection}
     // 타입 정의
     type StickyNoteUpdateEvent = {
       id: string;
-      authorId?: string;
+      author?: string;
       content?: string;
       text?: string;
       x: number;
       y: number;
       layer: number;
       layerIndex?: number;
-      color: string;
+      sentiment: string;
       width?: number;
       height?: number;
     };
@@ -1922,9 +1982,8 @@ ${chatHistorySection}
     const handleStickyNoteUpdated = (note: StickyNoteUpdateEvent) => {
       console.log('📥 [React Flow] Liveblocks 노드 수신:', note.id);
 
-      // 자신이 보낸 업데이트는 무시
-      const isOwnUpdate = note.authorId === liveblocksService.getCurrentUserId();
-      if (isOwnUpdate) return;
+      // 자신의 로컬 트랜잭션에서 발생한 이벤트는 LiveblocksService에서 이미 필터링됨
+      // (setupDataListeners의 transaction.local 체크로 notes-changed만 원격에서 emit)
 
       setNodes((currentNodes) => {
         const existingIndex = currentNodes.findIndex((n) => n.id === note.id);
@@ -1955,7 +2014,7 @@ ${chatHistorySection}
         const updatedData: Record<string, unknown> = {
           ...existingData,
           content: note.content ?? previousContent,
-          sentiment: note.color ?? previousSentiment,
+          sentiment: note.sentiment ?? previousSentiment,
           onUpdate: handleNodeContentUpdate,
           onEditStart: handleStartNodeEditing,
           onEditEnd: handleStopNodeEditing,
@@ -2505,9 +2564,9 @@ ${chatHistorySection}
         (sourceSentiment === 'negative' && targetSentiment === 'positive')
       ) {
         edgeColor = '#ef4444';
-          if (!ensureLiveblocksConnected('노드 빈도 변경')) {
-            return;
-          }
+        if (!ensureLiveblocksConnected('노드 빈도 변경')) {
+          return;
+        }
         isPositive = false;
       }
       // 부정↔부정: 주황색
@@ -2988,6 +3047,74 @@ ${chatHistorySection}
             layer: layerMap[node.type || 'result'] || 1,
             sentiment: action,
             type: node.type || 'sticky_note',
+            width: (node.width as number) || 200,
+            height: (node.height as number) || 120,
+            ...(isConsultingMode && updatedFrequency ? { frequency: updatedFrequency } : {}),
+          });
+        } else if (action.startsWith('set_type_')) {
+          if (!ensureLiveblocksConnected('노드 유형 변경')) {
+            return;
+          }
+
+          const typeMap: Record<string, { nodeType: string; layer: number }> = {
+            set_type_result: { nodeType: 'result', layer: 1 },
+            set_type_behavior: { nodeType: 'behavior', layer: 2 },
+            set_type_tangible_lever: { nodeType: 'tangible_lever', layer: 3 },
+            set_type_intangible_lever: { nodeType: 'intangible_lever', layer: 4 },
+          };
+
+          const target = typeMap[action];
+          if (!target) {
+            return;
+          }
+
+          const activeLock = collaborationLocksRef.current[node.id];
+          const currentUserId = getCurrentUserId();
+          const isLockedByOther = Boolean(
+            activeLock &&
+            activeLock.itemType === 'note' &&
+            activeLock.userId !== currentUserId
+          );
+
+          if (isLockedByOther) {
+            return;
+          }
+
+          const updatedNodes = nodes.map((n) =>
+            n.id === contextMenu.targetId
+              ? {
+                ...n,
+                type: target.nodeType,
+                data: {
+                  ...n.data,
+                  layer: target.layer,
+                },
+              }
+              : n
+          );
+
+          setNodes(updatedNodes);
+
+          const { notes: updatedNotes, connections: updatedConnections } = convertFromFlowData(
+            updatedNodes,
+            edges
+          );
+          onNotesChange(updatedNotes);
+          onConnectionsChange(updatedConnections);
+
+          const updatedNode = updatedNodes.find((n) => n.id === node.id);
+          const updatedFrequency = isConsultingMode
+            ? ((updatedNode?.data as { frequency?: PerceptionIntensity | null })?.frequency ?? undefined)
+            : undefined;
+
+          liveblocksService.updateStickyNote({
+            id: node.id,
+            content: (node.data as { content?: string }).content || '',
+            x: node.position.x,
+            y: node.position.y,
+            layer: target.layer,
+            sentiment: (node.data as { sentiment?: string }).sentiment || 'neutral',
+            type: target.nodeType,
             width: (node.width as number) || 200,
             height: (node.height as number) || 120,
             ...(isConsultingMode && updatedFrequency ? { frequency: updatedFrequency } : {}),
@@ -3521,10 +3648,34 @@ ${chatHistorySection}
                     >
                       {/* 배경층들 - 개별 높이 적용 */}
                       {[
-                        { name: '결과', color: 'rgba(255, 107, 107, OPACITY)', index: 0 },
-                        { name: '행동', color: 'rgba(78, 205, 196, OPACITY)', index: 1 },
-                        { name: '유형 레버', color: 'rgba(149, 225, 211, OPACITY)', index: 2 },
-                        { name: '무형 레버', color: 'rgba(255, 230, 109, OPACITY)', index: 3 },
+                        {
+                          name: '결과',
+                          color: 'rgba(255, 107, 107, OPACITY)',
+                          index: 0,
+                          description: '성과와 KPI, 산출물 등 가시적 결과',
+                          examples: '프로젝트 성공률, 고객 만족도, 매출 지표',
+                        },
+                        {
+                          name: '행동',
+                          color: 'rgba(78, 205, 196, OPACITY)',
+                          index: 1,
+                          description: '구성원이 실제로 보이는 행동 패턴',
+                          examples: '협업 방식, 보고 습관, 의사결정 참여',
+                        },
+                        {
+                          name: '유형 레버',
+                          color: 'rgba(149, 225, 211, OPACITY)',
+                          index: 2,
+                          description: '조직의 유형적 기능과 제도/시스템',
+                          examples: '구조, 권한, 프로세스, 제도, 도구',
+                        },
+                        {
+                          name: '무형 레버',
+                          color: 'rgba(255, 230, 109, OPACITY)',
+                          index: 3,
+                          description: '기본 가정, 가치관, 신념',
+                          examples: '조직이 당연하게 여기는 원칙과 문화',
+                        },
                       ].map((layer, displayIndex, layers) => {
                         // 각 층위의 Y 좌표 계산 (표시 순서 기준 누적)
                         let y = 0;
@@ -3579,10 +3730,15 @@ ${chatHistorySection}
                                 transition: 'all 0.2s ease',
                                 pointerEvents: 'auto', // 라벨만 클릭 가능
                               }}
-                              className="nopan nodrag"
+                              className="nopan nodrag layer-label"
                               title={selectedLayerIndex === layer.index ? "다시 클릭하여 선택 해제 및 패널 닫기" : "클릭하여 이 층위 선택 및 높이 조절"}
                             >
                               {selectedLayerIndex === layer.index ? '📌 ' : ''}{layer.name}
+                              <div className="layer-tooltip" role="tooltip">
+                                <div className="layer-tooltip-title">{layer.name}</div>
+                                <div className="layer-tooltip-body">{layer.description}</div>
+                                <div className="layer-tooltip-examples">예시: {layer.examples}</div>
+                              </div>
                             </div>
                           </div>
                         );
@@ -3878,6 +4034,7 @@ ${chatHistorySection}
       {contextMenu && (
         <div
           className="react-flow-context-menu"
+          ref={contextMenuRef}
           style={{
             position: 'fixed',
             left: contextMenu.x,
@@ -3894,28 +4051,28 @@ ${chatHistorySection}
                   handleContextMenuAction('create_result');
                 }}
               >
-                🔴 결과 (가시적 요소)
+                🔴 결과
               </button>
               <button
                 onClick={() => {
                   handleContextMenuAction('create_behavior');
                 }}
               >
-                🟡 행동 (관찰 행동)
+                🟡 행동
               </button>
               <button
                 onClick={() => {
                   handleContextMenuAction('create_tangible_lever');
                 }}
               >
-                🔵 유형 레버 (규범/가치)
+                🔵 유형
               </button>
               <button
                 onClick={() => {
                   handleContextMenuAction('create_intangible_lever');
                 }}
               >
-                🟣 무형 레버 (기본 가정)
+                🟣 무형
               </button>
               <div className="context-menu-divider" />
               <button
@@ -3960,6 +4117,21 @@ ${chatHistorySection}
                   </button>
                 </>
               )}
+
+              <hr />
+              <div className="context-menu-title">🧭 유형 변경</div>
+              <button onClick={() => handleContextMenuAction('set_type_result')}>
+                🔴 결과
+              </button>
+              <button onClick={() => handleContextMenuAction('set_type_behavior')}>
+                🟡 행동
+              </button>
+              <button onClick={() => handleContextMenuAction('set_type_tangible_lever')}>
+                🔵 유형
+              </button>
+              <button onClick={() => handleContextMenuAction('set_type_intangible_lever')}>
+                🟣 무형
+              </button>
 
               <hr />
               <button onClick={() => handleContextMenuAction('delete')}>🗑️ 삭제</button>

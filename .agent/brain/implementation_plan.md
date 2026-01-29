@@ -1,3 +1,68 @@
+# Implementation Plan: 컨텍스트 메뉴/노드 편집 UX 개선
+
+## 목표
+1. AI 생성 노드 수동 편집이 정상 반영되도록 핸들러 주입
+2. 우클릭 메뉴가 화면 가장자리에서 잘리지 않도록 뷰포트 이동
+3. 메뉴 라벨 단순화(결과/행동/유형/무형) 및 노드 유형 변경 기능 추가
+4. 레이어 라벨 hover 설명 팝업 추가
+
+---
+
+## 핵심 변경 범위
+
+### 1) AI 생성 노드 편집 핸들러 주입
+- add_node/add_nodes_with_connections 생성 노드 data에 onUpdate/onEditStart/onEditEnd 추가
+- 잠금 정보(isLocked/lockedBy) 기본값 유지
+
+### 2) 컨텍스트 메뉴 뷰포트 이동
+- 메뉴 크기 측정 후 화면 밖 영역이 있으면 setViewport로 캔버스 이동
+- 메뉴 위치는 고정, 뷰포트만 이동
+
+### 3) 메뉴 라벨/유형 변경
+- 새 노드 생성 메뉴 라벨을 결과/행동/유형/무형으로 단순화
+- 노드 우클릭 메뉴에 유형 변경(레이어 변경) 액션 추가
+
+### 4) 레이어 라벨 hover 팝업
+- ViewportPortal 레이어 라벨에 설명 툴팁 추가
+- 기존 클릭 동작 유지
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 뷰포트 이동 시 사용자가 화면 이동으로 느끼는 혼란 | UX 혼란 가능 | 메뉴 오픈 시 1회 이동만 수행, 과도 이동 방지 |
+| 유형 변경 시 Liveblocks 레이어 불일치 | 동기화 오류 | node.type과 layer를 동시에 업데이트 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 편집 반영 실패 지속 또는 메뉴 위치 이상
+
+### 롤백 절차
+```bash
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- src/components/CultureMapFlow.css
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. AI 생성 노드 편집 반영 확인
+2. 우클릭 메뉴가 화면 가장자리에서도 모두 보이는지 확인
+3. 노드 유형 변경 시 레이어 이동 및 동기화 확인
+4. 레이어 라벨 hover 팝업 표시 확인
+
+---
+
 # Implementation Plan: ExportMenu 상단 버튼 스타일 통일
 
 ## 목표
