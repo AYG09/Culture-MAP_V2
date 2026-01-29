@@ -525,12 +525,62 @@ ${chatHistorySection}
   // 선택된 층위 (높이 조절용, null = 선택 없음)
   const [selectedLayerIndex, setSelectedLayerIndex] = useState<number | null>(0);
 
-  // translateExtent 동적 계산 (층위 높이 변경 시 자동 업데이트)
+  // translateExtent 동적 계산 (층위 높이/노드 배치 변경 시 자동 업데이트)
   const totalHeight = layerHeights.reduce((sum, height) => sum + height, 0);
-  const translateExtent: [[number, number], [number, number]] = [
-    [-100, -100],  // 좌상단 여유 공간
-    [3200, totalHeight + 100],  // 우하단 (가로 3200px, 세로는 총 층위 높이 + 여유)
-  ];
+  const translateExtent: [[number, number], [number, number]] = useMemo(() => {
+    const fallbackMinX = -100;
+    const fallbackMinY = -100;
+    const baseMaxX = 3200;
+    const baseMaxY = totalHeight + 100;
+    const extentPadding = 400;
+    const fallbackWidth = 250;
+    const fallbackHeight = 120;
+
+    if (!nodes.length) {
+      return [[fallbackMinX, fallbackMinY], [baseMaxX, baseMaxY]];
+    }
+
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+
+    nodes.forEach((node) => {
+      const width =
+        typeof node.measured?.width === 'number'
+          ? node.measured.width
+          : typeof node.width === 'number'
+            ? node.width
+            : fallbackWidth;
+      const height =
+        typeof node.measured?.height === 'number'
+          ? node.measured.height
+          : typeof node.height === 'number'
+            ? node.height
+            : fallbackHeight;
+      const x = node.position?.x;
+      const y = node.position?.y;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return;
+      }
+
+      minX = Math.min(minX, x as number);
+      minY = Math.min(minY, y as number);
+      maxX = Math.max(maxX, (x as number) + width);
+      maxY = Math.max(maxY, (y as number) + height);
+    });
+
+    if (!Number.isFinite(minX) || !Number.isFinite(minY)) {
+      return [[fallbackMinX, fallbackMinY], [baseMaxX, baseMaxY]];
+    }
+
+    const paddedMinX = Math.min(fallbackMinX, minX - extentPadding);
+    const paddedMinY = Math.min(fallbackMinY, minY - extentPadding);
+    const paddedMaxX = Math.max(baseMaxX, maxX + extentPadding);
+    const paddedMaxY = Math.max(baseMaxY, maxY + extentPadding);
+
+    return [[paddedMinX, paddedMinY], [paddedMaxX, paddedMaxY]];
+  }, [nodes, totalHeight]);
 
   // 층위 관리 패널 표시 여부
   const [showLayerControlPanel, setShowLayerControlPanel] = useState(false);

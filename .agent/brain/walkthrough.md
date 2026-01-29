@@ -1,3 +1,41 @@
+# Walkthrough: 줌 확대 시 노드 사라짐 버그 수정
+
+## 완료 일시
+2026-01-30
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 확대/축소 시 노드가 화면에서 사라지는 현상 해소
+2. 노드 배치 범위를 포함하는 translateExtent 동적 계산 적용
+
+---
+
+## ✅ 해결 조치
+
+1. 노드 bbox 기반으로 translateExtent를 동적으로 계산
+2. fallback 크기와 padding을 적용해 viewport 클램프 방지
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/components/CultureMapFlow.tsx` | translateExtent 동적 확장 로직 추가 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. 확대/축소 시 노드 유지 확인 필요(사용자 환경)
+2. 가장자리 노드가 사라지지 않는지 확인 필요(사용자 환경)
+
+---
+
 # Walkthrough: ExportMenu 상단 버튼 스타일 통일
 
 ## 완료 일시

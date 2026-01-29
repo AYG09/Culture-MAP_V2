@@ -1,3 +1,54 @@
+# Implementation Plan: 줌 확대 시 노드 사라짐 버그 수정
+
+## 목표
+1. 확대/축소 시 노드가 화면에서 사라지는 현상 해소
+2. translateExtent가 노드 배치 범위를 항상 포함하도록 동적 계산
+3. 성능 저하 없이 onlyRenderVisibleElements 유지
+
+---
+
+## 핵심 변경 범위
+
+### 1) translateExtent 동적 확장
+- 노드 bbox(minX/minY/maxX/maxY) 계산
+- measured/width/height 우선 사용, fallback 크기 적용
+- padding을 추가해 줌인 상태에서도 노드 포함 보장
+- totalHeight 기반 세로 범위와 기존 여유값 유지
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| extent 계산 비용 증가 | 성능 저하 가능 | useMemo로 nodes/height 변경 시만 계산 |
+| bbox 계산에 width/height 누락 | 범위 축소 가능 | measured/width/height fallback 적용 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 확대 시 노드 사라짐이 지속되거나 성능 저하 발생
+
+### 롤백 절차
+```bash
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. 확대/축소 시 노드가 화면에서 사라지지 않는지 확인
+2. 가장자리 노드가 뷰포트 제한에 의해 사라지지 않는지 확인
+
+---
+
 # Implementation Plan: 컨텍스트 메뉴/노드 편집 UX 개선
 
 ## 목표

@@ -1,3 +1,19 @@
+# Task List: 줌 확대 시 노드 사라짐 버그 수정
+
+## 진행 상황
+- 🔲 미완료
+- 🔄 진행 중
+- ✅ 완료
+
+---
+
+## Task 1: translateExtent 동적 계산
+- [x] 노드 bbox 기반으로 translateExtent 확장
+
+## Task 2: 검증
+- [ ] 확대/축소 시 노드 유지 확인
+
+
 # Task List: ExportMenu 상단 버튼 스타일 통일
 
 ## 진행 상황
