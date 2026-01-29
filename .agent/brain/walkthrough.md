@@ -1,3 +1,41 @@
+# Walkthrough: 동일 레이어 선후관계 반영 정렬 개선
+
+## 완료 일시
+2026-01-30
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 동일 레이어 내 연결선의 선후관계 반영
+2. 같은 레이어 내부 순서가 뒤섞이는 문제 완화
+
+---
+
+## ✅ 해결 조치
+
+1. 동일 레이어 edge만 추출해 위상 정렬 수행
+2. tie-break는 anchorX 및 fallbackIndex 사용
+3. 사이클 존재 시 anchorX 기반 fallback 정렬 적용
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/utils/flowAutoLayout.ts` | 동일 레이어 선후관계 반영 정렬 추가 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. 동일 레이어 연결 순서 유지 확인 필요(사용자 환경)
+
+---
+
 # Walkthrough: 줌 확대 시 노드 사라짐 버그 수정
 
 ## 완료 일시

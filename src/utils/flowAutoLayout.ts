@@ -268,14 +268,81 @@ function getBasicLayoutedElements(
       };
     });
 
-    const orderedNodes = scoredNodes
+    const scoredNodeById = new Map(scoredNodes.map((item) => [item.node.id, item]));
+    const sameLayerIds = new Set(layerNodes.map((node) => node.id));
+
+    const nextById = new Map<string, Set<string>>();
+    const indegreeById = new Map<string, number>();
+    layerNodes.forEach((node) => {
+      nextById.set(node.id, new Set());
+      indegreeById.set(node.id, 0);
+    });
+
+    edges.forEach((edge) => {
+      if (!sameLayerIds.has(edge.source) || !sameLayerIds.has(edge.target)) {
+        return;
+      }
+      const nextSet = nextById.get(edge.source);
+      if (!nextSet || nextSet.has(edge.target)) {
+        return;
+      }
+      nextSet.add(edge.target);
+      indegreeById.set(edge.target, (indegreeById.get(edge.target) ?? 0) + 1);
+    });
+
+    const queue = layerNodes
+      .filter((node) => (indegreeById.get(node.id) ?? 0) === 0)
       .sort((a, b) => {
-        if (a.score === b.score) {
-          return a.fallbackIndex - b.fallbackIndex;
+        const scoreA = scoredNodeById.get(a.id)?.score ?? 0;
+        const scoreB = scoredNodeById.get(b.id)?.score ?? 0;
+        if (scoreA === scoreB) {
+          return (scoredNodeById.get(a.id)?.fallbackIndex ?? 0) - (scoredNodeById.get(b.id)?.fallbackIndex ?? 0);
         }
-        return a.score - b.score;
-      })
-      .map(item => item.node);
+        return scoreA - scoreB;
+      });
+
+    const orderedNodes: Node[] = [];
+
+    while (queue.length) {
+      const current = queue.shift();
+      if (!current) break;
+      orderedNodes.push(current);
+
+      const nextNodes = nextById.get(current.id);
+      if (!nextNodes) continue;
+      nextNodes.forEach((nextId) => {
+        const nextIndegree = (indegreeById.get(nextId) ?? 0) - 1;
+        indegreeById.set(nextId, nextIndegree);
+        if (nextIndegree === 0) {
+          const nextNode = nodeById.get(nextId);
+          if (nextNode) {
+            queue.push(nextNode);
+            queue.sort((a, b) => {
+              const scoreA = scoredNodeById.get(a.id)?.score ?? 0;
+              const scoreB = scoredNodeById.get(b.id)?.score ?? 0;
+              if (scoreA === scoreB) {
+                return (scoredNodeById.get(a.id)?.fallbackIndex ?? 0) - (scoredNodeById.get(b.id)?.fallbackIndex ?? 0);
+              }
+              return scoreA - scoreB;
+            });
+          }
+        }
+      });
+    }
+
+    if (orderedNodes.length < layerNodes.length) {
+      const remainingNodes = layerNodes
+        .filter((node) => !orderedNodes.find((item) => item.id === node.id))
+        .sort((a, b) => {
+          const scoreA = scoredNodeById.get(a.id)?.score ?? 0;
+          const scoreB = scoredNodeById.get(b.id)?.score ?? 0;
+          if (scoreA === scoreB) {
+            return (scoredNodeById.get(a.id)?.fallbackIndex ?? 0) - (scoredNodeById.get(b.id)?.fallbackIndex ?? 0);
+          }
+          return scoreA - scoreB;
+        });
+      orderedNodes.push(...remainingNodes);
+    }
 
     const anchorXs = scoredNodes.map((item) => item.anchorX);
     const minAnchorX = anchorXs.length ? Math.min(...anchorXs) : 120;

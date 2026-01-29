@@ -1,3 +1,54 @@
+# Implementation Plan: 동일 레이어 선후관계 반영 정렬 개선
+
+## 목표
+1. 동일 층위 내 연결선의 선후관계 반영
+2. 같은 레이어 내부 순서가 뒤섞이는 현상 최소화
+3. 기존 레이어 높이/간격/앵커 로직 유지
+
+---
+
+## 핵심 변경 범위
+
+### 1) 동일 레이어 위상 정렬
+- 같은 레이어 간 edge(source/target 동일 레이어)만 추출
+- Kahn 위상 정렬로 순서 산출
+- tie-break는 anchorX, fallbackIndex 사용
+- 사이클 발생 시 anchorX 기반으로 잔여 노드 정렬
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 사이클로 인한 불안정 순서 | 순서 흔들림 | anchorX 기반 fallback 정렬 적용 |
+| 정렬 비용 증가 | 성능 저하 | 레이어별 O(n+e)로 제한 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 동일 레이어 정렬 결과가 악화되거나 성능 문제가 발생
+
+### 롤백 절차
+```bash
+git checkout -- src/utils/flowAutoLayout.ts
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. 동일 레이어 연결에서 source→target 순서가 유지되는지 확인
+2. 엣지 교차 및 역전이 줄었는지 확인
+
+---
+
 # Implementation Plan: 줌 확대 시 노드 사라짐 버그 수정
 
 ## 목표
