@@ -227,7 +227,7 @@ export const convertConnectionToFlowEdge = (connection: ConnectionData): Edge =>
     id: connection.id,
     source: connection.sourceId,
     target: connection.targetId,
-    type: 'default',
+    type: 'animatedFlow',
     animated: connection.relationType === 'direct',
     style: {
       strokeWidth: 2,

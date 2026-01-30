@@ -1858,13 +1858,15 @@ ${chatHistorySection}
         }
       );
 
+      const optimizedEdges = applyOptimalHandlesToEdges(flowNodes, flowEdges);
+
       setNodes(() => {
         nodesRef.current = flowNodes;
         return flowNodes;
       });
       setEdges(() => {
-        edgesRef.current = flowEdges;
-        return flowEdges;
+        edgesRef.current = optimizedEdges;
+        return optimizedEdges;
       });
 
       requestAnimationFrame(() => {
@@ -2765,10 +2767,21 @@ ${chatHistorySection}
         isPositive = true;
       }
 
+      let resolvedSourceHandle = params.sourceHandle;
+      let resolvedTargetHandle = params.targetHandle;
+
+      if ((!resolvedSourceHandle || !resolvedTargetHandle) && sourceNode && targetNode) {
+        const handles = getOptimalHandles(sourceNode, targetNode);
+        resolvedSourceHandle = resolvedSourceHandle ?? handles.sourceHandle;
+        resolvedTargetHandle = resolvedTargetHandle ?? handles.targetHandle;
+      }
+
       const newEdge: Edge = {
         id: `edge-${params.source}-${params.target}`,
         source: params.source!,
         target: params.target!,
+        sourceHandle: resolvedSourceHandle,
+        targetHandle: resolvedTargetHandle,
         type: 'animatedFlow',
         style: {
           strokeWidth: 2,
