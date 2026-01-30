@@ -1,11 +1,12 @@
 // src/components/edges/AnimatedFlowEdge.tsx
 import { memo } from 'react';
-import { BaseEdge, getSmoothStepPath, type EdgeProps, type Edge } from '@xyflow/react';
+import { BaseEdge, getBezierPath, type EdgeProps, type Edge } from '@xyflow/react';
 
 /**
  * 애니메이션 Edge 컴포넌트
  * - SVG animateMotion을 사용하여 원(dot)이 source에서 target으로 이동
  * - 기존 stroke-dasharray 애니메이션보다 성능 우수
+ * - getBezierPath로 부드러운 곡선 구현
  */
 export interface AnimatedFlowEdgeData extends Record<string, unknown> {
   relationType?: 'direct' | 'indirect';
@@ -26,14 +27,13 @@ function AnimatedFlowEdge({
   markerEnd,
   data,
 }: EdgeProps<AnimatedFlowEdge>) {
-  const [edgePath] = getSmoothStepPath({
+  const [edgePath] = getBezierPath({
     sourceX,
     sourceY,
     sourcePosition,
     targetX,
     targetY,
     targetPosition,
-    borderRadius: 8,
   });
 
   // Edge 색상 (style에서 가져오거나 기본값)

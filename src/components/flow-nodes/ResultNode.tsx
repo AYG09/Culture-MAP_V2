@@ -168,65 +168,33 @@ const ResultNode = ({ id, data, selected }: NodeProps & { data: ResultNodeData }
         </div>
       )}
 
-      {/* 연결 핸들 - 결과 노드: 다른 레이어에서 받고, 결과↔결과 간 선-후관계 연결 지원 */}
+      {/* 연결 핸들 - 결과 노드: 4방향 (connectionMode=loose로 양방향 연결 지원) */}
       <Handle
-        id="top-target"
-        type="target"
-        position={Position.Top}
-        className="custom-handle"
-        isConnectable={true}
-      />
-      <Handle
-        id="top-source"
+        id="top"
         type="source"
         position={Position.Top}
         className="custom-handle"
-        style={{ left: '40%' }}
         isConnectable={true}
       />
       <Handle
-        id="bottom-target"
-        type="target"
+        id="bottom"
+        type="source"
         position={Position.Bottom}
         className="custom-handle"
         isConnectable={true}
       />
       <Handle
-        id="bottom-source"
-        type="source"
-        position={Position.Bottom}
-        className="custom-handle"
-        style={{ left: '40%' }}
-        isConnectable={true}
-      />
-      <Handle
-        id="left-target"
-        type="target"
-        position={Position.Left}
-        className="custom-handle handle-side"
-        isConnectable={true}
-      />
-      <Handle
-        id="left-source"
+        id="left"
         type="source"
         position={Position.Left}
         className="custom-handle handle-side"
-        style={{ top: '40%' }}
         isConnectable={true}
       />
       <Handle
-        id="right-source"
+        id="right"
         type="source"
         position={Position.Right}
         className="custom-handle handle-side"
-        isConnectable={true}
-      />
-      <Handle
-        id="right-target"
-        type="target"
-        position={Position.Right}
-        className="custom-handle handle-side"
-        style={{ top: '40%' }}
         isConnectable={true}
       />
 

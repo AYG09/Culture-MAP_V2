@@ -3746,6 +3746,7 @@ ${chatHistorySection}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
                 defaultEdgeOptions={{ type: 'animatedFlow' }}
+                connectionMode="loose"
                 fitView={!isMobile} // 모바일: fitView 비활성화 (전체 캔버스 자유 이동)
                 minZoom={0.1}
                 maxZoom={2}

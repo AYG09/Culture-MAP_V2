@@ -606,35 +606,23 @@ export function getOptimalHandles(
   if (sourceLayer !== targetLayer) {
     if (sourceLayer > targetLayer) {
       // source가 아래층(무형레버 쪽), target이 위층(결과 쪽)
-      return { sourceHandle: 'top-source', targetHandle: 'bottom-target' };
+      return { sourceHandle: 'top', targetHandle: 'bottom' };
     } else {
       // source가 위층, target이 아래층 (비정상적이지만 대응)
-      return { sourceHandle: 'bottom-source', targetHandle: 'top-target' };
+      return { sourceHandle: 'bottom', targetHandle: 'top' };
     }
   }
   
-  // 동일 레이어: 위치 기반 판단
+  // 동일 레이어: 수평 연결 우선 (좌/우 핸들 사용)
   const dx = targetNode.position.x - sourceNode.position.x;
-  const dy = targetNode.position.y - sourceNode.position.y;
   
-  // Y 차이가 더 크면 수직 연결
-  if (Math.abs(dy) > Math.abs(dx) * 0.5) {
-    if (dy > 0) {
-      // target이 아래에 있음
-      return { sourceHandle: 'bottom-source', targetHandle: 'top-target' };
-    } else {
-      // target이 위에 있음
-      return { sourceHandle: 'top-source', targetHandle: 'bottom-target' };
-    }
-  }
-  
-  // X 차이가 더 크면 수평 연결
+  // X 차이 기준 수평 연결
   if (dx > 0) {
     // target이 오른쪽에 있음
-    return { sourceHandle: 'right-source', targetHandle: 'left-target' };
+    return { sourceHandle: 'right', targetHandle: 'left' };
   } else {
     // target이 왼쪽에 있음
-    return { sourceHandle: 'left-source', targetHandle: 'right-target' };
+    return { sourceHandle: 'left', targetHandle: 'right' };
   }
 }
 
