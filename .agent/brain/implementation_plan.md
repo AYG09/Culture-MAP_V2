@@ -1,3 +1,58 @@
+# Implementation Plan: 레이어 라벨 툴팁 가림/정렬 레이어 이탈 수정
+
+## 목표
+1. 레이어 라벨 툴팁이 노드에 가려지지 않도록 표시 계층 분리
+2. 자동 정렬 시 노드가 레이어 범위를 벗어나는 현상 방지
+3. 동일 레이어 선후관계 정렬 로직을 auto_layout 경로에 적용
+
+---
+
+## 핵심 변경 범위
+
+### 1) 툴팁 표시 계층 분리
+- 배경 레이어와 라벨 레이어를 분리된 ViewportPortal로 렌더링
+- 라벨/툴팁 z-index 상향 및 포인터 이벤트 분리
+
+### 2) auto_layout 경로 보정
+- 동일 레이어 edge가 존재할 때 basic 레이아웃 적용
+- AI 일괄 생성 레이아웃 후 safeAutoLayout 재실행
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 라벨 클릭/드래그 이벤트 충돌 | UX 문제 | 라벨 컨테이너 pointerEvents 분리 |
+| auto_layout 재실행 중복 | 성능 저하 | requestAnimationFrame으로 1회 재실행 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 라벨 툴팁 표시 불안정 또는 정렬 결과 악화
+
+### 롤백 절차
+```bash
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- src/components/CultureMapFlow.css
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. 툴팁이 노드에 가려지지 않고 항상 표시되는지 확인
+2. 자동 정렬 후 노드가 레이어 범위 안에 유지되는지 확인
+3. 동일 레이어 선후관계가 정렬에 반영되는지 확인
+
+---
+
 # Implementation Plan: 동일 레이어 선후관계 반영 정렬 개선
 
 ## 목표

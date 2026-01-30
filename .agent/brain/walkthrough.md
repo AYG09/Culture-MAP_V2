@@ -1,3 +1,45 @@
+# Walkthrough: 레이어 라벨 툴팁 가림/정렬 레이어 이탈 수정
+
+## 완료 일시
+2026-01-30
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 레이어 라벨 툴팁이 노드에 가려지지 않도록 개선
+2. 자동 정렬 시 노드가 레이어를 벗어나는 현상 방지
+3. 동일 레이어 선후관계 정렬을 auto_layout 경로에 반영
+
+---
+
+## ✅ 해결 조치
+
+1. 라벨을 별도 ViewportPortal로 분리하고 z-index 상향
+2. 동일 레이어 edge 존재 시 basic 레이아웃 사용
+3. AI 일괄 생성 후 safeAutoLayout 재실행
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/components/CultureMapFlow.tsx` | 레이어 라벨 포털 분리, auto_layout 보정 |
+| `src/components/CultureMapFlow.css` | 툴팁 z-index 상향 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. 툴팁이 노드에 가려지지 않는지 확인 필요(사용자 환경)
+2. 자동 정렬 후 노드가 레이어 범위 내에 있는지 확인 필요(사용자 환경)
+3. 동일 레이어 선후관계 반영 확인 필요(사용자 환경)
+
+---
+
 # Walkthrough: 동일 레이어 선후관계 반영 정렬 개선
 
 ## 완료 일시

@@ -601,7 +601,7 @@
   transform: translateY(-4px);
   transition: all 0.15s ease;
   pointer-events: none;
-  z-index: 5;
+  z-index: 20;
 }
 
 .layer-label:hover .layer-tooltip {

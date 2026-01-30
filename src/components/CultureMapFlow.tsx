@@ -65,7 +65,7 @@ import type { StickyNoteData, ConnectionData as LBConnectionData, LayerSettings,
 
 // 유틸리티
 import { convertToFlowData, convertFromFlowData } from '../utils/flowDataConverter';
-import { buildElkLayoutOptions, getElkLayoutedElements } from '../utils/flowAutoLayout';
+import { buildElkLayoutOptions, getElkLayoutedElements, getLayoutedElements } from '../utils/flowAutoLayout';
 import { parseAIOutput } from '../utils/parser';
 
 // Liveblocks 서비스
@@ -624,11 +624,23 @@ ${chatHistorySection}
       (edge) => nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target)
     );
 
-    const { nodes: layoutedNodes, edges: layoutedEdges } = await getElkLayoutedElements(
-      currentNodes,
-      filteredEdges,
-      buildElkLayoutOptions(layoutSpacingRef.current)
-    );
+    const nodeTypeById = new Map(currentNodes.map((node) => [node.id, node.type || 'result']));
+    const hasIntraLayerEdges = filteredEdges.some((edge) => {
+      const sourceType = nodeTypeById.get(edge.source);
+      const targetType = nodeTypeById.get(edge.target);
+      return Boolean(sourceType && targetType && sourceType === targetType);
+    });
+
+    const { nodes: layoutedNodes, edges: layoutedEdges } = hasIntraLayerEdges
+      ? getLayoutedElements(currentNodes, filteredEdges, {
+        layerHeights,
+        spacingPreset: layoutSpacingRef.current,
+      })
+      : await getElkLayoutedElements(
+        currentNodes,
+        filteredEdges,
+        buildElkLayoutOptions(layoutSpacingRef.current)
+      );
 
     if (!layoutedNodes.length || layoutedNodes.length !== currentNodes.length) {
       console.warn('⚠️ [React Flow] auto_layout 중단: 레이아웃 결과가 비정상입니다.', {
@@ -1695,6 +1707,40 @@ ${chatHistorySection}
 
   const aiContext = useMemo(() => convertFromFlowData(nodes, edges), [nodes, edges]);
 
+  const layerDefinitions = useMemo(
+    () => [
+      {
+        name: '결과',
+        color: 'rgba(255, 107, 107, OPACITY)',
+        index: 0,
+        description: '성과와 KPI, 산출물 등 가시적 결과',
+        examples: '프로젝트 성공률, 고객 만족도, 매출 지표',
+      },
+      {
+        name: '행동',
+        color: 'rgba(78, 205, 196, OPACITY)',
+        index: 1,
+        description: '구성원이 실제로 보이는 행동 패턴',
+        examples: '협업 방식, 보고 습관, 의사결정 참여',
+      },
+      {
+        name: '유형 레버',
+        color: 'rgba(149, 225, 211, OPACITY)',
+        index: 2,
+        description: '조직의 유형적 기능과 제도/시스템',
+        examples: '구조, 권한, 프로세스, 제도, 도구',
+      },
+      {
+        name: '무형 레버',
+        color: 'rgba(255, 230, 109, OPACITY)',
+        index: 3,
+        description: '기본 가정, 가치관, 신념',
+        examples: '조직이 당연하게 여기는 원칙과 문화',
+      },
+    ],
+    []
+  );
+
   const hydrateFromLiveblocks = useCallback(
     (reason: string) => {
       if (!liveblocksService.isConnected()) {
@@ -2337,6 +2383,9 @@ ${chatHistorySection}
       // 상태 업데이트
       setNodes(layouted.nodes);
       setEdges(layouted.edges);
+      nodesRef.current = layouted.nodes;
+      edgesRef.current = layouted.edges;
+      requestAnimationFrame(() => safeAutoLayout(false));
 
       // 로컬 notes/connections 상태도 업데이트
       onNotesChange(parsedNotes);
@@ -2399,7 +2448,8 @@ ${chatHistorySection}
     setNodes,
     setEdges,
     onNotesChange,
-    onConnectionsChange
+    onConnectionsChange,
+    safeAutoLayout
   ]);
 
   // 자동 레이아웃 실행 핸들러
@@ -3683,118 +3733,128 @@ ${chatHistorySection}
 
                 {/* 층위 배경 레이어 (ViewportPortal 사용 - transform 적용됨) */}
                 {showLayerBackground && (
-                  <ViewportPortal>
-                    <div
-                      data-layer-background-root="true"
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '10000px', // 충분히 큰 크기
-                        height: '10000px',
-                        pointerEvents: 'none',
-                        zIndex: -1, // 포스트잇 뒤로
-                      }}
-                    >
-                      {/* 배경층들 - 개별 높이 적용 */}
-                      {[
-                        {
-                          name: '결과',
-                          color: 'rgba(255, 107, 107, OPACITY)',
-                          index: 0,
-                          description: '성과와 KPI, 산출물 등 가시적 결과',
-                          examples: '프로젝트 성공률, 고객 만족도, 매출 지표',
-                        },
-                        {
-                          name: '행동',
-                          color: 'rgba(78, 205, 196, OPACITY)',
-                          index: 1,
-                          description: '구성원이 실제로 보이는 행동 패턴',
-                          examples: '협업 방식, 보고 습관, 의사결정 참여',
-                        },
-                        {
-                          name: '유형 레버',
-                          color: 'rgba(149, 225, 211, OPACITY)',
-                          index: 2,
-                          description: '조직의 유형적 기능과 제도/시스템',
-                          examples: '구조, 권한, 프로세스, 제도, 도구',
-                        },
-                        {
-                          name: '무형 레버',
-                          color: 'rgba(255, 230, 109, OPACITY)',
-                          index: 3,
-                          description: '기본 가정, 가치관, 신념',
-                          examples: '조직이 당연하게 여기는 원칙과 문화',
-                        },
-                      ].map((layer, displayIndex, layers) => {
-                        // 각 층위의 Y 좌표 계산 (표시 순서 기준 누적)
-                        let y = 0;
-                        for (let i = 0; i < displayIndex; i++) {
-                          const previousLayer = layers[i];
-                          y += layerHeights[previousLayer.index] ?? 0;
-                        }
+                  <>
+                    <ViewportPortal>
+                      <div
+                        data-layer-background-root="true"
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '10000px', // 충분히 큰 크기
+                          height: '10000px',
+                          pointerEvents: 'none',
+                          zIndex: -1, // 포스트잇 뒤로
+                        }}
+                      >
+                        {/* 배경층들 - 개별 높이 적용 */}
+                        {layerDefinitions.map((layer, displayIndex, layers) => {
+                          // 각 층위의 Y 좌표 계산 (표시 순서 기준 누적)
+                          let y = 0;
+                          for (let i = 0; i < displayIndex; i++) {
+                            const previousLayer = layers[i];
+                            y += layerHeights[previousLayer.index] ?? 0;
+                          }
 
-                        const getLayerColor = (opacity: number) => layer.color.replace('OPACITY', String(opacity));
-                        const bgColor = getLayerColor(layerOpacities[layer.index]);
+                          const getLayerColor = (opacity: number) => layer.color.replace('OPACITY', String(opacity));
+                          const bgColor = getLayerColor(layerOpacities[layer.index]);
 
-                        return (
-                          <div
-                            data-layer-capture="segment"
-                            key={layer.name}
-                            style={{
-                              position: 'absolute',
-                              transform: `translate(0px, ${y}px)`, // ViewportPortal에서는 transform 사용
-                              left: 0,
-                              width: '100%',
-                              height: `${layerHeights[layer.index]}px`,
-                              backgroundColor: bgColor,
-                              borderBottom: layer.index < 3 ? `2px dashed ${getLayerColor(0.3)}` : 'none',
-                            }}
-                          >
+                          return (
                             <div
-                              data-layer-capture="label"
-                              onClick={() => {
-                                // 이미 선택된 라벨을 다시 클릭하면 선택 해제 및 패널 닫기
-                                if (selectedLayerIndex === layer.index) {
-                                  setSelectedLayerIndex(null); // 선택 해제
-                                  setShowLayerControlPanel(false); // 패널 닫기
-                                } else {
-                                  // 다른 라벨 클릭 시 선택 변경 및 패널 열기
-                                  setSelectedLayerIndex(layer.index);
-                                  setShowLayerControlPanel(true);
-                                }
-                              }}
+                              data-layer-capture="segment"
+                              key={layer.name}
                               style={{
                                 position: 'absolute',
-                                top: '10px',
-                                left: '32px',
-                                padding: '6px 16px',
-                                backgroundColor: selectedLayerIndex === layer.index ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.9)',
-                                border: `2px solid ${selectedLayerIndex === layer.index ? getLayerColor(0.8) : getLayerColor(0.5)}`,
-                                borderRadius: '12px',
-                                fontSize: '12px',
-                                fontWeight: 'bold',
-                                color: layer.color.replace('0.05', '0.8'),
-                                boxShadow: selectedLayerIndex === layer.index ? '0 4px 12px rgba(0, 0, 0, 0.2)' : '0 2px 6px rgba(0, 0, 0, 0.12)',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                pointerEvents: 'auto', // 라벨만 클릭 가능
+                                transform: `translate(0px, ${y}px)`, // ViewportPortal에서는 transform 사용
+                                left: 0,
+                                width: '100%',
+                                height: `${layerHeights[layer.index]}px`,
+                                backgroundColor: bgColor,
+                                borderBottom: layer.index < 3 ? `2px dashed ${getLayerColor(0.3)}` : 'none',
                               }}
-                              className="nopan nodrag layer-label"
-                              title={selectedLayerIndex === layer.index ? "다시 클릭하여 선택 해제 및 패널 닫기" : "클릭하여 이 층위 선택 및 높이 조절"}
+                            />
+                          );
+                        })}
+                      </div>
+                    </ViewportPortal>
+                    <ViewportPortal>
+                      <div
+                        data-layer-label-root="true"
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '10000px',
+                          height: '10000px',
+                          pointerEvents: 'none',
+                          zIndex: 6,
+                        }}
+                      >
+                        {layerDefinitions.map((layer, displayIndex, layers) => {
+                          let y = 0;
+                          for (let i = 0; i < displayIndex; i++) {
+                            const previousLayer = layers[i];
+                            y += layerHeights[previousLayer.index] ?? 0;
+                          }
+
+                          const getLayerColor = (opacity: number) => layer.color.replace('OPACITY', String(opacity));
+
+                          return (
+                            <div
+                              key={`${layer.name}-label`}
+                              style={{
+                                position: 'absolute',
+                                transform: `translate(0px, ${y}px)`,
+                                left: 0,
+                                width: '100%',
+                                height: `${layerHeights[layer.index]}px`,
+                                pointerEvents: 'none',
+                              }}
                             >
-                              {selectedLayerIndex === layer.index ? '📌 ' : ''}{layer.name}
-                              <div className="layer-tooltip" role="tooltip">
-                                <div className="layer-tooltip-title">{layer.name}</div>
-                                <div className="layer-tooltip-body">{layer.description}</div>
-                                <div className="layer-tooltip-examples">예시: {layer.examples}</div>
+                              <div
+                                data-layer-capture="label"
+                                onClick={() => {
+                                  if (selectedLayerIndex === layer.index) {
+                                    setSelectedLayerIndex(null);
+                                    setShowLayerControlPanel(false);
+                                  } else {
+                                    setSelectedLayerIndex(layer.index);
+                                    setShowLayerControlPanel(true);
+                                  }
+                                }}
+                                style={{
+                                  position: 'absolute',
+                                  top: '10px',
+                                  left: '32px',
+                                  padding: '6px 16px',
+                                  backgroundColor: selectedLayerIndex === layer.index ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.9)',
+                                  border: `2px solid ${selectedLayerIndex === layer.index ? getLayerColor(0.8) : getLayerColor(0.5)}`,
+                                  borderRadius: '12px',
+                                  fontSize: '12px',
+                                  fontWeight: 'bold',
+                                  color: layer.color.replace('0.05', '0.8'),
+                                  boxShadow: selectedLayerIndex === layer.index ? '0 4px 12px rgba(0, 0, 0, 0.2)' : '0 2px 6px rgba(0, 0, 0, 0.12)',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s ease',
+                                  pointerEvents: 'auto',
+                                  zIndex: 7,
+                                }}
+                                className="nopan nodrag layer-label"
+                                title={selectedLayerIndex === layer.index ? "다시 클릭하여 선택 해제 및 패널 닫기" : "클릭하여 이 층위 선택 및 높이 조절"}
+                              >
+                                {selectedLayerIndex === layer.index ? '📌 ' : ''}{layer.name}
+                                <div className="layer-tooltip" role="tooltip">
+                                  <div className="layer-tooltip-title">{layer.name}</div>
+                                  <div className="layer-tooltip-body">{layer.description}</div>
+                                  <div className="layer-tooltip-examples">예시: {layer.examples}</div>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </ViewportPortal>
+                          );
+                        })}
+                      </div>
+                    </ViewportPortal>
+                  </>
                 )}
 
                 {/* 층위 관리 패널 토글 버튼 */}
