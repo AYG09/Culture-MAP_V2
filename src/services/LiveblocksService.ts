@@ -362,12 +362,49 @@ class LiveblocksService {
 
     public getStickyNotes(): StickyNoteData[] {
         if (!this.yDoc) return [];
-        return this.yDoc.getArray<StickyNoteData>('nodes').toArray();
+        const rawArray = this.yDoc.getArray<StickyNoteData>('nodes').toArray();
+        // dedupe by id - 마지막 항목 유지 (최신 업데이트)
+        const deduped = new Map<string, StickyNoteData>();
+        rawArray.forEach(note => deduped.set(note.id, note));
+        return Array.from(deduped.values());
     }
 
     public getConnections(): LBConnectionData[] {
         if (!this.yDoc) return [];
-        return this.yDoc.getArray<LBConnectionData>('connections').toArray();
+        const rawArray = this.yDoc.getArray<LBConnectionData>('connections').toArray();
+        // dedupe by id
+        const deduped = new Map<string, LBConnectionData>();
+        rawArray.forEach(conn => deduped.set(conn.id, conn));
+        return Array.from(deduped.values());
+    }
+
+    /**
+     * Yjs 배열에서 중복 노드 제거 (소스 레벨 cleanup)
+     * @returns 제거된 중복 노드 수
+     */
+    public cleanupDuplicateNodes(): number {
+        if (!this.yDoc) return 0;
+        const nodes = this.yDoc.getArray<StickyNoteData>('nodes');
+        const seen = new Map<string, number>();
+        const toDelete: number[] = [];
+
+        nodes.forEach((node, index) => {
+            if (seen.has(node.id)) {
+                // 이전 인덱스(오래된 항목)를 삭제 대상에 추가
+                toDelete.push(seen.get(node.id)!);
+            }
+            seen.set(node.id, index);
+        });
+
+        if (toDelete.length === 0) return 0;
+
+        // 역순으로 삭제 (인덱스 변동 방지)
+        this.yDoc.transact(() => {
+            toDelete.sort((a, b) => b - a).forEach(idx => nodes.delete(idx, 1));
+        });
+
+        console.log(`🧹 [Liveblocks] cleanupDuplicateNodes: ${toDelete.length}개 중복 노드 제거`);
+        return toDelete.length;
     }
 
     public onChatMessages(callback: (messages: ChatMessage[]) => void): () => void {
@@ -451,6 +488,47 @@ class LiveblocksService {
             else { nodes.push([fullNote]); }
         });
         console.log('✅ [Liveblocks] updateStickyNote 완료:', note.id);
+    }
+
+    /**
+     * 다수 노드 위치를 단일 트랜잭션으로 일괄 업데이트 (레이아웃용)
+     * @param updates 업데이트할 노드 배열 (id, x, y 필수)
+     */
+    public batchUpdateNodePositions(updates: Array<{ id: string; x: number; y: number; content?: string; layer?: number; sentiment?: string }>): void {
+        if (!this.yDoc || updates.length === 0) return;
+        const nodes = this.yDoc.getArray<StickyNoteData>('nodes');
+        
+        // 인덱스 미리 계산 (트랜잭션 내에서 인덱스가 변경되므로 Map 사용)
+        const indexMap = new Map<string, number>();
+        nodes.forEach((node, idx) => {
+            if (!indexMap.has(node.id)) {
+                indexMap.set(node.id, idx);
+            }
+        });
+
+        this.yDoc.transact(() => {
+            updates.forEach(update => {
+                const index = indexMap.get(update.id);
+                if (index === undefined || index < 0) return;
+                
+                const existing = nodes.get(index);
+                if (!existing) return;
+                
+                const fullNote: StickyNoteData = {
+                    ...existing,
+                    x: update.x,
+                    y: update.y,
+                    ...(update.content !== undefined && { content: update.content }),
+                    ...(update.layer !== undefined && { layer: update.layer }),
+                    ...(update.sentiment !== undefined && { sentiment: update.sentiment }),
+                    timestamp: Date.now(),
+                    author: this.displayName,
+                };
+                nodes.delete(index, 1);
+                nodes.insert(index, [fullNote]);
+            });
+        });
+        console.log(`✅ [Liveblocks] batchUpdateNodePositions 완료: ${updates.length}개 노드`);
     }
 
     public deleteStickyNote(noteId: string): void {

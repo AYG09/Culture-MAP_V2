@@ -777,17 +777,19 @@ ${chatHistorySection}
     setNodes(adjustedNodes);
     setEdges(layoutedEdges);
 
-    adjustedNodes.forEach((node) => {
+    // 일괄 트랜잭션으로 Liveblocks 업데이트 (observer 트리거 최소화)
+    const batchUpdates = adjustedNodes.map((node) => {
       const currentData = node.data as { content?: string; sentiment?: string };
-      liveblocksService.updateStickyNote({
+      return {
         id: node.id,
         x: node.position.x,
         y: node.position.y,
         content: currentData.content,
         layer: (node.type === 'result' ? 1 : node.type === 'behavior' ? 2 : node.type === 'tangible_lever' ? 3 : 4),
         sentiment: currentData.sentiment || 'neutral'
-      });
+      };
     });
+    liveblocksService.batchUpdateNodePositions(batchUpdates);
 
     if (showAlert) {
       alert('컬처맵이 데이브 그레이 모델 구조에 맞춰 정렬되었습니다.');
@@ -1874,6 +1876,11 @@ ${chatHistorySection}
     type EventHandler = (...args: unknown[]) => void;
 
     const handleSyncComplete: EventHandler = () => {
+      // Yjs 소스 레벨에서 중복 노드 정리 (1회성)
+      const cleaned = liveblocksService.cleanupDuplicateNodes();
+      if (cleaned > 0) {
+        console.log(`🧹 [React Flow] sync-complete: ${cleaned}개 중복 노드 정리 완료`);
+      }
       hydrateFromLiveblocks('sync-complete');
     };
 
