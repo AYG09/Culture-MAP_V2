@@ -601,16 +601,18 @@ export function getOptimalHandles(
 ): { sourceHandle: string; targetHandle: string } {
   const sourceLayer = LAYER_CONFIG[sourceNode.type as keyof typeof LAYER_CONFIG]?.rank ?? 0;
   const targetLayer = LAYER_CONFIG[targetNode.type as keyof typeof LAYER_CONFIG]?.rank ?? 0;
+  const sourceY = sourceNode.position.y;
+  const targetY = targetNode.position.y;
   
   // 층위가 다른 경우: 높은 rank(무형레버)에서 낮은 rank(결과)로
   if (sourceLayer !== targetLayer) {
-    if (sourceLayer > targetLayer) {
-      // source가 아래층(무형레버 쪽), target이 위층(결과 쪽)
+    // 실제 Y 좌표 기준으로 위/아래 연결 보정
+    if (sourceY > targetY) {
+      // source가 아래에 있고 target이 위에 있음
       return { sourceHandle: 'top', targetHandle: 'bottom' };
-    } else {
-      // source가 위층, target이 아래층 (비정상적이지만 대응)
-      return { sourceHandle: 'bottom', targetHandle: 'top' };
     }
+    // source가 위에 있고 target이 아래에 있음
+    return { sourceHandle: 'bottom', targetHandle: 'top' };
   }
   
   // 동일 레이어: 수평 연결 우선 (좌/우 핸들 사용)
