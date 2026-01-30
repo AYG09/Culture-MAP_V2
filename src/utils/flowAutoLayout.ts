@@ -55,7 +55,7 @@ const LAYOUT_OPTIONS = {
 const NODE_WIDTH = 250;
 const NODE_HEIGHT = 120;
 const LAYER_PADDING_Y = 40;
-const LAYER_MAX_HEIGHT = 1000; // 레이어 최대 높이 (복잡한 선-후 관계 대응)
+export const LAYER_MAX_HEIGHT = 1000; // 레이어 최대 높이 (복잡한 선-후 관계 대응)
 const INTRA_LAYER_ROW_OFFSET = 150; // 동일 레이어 내 선-후 관계 Y 오프셋
 
 /**

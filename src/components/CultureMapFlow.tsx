@@ -66,7 +66,7 @@ import type { StickyNoteData, ConnectionData as LBConnectionData, LayerSettings,
 
 // 유틸리티
 import { convertToFlowData, convertFromFlowData } from '../utils/flowDataConverter';
-import { buildElkLayoutOptions, getElkLayoutedElements, getLayoutedElements, applyOptimalHandlesToEdges, getOptimalHandles } from '../utils/flowAutoLayout';
+import { buildElkLayoutOptions, getElkLayoutedElements, getLayoutedElements, applyOptimalHandlesToEdges, getOptimalHandles, LAYER_MAX_HEIGHT } from '../utils/flowAutoLayout';
 import { parseAIOutput } from '../utils/parser';
 
 // Liveblocks 서비스
@@ -747,7 +747,7 @@ ${chatHistorySection}
 
     const resolvedLayerHeights = layerHeights.map((height, index) => {
       const required = maxHeightsByLayer[index] + layerPaddingY;
-      return Math.min(800, Math.max(height, required));
+      return Math.min(LAYER_MAX_HEIGHT, Math.max(height, required));
     });
 
     const shouldUpdateHeights = resolvedLayerHeights.some(
@@ -1256,7 +1256,7 @@ ${chatHistorySection}
         if (payload.layer && payload.height) {
           const layerIndex = payload.layer - 1;
           const newHeights = [...layerHeights];
-          newHeights[layerIndex] = Math.min(800, Math.max(100, payload.height));
+          newHeights[layerIndex] = Math.min(LAYER_MAX_HEIGHT, Math.max(100, payload.height));
           setLayerHeights(newHeights);
 
           setTimeout(() => safeAutoLayout(false), 100);
@@ -4112,12 +4112,12 @@ ${chatHistorySection}
                         <input
                           type="number"
                           min="100"
-                          max="800"
+                          max="1000"
                           step="20"
                           value={layerHeights[selectedLayerIndex ?? 0]}
                           onChange={(e) => {
                             if (selectedLayerIndex === null) return;
-                            const value = Math.min(800, Math.max(100, Number(e.target.value)));
+                            const value = Math.min(LAYER_MAX_HEIGHT, Math.max(100, Number(e.target.value)));
                             const newHeights = [...layerHeights];
                             newHeights[selectedLayerIndex] = value;
                             setLayerHeights(newHeights);
