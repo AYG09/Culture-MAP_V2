@@ -55,6 +55,8 @@ const LAYOUT_OPTIONS = {
 const NODE_WIDTH = 250;
 const NODE_HEIGHT = 120;
 const LAYER_PADDING_Y = 40;
+const LAYER_MAX_HEIGHT = 1000; // 레이어 최대 높이 (복잡한 선-후 관계 대응)
+const INTRA_LAYER_ROW_OFFSET = 150; // 동일 레이어 내 선-후 관계 Y 오프셋
 
 /**
  * 4층위 계층 구조로 노드 자동 배치
@@ -193,7 +195,7 @@ function getBasicLayoutedElements(
       ? Math.max(...layerNodes.map((node) => getNodeHeight(node)))
       : NODE_HEIGHT;
     const heightIndex = LAYER_HEIGHT_INDEX[layerKey] ?? 0;
-    return Math.min(800, Math.max(layerHeights[heightIndex] ?? NODE_HEIGHT, maxHeight + LAYER_PADDING_Y));
+    return Math.min(LAYER_MAX_HEIGHT, Math.max(layerHeights[heightIndex] ?? NODE_HEIGHT, maxHeight + LAYER_PADDING_Y));
   });
 
   layerOrder.forEach((layerKey, layerIndex) => {
@@ -355,31 +357,71 @@ function getBasicLayoutedElements(
     const minAnchorX = anchorXs.length ? Math.min(...anchorXs) : 120;
     const startX = options?.startX ?? Math.max(80, Math.floor(minAnchorX));
 
-    let cursorX = startX;
-
-    // 같은 층위의 노드들을 수평으로 나열 (앵커 보존 + 충돌 최소화)
+    // 동일 레이어 내 선-후 관계에 따른 depth 계산
+    const depthById = new Map<string, number>();
+    
+    // 위상정렬 순서대로 depth 할당
     orderedNodes.forEach((node) => {
-      const scored = scoredNodes.find((item) => item.node.id === node.id);
-      const anchorX = scored?.anchorX ?? cursorX;
-      const width = getNodeWidth(node);
-      const nextX = Math.max(anchorX, cursorX);
-
-      const position = {
-        x: nextX,
-        y: fixedY,
-      };
-
-      layoutedNodes.push({
-        ...node,
-        position,
-        // Handle 위치 설정
-        targetPosition: Position.Top,
-        sourcePosition: Position.Bottom,
+      let maxParentDepth = -1;
+      
+      // 같은 레이어 내에서 이 노드를 가리키는 source 노드들 확인
+      edges.forEach((edge) => {
+        if (edge.target === node.id && sameLayerIds.has(edge.source)) {
+          const parentDepth = depthById.get(edge.source) ?? 0;
+          maxParentDepth = Math.max(maxParentDepth, parentDepth);
+        }
       });
-
-      layoutPositionById.set(node.id, position);
-      cursorX = nextX + width + minGap;
+      
+      // 부모가 있으면 부모 depth + 1, 없으면 0
+      depthById.set(node.id, maxParentDepth + 1);
     });
+
+    // 최대 depth 확인
+    const maxDepth = Math.max(0, ...Array.from(depthById.values()));
+    
+    // X 좌표 배치를 위한 depth별 그룹화
+    const nodesByDepth = new Map<number, Node[]>();
+    orderedNodes.forEach((node) => {
+      const depth = depthById.get(node.id) ?? 0;
+      if (!nodesByDepth.has(depth)) {
+        nodesByDepth.set(depth, []);
+      }
+      nodesByDepth.get(depth)!.push(node);
+    });
+
+    // 각 depth별로 X 좌표 배치
+    for (let depth = 0; depth <= maxDepth; depth++) {
+      const depthNodes = nodesByDepth.get(depth) || [];
+      
+      // 이 depth의 Y 오프셋
+      const yOffset = depth * INTRA_LAYER_ROW_OFFSET;
+      
+      // X 좌표 배치
+      let cursorXForDepth = startX + depth * 50; // depth마다 약간씩 오른쪽으로 시작
+      
+      depthNodes.forEach((node) => {
+        const scored = scoredNodes.find((item) => item.node.id === node.id);
+        const anchorX = scored?.anchorX ?? cursorXForDepth;
+        const width = getNodeWidth(node);
+        const nextX = Math.max(anchorX, cursorXForDepth);
+
+        const position = {
+          x: nextX,
+          y: fixedY + yOffset,
+        };
+
+        layoutedNodes.push({
+          ...node,
+          position,
+          // Handle 위치 설정
+          targetPosition: Position.Top,
+          sourcePosition: Position.Bottom,
+        });
+
+        layoutPositionById.set(node.id, position);
+        cursorXForDepth = nextX + width + minGap;
+      });
+    }
   });
 
   return {
@@ -546,4 +588,84 @@ export function getLayerY(layer: string): number {
  */
 export function getLayerColor(layer: string): string {
   return LAYER_CONFIG[layer as keyof typeof LAYER_CONFIG]?.color ?? '#888888';
+}
+
+/**
+ * 두 노드의 위치를 비교하여 최적의 sourceHandle/targetHandle 조합을 반환
+ * - 층위가 다른 경우: 위-아래 연결 (상위 층위의 bottom → 하위 층위의 top)
+ * - 동일 레이어: 노드 위치에 따라 최적의 방향 선택
+ */
+export function getOptimalHandles(
+  sourceNode: Node,
+  targetNode: Node
+): { sourceHandle: string; targetHandle: string } {
+  const sourceLayer = LAYER_CONFIG[sourceNode.type as keyof typeof LAYER_CONFIG]?.rank ?? 0;
+  const targetLayer = LAYER_CONFIG[targetNode.type as keyof typeof LAYER_CONFIG]?.rank ?? 0;
+  
+  // 층위가 다른 경우: 높은 rank(무형레버)에서 낮은 rank(결과)로
+  if (sourceLayer !== targetLayer) {
+    if (sourceLayer > targetLayer) {
+      // source가 아래층(무형레버 쪽), target이 위층(결과 쪽)
+      return { sourceHandle: 'top-source', targetHandle: 'bottom-target' };
+    } else {
+      // source가 위층, target이 아래층 (비정상적이지만 대응)
+      return { sourceHandle: 'bottom-source', targetHandle: 'top-target' };
+    }
+  }
+  
+  // 동일 레이어: 위치 기반 판단
+  const dx = targetNode.position.x - sourceNode.position.x;
+  const dy = targetNode.position.y - sourceNode.position.y;
+  
+  // Y 차이가 더 크면 수직 연결
+  if (Math.abs(dy) > Math.abs(dx) * 0.5) {
+    if (dy > 0) {
+      // target이 아래에 있음
+      return { sourceHandle: 'bottom-source', targetHandle: 'top-target' };
+    } else {
+      // target이 위에 있음
+      return { sourceHandle: 'top-source', targetHandle: 'bottom-target' };
+    }
+  }
+  
+  // X 차이가 더 크면 수평 연결
+  if (dx > 0) {
+    // target이 오른쪽에 있음
+    return { sourceHandle: 'right-source', targetHandle: 'left-target' };
+  } else {
+    // target이 왼쪽에 있음
+    return { sourceHandle: 'left-source', targetHandle: 'right-target' };
+  }
+}
+
+/**
+ * Edge에 최적의 Handle 정보를 적용
+ */
+export function applyOptimalHandlesToEdges(
+  nodes: Node[],
+  edges: Edge[]
+): Edge[] {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  
+  return edges.map((edge) => {
+    const sourceNode = nodeById.get(edge.source);
+    const targetNode = nodeById.get(edge.target);
+    
+    if (!sourceNode || !targetNode) {
+      return edge;
+    }
+    
+    // 이미 sourceHandle/targetHandle이 있으면 유지
+    if (edge.sourceHandle && edge.targetHandle) {
+      return edge;
+    }
+    
+    const { sourceHandle, targetHandle } = getOptimalHandles(sourceNode, targetNode);
+    
+    return {
+      ...edge,
+      sourceHandle,
+      targetHandle,
+    };
+  });
 }

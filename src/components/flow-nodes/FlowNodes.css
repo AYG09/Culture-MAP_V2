@@ -228,6 +228,17 @@
   transform: scale(1.2);
 }
 
+/* 좌/우 Handle 스타일 */
+.custom-handle.handle-side {
+  width: 10px;
+  height: 10px;
+  opacity: 0.7;
+}
+
+.custom-handle.handle-side:hover {
+  opacity: 1;
+}
+
 /* NodeResizer 핸들 크기 확대 */
 .node-resizer-handle {
   width: 16px !important;

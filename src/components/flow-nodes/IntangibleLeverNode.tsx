@@ -169,11 +169,33 @@ const IntangibleLeverNode = ({ id, data, selected }: NodeProps & { data: Intangi
         </div>
       )}
 
-      {/* 연결 핸들 - 무형레버는 최하층이므로 위로만 연결을 보냄 (source만) */}
+      {/* 연결 핸들 - 무형레버: 4방향 source (최하층이므로 보내기만 함) */}
       <Handle
+        id="top"
         type="source"
         position={Position.Top}
         className="custom-handle"
+        isConnectable={true}
+      />
+      <Handle
+        id="bottom"
+        type="source"
+        position={Position.Bottom}
+        className="custom-handle"
+        isConnectable={true}
+      />
+      <Handle
+        id="left"
+        type="source"
+        position={Position.Left}
+        className="custom-handle handle-side"
+        isConnectable={true}
+      />
+      <Handle
+        id="right"
+        type="source"
+        position={Position.Right}
+        className="custom-handle handle-side"
         isConnectable={true}
       />
 

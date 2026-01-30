@@ -27,6 +27,7 @@ import {
   TangibleLeverNode,
   IntangibleLeverNode,
 } from './flow-nodes';
+import AnimatedFlowEdge from './edges/AnimatedFlowEdge';
 import MobileGestureGuide from './MobileGestureGuide';
 import AIChatSidebar from './AIChatSidebar'; // 좌측 사이드메뉴 (AI 챗봇)
 import { useIsMobile } from '../hooks/useResponsive'; // 반응형 훅 추가
@@ -120,6 +121,11 @@ const nodeTypes = {
   behavior: BehaviorNode,
   tangible_lever: TangibleLeverNode,
   intangible_lever: IntangibleLeverNode,
+};
+
+// 커스텀 엣지 타입 정의 - 화살표 이동 애니메이션
+const edgeTypes = {
+  animatedFlow: AnimatedFlowEdge,
 };
 
 const NOTE_TYPE_MAP: Record<string, NoteData['type']> = {
@@ -1038,12 +1044,10 @@ ${chatHistorySection}
             id: edgeId,
             source: sourceId,
             target: targetId,
-            type: 'default',
-            animated: false,
+            type: 'animatedFlow',
             style: {
               strokeWidth: 2,
               stroke: edgeColor,
-              strokeDasharray: relationType === 'indirect' ? '5 5' : undefined,
             },
             markerEnd: {
               type: 'arrowclosed',
@@ -1193,8 +1197,7 @@ ${chatHistorySection}
             id: edgeId,
             source: sourceId,
             target: targetId,
-            type: 'default',
-            animated: false,
+            type: 'animatedFlow',
             style: {
               strokeWidth: styleVariables.edgeWidth,
               stroke: styleVariables.edgeColor,
@@ -2231,8 +2234,7 @@ ${chatHistorySection}
           id: connection.id,
           source: connection.sourceId,
           target: connection.targetId,
-          type: 'default',
-          animated: false, // 애니메이션은 사용하지 않음
+          type: 'animatedFlow',
           style: {
             ...edgeStyle,
             stroke: edgeColor,
@@ -2749,8 +2751,7 @@ ${chatHistorySection}
         id: `edge-${params.source}-${params.target}`,
         source: params.source!,
         target: params.target!,
-        type: 'default',
-        animated: false, // 기본값은 애니메이션 없음
+        type: 'animatedFlow',
         style: {
           strokeWidth: 2,
           stroke: edgeColor,
@@ -3725,6 +3726,8 @@ ${chatHistorySection}
                 onNodeContextMenu={handleNodeContextMenu}
                 onEdgeContextMenu={handleEdgeContextMenu}
                 nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
+                defaultEdgeOptions={{ type: 'animatedFlow' }}
                 fitView={!isMobile} // 모바일: fitView 비활성화 (전체 캔버스 자유 이동)
                 minZoom={0.1}
                 maxZoom={2}

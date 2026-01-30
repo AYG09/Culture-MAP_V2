@@ -169,17 +169,65 @@ const TangibleLeverNode = ({ id, data, selected }: NodeProps & { data: TangibleL
         </div>
       )}
 
-      {/* 연결 핸들 - 유형레버 (아래에서 받고, 위로 보냄) */}
+      {/* 연결 핸들 - 유형레버: 4방향 (source/target 모두 필요) */}
       <Handle
+        id="top-source"
         type="source"
         position={Position.Top}
         className="custom-handle"
         isConnectable={true}
       />
       <Handle
+        id="top-target"
+        type="target"
+        position={Position.Top}
+        className="custom-handle"
+        style={{ left: '40%' }}
+        isConnectable={true}
+      />
+      <Handle
+        id="bottom-target"
         type="target"
         position={Position.Bottom}
         className="custom-handle"
+        isConnectable={true}
+      />
+      <Handle
+        id="bottom-source"
+        type="source"
+        position={Position.Bottom}
+        className="custom-handle"
+        style={{ left: '40%' }}
+        isConnectable={true}
+      />
+      <Handle
+        id="left-target"
+        type="target"
+        position={Position.Left}
+        className="custom-handle handle-side"
+        isConnectable={true}
+      />
+      <Handle
+        id="left-source"
+        type="source"
+        position={Position.Left}
+        className="custom-handle handle-side"
+        style={{ top: '40%' }}
+        isConnectable={true}
+      />
+      <Handle
+        id="right-source"
+        type="source"
+        position={Position.Right}
+        className="custom-handle handle-side"
+        isConnectable={true}
+      />
+      <Handle
+        id="right-target"
+        type="target"
+        position={Position.Right}
+        className="custom-handle handle-side"
+        style={{ top: '40%' }}
         isConnectable={true}
       />
 
