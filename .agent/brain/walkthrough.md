@@ -1,3 +1,43 @@
+# Walkthrough: auto_layout 비정상 종료 및 레이어 이탈 보정
+
+## 완료 일시
+2026-01-30
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. auto_layout 결과 불일치 시 중단 로그 완화
+2. ELK 결과 누락 시 기본 레이아웃으로 안전 대체
+3. 레이어 이탈 최소화
+
+---
+
+## ✅ 해결 조치
+
+1. ELK 결과 누락 시 basic 레이아웃 fallback
+2. safeAutoLayout에서 결과 불일치 감지 시 fallback 적용
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/components/CultureMapFlow.tsx` | auto_layout fallback 처리 |
+| `src/utils/flowAutoLayout.ts` | ELK 결과 누락 시 fallback |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. auto_layout 중단 로그 사라짐 확인 필요(사용자 환경)
+2. 정렬 후 노드 레이어 범위 유지 확인 필요(사용자 환경)
+
+---
+
 # Walkthrough: 레이어 라벨 툴팁 가림/정렬 레이어 이탈 수정
 
 ## 완료 일시

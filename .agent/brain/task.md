@@ -1,3 +1,21 @@
+# Task List: auto_layout 비정상 종료 및 레이어 이탈 보정
+
+## 진행 상황
+- 🔲 미완료
+- 🔄 진행 중
+- ✅ 완료
+
+---
+
+## Task 1: auto_layout fallback 보강
+- [x] ELK 결과 누락 시 기본 레이아웃 대체
+- [x] safeAutoLayout에서 불일치 시 fallback 적용
+
+## Task 2: 검증
+- [ ] auto_layout 중단 로그 해소 확인
+- [ ] 정렬 후 레이어 이탈 여부 확인
+
+
 # Task List: 레이어 라벨 툴팁 가림/정렬 레이어 이탈 수정
 
 ## 진행 상황

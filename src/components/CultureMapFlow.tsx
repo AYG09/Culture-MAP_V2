@@ -631,16 +631,34 @@ ${chatHistorySection}
       return Boolean(sourceType && targetType && sourceType === targetType);
     });
 
-    const { nodes: layoutedNodes, edges: layoutedEdges } = hasIntraLayerEdges
-      ? getLayoutedElements(currentNodes, filteredEdges, {
+    let layoutedNodes: Node[] = [];
+    let layoutedEdges: Edge[] = [];
+
+    if (hasIntraLayerEdges) {
+      const result = getLayoutedElements(currentNodes, filteredEdges, {
         layerHeights,
         spacingPreset: layoutSpacingRef.current,
-      })
-      : await getElkLayoutedElements(
+      });
+      layoutedNodes = result.nodes;
+      layoutedEdges = result.edges;
+    } else {
+      const result = await getElkLayoutedElements(
         currentNodes,
         filteredEdges,
         buildElkLayoutOptions(layoutSpacingRef.current)
       );
+      layoutedNodes = result.nodes;
+      layoutedEdges = result.edges;
+    }
+
+    if (!layoutedNodes.length || layoutedNodes.length !== currentNodes.length) {
+      const fallback = getLayoutedElements(currentNodes, filteredEdges, {
+        layerHeights,
+        spacingPreset: layoutSpacingRef.current,
+      });
+      layoutedNodes = fallback.nodes;
+      layoutedEdges = fallback.edges;
+    }
 
     if (!layoutedNodes.length || layoutedNodes.length !== currentNodes.length) {
       console.warn('⚠️ [React Flow] auto_layout 중단: 레이아웃 결과가 비정상입니다.', {

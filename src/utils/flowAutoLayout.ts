@@ -418,8 +418,17 @@ export async function getElkLayoutedElements(
       layoutOptions: graph.layoutOptions
     });
 
+    const children = layoutedGraph.children ?? [];
+    if (children.length !== nodes.length) {
+      console.warn('⚠️ [Layout] ELK 결과 노드 수 불일치, 기본 레이아웃으로 대체합니다.', {
+        expected: nodes.length,
+        actual: children.length,
+      });
+      return getBasicLayoutedElements(nodes, edges);
+    }
+
     const layoutedById = new Map(
-      (layoutedGraph.children ?? []).map((node) => [node.id, node])
+      children.map((node) => [node.id, node])
     );
 
     const layoutedNodes = nodes.map((node) => {

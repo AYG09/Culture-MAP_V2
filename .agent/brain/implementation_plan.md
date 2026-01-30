@@ -1,3 +1,53 @@
+# Implementation Plan: auto_layout 비정상 종료 및 레이어 이탈 보정
+
+## 목표
+1. auto_layout 수행 중 레이아웃 결과 불일치로 중단되는 현상 해소
+2. ELK 레이아웃 결과가 누락될 경우 기본 레이아웃으로 안전하게 대체
+3. 레이어 이탈을 방지하고 동일 레이어 순서를 유지
+
+---
+
+## 핵심 변경 범위
+
+### 1) auto_layout fallback 보강
+- ELK 결과 노드 수 불일치 시 기본 레이아웃으로 대체
+- safeAutoLayout에서 fallback 후에도 불일치면 중단
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| ELK 결과 불안정 지속 | 정렬 품질 저하 | 기본 레이아웃으로 안정성 확보 |
+| fallback 과다 | 성능 저하 가능 | 불일치 상황에서만 fallback 실행 |
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- auto_layout 중단 로그가 지속되거나 정렬 품질이 악화
+
+### 롤백 절차
+```bash
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- src/utils/flowAutoLayout.ts
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. auto_layout 호출 시 중단 로그가 사라지는지 확인
+2. 정렬 후 노드가 레이어 범위 내에 유지되는지 확인
+
+---
+
 # Implementation Plan: 레이어 라벨 툴팁 가림/정렬 레이어 이탈 수정
 
 ## 목표
@@ -494,21 +544,15 @@ git checkout -- .agent/brain/walkthrough.md
 ## 목표
 1. Gateway 컴포넌트에서 발생하는 `Cannot access before initialization` 오류 제거
 2. useEffect 의존성 배열과 useCallback 선언 순서를 일치시켜 TDZ 방지
-
 ---
 
-## 핵심 변경 범위
-
-### 1) 선언 순서 정리
 - `handleDevModeAutoJoin`, `loadSessions` useCallback 선언을 useEffect보다 위로 이동
 - useEffect 의존성 배열은 그대로 유지
 
 ### 2) 기존 로직 유지
 - 게이트 초기화 흐름 및 세션 저장/복구 로직 변경 없음
-
 ---
 
-## 리스크 및 대응
 
 | 리스크 | 영향 | 대응 |
 |---|---|---|
@@ -517,7 +561,6 @@ git checkout -- .agent/brain/walkthrough.md
 
 ---
 
-## 롤백 계획
 
 ### 트리거 조건
 - Gateway 화면이 렌더링되지 않거나 세션 자동 재접속이 실패
@@ -527,24 +570,16 @@ git checkout -- .agent/brain/walkthrough.md
 ## 목표
 1. auto_layout 시 레이어 순서를 무형→유형→행동→결과로 고정
 2. 레이어 높이를 노드 분포에 맞춰 확장하여 하단 노드 누락 방지
-
 ---
 
-# Implementation Plan: AI 컨트롤(뷰포트/스타일/백업) 확장
-
 ## 목표
-1. AI가 뷰포트 줌/팬/포커스/전체 보기 제어 가능
-2. 레이어 투명도/배경/컨트롤/미니맵/내보내기 UI 토글 지원
-3. 노드/엣지 스타일을 CSS 변수로 제어하고 기본 스타일 유지
 4. 로컬 스냅샷 저장/복원 및 Liveblocks 동기화
 
 ---
 
 ## 핵심 변경 범위
-
 ### 1) AI 도구 스키마 확장
 - MAP_TOOL_DECLARATIONS에 뷰포트/UI/스타일/스냅샷 도구 추가
-
 ### 2) AI 시스템 지침 확장
 - 도구 사용 규칙에 신규 액션 사용 조건 추가
 - 허용 도구 목록 확장
@@ -553,7 +588,6 @@ git checkout -- .agent/brain/walkthrough.md
 - executeAiAction에 신규 액션 분기 추가
 - ReactFlowInstance 가드 적용
 
-### 4) 스타일 변수 적용
 - FlowNodes.css 하드코딩 값을 CSS 변수로 교체
 - CultureMapFlow에서 CSS 변수 주입
 
