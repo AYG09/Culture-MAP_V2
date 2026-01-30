@@ -66,7 +66,7 @@ import type { StickyNoteData, ConnectionData as LBConnectionData, LayerSettings,
 
 // 유틸리티
 import { convertToFlowData, convertFromFlowData } from '../utils/flowDataConverter';
-import { buildElkLayoutOptions, getElkLayoutedElements, getLayoutedElements } from '../utils/flowAutoLayout';
+import { buildElkLayoutOptions, getElkLayoutedElements, getLayoutedElements, applyOptimalHandlesToEdges, getOptimalHandles } from '../utils/flowAutoLayout';
 import { parseAIOutput } from '../utils/parser';
 
 // Liveblocks 서비스
@@ -781,7 +781,10 @@ ${chatHistorySection}
     });
 
     setNodes(adjustedNodes);
-    setEdges(layoutedEdges);
+    
+    // Edge에 최적 핸들 적용 (레이어 간: top/bottom, 동일 레이어: left/right)
+    const optimizedEdges = applyOptimalHandlesToEdges(adjustedNodes, layoutedEdges);
+    setEdges(optimizedEdges);
 
     // 일괄 트랜잭션으로 Liveblocks 업데이트 (observer 트리거 최소화)
     const batchUpdates = adjustedNodes.map((node) => {
@@ -1192,11 +1195,26 @@ ${chatHistorySection}
           const targetId = payload.targetId || payload.target;
           if (!sourceId || !targetId) break;
 
+          // 노드 조회 후 최적 핸들 결정
+          const sourceNode = nodesRef.current.find(n => n.id === sourceId);
+          const targetNode = nodesRef.current.find(n => n.id === targetId);
+          
+          let sourceHandle: string | undefined;
+          let targetHandle: string | undefined;
+          
+          if (sourceNode && targetNode) {
+            const handles = getOptimalHandles(sourceNode, targetNode);
+            sourceHandle = handles.sourceHandle;
+            targetHandle = handles.targetHandle;
+          }
+
           const edgeId = `edge-${sourceId}-${targetId}`;
           const newEdge: Edge = {
             id: edgeId,
             source: sourceId,
             target: targetId,
+            sourceHandle,
+            targetHandle,
             type: 'animatedFlow',
             style: {
               strokeWidth: styleVariables.edgeWidth,
