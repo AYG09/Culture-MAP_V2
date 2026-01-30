@@ -166,15 +166,31 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
     setExportError(null);
 
     try {
+      const rawNodes = reactFlowInstance.getNodes();
+      const dedupedNodesMap = new Map(rawNodes.map((node) => [node.id, node]));
+      const dedupedNodes = Array.from(dedupedNodesMap.values());
+      if (dedupedNodes.length !== rawNodes.length) {
+        console.warn('⚠️ [Export] 중복 node id 감지, dedupe 후 JSON 내보내기', {
+          raw: rawNodes.length,
+          deduped: dedupedNodes.length,
+        });
+      }
+
+      const nodeIdSet = new Set(dedupedNodes.map((node) => node.id));
+      const rawEdges = reactFlowInstance.getEdges();
+      const filteredEdges = rawEdges.filter(
+        (edge) => nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target)
+      );
+
       const flowData = {
-        nodes: reactFlowInstance.getNodes(),
-        edges: reactFlowInstance.getEdges(),
+        nodes: dedupedNodes,
+        edges: filteredEdges,
         viewport: reactFlowInstance.getViewport(),
         metadata: {
           exportedAt: new Date().toISOString(),
           version: '1.0',
-          nodeCount: nodes.length,
-          edgeCount: reactFlowInstance.getEdges().length,
+          nodeCount: dedupedNodes.length,
+          edgeCount: filteredEdges.length,
         },
       };
 

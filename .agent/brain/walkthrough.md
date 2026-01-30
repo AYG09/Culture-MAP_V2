@@ -38,6 +38,82 @@
 
 ---
 
+# Walkthrough: auto_layout 중복/타입 정규화
+
+## 완료 일시
+2026-01-30
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 중복 node id로 인한 레이아웃 누락 방지
+2. 알 수 없는 node.type도 기본 레이어로 포함
+
+---
+
+## ✅ 해결 조치
+
+1. safeAutoLayout에서 노드 id dedupe 적용
+2. 기본 레이아웃에서 레이어 타입 정규화
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/components/CultureMapFlow.tsx` | dedupe 및 레이어 타입 정규화 적용 |
+| `src/utils/flowAutoLayout.ts` | 기본 레이아웃 타입 정규화 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. auto_layout 중단 로그 해소 확인 필요(사용자 환경)
+2. 중복 id 경고 로그 출력 확인 필요(사용자 환경)
+
+---
+
+# Walkthrough: JSON 내보내기 중복 노드 제거
+
+## 완료 일시
+2026-01-30
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. JSON 내보내기에서 중복 node id 제거
+2. 유효하지 않은 edge 제외
+
+---
+
+## ✅ 해결 조치
+
+1. JSON 내보내기 시 node id dedupe
+2. nodeId 기준 edge 필터링
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/components/ExportMenu.tsx` | JSON 내보내기 dedupe 및 edge 필터 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. JSON 내보내기 nodeCount가 고유 노드 수와 일치하는지 확인
+
+---
+
 # Walkthrough: 레이어 라벨 툴팁 가림/정렬 레이어 이탈 수정
 
 ## 완료 일시

@@ -608,6 +608,35 @@ ${chatHistorySection}
   const collaborationLocksRef = useRef<Record<string, CollaborationLock>>({});
 
   const safeAutoLayout = useCallback(async (showAlert = false) => {
+    const normalizeLayerType = (value?: string) => {
+      if (
+        value === 'result'
+        || value === 'behavior'
+        || value === 'tangible_lever'
+        || value === 'intangible_lever'
+      ) {
+        return value;
+      }
+      return 'behavior';
+    };
+
+    const dedupeNodesById = (items: Node[]) => {
+      const deduped = new Map<string, Node>();
+      const duplicates = new Set<string>();
+
+      items.forEach((node) => {
+        if (deduped.has(node.id)) {
+          duplicates.add(node.id);
+        }
+        deduped.set(node.id, node);
+      });
+
+      return {
+        dedupedNodes: Array.from(deduped.values()),
+        duplicateIds: Array.from(duplicates),
+      };
+    };
+
     const currentNodes = nodesRef.current;
     const currentEdges = edgesRef.current;
 
@@ -619,12 +648,22 @@ ${chatHistorySection}
       return;
     }
 
-    const nodeIdSet = new Set(currentNodes.map((node) => node.id));
+    const { dedupedNodes, duplicateIds } = dedupeNodesById(currentNodes);
+    if (duplicateIds.length > 0) {
+      console.warn('⚠️ [React Flow] auto_layout: 중복 node id 감지', {
+        duplicates: duplicateIds.length,
+        sample: duplicateIds.slice(0, 8),
+      });
+    }
+
+    const nodeIdSet = new Set(dedupedNodes.map((node) => node.id));
     const filteredEdges = currentEdges.filter(
       (edge) => nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target)
     );
 
-    const nodeTypeById = new Map(currentNodes.map((node) => [node.id, node.type || 'result']));
+    const nodeTypeById = new Map(
+      dedupedNodes.map((node) => [node.id, normalizeLayerType(node.type)])
+    );
     const hasIntraLayerEdges = filteredEdges.some((edge) => {
       const sourceType = nodeTypeById.get(edge.source);
       const targetType = nodeTypeById.get(edge.target);
@@ -635,7 +674,7 @@ ${chatHistorySection}
     let layoutedEdges: Edge[] = [];
 
     if (hasIntraLayerEdges) {
-      const result = getLayoutedElements(currentNodes, filteredEdges, {
+      const result = getLayoutedElements(dedupedNodes, filteredEdges, {
         layerHeights,
         spacingPreset: layoutSpacingRef.current,
       });
@@ -643,7 +682,7 @@ ${chatHistorySection}
       layoutedEdges = result.edges;
     } else {
       const result = await getElkLayoutedElements(
-        currentNodes,
+        dedupedNodes,
         filteredEdges,
         buildElkLayoutOptions(layoutSpacingRef.current)
       );
@@ -651,8 +690,8 @@ ${chatHistorySection}
       layoutedEdges = result.edges;
     }
 
-    if (!layoutedNodes.length || layoutedNodes.length !== currentNodes.length) {
-      const fallback = getLayoutedElements(currentNodes, filteredEdges, {
+    if (!layoutedNodes.length || layoutedNodes.length !== dedupedNodes.length) {
+      const fallback = getLayoutedElements(dedupedNodes, filteredEdges, {
         layerHeights,
         spacingPreset: layoutSpacingRef.current,
       });
@@ -660,10 +699,11 @@ ${chatHistorySection}
       layoutedEdges = fallback.edges;
     }
 
-    if (!layoutedNodes.length || layoutedNodes.length !== currentNodes.length) {
+    if (!layoutedNodes.length || layoutedNodes.length !== dedupedNodes.length) {
       console.warn('⚠️ [React Flow] auto_layout 중단: 레이아웃 결과가 비정상입니다.', {
-        before: currentNodes.length,
+        before: dedupedNodes.length,
         after: layoutedNodes.length,
+        raw: currentNodes.length,
       });
       return;
     }
@@ -692,7 +732,7 @@ ${chatHistorySection}
     const maxHeightsByLayer = [0, 0, 0, 0];
 
     layoutedNodes.forEach((node) => {
-      const layerIndex = layerIndexMap[node.type || 'result'] ?? 0;
+      const layerIndex = layerIndexMap[normalizeLayerType(node.type)] ?? 0;
       const nodeHeight = getNodeHeight(node);
       if (nodeHeight > maxHeightsByLayer[layerIndex]) {
         maxHeightsByLayer[layerIndex] = nodeHeight;
@@ -720,7 +760,7 @@ ${chatHistorySection}
     });
 
     const adjustedNodes = layoutedNodes.map((node) => {
-      const layerIndex = layerIndexMap[node.type || 'result'] ?? 0;
+      const layerIndex = layerIndexMap[normalizeLayerType(node.type)] ?? 0;
       const bandStart = layerStartByIndex.get(layerIndex) ?? 0;
       const bandHeight = resolvedLayerHeights[layerIndex] ?? 0;
       const nodeHeight = getNodeHeight(node);

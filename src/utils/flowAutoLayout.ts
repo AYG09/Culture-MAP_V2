@@ -34,6 +34,13 @@ const DISPLAY_LAYER_ORDER: Array<keyof typeof LAYER_CONFIG> = [
   'intangible_lever'
 ];
 
+const resolveLayerKey = (value?: string): keyof typeof LAYER_CONFIG => {
+  if (value && value in LAYER_CONFIG) {
+    return value as keyof typeof LAYER_CONFIG;
+  }
+  return 'behavior';
+};
+
 // 레이아웃 옵션
 const LAYOUT_OPTIONS = {
   rankdir: 'BT', // Bottom to Top (아래에서 위로) - 결과가 위에
@@ -164,7 +171,7 @@ function getBasicLayoutedElements(
   // 1단계: 노드를 층위별로 그룹화
   const nodesByLayer = new Map<string, Node[]>();
   nodes.forEach((node) => {
-    const layer = node.type || 'result';
+    const layer = resolveLayerKey(node.type);
     if (!nodesByLayer.has(layer)) {
       nodesByLayer.set(layer, []);
     }

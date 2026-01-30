@@ -13,6 +13,10 @@
 - ELK 결과 노드 수 불일치 시 기본 레이아웃으로 대체
 - safeAutoLayout에서 fallback 후에도 불일치면 중단
 
+### 2) auto_layout 중복/타입 정규화
+- safeAutoLayout에서 노드 id dedupe 후 레이아웃 수행
+- 기본 레이아웃에서 알 수 없는 타입을 기본 레이어로 정규화
+
 ---
 
 ## 리스크 및 대응
@@ -45,6 +49,39 @@ git checkout -- .agent/brain/walkthrough.md
 ### 수동 검증
 1. auto_layout 호출 시 중단 로그가 사라지는지 확인
 2. 정렬 후 노드가 레이어 범위 내에 유지되는지 확인
+
+---
+
+# Implementation Plan: JSON 내보내기 중복 노드 제거
+
+## 목표
+1. JSON 내보내기 시 중복 node id 제거
+2. 노드가 없는 edge는 제외
+3. metadata의 nodeCount/edgeCount 정확화
+
+---
+
+## 핵심 변경 범위
+
+### 1) ExportMenu JSON 내보내기 보정
+- reactFlowInstance.getNodes() 결과 dedupe
+- 유효 nodeId 기준으로 edge 필터링
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| dedupe로 일부 edge 제거 | 연결선 누락 | nodeId 유효성 기준으로만 필터링 |
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. JSON 내보내기 후 nodeCount가 고유 id 수와 일치
+2. edgeCount가 실제 유효 연결선 수와 일치
 
 ---
 

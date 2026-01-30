@@ -11,9 +11,30 @@
 - [x] ELK 결과 누락 시 기본 레이아웃 대체
 - [x] safeAutoLayout에서 불일치 시 fallback 적용
 
-## Task 2: 검증
+## Task 2: auto_layout 중복/타입 정규화
+- [x] safeAutoLayout 노드 id dedupe 적용
+- [x] 기본 레이아웃에서 레이어 타입 정규화
+
+## Task 3: 검증
 - [ ] auto_layout 중단 로그 해소 확인
 - [ ] 정렬 후 레이어 이탈 여부 확인
+
+
+# Task List: JSON 내보내기 중복 노드 제거
+
+## 진행 상황
+- 🔲 미완료
+- 🔄 진행 중
+- ✅ 완료
+
+---
+
+## Task 1: JSON 내보내기 dedupe
+- [x] node id 중복 제거
+- [x] edge source/target 유효성 필터
+
+## Task 2: 검증
+- [ ] JSON 내보내기에서 nodeCount가 실제 고유 노드 수와 일치하는지 확인
 
 
 # Task List: 레이어 라벨 툴팁 가림/정렬 레이어 이탈 수정
