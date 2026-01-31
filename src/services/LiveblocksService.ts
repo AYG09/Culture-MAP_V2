@@ -785,20 +785,39 @@ class LiveblocksService {
 
             // 개별 노드 변경 이벤트 (추가/수정) - 로컬 업데이트는 스킵
             event.changes.added.forEach((item) => {
+                // Yjs Item의 content 구조 확인
                 const content = item.content as unknown;
-                if (content && typeof (content as { toArray?: () => StickyNoteData[] }).toArray === 'function') {
-                    const notes = (content as { toArray: () => StickyNoteData[] }).toArray();
-                    notes.forEach((note) => {
-                        // 로컬에서 업데이트한 항목이면 스킵
-                        if (this.pendingLocalUpdates.has(note.id)) {
-                            console.log('⏭️ [Liveblocks] 로컬 업데이트 스킵:', note.id);
-                            this.pendingLocalUpdates.delete(note.id);
-                            return;
-                        }
-                        console.log('📤 [Liveblocks] 원격 노드 emit:', note.id, { x: note.x, y: note.y });
-                        this.emit('sticky-note-updated', note);
+                
+                // 방법 1: content.getContent() 사용 (Yjs AbstractContent)
+                let notes: StickyNoteData[] = [];
+                if (content && typeof (content as { getContent?: () => unknown[] }).getContent === 'function') {
+                    notes = (content as { getContent: () => StickyNoteData[] }).getContent();
+                } else if (content && typeof (content as { toArray?: () => StickyNoteData[] }).toArray === 'function') {
+                    notes = (content as { toArray: () => StickyNoteData[] }).toArray();
+                } else if (Array.isArray(content)) {
+                    notes = content as StickyNoteData[];
+                }
+
+                if (notes.length === 0) {
+                    console.warn('⚠️ [Liveblocks] nodes observe - content 추출 실패:', {
+                        contentType: typeof content,
+                        contentKeys: content ? Object.keys(content as object) : [],
+                        hasGetContent: content && typeof (content as { getContent?: unknown }).getContent === 'function',
+                        hasToArray: content && typeof (content as { toArray?: unknown }).toArray === 'function',
                     });
                 }
+
+                notes.forEach((note) => {
+                    if (!note || !note.id) return;
+                    // 로컬에서 업데이트한 항목이면 스킵
+                    if (this.pendingLocalUpdates.has(note.id)) {
+                        console.log('⏭️ [Liveblocks] 로컬 업데이트 스킵:', note.id);
+                        this.pendingLocalUpdates.delete(note.id);
+                        return;
+                    }
+                    console.log('📤 [Liveblocks] 원격 노드 emit:', note.id, { x: note.x, y: note.y });
+                    this.emit('sticky-note-updated', note);
+                });
             });
 
             // 삭제 이벤트 (업데이트로 인한 삭제는 무시)
