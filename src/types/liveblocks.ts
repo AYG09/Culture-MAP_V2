@@ -115,6 +115,8 @@ export interface StickyNoteData {
     metadata?: string;
     basis?: string; // string으로 통일
     frequency?: PerceptionIntensity;
+    /** 생성자 구분: 'user' (사용자) | 'ai' (AI) - AI는 사용자 생성 항목을 임의로 수정 불가 */
+    createdBy?: 'user' | 'ai';
 }
 
 export interface ConnectionData {
@@ -124,6 +126,8 @@ export interface ConnectionData {
     relationType?: string;
     isPositive?: boolean;
     type?: string;
+    /** 생성자 구분: 'user' (사용자) | 'ai' (AI) - AI는 사용자 생성 항목을 임의로 수정 불가 */
+    createdBy?: 'user' | 'ai';
 }
 
 export interface SessionMetadata {

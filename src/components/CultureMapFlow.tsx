@@ -873,6 +873,37 @@ ${chatHistorySection}
     const { name } = action;
     const args = (action.args ?? {}) as Record<string, unknown>;
 
+    /**
+     * 사용자 생성 항목 보호 체크
+     * - createdBy === 'user'인 항목은 force 플래그 없이는 수정/삭제 불가
+     */
+    const checkUserCreatedProtection = (
+      itemId: string,
+      itemType: 'node' | 'edge',
+      operation: 'update' | 'delete'
+    ): boolean => {
+      const force = args.force === true;
+      
+      if (itemType === 'node') {
+        const node = nodesRef.current.find(n => n.id === itemId);
+        const createdBy = (node?.data as { createdBy?: string })?.createdBy;
+        if (createdBy === 'user' && !force) {
+          console.warn(`⚠️ [Action Bridge] 사용자가 생성한 노드는 AI가 임의로 ${operation}할 수 없습니다: ${itemId}`);
+          console.info('💡 사용자가 명시적으로 요청하면 force: true 플래그로 수정 가능합니다.');
+          return false;
+        }
+      } else {
+        const edge = edgesRef.current.find(e => e.id === itemId);
+        const createdBy = (edge?.data as { createdBy?: string })?.createdBy;
+        if (createdBy === 'user' && !force) {
+          console.warn(`⚠️ [Action Bridge] 사용자가 생성한 연결선은 AI가 임의로 ${operation}할 수 없습니다: ${itemId}`);
+          console.info('💡 사용자가 명시적으로 요청하면 force: true 플래그로 수정 가능합니다.');
+          return false;
+        }
+      }
+      return true;
+    };
+
     const getNodeTypeFromLayer = (layerValue: number) => {
       const layerToType: Record<number, string> = {
         1: 'result',
@@ -942,6 +973,7 @@ ${chatHistorySection}
           layer: layerValue,
           sentiment,
           type: nodeType,
+          createdBy: 'ai',
           ...(isConsultingMode && frequency ? { frequency } : {}),
         });
 
@@ -955,6 +987,7 @@ ${chatHistorySection}
             author: liveblocksService.getCurrentUserDisplayName(),
             timestamp: Date.now(),
             sentiment,
+            createdBy: 'ai',
             ...(isConsultingMode && frequency ? { frequency } : {}),
             type: nodeType,
             layer: layerValue,
@@ -1048,6 +1081,7 @@ ${chatHistorySection}
             layer: layerValue,
             sentiment,
             type: nodeType,
+            createdBy: 'ai',
             ...(isConsultingMode && frequency ? { frequency } : {}),
           });
 
@@ -1061,6 +1095,7 @@ ${chatHistorySection}
               author: liveblocksService.getCurrentUserDisplayName(),
               timestamp: Date.now(),
               sentiment,
+              createdBy: 'ai',
               ...(isConsultingMode && frequency ? { frequency } : {}),
               type: nodeType,
               layer: layerValue,
@@ -1112,6 +1147,7 @@ ${chatHistorySection}
             data: {
               relationType,
               isPositive,
+              createdBy: 'ai',
             },
           });
 
@@ -1121,6 +1157,7 @@ ${chatHistorySection}
             targetId,
             relationType,
             isPositive,
+            createdBy: 'ai',
           });
         });
 
@@ -1138,8 +1175,10 @@ ${chatHistorySection}
       }
 
       case 'update_node': {
-        const payload = (args as unknown) as UpdateNodePayload & { layer?: number; type?: string };
+        const payload = (args as unknown) as UpdateNodePayload & { layer?: number; type?: string; force?: boolean };
         if (!payload.id) break;
+        // 사용자 생성 노드 보호
+        if (!checkUserCreatedProtection(payload.id, 'node', 'update')) break;
         const sentiment = payload.sentiment === 'positive' ? 'positive' : (payload.sentiment === 'negative' ? 'negative' : 'neutral');
         const frequency = isConsultingMode
           ? (typeof payload.intensity === 'number'
@@ -1196,8 +1235,10 @@ ${chatHistorySection}
 
       case 'delete_node':
         {
-          const payload = (args as unknown) as DeleteNodePayload;
+          const payload = (args as unknown) as DeleteNodePayload & { force?: boolean };
           if (!payload.id) break;
+          // 사용자 생성 노드 보호
+          if (!checkUserCreatedProtection(payload.id, 'node', 'delete')) break;
           const edgesToDelete = edgesRef.current.filter(
             (edge) => edge.source === payload.id || edge.target === payload.id
           );
@@ -1225,8 +1266,10 @@ ${chatHistorySection}
 
       case 'delete_connection':
         {
-          const payload = (args as unknown) as DeleteConnectionPayload;
+          const payload = (args as unknown) as DeleteConnectionPayload & { force?: boolean };
           if (!payload.id) break;
+          // 사용자 생성 연결선 보호
+          if (!checkUserCreatedProtection(payload.id, 'edge', 'delete')) break;
           liveblocksService.deleteConnection(payload.id);
           setEdges((eds) => {
             const updated = eds.filter((edge) => edge.id !== payload.id);
@@ -1323,6 +1366,7 @@ ${chatHistorySection}
             data: {
               relationType,
               isPositive,
+              createdBy: 'ai',
             },
           };
 
@@ -1341,6 +1385,7 @@ ${chatHistorySection}
             targetId,
             relationType,
             isPositive,
+            createdBy: 'ai',
           });
         }
         break;
@@ -3074,6 +3119,7 @@ ${chatHistorySection}
         data: {
           relationType: 'direct',
           isPositive,
+          createdBy: 'user',
         },
       };
 
@@ -3086,6 +3132,7 @@ ${chatHistorySection}
         targetId: params.target!,
         relationType: 'direct',
         isPositive: isPositive,
+        createdBy: 'user',
       });
 
       console.log('🔗 [React Flow] Firebase 연결선 생성:', {
@@ -3117,9 +3164,9 @@ ${chatHistorySection}
   const lastPresenceUpdateRef = useRef(0);
   
   // Liveblocks useOthers 훅으로 다른 사용자 커서 가져오기
-  // shallow selector를 사용하여 커서 변경 시 항상 새 배열 반환 → 리렌더링 트리거
-  const otherCursors = useOthers((others) => {
-    const cursors = others
+  // ⚠️ selector는 반드시 pure function이어야 함 - console.log 등 side effect 금지!
+  const otherCursors = useOthers((others) =>
+    others
       .filter((other) => other.presence?.cursor != null)
       .map((other) => ({
         id: String(other.connectionId),
@@ -3127,12 +3174,16 @@ ${chatHistorySection}
         y: other.presence.cursor!.y,
         userName: other.presence.userName,
         userColor: other.presence.userColor,
-      }));
-    // 디버깅: 커서 상태 변화 확인
-    console.log('👁️ [Cursor] otherCursors:', cursors.length, cursors);
-    return cursors;
-  });
+      }))
+  );
   const updateMyPresence = useUpdateMyPresence();
+  
+  // 디버깅용: selector 외부에서 로그 (useEffect 사용)
+  useEffect(() => {
+    if (otherCursors.length > 0) {
+      console.log('👁️ [Cursor] otherCursors:', otherCursors.length, otherCursors);
+    }
+  }, [otherCursors]);
 
   const handlePaneMouseMove = useCallback((event: React.MouseEvent) => {
     if (!reactFlowInstance) return;
@@ -3259,6 +3310,7 @@ ${chatHistorySection}
         layer: layerMap[nodeType],
         content: '새 노트',
         sentiment: 'neutral',
+        createdBy: 'user',
         onUpdate: handleNodeContentUpdate,
         onEditStart: handleStartNodeEditing,
         onEditEnd: handleStopNodeEditing,
@@ -3284,6 +3336,7 @@ ${chatHistorySection}
       type: nodeType,
       width: 200,
       height: 120,
+      createdBy: 'user',
     });
 
     console.log('📱 [Mobile] 새 노드 생성:', newNodeId, nodeType);
@@ -3331,6 +3384,7 @@ ${chatHistorySection}
           data: {
             content: '새 노트',
             sentiment: 'neutral',
+            createdBy: 'user',
             onUpdate: handleNodeContentUpdate,
             onEditStart: handleStartNodeEditing,
             onEditEnd: handleStopNodeEditing,
@@ -3363,6 +3417,7 @@ ${chatHistorySection}
           type: nodeType,
           width: 200,
           height: 120,
+          createdBy: 'user',
         });
 
         console.log('📌 [React Flow] 새 노드 생성:', newNodeId, nodeType);

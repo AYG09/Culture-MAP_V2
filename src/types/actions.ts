@@ -57,6 +57,8 @@ export interface UpdateNodePayload {
     intensity?: PerceptionIntensity;
     x?: number;
     y?: number;
+    /** 사용자가 명시적으로 수정 요청 시 true - AI가 사용자 생성 항목도 수정 가능 */
+    force?: boolean;
 }
 
 /**
@@ -109,6 +111,8 @@ export interface CreateConnectionPayload {
  */
 export interface DeleteConnectionPayload {
     id: string;
+    /** 사용자가 명시적으로 삭제 요청 시 true - AI가 사용자 생성 항목도 삭제 가능 */
+    force?: boolean;
 }
 
 /**
@@ -116,6 +120,8 @@ export interface DeleteConnectionPayload {
  */
 export interface DeleteNodePayload {
     id: string;
+    /** 사용자가 명시적으로 삭제 요청 시 true - AI가 사용자 생성 항목도 삭제 가능 */
+    force?: boolean;
 }
 
 /**

@@ -651,41 +651,60 @@ export function getLayerColor(layer: string): string {
 }
 
 /**
+ * 노드 핸들의 절대 좌표 계산
+ */
+function getHandlePosition(node: Node, handle: 'top' | 'bottom' | 'left' | 'right'): { x: number; y: number } {
+  const width = getNodeWidth(node);
+  const height = getNodeHeight(node);
+  const centerX = node.position.x + width / 2;
+  const centerY = node.position.y + height / 2;
+  
+  switch (handle) {
+    case 'top': return { x: centerX, y: node.position.y };
+    case 'bottom': return { x: centerX, y: node.position.y + height };
+    case 'left': return { x: node.position.x, y: centerY };
+    case 'right': return { x: node.position.x + width, y: centerY };
+  }
+}
+
+/**
+ * 두 점 사이의 유클리드 거리 계산
+ */
+function calculateDistance(p1: { x: number; y: number }, p2: { x: number; y: number }): number {
+  return Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
+}
+
+/**
  * 두 노드의 위치를 비교하여 최적의 sourceHandle/targetHandle 조합을 반환
- * - 층위가 다른 경우: 위-아래 연결 (상위 층위의 bottom → 하위 층위의 top)
- * - 동일 레이어: 노드 위치에 따라 최적의 방향 선택
+ * - 소스/타겟으로 인과관계 결정 (핸들 위치는 인과와 무관)
+ * - 거리상 가장 가까운 핸들끼리 연결
  */
 export function getOptimalHandles(
   sourceNode: Node,
   targetNode: Node
 ): { sourceHandle: string; targetHandle: string } {
-  const sourceLayer = LAYER_CONFIG[sourceNode.type as keyof typeof LAYER_CONFIG]?.rank ?? 0;
-  const targetLayer = LAYER_CONFIG[targetNode.type as keyof typeof LAYER_CONFIG]?.rank ?? 0;
-  const sourceY = sourceNode.position.y;
-  const targetY = targetNode.position.y;
+  const handles: Array<'top' | 'bottom' | 'left' | 'right'> = ['top', 'bottom', 'left', 'right'];
   
-  // 층위가 다른 경우: 높은 rank(무형레버)에서 낮은 rank(결과)로
-  if (sourceLayer !== targetLayer) {
-    // 실제 Y 좌표 기준으로 위/아래 연결 보정
-    if (sourceY > targetY) {
-      // source가 아래에 있고 target이 위에 있음
-      return { sourceHandle: 'top', targetHandle: 'bottom' };
+  let minDistance = Infinity;
+  let bestSource: string = 'bottom';
+  let bestTarget: string = 'top';
+  
+  // 모든 16개 핸들 조합 중 가장 가까운 것 선택
+  for (const sourceHandle of handles) {
+    for (const targetHandle of handles) {
+      const sourcePos = getHandlePosition(sourceNode, sourceHandle);
+      const targetPos = getHandlePosition(targetNode, targetHandle);
+      const dist = calculateDistance(sourcePos, targetPos);
+      
+      if (dist < minDistance) {
+        minDistance = dist;
+        bestSource = sourceHandle;
+        bestTarget = targetHandle;
+      }
     }
-    // source가 위에 있고 target이 아래에 있음
-    return { sourceHandle: 'bottom', targetHandle: 'top' };
   }
   
-  // 동일 레이어: 수평 연결 우선 (좌/우 핸들 사용)
-  const dx = targetNode.position.x - sourceNode.position.x;
-  
-  // X 차이 기준 수평 연결
-  if (dx > 0) {
-    // target이 오른쪽에 있음
-    return { sourceHandle: 'right', targetHandle: 'left' };
-  } else {
-    // target이 왼쪽에 있음
-    return { sourceHandle: 'left', targetHandle: 'right' };
-  }
+  return { sourceHandle: bestSource, targetHandle: bestTarget };
 }
 
 /**
