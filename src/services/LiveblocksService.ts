@@ -773,6 +773,7 @@ class LiveblocksService {
 
     /**
      * 공유 RAG에 청크 추가 (벡터 포함)
+     * WebSocket 메시지 크기 제한을 피하기 위해 배치로 나눠서 전송
      */
     public addSharedRagChunks(chunks: SharedRagChunk[]): void {
         const arr = this.getSharedRagChunksArray();
@@ -782,10 +783,22 @@ class LiveblocksService {
         }
 
         const beforeCount = arr.length;
-        this.yDoc!.transact(() => {
-            arr.push(chunks);
-        });
-        console.log(`📚 [SharedRAG] 청크 추가: ${chunks.length}개 (${beforeCount} → ${arr.length})`);
+        
+        // Liveblocks WebSocket 메시지 크기 제한 (약 1MB)을 피하기 위해 배치로 나눔
+        // 각 청크에 768차원 벡터(float64) 포함 → 청크당 약 6KB → 50개 배치 ≈ 300KB
+        const BATCH_SIZE = 50;
+        const batches = Math.ceil(chunks.length / BATCH_SIZE);
+        
+        console.log(`📚 [SharedRAG] 청크 추가 시작: ${chunks.length}개를 ${batches}개 배치로 분할`);
+        
+        for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+            const batch = chunks.slice(i, i + BATCH_SIZE);
+            this.yDoc!.transact(() => {
+                arr.push(batch);
+            });
+        }
+        
+        console.log(`📚 [SharedRAG] 청크 추가 완료: ${chunks.length}개 (${beforeCount} → ${arr.length})`);
     }
 
     /**
