@@ -166,11 +166,15 @@ const toLayerValue = (layer?: number, noteType?: NoteData['type']): NoteData['la
 const mapLiveblocksNoteToNoteData = (note: StickyNoteData): NoteData => {
   const noteType = toNoteType(note.type);
   const sentiment = isSentiment(note.sentiment) ? note.sentiment : 'neutral';
+  
+  // x, y가 undefined/NaN이면 기본값 설정 (노드 겨침 방지)
+  const x = typeof note.x === 'number' && Number.isFinite(note.x) ? note.x : 100 + Math.random() * 200;
+  const y = typeof note.y === 'number' && Number.isFinite(note.y) ? note.y : 100 + Math.random() * 100;
 
   return {
     id: note.id,
     content: note.content ?? '',
-    position: { x: note.x, y: note.y },
+    position: { x, y },
     width: note.width ?? 200,
     height: note.height ?? 120,
     type: noteType,
@@ -178,6 +182,7 @@ const mapLiveblocksNoteToNoteData = (note: StickyNoteData): NoteData => {
     perceptionIntensity: note.frequency ?? undefined,
     basis: note.basis,
     layer: toLayerValue(note.layer, noteType),
+    createdBy: note.createdBy,
   };
 };
 
@@ -1921,10 +1926,19 @@ ${chatHistorySection}
             data: {
               ...currentData,
               content: newContent,
+              // 사용자가 편집하면 즉시 사용자 소유로 변경
+              createdBy: 'user',
             },
           };
         })
       );
+
+      // Liveblocks에도 createdBy: 'user' 전달
+      liveblocksService.updateStickyNote({
+        id: nodeId,
+        content: newContent,
+        createdBy: 'user',
+      } as StickyNoteData);
 
       onNodeUpdate(nodeId, newContent);
     },
@@ -2939,6 +2953,7 @@ ${chatHistorySection}
               ? ((node.data as { frequency?: PerceptionIntensity | null }).frequency ?? undefined)
               : undefined;
 
+            // 사용자가 드래그하면 즉시 사용자 소유로 변경
             liveblocksService.updateStickyNote({
               id: node.id,
               content: (node.data as { content?: string }).content || '',
@@ -2949,8 +2964,18 @@ ${chatHistorySection}
               type: node.type || 'sticky_note',
               width: (node.width as number) || 200,
               height: (node.height as number) || 120,
+              createdBy: 'user',
               ...(isConsultingMode && nodeFrequency ? { frequency: nodeFrequency } : {}),
             });
+
+            // 로컬 노드 data에도 createdBy: 'user' 설정
+            setNodes((prevNodes) =>
+              prevNodes.map((n) =>
+                n.id === node.id
+                  ? { ...n, data: { ...n.data, createdBy: 'user' } }
+                  : n
+              )
+            );
 
             console.log('📤 [React Flow] Firebase 노드 동기화:', {
               id: node.id,

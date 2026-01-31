@@ -179,6 +179,8 @@ export interface NoteData {
   basis?: string;
   layer: 1 | 2 | 3 | 4;
   connections?: string[];
+  /** 생성자 구분: 'user' (사용자) | 'ai' (AI) - 사용자가 편집하면 즉시 'user'로 변경 */
+  createdBy?: 'user' | 'ai';
 }
 
 /**
@@ -193,6 +195,8 @@ export interface ConnectionData {
   type?: 'influences' | 'supports' | 'conflicts' | 'depends_on';
   strength?: 'weak' | 'medium' | 'strong';
   description?: string;
+  /** 생성자 구분: 'user' (사용자) | 'ai' (AI) - 사용자가 편집하면 즉시 'user'로 변경 */
+  createdBy?: 'user' | 'ai';
 }
 
 /**
