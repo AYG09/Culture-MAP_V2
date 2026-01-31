@@ -39,6 +39,9 @@ class LiveblocksService {
     private userColor: string;
     private hasClearedIndexeddbCache = false;
     private listeners: EventListeners = {};
+    
+    // 로컬에서 업데이트 중인 항목 추적 (원격 변경과 구분)
+    private pendingLocalUpdates: Set<string> = new Set();
 
     private readonly defaultLayerHeights: number[] = [220, 220, 220, 220];
     private readonly defaultLayerOpacities: number[] = [1, 1, 1, 1];
@@ -476,6 +479,8 @@ class LiveblocksService {
         const nodes = this.yDoc.getArray<StickyNoteData>('nodes');
         const index = this.findNodeIndex(note.id);
         console.log('📝 [Liveblocks] updateStickyNote:', { id: note.id, index, nodesLength: nodes.length });
+        // 로컬 업데이트 플래그 설정 (observe에서 스킵하도록)
+        this.pendingLocalUpdates.add(note.id);
         this.yDoc.transact(() => {
             const existing = index >= 0 ? nodes.get(index) : {};
             const fullNote: StickyNoteData = {
@@ -548,6 +553,8 @@ class LiveblocksService {
             relationType,
             isPositive: connection.isPositive !== false,
         };
+        // 로컬 업데이트 플래그 설정
+        this.pendingLocalUpdates.add(connection.id);
         if (index >= 0) { connections.delete(index, 1); connections.insert(index, [normalized]); }
         else { connections.push([normalized]); }
     }
@@ -753,11 +760,8 @@ class LiveblocksService {
     private setupDataListeners(): void {
         if (!this.yDoc) return;
 
-        // 노드 변경 감지 - 개별 노드마다 이벤트 발생 (원격 변경만)
-        this.yDoc.getArray<StickyNoteData>('nodes').observe((event, transaction) => {
-            // 로컬 변경은 무시 (무한 루프 방지)
-            if (transaction.local) return;
-
+        // 노드 변경 감지 - 개별 노드마다 이벤트 발생
+        this.yDoc.getArray<StickyNoteData>('nodes').observe((event) => {
             const nodesArray = this.yDoc!.getArray<StickyNoteData>('nodes');
             const hasManyAdds = event.changes.added.size > 1;
             const hasManyDeletes = event.changes.deleted.size > 1;
@@ -768,12 +772,17 @@ class LiveblocksService {
                 this.emit('notes-changed', nodesArray.toArray());
             }
 
-            // 개별 노드 변경 이벤트 (추가/수정)
+            // 개별 노드 변경 이벤트 (추가/수정) - 로컬 업데이트는 스킵
             event.changes.added.forEach((item) => {
                 const content = item.content as unknown;
                 if (content && typeof (content as { toArray?: () => StickyNoteData[] }).toArray === 'function') {
                     const notes = (content as { toArray: () => StickyNoteData[] }).toArray();
                     notes.forEach((note) => {
+                        // 로컬에서 업데이트한 항목이면 스킵
+                        if (this.pendingLocalUpdates.has(note.id)) {
+                            this.pendingLocalUpdates.delete(note.id);
+                            return;
+                        }
                         this.emit('sticky-note-updated', note);
                     });
                 }
@@ -794,11 +803,8 @@ class LiveblocksService {
             });
         });
 
-        // 연결선 변경 감지 - 개별 연결선마다 이벤트 발생 (원격 변경만)
-        this.yDoc.getArray<LBConnectionData>('connections').observe((event, transaction) => {
-            // 로컬 변경은 무시 (무한 루프 방지)
-            if (transaction.local) return;
-
+        // 연결선 변경 감지 - 개별 연결선마다 이벤트 발생
+        this.yDoc.getArray<LBConnectionData>('connections').observe((event) => {
             const connectionsArray = this.yDoc!.getArray<LBConnectionData>('connections');
             const hasManyAdds = event.changes.added.size > 1;
             const hasManyDeletes = event.changes.deleted.size > 1;
@@ -809,12 +815,17 @@ class LiveblocksService {
                 this.emit('connections-changed', connectionsArray.toArray());
             }
 
-            // 개별 연결선 변경 이벤트 (추가/수정)
+            // 개별 연결선 변경 이벤트 (추가/수정) - 로컬 업데이트는 스킵
             event.changes.added.forEach((item) => {
                 const content = item.content as unknown;
                 if (content && typeof (content as { toArray?: () => LBConnectionData[] }).toArray === 'function') {
                     const connections = (content as { toArray: () => LBConnectionData[] }).toArray();
                     connections.forEach((conn) => {
+                        // 로컬에서 업데이트한 항목이면 스킵
+                        if (this.pendingLocalUpdates.has(conn.id)) {
+                            this.pendingLocalUpdates.delete(conn.id);
+                            return;
+                        }
                         this.emit('connection-updated', conn);
                     });
                 }
@@ -872,9 +883,12 @@ class LiveblocksService {
         });
 
         const layerSettings = this.yDoc.getMap<unknown>('layerSettings');
-        layerSettings.observe((_event, transaction) => {
-            // 로컬 변경은 무시 (무한 루프 방지)
-            if (transaction.local) return;
+        layerSettings.observe(() => {
+            // 로컬 업데이트는 스킵
+            if (this.pendingLocalUpdates.has('__layerSettings__')) {
+                this.pendingLocalUpdates.delete('__layerSettings__');
+                return;
+            }
 
             const settings = this.getLayerSettings();
             if (!settings) return;
@@ -908,6 +922,9 @@ class LiveblocksService {
             console.warn('⚠️ [Liveblocks] updateLayerSettings: yDoc이 없음');
             return;
         }
+
+        // 로컬 업데이트 플래그 설정
+        this.pendingLocalUpdates.add('__layerSettings__');
 
         const layerHeights = this.normalizeLayerArray(settings.layerHeights, this.defaultLayerHeights);
         const layerOpacities = this.normalizeLayerArray(settings.layerOpacities, this.defaultLayerOpacities);

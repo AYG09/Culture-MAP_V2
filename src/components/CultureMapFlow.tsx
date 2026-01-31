@@ -2031,38 +2031,9 @@ ${chatHistorySection}
     };
   }, [applyLayerSettings]);
 
-  useEffect(() => {
-    // queueMicrotask로 지연하여 RAF 이후에 실행되도록 보장
-    const cancelled = { current: false };
-    
-    queueMicrotask(() => {
-      if (cancelled.current) return;
-      if (applyingLayerSettingsRef.current) return;
-      if (isHydratingRef.current) return;
-      if (!liveblocksService.isConnected()) return;
-
-      const lastSynced = lastSyncedLayerSettingsRef.current;
-      if (
-        lastSynced
-        && areNumberArraysEqual(layerHeights, lastSynced.layerHeights)
-        && areNumberArraysEqual(layerOpacities, lastSynced.layerOpacities)
-      ) {
-        return;
-      }
-
-      liveblocksService.updateLayerSettings({
-        layerHeights,
-        layerOpacities,
-      });
-
-      lastSyncedLayerSettingsRef.current = {
-        layerHeights: [...layerHeights],
-        layerOpacities: [...layerOpacities],
-      };
-    });
-
-    return () => { cancelled.current = true; };
-  }, [layerHeights, layerOpacities]);
+  // layerHeights/layerOpacities 변경 시 Liveblocks 동기화는 직접 호출로 대체
+  // (LayerSettingsPanel 등에서 onChange 시 liveblocksService.updateLayerSettings 직접 호출)
+  // 무한 루프 방지를 위해 useEffect 기반 양방향 동기화 제거함
 
   useEffect(() => {
     if (isHydratingRef.current || applyingLayerSettingsRef.current) {
@@ -4248,6 +4219,10 @@ ${chatHistorySection}
                           newHeights[selectedLayerIndex] = Number(e.target.value);
                           isUserLayerHeightChangeRef.current = true;
                           setLayerHeights(newHeights);
+                          // Liveblocks 직접 동기화 (useEffect 제거로 인한 직접 호출)
+                          if (liveblocksService.isConnected()) {
+                            liveblocksService.updateLayerSettings({ layerHeights: newHeights, layerOpacities });
+                          }
                         }}
                         style={{ flex: 1, minWidth: isMobile ? 'auto' : '100px', width: isMobile ? '100%' : 'auto' }}
                       />
@@ -4265,6 +4240,10 @@ ${chatHistorySection}
                             newHeights[selectedLayerIndex] = value;
                             isUserLayerHeightChangeRef.current = true;
                             setLayerHeights(newHeights);
+                            // Liveblocks 직접 동기화 (useEffect 제거로 인한 직접 호출)
+                            if (liveblocksService.isConnected()) {
+                              liveblocksService.updateLayerSettings({ layerHeights: newHeights, layerOpacities });
+                            }
                           }}
                           style={{
                             width: '60px',
@@ -4299,6 +4278,10 @@ ${chatHistorySection}
                           const newOpacities = [...layerOpacities];
                           newOpacities[selectedLayerIndex] = Number(e.target.value);
                           setLayerOpacities(newOpacities);
+                          // Liveblocks 직접 동기화 (useEffect 제거로 인한 직접 호출)
+                          if (liveblocksService.isConnected()) {
+                            liveblocksService.updateLayerSettings({ layerHeights, layerOpacities: newOpacities });
+                          }
                         }}
                         style={{ flex: 1, minWidth: isMobile ? 'auto' : '80px', width: isMobile ? '100%' : 'auto' }}
                       />
