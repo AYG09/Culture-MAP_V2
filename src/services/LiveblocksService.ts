@@ -753,14 +753,17 @@ class LiveblocksService {
     private setupDataListeners(): void {
         if (!this.yDoc) return;
 
-        // 노드 변경 감지 - 개별 노드마다 이벤트 발생
-        this.yDoc.getArray<StickyNoteData>('nodes').observe((event) => {
+        // 노드 변경 감지 - 개별 노드마다 이벤트 발생 (원격 변경만)
+        this.yDoc.getArray<StickyNoteData>('nodes').observe((event, transaction) => {
+            // 로컬 변경은 무시 (무한 루프 방지)
+            if (transaction.local) return;
+
             const nodesArray = this.yDoc!.getArray<StickyNoteData>('nodes');
             const hasManyAdds = event.changes.added.size > 1;
             const hasManyDeletes = event.changes.deleted.size > 1;
             const shouldEmitSnapshot = hasManyAdds || hasManyDeletes;
 
-            // 전체 목록 변경 이벤트 (원격 or 대량 변경만)
+            // 전체 목록 변경 이벤트 (대량 변경만)
             if (shouldEmitSnapshot) {
                 this.emit('notes-changed', nodesArray.toArray());
             }
@@ -791,14 +794,17 @@ class LiveblocksService {
             });
         });
 
-        // 연결선 변경 감지 - 개별 연결선마다 이벤트 발생
-        this.yDoc.getArray<LBConnectionData>('connections').observe((event) => {
+        // 연결선 변경 감지 - 개별 연결선마다 이벤트 발생 (원격 변경만)
+        this.yDoc.getArray<LBConnectionData>('connections').observe((event, transaction) => {
+            // 로컬 변경은 무시 (무한 루프 방지)
+            if (transaction.local) return;
+
             const connectionsArray = this.yDoc!.getArray<LBConnectionData>('connections');
             const hasManyAdds = event.changes.added.size > 1;
             const hasManyDeletes = event.changes.deleted.size > 1;
             const shouldEmitSnapshot = hasManyAdds || hasManyDeletes;
 
-            // 전체 목록 변경 이벤트 (원격 or 대량 변경만)
+            // 전체 목록 변경 이벤트 (대량 변경만)
             if (shouldEmitSnapshot) {
                 this.emit('connections-changed', connectionsArray.toArray());
             }
@@ -866,7 +872,10 @@ class LiveblocksService {
         });
 
         const layerSettings = this.yDoc.getMap<unknown>('layerSettings');
-        layerSettings.observe(() => {
+        layerSettings.observe((_event, transaction) => {
+            // 로컬 변경은 무시 (무한 루프 방지)
+            if (transaction.local) return;
+
             const settings = this.getLayerSettings();
             if (!settings) return;
             this.emit('layer-settings-changed', settings);
