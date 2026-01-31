@@ -553,7 +553,6 @@ class LiveblocksService {
         if (!this.yDoc) return;
         const connections = this.yDoc.getArray<LBConnectionData>('connections');
         const relationType = connection.relationType === 'indirect' ? 'indirect' : 'direct';
-        const index = this.findConnectionIndex(connection.id);
         const normalized: LBConnectionData = {
             ...connection,
             relationType,
@@ -561,8 +560,18 @@ class LiveblocksService {
         };
         // 로컬 업데이트 플래그 설정
         this.pendingLocalUpdates.add(connection.id);
-        if (index >= 0) { connections.delete(index, 1); connections.insert(index, [normalized]); }
-        else { connections.push([normalized]); }
+        const indicesToDelete: number[] = [];
+        connections.toArray().forEach((conn, idx) => {
+            if (conn.id === connection.id) {
+                indicesToDelete.push(idx);
+            }
+        });
+        this.yDoc.transact(() => {
+            if (indicesToDelete.length > 0) {
+                indicesToDelete.sort((a, b) => b - a).forEach((idx) => connections.delete(idx, 1));
+            }
+            connections.push([normalized]);
+        });
     }
 
     /**

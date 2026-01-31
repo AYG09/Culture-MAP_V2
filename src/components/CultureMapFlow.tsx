@@ -182,13 +182,18 @@ const mapLiveblocksNoteToNoteData = (note: StickyNoteData): NoteData => {
 
 const mapLiveblocksConnectionToConnectionData = (
   connection: LBConnectionData
-): ConnectionData => ({
-  id: connection.id,
-  sourceId: connection.sourceId,
-  targetId: connection.targetId,
-  relationType: connection.relationType === 'indirect' ? 'indirect' : 'direct',
-  isPositive: connection.isPositive !== false,
-});
+): ConnectionData => {
+  const relationTypeRaw = String(connection.relationType ?? '').toLowerCase();
+  const relationType = relationTypeRaw === 'indirect' ? 'indirect' : 'direct';
+
+  return {
+    id: connection.id,
+    sourceId: connection.sourceId,
+    targetId: connection.targetId,
+    relationType,
+    isPositive: connection.isPositive !== false,
+  };
+};
 
 
 const CultureMapFlow = ({
