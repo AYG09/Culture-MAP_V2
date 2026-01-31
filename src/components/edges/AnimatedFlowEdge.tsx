@@ -42,6 +42,9 @@ function AnimatedFlowEdge({
   // 점선 여부 (indirect relation)
   const isIndirect = data?.relationType === 'indirect';
   const strokeDasharray = isIndirect ? '5 5' : undefined;
+  
+  // 🔥 DEBUG: relationType 확인
+  console.log('🔗 [AnimatedFlowEdge] render:', { id, dataRelationType: data?.relationType, styleStrokeDasharray: style?.strokeDasharray, finalStrokeDasharray: strokeDasharray });
 
   return (
     <>
