@@ -213,6 +213,8 @@ const CultureMapFlow = ({
   const isHydratingRef = useRef(false);
   const pendingHydrateRef = useRef<number | null>(null);
   const isAutoLayerHeightsRef = useRef(false);
+  const isUserLayerHeightChangeRef = useRef(false);
+  const draggingNodeIdsRef = useRef(new Set<string>());
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -274,6 +276,7 @@ const CultureMapFlow = ({
     if (heightsEqual && opacitiesEqual && backgroundEqual) return;
 
     applyingLayerSettingsRef.current = true;
+    isUserLayerHeightChangeRef.current = false;
     setLayerHeights(settings.layerHeights);
     setLayerOpacities(settings.layerOpacities);
 
@@ -1293,6 +1296,7 @@ ${chatHistorySection}
           const layerIndex = payload.layer - 1;
           const newHeights = [...layerHeights];
           newHeights[layerIndex] = Math.min(LAYER_MAX_HEIGHT, Math.max(100, payload.height));
+          isUserLayerHeightChangeRef.current = true;
           setLayerHeights(newHeights);
 
           setTimeout(() => safeAutoLayout(false), 100);
@@ -2101,6 +2105,7 @@ ${chatHistorySection}
 
     const shouldUpdate = nextHeights.some((height, index) => height !== layerHeights[index]);
     if (shouldUpdate) {
+      isUserLayerHeightChangeRef.current = false;
       isAutoLayerHeightsRef.current = true;
       setLayerHeights(nextHeights);
     }
@@ -2165,14 +2170,16 @@ ${chatHistorySection}
 
     setNodes(shiftedNodes);
 
-    if (liveblocksService.isConnected()) {
-      shiftedNodes.forEach((node) => {
-        liveblocksService.updateStickyNote({
-          id: node.id,
-          x: node.position.x,
-          y: node.position.y,
-        });
-      });
+    const shouldSyncShift = isUserLayerHeightChangeRef.current;
+    isUserLayerHeightChangeRef.current = false;
+
+    if (shouldSyncShift && liveblocksService.isConnected()) {
+      const batchUpdates = shiftedNodes.map((node) => ({
+        id: node.id,
+        x: node.position.x,
+        y: node.position.y,
+      }));
+      liveblocksService.batchUpdateNodePositions(batchUpdates);
     }
 
     const updatedData = convertFromFlowData(shiftedNodes, edgesRef.current);
@@ -2633,6 +2640,19 @@ ${chatHistorySection}
   // ============================================================================
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
+      if (isHydratingRef.current || applyingLayerSettingsRef.current) {
+        const nextNodes = applyNodeChanges(changes, nodesRef.current);
+        setNodes(nextNodes);
+        nodesRef.current = nextNodes;
+        return;
+      }
+
+      changes.forEach((change) => {
+        if (change.type === 'position' && change.dragging) {
+          draggingNodeIdsRef.current.add(change.id);
+        }
+      });
+
       const layerIndexMap: Record<string, number> = {
         result: 0,
         behavior: 1,
@@ -2724,9 +2744,14 @@ ${chatHistorySection}
       setNodes(nextNodes);
       nodesRef.current = nextNodes;
 
-      // 위치 변경 완료 시 Firebase 동기화
+      // 위치 변경 완료 시 Firebase 동기화 (드래그 종료 케이스만)
       clampedChanges.forEach((change) => {
         if (change.type === 'position' && !change.dragging && change.position) {
+          const wasDragging = draggingNodeIdsRef.current.has(change.id);
+          if (!wasDragging) {
+            return;
+          }
+          draggingNodeIdsRef.current.delete(change.id);
           const node = nextNodes.find((n) => n.id === change.id);
           if (node) {
             // 노드 타입에 따른 층위 계산
@@ -4205,6 +4230,7 @@ ${chatHistorySection}
                           if (selectedLayerIndex === null) return;
                           const newHeights = [...layerHeights];
                           newHeights[selectedLayerIndex] = Number(e.target.value);
+                          isUserLayerHeightChangeRef.current = true;
                           setLayerHeights(newHeights);
                         }}
                         style={{ flex: 1, minWidth: isMobile ? 'auto' : '100px', width: isMobile ? '100%' : 'auto' }}
@@ -4221,6 +4247,7 @@ ${chatHistorySection}
                             const value = Math.min(LAYER_MAX_HEIGHT, Math.max(100, Number(e.target.value)));
                             const newHeights = [...layerHeights];
                             newHeights[selectedLayerIndex] = value;
+                            isUserLayerHeightChangeRef.current = true;
                             setLayerHeights(newHeights);
                           }}
                           style={{
