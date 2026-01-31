@@ -765,116 +765,130 @@ class LiveblocksService {
     private setupDataListeners(): void {
         if (!this.yDoc) return;
 
-        // 노드 변경 감지 - 개별 노드마다 이벤트 발생
+        // 노드 변경 감지 - delta 형식 사용 (더 안정적)
         this.yDoc.getArray<StickyNoteData>('nodes').observe((event) => {
             const nodesArray = this.yDoc!.getArray<StickyNoteData>('nodes');
-            const hasManyAdds = event.changes.added.size > 1;
-            const hasManyDeletes = event.changes.deleted.size > 1;
-            const shouldEmitSnapshot = hasManyAdds || hasManyDeletes;
-
+            const delta = event.changes.delta;
+            
             console.log('🔔 [Liveblocks] nodes observe:', {
-                addedCount: event.changes.added.size,
-                deletedCount: event.changes.deleted.size,
+                deltaLength: delta.length,
                 pendingLocalUpdates: Array.from(this.pendingLocalUpdates),
             });
 
-            // 전체 목록 변경 이벤트 (대량 변경만)
-            if (shouldEmitSnapshot) {
+            // Delta에서 insert된 노드들 추출
+            const insertedNotes: StickyNoteData[] = [];
+            const deletedNoteIds: string[] = [];
+            
+            // retain 위치 추적을 위한 인덱스
+            let currentIndex = 0;
+            
+            for (const op of delta) {
+                if ('retain' in op && typeof op.retain === 'number') {
+                    currentIndex += op.retain;
+                } else if ('delete' in op && typeof op.delete === 'number') {
+                    // 삭제된 노드는 event.changes.deleted에서 처리
+                    currentIndex += 0; // delete는 인덱스를 이동시키지 않음
+                } else if ('insert' in op && Array.isArray(op.insert)) {
+                    insertedNotes.push(...(op.insert as StickyNoteData[]));
+                    currentIndex += op.insert.length;
+                }
+            }
+
+            // 대량 변경인 경우 전체 리스트 emit
+            const hasManyAdds = insertedNotes.length > 1;
+            const hasManyDeletes = event.changes.deleted.size > 1;
+            if (hasManyAdds || hasManyDeletes) {
                 this.emit('notes-changed', nodesArray.toArray());
             }
 
             // 개별 노드 변경 이벤트 (추가/수정) - 로컬 업데이트는 스킵
-            event.changes.added.forEach((item) => {
-                // Yjs Item의 content 구조 확인
-                const content = item.content as unknown;
+            for (const note of insertedNotes) {
+                if (!note || !note.id) continue;
                 
-                // 방법 1: content.getContent() 사용 (Yjs AbstractContent)
+                // 로컬에서 업데이트한 항목이면 스킵
+                if (this.pendingLocalUpdates.has(note.id)) {
+                    console.log('⏭️ [Liveblocks] 로컬 업데이트 스킵:', note.id);
+                    this.pendingLocalUpdates.delete(note.id);
+                    continue;
+                }
+                
+                console.log('📤 [Liveblocks] 원격 노드 emit:', note.id, { x: note.x, y: note.y });
+                this.emit('sticky-note-updated', note);
+            }
+
+            // 삭제 이벤트 처리 (delta에서 직접 확인하기 어려우므로 deleted set 사용)
+            event.changes.deleted.forEach((item) => {
+                const content = item.content as unknown;
                 let notes: StickyNoteData[] = [];
+                
                 if (content && typeof (content as { getContent?: () => unknown[] }).getContent === 'function') {
                     notes = (content as { getContent: () => StickyNoteData[] }).getContent();
                 } else if (content && typeof (content as { toArray?: () => StickyNoteData[] }).toArray === 'function') {
                     notes = (content as { toArray: () => StickyNoteData[] }).toArray();
-                } else if (Array.isArray(content)) {
-                    notes = content as StickyNoteData[];
                 }
-
-                if (notes.length === 0) {
-                    console.warn('⚠️ [Liveblocks] nodes observe - content 추출 실패:', {
-                        contentType: typeof content,
-                        contentKeys: content ? Object.keys(content as object) : [],
-                        hasGetContent: content && typeof (content as { getContent?: unknown }).getContent === 'function',
-                        hasToArray: content && typeof (content as { toArray?: unknown }).toArray === 'function',
-                    });
-                }
-
+                
                 notes.forEach((note) => {
                     if (!note || !note.id) return;
-                    // 로컬에서 업데이트한 항목이면 스킵
-                    if (this.pendingLocalUpdates.has(note.id)) {
-                        console.log('⏭️ [Liveblocks] 로컬 업데이트 스킵:', note.id);
-                        this.pendingLocalUpdates.delete(note.id);
-                        return;
+                    const stillExists = nodesArray.toArray().some((n) => n.id === note.id);
+                    if (!stillExists) {
+                        this.emit('sticky-note-deleted', { noteId: note.id });
                     }
-                    console.log('📤 [Liveblocks] 원격 노드 emit:', note.id, { x: note.x, y: note.y });
-                    this.emit('sticky-note-updated', note);
                 });
-            });
-
-            // 삭제 이벤트 (업데이트로 인한 삭제는 무시)
-            event.changes.deleted.forEach((item) => {
-                const content = item.content as unknown;
-                if (content && typeof (content as { toArray?: () => StickyNoteData[] }).toArray === 'function') {
-                    const notes = (content as { toArray: () => StickyNoteData[] }).toArray();
-                    notes.forEach((note) => {
-                        const stillExists = nodesArray.toArray().some((n) => n.id === note.id);
-                        if (!stillExists) {
-                            this.emit('sticky-note-deleted', { noteId: note.id });
-                        }
-                    });
-                }
             });
         });
 
-        // 연결선 변경 감지 - 개별 연결선마다 이벤트 발생
+        // 연결선 변경 감지 - delta 형식 사용 (더 안정적)
         this.yDoc.getArray<LBConnectionData>('connections').observe((event) => {
             const connectionsArray = this.yDoc!.getArray<LBConnectionData>('connections');
-            const hasManyAdds = event.changes.added.size > 1;
-            const hasManyDeletes = event.changes.deleted.size > 1;
-            const shouldEmitSnapshot = hasManyAdds || hasManyDeletes;
+            const delta = event.changes.delta;
 
-            // 전체 목록 변경 이벤트 (대량 변경만)
-            if (shouldEmitSnapshot) {
+            // Delta에서 insert된 연결선들 추출
+            const insertedConnections: LBConnectionData[] = [];
+            
+            for (const op of delta) {
+                if ('insert' in op && Array.isArray(op.insert)) {
+                    insertedConnections.push(...(op.insert as LBConnectionData[]));
+                }
+            }
+
+            // 대량 변경인 경우 전체 리스트 emit
+            const hasManyAdds = insertedConnections.length > 1;
+            const hasManyDeletes = event.changes.deleted.size > 1;
+            if (hasManyAdds || hasManyDeletes) {
                 this.emit('connections-changed', connectionsArray.toArray());
             }
 
             // 개별 연결선 변경 이벤트 (추가/수정) - 로컬 업데이트는 스킵
-            event.changes.added.forEach((item) => {
-                const content = item.content as unknown;
-                if (content && typeof (content as { toArray?: () => LBConnectionData[] }).toArray === 'function') {
-                    const connections = (content as { toArray: () => LBConnectionData[] }).toArray();
-                    connections.forEach((conn) => {
-                        // 로컬에서 업데이트한 항목이면 스킵
-                        if (this.pendingLocalUpdates.has(conn.id)) {
-                            this.pendingLocalUpdates.delete(conn.id);
-                            return;
-                        }
-                        this.emit('connection-updated', conn);
-                    });
+            for (const conn of insertedConnections) {
+                if (!conn || !conn.id) continue;
+                
+                // 로컬에서 업데이트한 항목이면 스킵
+                if (this.pendingLocalUpdates.has(conn.id)) {
+                    this.pendingLocalUpdates.delete(conn.id);
+                    continue;
                 }
-            });
+                
+                this.emit('connection-updated', conn);
+            }
 
-            // 삭제 이벤트
+            // 삭제 이벤트 처리
             event.changes.deleted.forEach((item) => {
                 const content = item.content as unknown;
-                if (content && typeof (content as { toArray?: () => LBConnectionData[] }).toArray === 'function') {
-                    const connections = (content as { toArray: () => LBConnectionData[] }).toArray();
-                    connections.forEach((conn) => {
-                        const stillExists = connectionsArray.toArray().some((c) => c.id === conn.id);
-                        if (!stillExists) {
-                            this.emit('connection-deleted', { connectionId: conn.id });
-                        }
-                    });
+                let connections: LBConnectionData[] = [];
+                
+                if (content && typeof (content as { getContent?: () => unknown[] }).getContent === 'function') {
+                    connections = (content as { getContent: () => LBConnectionData[] }).getContent();
+                } else if (content && typeof (content as { toArray?: () => LBConnectionData[] }).toArray === 'function') {
+                    connections = (content as { toArray: () => LBConnectionData[] }).toArray();
                 }
+                
+                connections.forEach((conn) => {
+                    if (!conn || !conn.id) return;
+                    const stillExists = connectionsArray.toArray().some((c) => c.id === conn.id);
+                    if (!stillExists) {
+                        this.emit('connection-deleted', { connectionId: conn.id });
+                    }
+                });
             });
         });
 
