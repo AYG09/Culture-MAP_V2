@@ -541,9 +541,15 @@ class LiveblocksService {
     public updateConnection(connection: LBConnectionData): void {
         if (!this.yDoc) return;
         const connections = this.yDoc.getArray<LBConnectionData>('connections');
+        const relationType = connection.relationType === 'indirect' ? 'indirect' : 'direct';
         const index = this.findConnectionIndex(connection.id);
-        if (index >= 0) { connections.delete(index, 1); connections.insert(index, [connection]); }
-        else { connections.push([connection]); }
+        const normalized: LBConnectionData = {
+            ...connection,
+            relationType,
+            isPositive: connection.isPositive !== false,
+        };
+        if (index >= 0) { connections.delete(index, 1); connections.insert(index, [normalized]); }
+        else { connections.push([normalized]); }
     }
 
     /**

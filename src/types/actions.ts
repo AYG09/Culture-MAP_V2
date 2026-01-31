@@ -100,6 +100,8 @@ export interface CreateConnectionPayload {
     targetId: string;
     label?: string;
     style?: 'solid' | 'dashed';
+    relationType?: 'direct' | 'indirect';
+    isPositive?: boolean;
 }
 
 /**
@@ -370,10 +372,12 @@ export const MAP_TOOL_DECLARATIONS = [
             properties: {
                 sourceId: { type: 'string', description: 'Source node ID (e.g., driver node)' },
                 targetId: { type: 'string', description: 'Target node ID (e.g., behavior node)' },
-                label: { type: 'string', description: 'Connection meaning (e.g., 강화함, 유발함, 방해함)' }
+                label: { type: 'string', description: 'Connection meaning (e.g., 강화함, 유발함, 방해함)' },
+                relationType: { type: 'string', enum: ['direct', 'indirect'], description: 'Connection type (direct or indirect)' },
+                isPositive: { type: 'boolean', description: 'Whether the relation is positive (default: true)' }
             },
             required: ['sourceId', 'targetId'],
-            propertyOrdering: ['sourceId', 'targetId', 'label']
+            propertyOrdering: ['sourceId', 'targetId', 'label', 'relationType', 'isPositive']
         }
     },
     {

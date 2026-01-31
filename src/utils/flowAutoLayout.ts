@@ -231,14 +231,22 @@ function getBasicLayoutedElements(
       fixedY += resolvedLayerHeights[i] ?? 0;
     }
 
-    // 수평 간격 설정 (노드가 많을수록 간격 확대)
+    const sameLayerIds = new Set(layerNodes.map((node) => node.id));
+    const sameLayerEdges = edges.filter(
+      (edge) => sameLayerIds.has(edge.source) && sameLayerIds.has(edge.target)
+    );
+    const edgeDensity = sameLayerEdges.length / Math.max(1, layerNodes.length);
+    const densityMultiplier = edgeDensity >= 1.5 ? 1.5 : edgeDensity >= 1 ? 1.3 : edgeDensity >= 0.6 ? 1.15 : 1;
+
+    // 수평 간격 설정 (노드가 많거나 동일 레이어 연결이 많을수록 간격 확대)
     const spacingPreset: LayoutSpacingPreset = options?.spacingPreset ?? 'normal';
     const baseSpacing = spacingPreset === 'compact' ? 260 : spacingPreset === 'wide' ? 360 : 300;
     const expandedSpacing = spacingPreset === 'compact' ? 320 : spacingPreset === 'wide' ? 440 : 360;
     const horizontalSpacing = typeof options?.horizontalSpacing === 'number'
       ? options.horizontalSpacing
       : (layerNodes.length > 4 ? expandedSpacing : baseSpacing);
-    const minGap = Math.max(60, Math.round(horizontalSpacing * 0.4));
+    const effectiveHorizontalSpacing = Math.round(horizontalSpacing * densityMultiplier);
+    const minGap = Math.max(60, Math.round(effectiveHorizontalSpacing * 0.4));
 
     const scoredNodes = layerNodes.map((node, nodeIndex) => {
       const neighborX: number[] = [];
@@ -267,7 +275,7 @@ function getBasicLayoutedElements(
 
       const averageX = neighborX.length > 0
         ? neighborX.reduce((sum, value) => sum + value, 0) / neighborX.length
-        : getNodeX(node) ?? (nodeIndex * horizontalSpacing + 120);
+        : getNodeX(node) ?? (nodeIndex * effectiveHorizontalSpacing + 120);
 
       return {
         node,
@@ -278,7 +286,6 @@ function getBasicLayoutedElements(
     });
 
     const scoredNodeById = new Map(scoredNodes.map((item) => [item.node.id, item]));
-    const sameLayerIds = new Set(layerNodes.map((node) => node.id));
 
     const nextById = new Map<string, Set<string>>();
     const indegreeById = new Map<string, number>();
@@ -378,6 +385,8 @@ function getBasicLayoutedElements(
 
     // 최대 depth 확인
     const maxDepth = Math.max(0, ...Array.from(depthById.values()));
+    const rowOffsetMultiplier = Math.min(2, 1 + maxDepth * 0.15 + Math.min(1, edgeDensity * 0.3));
+    const rowOffset = Math.round(INTRA_LAYER_ROW_OFFSET * rowOffsetMultiplier);
     
     // X 좌표 배치를 위한 depth별 그룹화
     const nodesByDepth = new Map<number, Node[]>();
@@ -394,7 +403,7 @@ function getBasicLayoutedElements(
       const depthNodes = nodesByDepth.get(depth) || [];
       
       // 이 depth의 Y 오프셋
-      const yOffset = depth * INTRA_LAYER_ROW_OFFSET;
+      const yOffset = depth * rowOffset;
       
       // X 좌표 배치
       let cursorXForDepth = startX + depth * 50; // depth마다 약간씩 오른쪽으로 시작

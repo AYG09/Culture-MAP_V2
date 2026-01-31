@@ -114,6 +114,32 @@
 - [x] 내보내기 기능 및 스피너 동작 확인
 
 
+# Task List: 레이어 간격/높이 안정화 및 레이어 이탈 방지
+
+## 진행 상황
+- 🔲 미완료
+- 🔄 진행 중
+- ✅ 완료
+
+---
+
+## Task 1: 동일 레이어 간격/행간 확대
+- [x] edge 밀도 기반 horizontalSpacing/minGap 확대
+- [x] depth 행간(rowOffset) 확대
+
+## Task 2: auto_layout 후처리 개선
+- [x] 레이어별 requiredHeight 재계산
+- [x] 상대 yOffset 유지 + 밴드 내부 클램프
+
+## Task 3: 전역 MCP 규칙 정합성
+- [x] Skills 최신 시 Context7/Tavily 생략 가능 문구 반영
+
+## Task 4: 검증
+- [ ] 행동 레이어 가시성 개선 확인
+- [ ] 유형/무형 레버 과확장 해소 확인
+- [ ] 레이어 이탈 없음 확인
+
+
 # Task List: AI 노드 위치/동기화 소실 방지
 
 ## 진행 상황

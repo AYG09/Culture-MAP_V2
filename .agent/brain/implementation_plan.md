@@ -219,6 +219,48 @@ git checkout -- .agent/brain/walkthrough.md
 
 ---
 
+# Implementation Plan: 레이어 간격/높이 안정화 및 레이어 이탈 방지
+
+## 목표
+1. 동일 레이어 인과관계가 복잡한 경우 간격/행간을 확대해 가시성 개선
+2. auto_layout 후 레이어별 필요 높이를 재계산해 과확장 축소
+3. 레이어 밴드 내부로 노드를 클램프해 레이어 이탈 방지
+
+---
+
+## 핵심 변경 범위
+
+### 1) flowAutoLayout 간격/행간 동적 확대
+- 동일 레이어 edge 밀도 기반으로 horizontalSpacing/minGap 확대
+- depth 행간(rowOffset) 확대
+
+### 2) safeAutoLayout 후처리 개선
+- 레이어별 minY/maxBottom으로 requiredHeight 산출
+- 상대 yOffset 유지 + 밴드 내부 클램프
+
+### 3) 전역 MCP 규칙 정합성
+- Skills 최신 시 Context7/Tavily 생략 가능하도록 전역 지시 수정
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 간격 과도 확대 | 화면 폭 증가 | edge 밀도 기반 multiplier 상한 적용 |
+| 레이어 높이 산출 불안정 | 레이아웃 진동 | minY/maxBottom 기준으로 고정된 requiredHeight 사용 |
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. 행동 레이어에서 간격이 늘어나 연결선 겹침이 줄어드는지 확인
+2. 유형/무형 레버 레이어가 과도하게 확장되지 않는지 확인
+3. 자동 정렬 후 모든 노드가 레이어 밴드 내에 위치하는지 확인
+
+---
+
 ## 롤백 계획
 
 ### 트리거 조건

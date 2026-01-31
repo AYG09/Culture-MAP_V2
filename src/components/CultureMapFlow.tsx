@@ -735,19 +735,40 @@ ${chatHistorySection}
     };
 
     const layerPaddingY = 40;
-    const maxHeightsByLayer = [0, 0, 0, 0];
+    const minHeight = 120 + layerPaddingY * 2;
+    const maxHeight = LAYER_MAX_HEIGHT;
+    const layerStats = new Map<number, {
+      minY: number;
+      maxBottom: number;
+      maxNodeHeight: number;
+    }>();
 
     layoutedNodes.forEach((node) => {
       const layerIndex = layerIndexMap[normalizeLayerType(node.type)] ?? 0;
       const nodeHeight = getNodeHeight(node);
-      if (nodeHeight > maxHeightsByLayer[layerIndex]) {
-        maxHeightsByLayer[layerIndex] = nodeHeight;
-      }
+      const current = layerStats.get(layerIndex) ?? {
+        minY: Number.POSITIVE_INFINITY,
+        maxBottom: Number.NEGATIVE_INFINITY,
+        maxNodeHeight: 0,
+      };
+      const nextMinY = Math.min(current.minY, node.position.y);
+      const nextMaxBottom = Math.max(current.maxBottom, node.position.y + nodeHeight);
+      const nextMaxHeight = Math.max(current.maxNodeHeight, nodeHeight);
+      layerStats.set(layerIndex, {
+        minY: nextMinY,
+        maxBottom: nextMaxBottom,
+        maxNodeHeight: nextMaxHeight,
+      });
     });
 
     const resolvedLayerHeights = layerHeights.map((height, index) => {
-      const required = maxHeightsByLayer[index] + layerPaddingY;
-      return Math.min(LAYER_MAX_HEIGHT, Math.max(height, required));
+      const stats = layerStats.get(index);
+      if (!stats || !Number.isFinite(stats.minY) || !Number.isFinite(stats.maxBottom)) {
+        return Math.min(maxHeight, Math.max(minHeight, height));
+      }
+      const requiredSpan = stats.maxBottom - stats.minY;
+      const required = Math.max(requiredSpan + layerPaddingY * 2, stats.maxNodeHeight + layerPaddingY * 2);
+      return Math.min(maxHeight, Math.max(minHeight, required));
     });
 
     const shouldUpdateHeights = resolvedLayerHeights.some(
@@ -768,14 +789,21 @@ ${chatHistorySection}
     const adjustedNodes = layoutedNodes.map((node) => {
       const layerIndex = layerIndexMap[normalizeLayerType(node.type)] ?? 0;
       const bandStart = layerStartByIndex.get(layerIndex) ?? 0;
-      const bandHeight = resolvedLayerHeights[layerIndex] ?? 0;
+      const bandHeight = resolvedLayerHeights[layerIndex] ?? minHeight;
       const nodeHeight = getNodeHeight(node);
-      const centeredY = bandStart + Math.max(0, (bandHeight - nodeHeight) / 2);
+      const stats = layerStats.get(layerIndex);
+      const relativeY = stats && Number.isFinite(stats.minY)
+        ? node.position.y - stats.minY
+        : 0;
+      const bandMinY = bandStart + layerPaddingY;
+      const bandMaxY = bandStart + Math.max(0, bandHeight - nodeHeight - layerPaddingY);
+      const targetY = bandMinY + relativeY;
+      const clampedY = Math.min(Math.max(bandMinY, targetY), bandMaxY);
       return {
         ...node,
         position: {
           x: node.position.x,
-          y: centeredY,
+          y: clampedY,
         },
       };
     });
@@ -1195,6 +1223,9 @@ ${chatHistorySection}
           const targetId = payload.targetId || payload.target;
           if (!sourceId || !targetId) break;
 
+          const relationType = payload.relationType === 'indirect' ? 'indirect' : 'direct';
+          const isPositive = payload.isPositive !== false;
+
           // 노드 조회 후 최적 핸들 결정
           const sourceNode = nodesRef.current.find(n => n.id === sourceId);
           const targetNode = nodesRef.current.find(n => n.id === targetId);
@@ -1219,6 +1250,7 @@ ${chatHistorySection}
             style: {
               strokeWidth: styleVariables.edgeWidth,
               stroke: styleVariables.edgeColor,
+              strokeDasharray: relationType === 'indirect' ? '5 5' : undefined,
             },
             markerEnd: {
               type: 'arrowclosed',
@@ -1227,8 +1259,8 @@ ${chatHistorySection}
               color: styleVariables.edgeColor,
             },
             data: {
-              relationType: 'direct',
-              isPositive: true,
+              relationType,
+              isPositive,
             },
           };
 
@@ -1245,8 +1277,8 @@ ${chatHistorySection}
             id: edgeId,
             sourceId,
             targetId,
-            relationType: 'direct',
-            isPositive: true,
+            relationType,
+            isPositive,
           });
         }
         break;
@@ -2206,10 +2238,15 @@ ${chatHistorySection}
           lockedBy: activeLock?.displayName ?? activeLock?.userId,
         };
 
+        const hasValidX = Number.isFinite(note.x);
+        const hasValidY = Number.isFinite(note.y);
+        const nextX = hasValidX ? note.x : existingNode?.position.x ?? 0;
+        const nextY = hasValidY ? note.y : existingNode?.position.y ?? 0;
+
         const updatedNode: Node = {
           id: note.id,
           type: nodeType,
-          position: { x: note.x, y: note.y },
+          position: { x: nextX, y: nextY },
           data: updatedData,
           width: note.width || (existingNode?.width as number) || 200,
           height: note.height || (existingNode?.height as number) || 120,
@@ -2218,11 +2255,15 @@ ${chatHistorySection}
 
         if (existingIndex >= 0) {
           // 기존 노드 업데이트
-          return currentNodes.map((n, idx) => (idx === existingIndex ? updatedNode : n));
+          const updatedNodes = currentNodes.map((n, idx) => (idx === existingIndex ? updatedNode : n));
+          nodesRef.current = updatedNodes;
+          return updatedNodes;
         }
 
         // 새 노드 추가
-        return [...currentNodes, updatedNode];
+        const updatedNodes = [...currentNodes, updatedNode];
+        nodesRef.current = updatedNodes;
+        return updatedNodes;
       });
     };
 
@@ -2242,9 +2283,11 @@ ${chatHistorySection}
       setEdges((currentEdges) => {
         const existingIndex = currentEdges.findIndex((e) => e.id === connection.id);
 
+        const relationType = connection.relationType === 'indirect' ? 'indirect' : 'direct';
+
         // 연결선 스타일 결정
         const edgeStyle =
-          connection.relationType === 'direct'
+          relationType === 'direct'
             ? { strokeWidth: 2 }
             : { strokeWidth: 2, strokeDasharray: '5 5' };
 
@@ -2266,17 +2309,21 @@ ${chatHistorySection}
             color: edgeColor,
           },
           data: {
-            relationType: connection.relationType,
+            relationType,
             isPositive: connection.isPositive,
           },
         };
 
         if (existingIndex >= 0) {
           // 기존 연결선 업데이트
-          return currentEdges.map((e, idx) => (idx === existingIndex ? updatedEdge : e));
+          const updatedEdges = currentEdges.map((e, idx) => (idx === existingIndex ? updatedEdge : e));
+          edgesRef.current = updatedEdges;
+          return updatedEdges;
         } else {
           // 새 연결선 추가
-          return [...currentEdges, updatedEdge];
+          const updatedEdges = [...currentEdges, updatedEdge];
+          edgesRef.current = updatedEdges;
+          return updatedEdges;
         }
       });
     };
@@ -2756,9 +2803,9 @@ ${chatHistorySection}
         }
         isPositive = false;
       }
-      // 부정↔부정: 주황색
+      // 부정↔부정: 빨강색
       else if (sourceSentiment === 'negative' && targetSentiment === 'negative') {
-        edgeColor = '#f97316';
+        edgeColor = '#ef4444';
         isPositive = false;
       }
       // 중립 포함: 회색
@@ -3180,7 +3227,7 @@ ${chatHistorySection}
               edgeColor = '#ef4444';
               isPositive = false;
             } else if (sourceSentiment === 'negative' && targetSentiment === 'negative') {
-              edgeColor = '#f97316';
+              edgeColor = '#ef4444';
               isPositive = false;
             } else {
               edgeColor = '#6b7280';

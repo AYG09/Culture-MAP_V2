@@ -1998,3 +1998,48 @@
 
 1. get_errors 확인: AIConfigModal.tsx 오류 없음
 2. 워크샵 전환 동작은 사용자 환경에서 확인 필요
+
+---
+
+# Walkthrough: 레이어 간격/높이 안정화 및 레이어 이탈 방지
+
+## 완료 일시
+2026-01-31
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 동일 레이어 인과관계 복잡도에 따른 간격/행간 확대
+2. 레이어별 필요 높이 재계산으로 과확장 축소
+3. 자동 정렬 후 레이어 이탈 방지
+
+---
+
+## ✅ 해결 조치
+
+1. 동일 레이어 edge 밀도에 따라 horizontalSpacing/minGap 확대
+2. depth 기반 행간(rowOffset) 확대
+3. 레이어별 minY/maxBottom 기준 requiredHeight 계산
+4. 상대 yOffset 유지 + 레이어 밴드 내부 클램프
+5. Skills 최신 시 Context7/Tavily 생략 가능 문구 반영
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/utils/flowAutoLayout.ts` | 동일 레이어 간격/행간 동적 확대 |
+| `src/components/CultureMapFlow.tsx` | 레이어 높이 재계산 및 클램프 적용 |
+| `vscode-userdata:/c%3A/Users/winte/AppData/Roaming/Code/User/prompts/.cursorrules.instructions.md` | MCP 규칙 조건부로 정리 |
+| `.agent/brain/implementation_plan.md` | 계획 섹션 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. 행동 레이어 가시성 개선 여부 확인 필요(사용자 환경)
+2. 유형/무형 레버 과확장 해소 여부 확인 필요(사용자 환경)
+3. 자동 정렬 후 레이어 이탈 없음 확인 필요(사용자 환경)

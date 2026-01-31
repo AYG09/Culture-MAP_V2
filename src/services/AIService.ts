@@ -161,6 +161,7 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
 3. **sourceId/targetId 순서**: sourceId = 원인 노드(상위 층위), targetId = 결과 노드(하위 층위)
 4. **다수 노드 생성 시**: 모든 노드 생성 완료 → 일괄 연결(create_connection) → auto_layout 순서
 5. **대량 생성 최적화**: 노드+연결 요청이 함께 오면 add_nodes_with_connections로 노드/연결을 한 번에 생성
+6. **relationType 의미**: direct=직접 인과관계(실선), indirect=간접 인과관계(점선)
 
 ### ✅ 예시 (DO)
 사용자: "리더십 문화 관련 노드 3개 만들어줘"
