@@ -1,6 +1,6 @@
 // src/components/Gateway.tsx - 기업별 폴더 구조 UI
 import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
-import { Search, Plus, Users, Clock, Settings, LogIn, X, Folder, ArrowLeft, Building2 } from 'lucide-react';
+import { Search, Plus, Clock, Settings, LogIn, X, Folder, ArrowLeft, Building2 } from 'lucide-react';
 import liveblocksService from '../services/LiveblocksService';
 import AdminGateway from './AdminGateway';
 import './ModalBase.css';
