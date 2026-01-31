@@ -969,58 +969,68 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  border: none;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0 !important;
+  border: none !important;
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s;
-  background: #f1f5f9;
-  color: #64748b;
+  background: #f1f5f9 !important;
+  color: #64748b !important;
+}
+
+.session-action-btn svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  flex-shrink: 0;
 }
 
 .session-action-btn:hover {
-  background: #e2e8f0;
+  background: #e2e8f0 !important;
 }
 
 .session-action-btn.edit {
-  background: #e0e7ff;
-  color: #4338ca;
+  background: #e0e7ff !important;
+  color: #4338ca !important;
 }
 
 .session-action-btn.edit:hover {
-  background: #c7d2fe;
+  background: #c7d2fe !important;
 }
 
 .session-action-btn.move {
-  background: #fef3c7;
-  color: #d97706;
+  background: #fef3c7 !important;
+  color: #d97706 !important;
 }
 
 .session-action-btn.move:hover {
-  background: #fde68a;
+  background: #fde68a !important;
 }
 
 .session-action-btn.delete {
-  background: #fee2e2;
-  color: #dc2626;
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
 }
 
 .session-action-btn.delete:hover {
-  background: #fecaca;
+  background: #fecaca !important;
 }
 
 .session-action-btn.lock {
-  background: #f1f5f9;
-  color: #94a3b8;
+  background: #f1f5f9 !important;
+  color: #94a3b8 !important;
 }
 
 .session-action-btn.lock:hover {
-  background: #e2e8f0;
-  color: #64748b;
+  background: #e2e8f0 !important;
+  color: #64748b !important;
 }
 
 .session-action-btn.lock.active {
-  background: #e0e7ff;
-  color: #6366f1;
+  background: #e0e7ff !important;
+  color: #6366f1 !important;
 }
 
 /* 세션 편집 인라인 */

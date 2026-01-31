@@ -317,12 +317,47 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
     }
   };
 
-  // 세션 목록 로드
+  // 세션 목록 로드 (클라우드 룸과 동기화)
   const loadSessions = async () => {
     setLoading(true);
     try {
+      // 1. 레지스트리에서 세션 목록 가져오기
       const registrySessions = await liveblocksService.getSessionRegistry();
-      const formattedSessions = registrySessions.map((session) => ({
+      
+      // 2. 클라우드 룸 목록도 가져와서 동기화
+      let cloudRoomIds: Set<string> = new Set();
+      try {
+        const rooms = await liveblocksAdminService.listRooms();
+        const cultureMapRooms = liveblocksAdminService.filterCultureMapRooms(rooms);
+        cloudRoomIds = new Set(cultureMapRooms.map(r => {
+          // culturemap-v2-CODE 형식에서 CODE 추출
+          const match = r.id.match(/^culturemap-v2-(.+)$/);
+          return match ? match[1] : r.id;
+        }));
+      } catch (cloudErr) {
+        console.warn('클라우드 룸 목록 조회 실패 (동기화 건너뜀):', cloudErr);
+      }
+      
+      // 3. 클라우드에 존재하는 세션만 필터링 (동기화)
+      const syncedSessions = cloudRoomIds.size > 0
+        ? registrySessions.filter(s => cloudRoomIds.has(s.code))
+        : registrySessions; // 클라우드 조회 실패시 전체 표시
+      
+      // 4. 클라우드에 없는 레지스트리 항목 자동 정리
+      if (cloudRoomIds.size > 0) {
+        const orphanCodes = registrySessions
+          .filter(s => !cloudRoomIds.has(s.code))
+          .map(s => s.code);
+        
+        if (orphanCodes.length > 0) {
+          console.log(`🧹 고아 레지스트리 ${orphanCodes.length}개 정리:`, orphanCodes);
+          for (const code of orphanCodes) {
+            await liveblocksService.unregisterSession(code);
+          }
+        }
+      }
+      
+      const formattedSessions = syncedSessions.map((session) => ({
         code: session.code,
         name: session.name,
         userCount: 0,
