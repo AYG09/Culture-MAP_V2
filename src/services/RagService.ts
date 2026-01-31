@@ -429,8 +429,7 @@ class RagService {
       contents: texts,
       config: {
         taskType: 'RETRIEVAL_DOCUMENT',
-        outputDimensionality: DEFAULT_EMBEDDING_DIM,
-        autoTruncate: true
+        outputDimensionality: DEFAULT_EMBEDDING_DIM
       }
     })) as EmbedContentResponse;
 
@@ -453,8 +452,7 @@ class RagService {
       contents: [text],
       config: {
         taskType: 'RETRIEVAL_QUERY',
-        outputDimensionality: DEFAULT_EMBEDDING_DIM,
-        autoTruncate: true
+        outputDimensionality: DEFAULT_EMBEDDING_DIM
       }
     })) as EmbedContentResponse;
 

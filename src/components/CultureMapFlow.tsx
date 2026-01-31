@@ -1242,9 +1242,48 @@ ${chatHistorySection}
       case 'create_connection':
         {
           const payload = (args as unknown) as CreateConnectionPayload & { source?: string; target?: string };
-          const sourceId = payload.sourceId || payload.source;
-          const targetId = payload.targetId || payload.target;
+          let sourceId = payload.sourceId || payload.source;
+          let targetId = payload.targetId || payload.target;
           if (!sourceId || !targetId) break;
+
+          // AI가 노드 ID 대신 content/label을 전달한 경우 폴백 검색
+          const findNodeByContentOrId = (idOrContent: string): string | undefined => {
+            // 먼저 정확한 ID로 검색
+            const exactMatch = nodesRef.current.find(n => n.id === idOrContent);
+            if (exactMatch) return exactMatch.id;
+
+            // ID로 못 찾으면 content/label로 검색 (AI가 텍스트를 전달한 경우)
+            const normalizedSearch = idOrContent.replace(/^"|"$/g, '').trim().toLowerCase();
+            const contentMatch = nodesRef.current.find(n => {
+              const nodeContent = String((n.data as { content?: string })?.content || '').toLowerCase();
+              const nodeLabel = String((n.data as { label?: string })?.label || '').toLowerCase();
+              return nodeContent.includes(normalizedSearch) || 
+                     normalizedSearch.includes(nodeContent) ||
+                     nodeLabel.includes(normalizedSearch) ||
+                     normalizedSearch.includes(nodeLabel) ||
+                     nodeContent === normalizedSearch ||
+                     nodeLabel === normalizedSearch;
+            });
+            return contentMatch?.id;
+          };
+
+          const resolvedSourceId = findNodeByContentOrId(sourceId);
+          const resolvedTargetId = findNodeByContentOrId(targetId);
+
+          if (!resolvedSourceId || !resolvedTargetId) {
+            console.warn('⚠️ [Action Bridge] create_connection: 노드를 찾을 수 없음', {
+              sourceId,
+              targetId,
+              resolvedSourceId,
+              resolvedTargetId,
+              availableNodes: nodesRef.current.map(n => ({ id: n.id, content: (n.data as { content?: string })?.content?.substring(0, 30) }))
+            });
+            break;
+          }
+
+          // 실제 노드 ID로 교체
+          sourceId = resolvedSourceId;
+          targetId = resolvedTargetId;
 
           const relationType = payload.relationType === 'indirect' ? 'indirect' : 'direct';
           const isPositive = payload.isPositive !== false;
