@@ -11,6 +11,7 @@ import {
   useEdgesState,
   addEdge,
   applyNodeChanges,
+  ConnectionMode,
   type Connection,
   type Edge,
   type Node,
@@ -2270,10 +2271,16 @@ ${chatHistorySection}
     // 다른 사용자의 노드 삭제 수신
     const handleStickyNoteDeleted = (data: StickyNoteDeleteEvent) => {
       console.log('🗑️ [React Flow] Liveblocks 노드 삭제 수신:', data.noteId);
-      setNodes((currentNodes) => currentNodes.filter((n) => n.id !== data.noteId));
-      setEdges((currentEdges) =>
-        currentEdges.filter((e) => e.source !== data.noteId && e.target !== data.noteId)
-      );
+      setNodes((currentNodes) => {
+        const updatedNodes = currentNodes.filter((n) => n.id !== data.noteId);
+        nodesRef.current = updatedNodes;
+        return updatedNodes;
+      });
+      setEdges((currentEdges) => {
+        const updatedEdges = currentEdges.filter((e) => e.source !== data.noteId && e.target !== data.noteId);
+        edgesRef.current = updatedEdges;
+        return updatedEdges;
+      });
     };
 
     // 다른 사용자의 연결선 업데이트 수신
@@ -2331,7 +2338,11 @@ ${chatHistorySection}
     // 다른 사용자의 연결선 삭제 수신
     const handleConnectionDeleted = (data: ConnectionDeleteEvent) => {
       console.log('🗑️ [React Flow] Liveblocks 연결선 삭제 수신:', data.connectionId);
-      setEdges((currentEdges) => currentEdges.filter((e) => e.id !== data.connectionId));
+      setEdges((currentEdges) => {
+        const updatedEdges = currentEdges.filter((e) => e.id !== data.connectionId);
+        edgesRef.current = updatedEdges;
+        return updatedEdges;
+      });
     };
 
     // Liveblocks 이벤트 리스너 등록
@@ -3423,6 +3434,7 @@ ${chatHistorySection}
           // 엣지 삭제
           const updatedEdges = edges.filter((e) => e.id !== contextMenu.targetId);
           setEdges(updatedEdges);
+          edgesRef.current = updatedEdges;
 
           const { connections: updatedConnections } = convertFromFlowData(nodes, updatedEdges);
           onConnectionsChange(updatedConnections);
@@ -3447,6 +3459,7 @@ ${chatHistorySection}
           );
 
           setEdges(updatedEdges);
+          edgesRef.current = updatedEdges;
 
           const { connections: updatedConnections } = convertFromFlowData(nodes, updatedEdges);
           onConnectionsChange(updatedConnections);
@@ -3806,7 +3819,7 @@ ${chatHistorySection}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
                 defaultEdgeOptions={{ type: 'animatedFlow' }}
-                connectionMode="loose"
+                connectionMode={ConnectionMode.Loose}
                 fitView={!isMobile} // 모바일: fitView 비활성화 (전체 캔버스 자유 이동)
                 minZoom={0.1}
                 maxZoom={2}
