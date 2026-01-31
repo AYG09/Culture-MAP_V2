@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { X, Save, Key, Info, CheckCircle2, BookOpen, Upload, Trash2, Loader2, FileText, Eye, EyeOff, Users } from 'lucide-react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { X, Save, Key, Info, CheckCircle2, BookOpen, Upload, Trash2, Loader2, FileText, Eye, EyeOff, Users, Share2, Database } from 'lucide-react';
 import { aiService, type AIProvider, type AIConfig, type FileMetadata } from '../services/AIService';
 import type { AcademicFileMeta } from '../types/liveblocks';
 import liveblocksService from '../services/LiveblocksService';
@@ -39,6 +39,16 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
         ([userId, files]) => files.length > 0 && activeUserIdSet.has(userId)
     );
 
+    // 공유 RAG 상태
+    const [sharedRagDocs, setSharedRagDocs] = useState<Array<{ docId: string; docName: string; uploaderId: string; uploaderName: string; chunkCount: number; uploadedAt: number }>>([]);
+    const [isUploadingToShared, setIsUploadingToShared] = useState(false);
+
+    // 공유 RAG 문서 목록 로드
+    const loadSharedRagDocs = useCallback(() => {
+        const docs = liveblocksService.getSharedRagDocList();
+        setSharedRagDocs(docs);
+    }, []);
+
     useEffect(() => {
         if (!isOpen) return;
 
@@ -47,6 +57,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
 
         setAcademicFiles(localFiles);
         setSharedAcademicFiles(sharedFiles);
+        loadSharedRagDocs();
 
         if (localFiles.length === 0 && sharedFiles[currentUserId]?.length) {
             liveblocksService.publishAcademicFiles([]);
@@ -68,6 +79,15 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
         });
         return unsubscribe;
     }, [isOpen]);
+
+    // 공유 RAG 청크 변경 감지
+    useEffect(() => {
+        if (!isOpen) return;
+        const unsubscribe = liveblocksService.onSharedRagChunks(() => {
+            loadSharedRagDocs();
+        });
+        return unsubscribe;
+    }, [isOpen, loadSharedRagDocs]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -177,6 +197,61 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
             ownerName,
         }));
         liveblocksService.publishAcademicFiles(metaList);
+    };
+
+    // 공유 RAG로 PDF 업로드
+    const handleSharedRagUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        const pdfFiles = files.filter(file => file.type === 'application/pdf');
+        if (pdfFiles.length === 0) {
+            alert('공유 RAG는 PDF 파일만 지원합니다.');
+            e.target.value = '';
+            return;
+        }
+
+        // 최대 5개 제한 (용량 고려)
+        const currentCount = sharedRagDocs.length;
+        const remainingSlots = Math.max(0, 20 - currentCount);
+        if (pdfFiles.length > remainingSlots) {
+            alert(`공유 RAG는 세션당 최대 20개까지 가능합니다. (현재 ${currentCount}개)`);
+        }
+
+        const filesToUpload = pdfFiles.slice(0, remainingSlots);
+        if (filesToUpload.length === 0) {
+            e.target.value = '';
+            return;
+        }
+
+        try {
+            setIsUploadingToShared(true);
+            for (const file of filesToUpload) {
+                // 먼저 Gemini에 업로드
+                const metadata = await aiService.uploadAcademicFile(file);
+                // 공유 RAG로 인덱싱
+                const result = await aiService.indexAcademicPdfToShared(file, metadata);
+                if (result && result.chunkCount > 0) {
+                    console.log(`📚 [AIConfigModal] 공유 RAG 업로드 완료: ${file.name} (${result.chunkCount} chunks)`);
+                }
+            }
+            loadSharedRagDocs();
+        } catch (error) {
+            console.error('공유 RAG 업로드 실패:', error);
+            alert('공유 RAG 업로드에 실패했습니다. API 키를 확인해주세요.');
+        } finally {
+            setIsUploadingToShared(false);
+            e.target.value = '';
+        }
+    };
+
+    // 공유 RAG 문서 삭제
+    const handleRemoveSharedRagDoc = (docId: string) => {
+        if (!window.confirm('이 문서를 공유 RAG에서 삭제하시겠습니까? 모든 사용자에게서 삭제됩니다.')) {
+            return;
+        }
+        aiService.removeSharedRagDocument(docId);
+        loadSharedRagDocs();
     };
 
     const handleSwitchToConsulting = async () => {
@@ -464,11 +539,77 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                             </p>
                         </div>
 
+                        {/* 공유 RAG 섹션 (벡터 임베딩 공유) */}
+                        <div className="academic-section" style={{ marginTop: '16px', borderColor: '#10b981' }}>
+                            <div className="academic-header">
+                                <label className="section-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Database size={16} color="#10b981" />
+                                    공유 RAG 지식베이스 (세션 전체 공유)
+                                </label>
+                                <span style={{ fontSize: '0.75rem', color: '#10b981' }}>
+                                    {sharedRagDocs.length}/20 문서
+                                </span>
+                            </div>
+
+                            <div className="file-list">
+                                {sharedRagDocs.length === 0 && (
+                                    <p style={{ fontSize: '0.8rem', color: '#9ca3af', textAlign: 'center', margin: '10px 0' }}>
+                                        공유된 RAG 문서가 없습니다. PDF를 업로드하면 모든 참여자가 검색할 수 있습니다.
+                                    </p>
+                                )}
+                                {sharedRagDocs.map((doc) => (
+                                    <div key={doc.docId} className="file-item">
+                                        <div className="file-info" style={{ flex: 1 }}>
+                                            <FileText size={14} color="#10b981" />
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                <span className="file-name" title={doc.docName}>{doc.docName}</span>
+                                                <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>
+                                                    {doc.uploaderName} · {doc.chunkCount}청크
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {doc.uploaderId === currentUserId && (
+                                            <button 
+                                                className="remove-file-btn" 
+                                                onClick={() => handleRemoveSharedRagDoc(doc.docId)}
+                                                title="삭제"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            <label className="upload-academic-btn" style={{ backgroundColor: '#10b981' }}>
+                                <input
+                                    type="file"
+                                    accept=".pdf"
+                                    multiple
+                                    style={{ display: 'none' }}
+                                    onChange={handleSharedRagUpload}
+                                    disabled={isUploadingToShared}
+                                />
+                                {isUploadingToShared ? (
+                                    <>
+                                        <Loader2 size={16} className="spinner" /> 임베딩 생성 중...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Share2 size={16} /> 세션에 PDF 공유 (RAG)
+                                    </>
+                                )}
+                            </label>
+                            <p className="help-text" style={{ marginTop: '8px', color: '#059669' }}>
+                                ✨ 공유 RAG: 업로드된 PDF의 벡터 임베딩이 세션 전체에 공유되어 모든 참여자가 AI 검색에 활용할 수 있습니다.
+                            </p>
+                        </div>
+
                         <div className="academic-section" style={{ marginTop: '16px' }}>
                             <div className="academic-header">
                                 <label className="section-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <Users size={16} color="#6366f1" />
-                                    세션 공유 목록 (읽기 전용)
+                                    세션 공유 목록 (메타데이터)
                                 </label>
                             </div>
 
@@ -493,7 +634,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                                 ))}
                             </div>
                             <p className="help-text" style={{ marginTop: '8px', color: '#6b7280' }}>
-                                * 공유 목록은 메타데이터만 표시되며, 실제 파일 내용은 각 사용자 로컬에서만 사용됩니다.
+                                * 메타데이터만 표시. 실제 검색은 공유 RAG 섹션의 문서만 가능합니다.
                             </p>
                         </div>
                 </div>

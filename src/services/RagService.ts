@@ -1,5 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import documentService from './DocumentService';
+import liveblocksService from './LiveblocksService';
+import type { SharedRagChunk } from '../types/liveblocks';
 
 export interface RagDocumentInfo {
   id: string;
@@ -189,18 +191,88 @@ class RagService {
     return { chunkCount: embeddedChunks.length };
   }
 
+  /**
+   * PDF를 공유 RAG로 인덱싱 (Liveblocks Y.Array에 저장)
+   */
+  public async indexAcademicPdfToShared(file: File, info: RagDocumentInfo): Promise<{ chunkCount: number } | null> {
+    if (!this.client) {
+      throw new Error('Gemini API 설정을 먼저 완료해주세요.');
+    }
+
+    if (!file.type.includes('pdf')) return null;
+
+    // 이미 공유 RAG에 있는지 확인
+    if (liveblocksService.hasSharedRagDoc(info.id)) {
+      console.log(`📚 [RagService] 이미 공유됨: ${info.name}`);
+      return { chunkCount: 0 };
+    }
+
+    const chunks = await this.buildChunksFromPdf(file, info.name);
+    if (chunks.length === 0) {
+      return { chunkCount: 0 };
+    }
+
+    const embeddedChunks = await this.embedChunks(chunks, info);
+    
+    // SharedRagChunk 형태로 변환
+    const userId = liveblocksService.getCurrentUserId();
+    const userName = liveblocksService.getCurrentUserDisplayName();
+    const uploadedAt = Date.now();
+
+    const sharedChunks: SharedRagChunk[] = embeddedChunks.map(chunk => ({
+      id: chunk.id,
+      docId: chunk.docId,
+      docName: chunk.docName,
+      content: chunk.content,
+      embedding: chunk.embedding,
+      pageNumber: chunk.pageNumber,
+      uploaderId: userId,
+      uploaderName: userName,
+      uploadedAt,
+    }));
+
+    // Liveblocks에 저장
+    liveblocksService.addSharedRagChunks(sharedChunks);
+
+    return { chunkCount: sharedChunks.length };
+  }
+
+  /**
+   * 공유 RAG 문서 삭제
+   */
+  public removeSharedDocument(docId: string): void {
+    liveblocksService.removeSharedRagDoc(docId);
+  }
+
   public async removeDocument(docId: string) {
     await this.store.removeDoc(docId);
     await this.refreshCache();
   }
 
+  /**
+   * 통합 검색: 로컬 + 공유 RAG 청크 모두 검색
+   */
   public async retrieveContext(query: string, options: RagQueryOptions = {}): Promise<RagQueryResult | null> {
     if (!this.client) {
       return null;
     }
 
-    const chunks = await this.ensureChunksLoaded();
-    if (chunks.length === 0) return null;
+    // 로컬 청크 + 공유 청크 통합
+    const localChunks = await this.ensureChunksLoaded();
+    const sharedChunks = liveblocksService.getSharedRagChunks();
+    
+    // SharedRagChunk를 RagChunkRecord 형태로 변환
+    const convertedSharedChunks: RagChunkRecord[] = sharedChunks.map(chunk => ({
+      id: chunk.id,
+      docId: chunk.docId,
+      docName: chunk.docName,
+      content: chunk.content,
+      embedding: chunk.embedding,
+      pageNumber: chunk.pageNumber,
+    }));
+
+    const allChunks = [...localChunks, ...convertedSharedChunks];
+    if (allChunks.length === 0) return null;
 
     const queryEmbedding = await this.embedQuery(query);
     if (queryEmbedding.length === 0) return null;
@@ -213,7 +285,7 @@ class RagService {
     const VECTOR_WEIGHT = 0.7;
     const KEYWORD_WEIGHT = 0.3;
 
-    const scored = chunks
+    const scored = allChunks
       .map((chunk) => {
         const vectorScore = cosineSimilarity(queryEmbedding, chunk.embedding);
         const keywordScore = keywordMatchScore(query, chunk.content);
@@ -255,9 +327,13 @@ class RagService {
     };
   }
 
+  /**
+   * 인덱스 존재 여부 확인 (로컬 + 공유 모두)
+   */
   public async hasIndex(): Promise<boolean> {
-    const chunks = await this.ensureChunksLoaded();
-    return chunks.length > 0;
+    const localChunks = await this.ensureChunksLoaded();
+    const sharedChunks = liveblocksService.getSharedRagChunks();
+    return localChunks.length > 0 || sharedChunks.length > 0;
   }
 
   private async ensureChunksLoaded(): Promise<RagChunkRecord[]> {

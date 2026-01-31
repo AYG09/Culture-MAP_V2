@@ -14,6 +14,7 @@ import type {
     SessionType,
     ChatMessage,
     AcademicFileMeta,
+    SharedRagChunk,
     Insight,
     SessionPresence,
     LayerSettings,
@@ -692,6 +693,115 @@ class LiveblocksService {
         const observer = () => callback(academicFiles.toJSON() as Record<string, AcademicFileMeta[]>);
         academicFiles.observe(observer);
         return () => academicFiles.unobserve(observer);
+    }
+
+    // ============================================
+    // 공유 RAG 청크 관리 (벡터 임베딩 공유)
+    // ============================================
+
+    /**
+     * 공유 RAG 청크 배열 가져오기 (Y.Array)
+     */
+    private getSharedRagChunksArray(): Y.Array<SharedRagChunk> | null {
+        if (!this.yDoc) return null;
+        return this.yDoc.getArray<SharedRagChunk>('sharedRagChunks');
+    }
+
+    /**
+     * 공유 RAG에 청크 추가 (벡터 포함)
+     */
+    public addSharedRagChunks(chunks: SharedRagChunk[]): void {
+        const arr = this.getSharedRagChunksArray();
+        if (!arr || chunks.length === 0) return;
+
+        this.yDoc!.transact(() => {
+            arr.push(chunks);
+        });
+        console.log(`📚 [Liveblocks] 공유 RAG 청크 추가: ${chunks.length}개`);
+    }
+
+    /**
+     * 모든 공유 RAG 청크 가져오기
+     */
+    public getSharedRagChunks(): SharedRagChunk[] {
+        const arr = this.getSharedRagChunksArray();
+        if (!arr) return [];
+        return arr.toArray();
+    }
+
+    /**
+     * 특정 문서의 공유 RAG 청크가 있는지 확인
+     */
+    public hasSharedRagDoc(docId: string): boolean {
+        const chunks = this.getSharedRagChunks();
+        return chunks.some(chunk => chunk.docId === docId);
+    }
+
+    /**
+     * 특정 문서의 공유 RAG 청크 삭제
+     */
+    public removeSharedRagDoc(docId: string): void {
+        const arr = this.getSharedRagChunksArray();
+        if (!arr) return;
+
+        const indices: number[] = [];
+        arr.forEach((chunk, index) => {
+            if (chunk.docId === docId) {
+                indices.push(index);
+            }
+        });
+
+        if (indices.length === 0) return;
+
+        // 역순으로 삭제 (인덱스 밀림 방지)
+        this.yDoc!.transact(() => {
+            for (let i = indices.length - 1; i >= 0; i--) {
+                arr.delete(indices[i], 1);
+            }
+        });
+
+        console.log(`🗑️ [Liveblocks] 공유 RAG 문서 삭제: ${docId} (${indices.length}개 청크)`);
+    }
+
+    /**
+     * 공유 RAG 청크 변경 감지
+     */
+    public onSharedRagChunks(callback: (chunks: SharedRagChunk[]) => void): () => void {
+        const arr = this.getSharedRagChunksArray();
+        if (!arr) return () => { };
+
+        const observer = () => callback(arr.toArray());
+        arr.observe(observer);
+        return () => arr.unobserve(observer);
+    }
+
+    /**
+     * 공유 RAG 문서 목록 (중복 제거)
+     */
+    public getSharedRagDocList(): Array<{ docId: string; docName: string; uploaderId: string; uploaderName: string; chunkCount: number; uploadedAt: number }> {
+        const chunks = this.getSharedRagChunks();
+        const docMap = new Map<string, { docId: string; docName: string; uploaderId: string; uploaderName: string; chunkCount: number; uploadedAt: number }>();
+
+        chunks.forEach(chunk => {
+            const existing = docMap.get(chunk.docId);
+            if (existing) {
+                existing.chunkCount += 1;
+                if (chunk.uploadedAt < existing.uploadedAt) {
+                    existing.uploadedAt = chunk.uploadedAt;
+                }
+            } else {
+                docMap.set(chunk.docId, {
+                    docId: chunk.docId,
+                    docName: chunk.docName,
+                    uploaderId: chunk.uploaderId,
+                    uploaderName: chunk.uploaderName,
+                    chunkCount: 1,
+                    uploadedAt: chunk.uploadedAt,
+                });
+            }
+        });
+
+        return Array.from(docMap.values()).sort((a, b) => b.uploadedAt - a.uploadedAt);
     }
 
     // ============================================

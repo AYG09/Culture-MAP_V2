@@ -917,6 +917,24 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
       });
   }
 
+  /**
+   * PDF를 공유 RAG로 인덱싱 (Liveblocks에 벡터 저장)
+   */
+  public async indexAcademicPdfToShared(file: File, metadata: FileMetadata): Promise<{ chunkCount: number } | null> {
+    if (!this.geminiClient) {
+      throw new Error('Gemini API 설정을 먼저 완료해주세요.');
+    }
+    
+    return ragService.indexAcademicPdfToShared(file, { id: metadata.name, name: metadata.displayName });
+  }
+
+  /**
+   * 공유 RAG 문서 삭제
+   */
+  public removeSharedRagDocument(docId: string): void {
+    ragService.removeSharedDocument(docId);
+  }
+
   private async uploadFileToGemini(file: File, failureMessage: string): Promise<FileMetadata> {
     if (!this.geminiClient) throw new Error('Gemini API 설정을 먼저 완료해주세요.');
 

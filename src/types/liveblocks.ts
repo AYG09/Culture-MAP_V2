@@ -62,6 +62,22 @@ export interface AcademicFileMeta {
 }
 
 // ============================================
+// 공유 RAG 청크 (벡터 임베딩 포함)
+// ============================================
+
+export interface SharedRagChunk {
+    id: string;           // docId:chunkIndex 형식
+    docId: string;        // 문서 고유 ID
+    docName: string;      // 문서 표시 이름
+    content: string;      // 청크 텍스트 내용
+    embedding: number[];  // 768차원 벡터 (Gemini text-embedding-004)
+    pageNumber?: number;  // 페이지 번호 (선택)
+    uploaderId: string;   // 업로더 사용자 ID
+    uploaderName: string; // 업로더 표시 이름
+    uploadedAt: number;   // 업로드 시간
+}
+
+// ============================================
 // 프레즌스 (Presence) - 사용자 상태
 // ============================================
 

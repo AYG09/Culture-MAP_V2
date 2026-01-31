@@ -215,6 +215,7 @@ const CultureMapFlow = ({
   const isAutoLayerHeightsRef = useRef(false);
   const isUserLayerHeightChangeRef = useRef(false);
   const draggingNodeIdsRef = useRef(new Set<string>());
+  const resizingNodeIdsRef = useRef(new Set<string>());
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -2643,6 +2644,10 @@ ${chatHistorySection}
         if (change.type === 'position' && change.dragging) {
           draggingNodeIdsRef.current.add(change.id);
         }
+        // NodeResizer로 크기 변경 중 추적
+        if (change.type === 'dimensions' && change.resizing) {
+          resizingNodeIdsRef.current.add(change.id);
+        }
       });
 
       const layerIndexMap: Record<string, number> = {
@@ -2787,6 +2792,59 @@ ${chatHistorySection}
             console.log('📤 [React Flow] Firebase 노드 동기화:', {
               id: node.id,
               position: change.position,
+              layer,
+            });
+          }
+        }
+
+        // 리사이즈 완료 시 크기 동기화 (NodeResizer)
+        if (change.type === 'dimensions' && !change.resizing && change.dimensions) {
+          const wasResizing = resizingNodeIdsRef.current.has(change.id);
+          if (!wasResizing) {
+            return;
+          }
+          resizingNodeIdsRef.current.delete(change.id);
+          const node = nextNodes.find((n) => n.id === change.id);
+          if (node) {
+            const layerMap: { [key: string]: number } = {
+              result: 1,
+              behavior: 2,
+              tangible_lever: 3,
+              intangible_lever: 4,
+            };
+            const layer = layerMap[node.type || 'result'] || 1;
+            const activeLock = collaborationLocksRef.current[node.id];
+            const currentUserId = getCurrentUserId();
+            const isLockedByOther = Boolean(
+              activeLock &&
+              activeLock.itemType === 'note' &&
+              activeLock.userId !== currentUserId
+            );
+
+            if (isLockedByOther) {
+              return;
+            }
+
+            const nodeFrequency = isConsultingMode
+              ? ((node.data as { frequency?: PerceptionIntensity | null }).frequency ?? undefined)
+              : undefined;
+
+            liveblocksService.updateStickyNote({
+              id: node.id,
+              content: (node.data as { content?: string }).content || '',
+              x: node.position.x,
+              y: node.position.y,
+              layer: layer,
+              sentiment: (node.data as { sentiment?: string }).sentiment || 'neutral',
+              type: node.type || 'sticky_note',
+              width: change.dimensions.width,
+              height: change.dimensions.height,
+              ...(isConsultingMode && nodeFrequency ? { frequency: nodeFrequency } : {}),
+            });
+
+            console.log('📐 [React Flow] Firebase 노드 크기 동기화:', {
+              id: node.id,
+              dimensions: change.dimensions,
               layer,
             });
           }
