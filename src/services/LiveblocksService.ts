@@ -776,12 +776,16 @@ class LiveblocksService {
      */
     public addSharedRagChunks(chunks: SharedRagChunk[]): void {
         const arr = this.getSharedRagChunksArray();
-        if (!arr || chunks.length === 0) return;
+        if (!arr || chunks.length === 0) {
+            console.log('📚 [SharedRAG] 청크 추가 실패: Y.Array 없음 또는 빈 청크');
+            return;
+        }
 
+        const beforeCount = arr.length;
         this.yDoc!.transact(() => {
             arr.push(chunks);
         });
-        console.log(`📚 [Liveblocks] 공유 RAG 청크 추가: ${chunks.length}개`);
+        console.log(`📚 [SharedRAG] 청크 추가: ${chunks.length}개 (${beforeCount} → ${arr.length})`);
     }
 
     /**
@@ -789,8 +793,13 @@ class LiveblocksService {
      */
     public getSharedRagChunks(): SharedRagChunk[] {
         const arr = this.getSharedRagChunksArray();
-        if (!arr) return [];
-        return arr.toArray();
+        if (!arr) {
+            console.log('📚 [SharedRAG] Y.Array 없음 (yDoc 없음)');
+            return [];
+        }
+        const chunks = arr.toArray();
+        console.log(`📚 [SharedRAG] 청크 조회: ${chunks.length}개, 문서: ${[...new Set(chunks.map(c => c.docName))].join(', ')}`);
+        return chunks;
     }
 
     /**
@@ -832,10 +841,17 @@ class LiveblocksService {
      */
     public onSharedRagChunks(callback: (chunks: SharedRagChunk[]) => void): () => void {
         const arr = this.getSharedRagChunksArray();
-        if (!arr) return () => { };
+        if (!arr) {
+            console.log('📚 [SharedRAG] observe 실패: Y.Array 없음');
+            return () => { };
+        }
 
-        const observer = () => callback(arr.toArray());
+        const observer = (event: Y.YArrayEvent<SharedRagChunk>) => {
+            console.log(`📚 [SharedRAG] Y.Array 변경 감지! origin: ${event.transaction.origin}, local: ${event.transaction.local}`);
+            callback(arr.toArray());
+        };
         arr.observe(observer);
+        console.log('📚 [SharedRAG] Y.Array observe 등록 완료');
         return () => arr.unobserve(observer);
     }
 
