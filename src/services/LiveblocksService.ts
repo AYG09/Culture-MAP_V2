@@ -1541,6 +1541,106 @@ class LiveblocksService {
             console.log('✅ 세션 비밀번호 삭제:', sessionCode);
         }
     }
+
+    // ============================================
+    // 세션 별칭(Alias) 관리 - 사용자 친화적 진입 코드
+    // ============================================
+
+    /**
+     * 세션 별칭 설정 (1:1 관계)
+     * @param sessionCode 실제 세션 코드
+     * @param alias 사용자 지정 별칭 (빈 문자열이면 삭제)
+     */
+    public async setSessionAlias(sessionCode: string, alias: string): Promise<{ success: boolean; error?: string }> {
+        const config = await this.connectToConfigRoom();
+        const aliases = config.get('sessionAliases') as Record<string, string> | undefined || {};
+        
+        const trimmedAlias = alias.trim().toUpperCase();
+        
+        // 빈 별칭이면 기존 별칭 삭제
+        if (!trimmedAlias) {
+            // 이 세션의 기존 별칭 찾아서 삭제
+            for (const [existingAlias, code] of Object.entries(aliases)) {
+                if (code === sessionCode) {
+                    delete aliases[existingAlias];
+                }
+            }
+            config.set('sessionAliases', aliases);
+            config.set('updatedAt', Date.now());
+            console.log('✅ 세션 별칭 삭제:', sessionCode);
+            return { success: true };
+        }
+
+        // 별칭이 기존 세션 코드와 충돌하는지 확인
+        const registry = await this.getSessionRegistry();
+        const existingCodes = registry.map(s => s.code.toUpperCase());
+        if (existingCodes.includes(trimmedAlias)) {
+            return { success: false, error: '이미 존재하는 세션 코드와 동일합니다' };
+        }
+
+        // 별칭이 다른 세션에서 사용 중인지 확인
+        if (aliases[trimmedAlias] && aliases[trimmedAlias] !== sessionCode) {
+            return { success: false, error: '이미 다른 세션에서 사용 중인 별칭입니다' };
+        }
+
+        // 이 세션의 기존 별칭 삭제 (1:1 관계 유지)
+        for (const [existingAlias, code] of Object.entries(aliases)) {
+            if (code === sessionCode) {
+                delete aliases[existingAlias];
+            }
+        }
+
+        // 새 별칭 설정
+        aliases[trimmedAlias] = sessionCode;
+        config.set('sessionAliases', aliases);
+        config.set('updatedAt', Date.now());
+        console.log('✅ 세션 별칭 설정:', trimmedAlias, '→', sessionCode);
+        return { success: true };
+    }
+
+    /**
+     * 세션 코드로 별칭 가져오기
+     */
+    public async getSessionAlias(sessionCode: string): Promise<string | null> {
+        const config = await this.connectToConfigRoom();
+        const aliases = config.get('sessionAliases') as Record<string, string> | undefined;
+        if (!aliases) return null;
+        
+        for (const [alias, code] of Object.entries(aliases)) {
+            if (code === sessionCode) {
+                return alias;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 모든 세션 별칭 가져오기 (관리자용)
+     * @returns { alias: sessionCode } 형태
+     */
+    public async getAllSessionAliases(): Promise<Record<string, string>> {
+        const config = await this.connectToConfigRoom();
+        const aliases = config.get('sessionAliases') as Record<string, string> | undefined;
+        return aliases || {};
+    }
+
+    /**
+     * 별칭 또는 세션 코드로 실제 세션 코드 찾기
+     * 사용자 진입 시 호출
+     */
+    public async resolveSessionCode(input: string): Promise<string> {
+        const upperInput = input.trim().toUpperCase();
+        
+        // 1. 별칭 테이블에서 찾기
+        const aliases = await this.getAllSessionAliases();
+        if (aliases[upperInput]) {
+            console.log('🔗 별칭으로 세션 찾음:', upperInput, '→', aliases[upperInput]);
+            return aliases[upperInput];
+        }
+        
+        // 2. 별칭이 아니면 원래 코드로 간주
+        return upperInput;
+    }
 }
 
 export const liveblocksService = new LiveblocksService();

@@ -71,11 +71,11 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
   // 이동 드롭다운 상태
   const [showMoveDropdown, setShowMoveDropdown] = useState<string | null>(null);
 
-  // 세션별 비밀번호 관리
-  const [sessionPasswords, setSessionPasswords] = useState<Record<string, string>>({});
-  const [editingSessionPw, setEditingSessionPw] = useState<string | null>(null);
-  const [editingSessionPwValue, setEditingSessionPwValue] = useState('');
-  const [savingSessionPw, setSavingSessionPw] = useState(false);
+  // 세션별 커스텀 진입 코드 (별칭) 관리
+  const [sessionAliases, setSessionAliases] = useState<Record<string, string>>({}); // { code: alias } 형태로 변환해서 사용
+  const [editingSessionAlias, setEditingSessionAlias] = useState<string | null>(null);
+  const [editingSessionAliasValue, setEditingSessionAliasValue] = useState('');
+  const [savingSessionAlias, setSavingSessionAlias] = useState(false);
 
   // 기존 조직 목록 (자동완성용)
   const existingOrganizations = useMemo(() => {
@@ -160,7 +160,7 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
     loadCloudRooms();
     loadMasterKey();
     loadOrgPasswords();
-    loadSessionPasswords();
+    loadSessionAliases();
   }, []);
 
   // 마스터키 로드
@@ -249,38 +249,46 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
     }
   };
 
-  // 세션 비밀번호 목록 로드
-  const loadSessionPasswords = async () => {
+  // 세션 커스텀 진입 코드(별칭) 목록 로드
+  const loadSessionAliases = async () => {
     try {
-      const passwords = await liveblocksService.getAllSessionPasswords();
-      setSessionPasswords(passwords);
+      const aliases = await liveblocksService.getAllSessionAliases();
+      // { alias: code } → { code: alias } 변환
+      const codeToAlias: Record<string, string> = {};
+      for (const [alias, code] of Object.entries(aliases)) {
+        codeToAlias[code] = alias;
+      }
+      setSessionAliases(codeToAlias);
     } catch (err) {
-      console.error('세션 비밀번호 로드 실패:', err);
+      console.error('세션 별칭 로드 실패:', err);
     }
   };
 
-  // 세션 비밀번호 저장
-  const saveSessionPassword = async (code: string, password: string) => {
-    setSavingSessionPw(true);
+  // 세션 커스텀 진입 코드 저장
+  const saveSessionAlias = async (code: string, alias: string) => {
+    setSavingSessionAlias(true);
     try {
-      if (password.trim()) {
-        await liveblocksService.setSessionPassword(code, password);
-        setSessionPasswords(prev => ({ ...prev, [code]: password }));
+      const result = await liveblocksService.setSessionAlias(code, alias);
+      if (result.success) {
+        if (alias.trim()) {
+          setSessionAliases(prev => ({ ...prev, [code]: alias.toUpperCase() }));
+        } else {
+          setSessionAliases(prev => {
+            const updated = { ...prev };
+            delete updated[code];
+            return updated;
+          });
+        }
+        setEditingSessionAlias(null);
+        setEditingSessionAliasValue('');
       } else {
-        await liveblocksService.deleteSessionPassword(code);
-        setSessionPasswords(prev => {
-          const updated = { ...prev };
-          delete updated[code];
-          return updated;
-        });
+        setError(result.error || '커스텀 코드 저장에 실패했습니다.');
       }
-      setEditingSessionPw(null);
-      setEditingSessionPwValue('');
     } catch (err) {
-      console.error('세션 비밀번호 저장 실패:', err);
-      setError('세션 비밀번호 저장에 실패했습니다.');
+      console.error('세션 별칭 저장 실패:', err);
+      setError('커스텀 코드 저장에 실패했습니다.');
     } finally {
-      setSavingSessionPw(false);
+      setSavingSessionAlias(false);
     }
   };
 
@@ -926,33 +934,39 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
                                 <>
                                   <div className="session-info">
                                     <div className="session-name">
-                                      {sessionPasswords[session.code] ? <Lock size={12} style={{ marginRight: '4px', color: '#6366f1' }} /> : null}
                                       {session.name || '이름 없음'}
                                     </div>
-                                    <div className="session-code">{session.code}</div>
+                                    <div className="session-code">
+                                      {sessionAliases[session.code] || session.code}
+                                      {sessionAliases[session.code] && (
+                                        <span style={{ color: '#94a3b8', marginLeft: '4px', fontSize: '0.75rem' }}>
+                                          ({session.code})
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                   <div className="session-actions">
-                                    {editingSessionPw === session.code ? (
+                                    {editingSessionAlias === session.code ? (
                                       <div className="session-edit-inline" style={{ marginRight: '0.5rem' }}>
                                         <input
                                           type="text"
-                                          value={editingSessionPwValue}
-                                          onChange={(e) => setEditingSessionPwValue(e.target.value)}
-                                          placeholder="추가 비밀번호 (빈값=없음)"
-                                          style={{ width: '120px', fontSize: '0.8rem' }}
+                                          value={editingSessionAliasValue}
+                                          onChange={(e) => setEditingSessionAliasValue(e.target.value.toUpperCase())}
+                                          placeholder="커스텀 코드 (빈값=원래코드)"
+                                          style={{ width: '130px', fontSize: '0.8rem' }}
                                           autoFocus
-                                          title={`세션 코드(${session.code})와 별도로 추가 비밀번호를 설정합니다`}
+                                          title={`기억하기 쉬운 커스텀 진입 코드를 설정합니다 (원본: ${session.code})`}
                                         />
                                         <button
-                                          onClick={() => saveSessionPassword(session.code, editingSessionPwValue)}
-                                          disabled={savingSessionPw}
+                                          onClick={() => saveSessionAlias(session.code, editingSessionAliasValue)}
+                                          disabled={savingSessionAlias}
                                           className="save-org-btn"
                                           title="저장"
                                         >
                                           <Check size={12} />
                                         </button>
                                         <button
-                                          onClick={() => { setEditingSessionPw(null); setEditingSessionPwValue(''); }}
+                                          onClick={() => { setEditingSessionAlias(null); setEditingSessionAliasValue(''); }}
                                           className="cancel-org-btn"
                                           title="취소"
                                         >
@@ -961,14 +975,14 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
                                       </div>
                                     ) : (
                                       <button
-                                        className={`session-action-btn lock ${sessionPasswords[session.code] ? 'active' : ''}`}
+                                        className={`session-action-btn lock ${sessionAliases[session.code] ? 'active' : ''}`}
                                         onClick={() => {
-                                          setEditingSessionPw(session.code);
-                                          setEditingSessionPwValue(sessionPasswords[session.code] || '');
+                                          setEditingSessionAlias(session.code);
+                                          setEditingSessionAliasValue(sessionAliases[session.code] || '');
                                         }}
-                                        title={sessionPasswords[session.code] ? '비밀번호 수정' : '비밀번호 설정'}
+                                        title={sessionAliases[session.code] ? `커스텀 코드: ${sessionAliases[session.code]}` : '커스텀 진입 코드 설정'}
                                       >
-                                        {sessionPasswords[session.code] ? <Lock size={14} /> : <LockOpen size={14} />}
+                                        <Key size={14} />
                                       </button>
                                     )}
                                     <button

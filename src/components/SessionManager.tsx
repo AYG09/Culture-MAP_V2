@@ -116,19 +116,19 @@ const SessionManager: React.FC<SessionManagerProps> = ({
     setError('');
 
     try {
-      const upperCode = sessionCode.toUpperCase();
-      // validateSession 대신 joinSession을 직접 호출하여 존재 여부 확인 (room 입장 시 실패하면 catch로 이동)
-      await liveblocksService.joinSession(upperCode, false);
+      // 커스텀 코드(별칭) 또는 원본 코드로 실제 세션 코드 resolve
+      const resolvedCode = await liveblocksService.resolveSessionCode(sessionCode);
+      await liveblocksService.joinSession(resolvedCode, false);
 
       const sessionData = {
-        code: upperCode,
+        code: resolvedCode,
         isHost: false,
         connectedUsers: 1,
       };
 
       setCurrentSession(sessionData);
       setShowModal(false);
-      onSessionJoined?.(upperCode, false);
+      onSessionJoined?.(resolvedCode, false);
       onClose?.();
     } catch (err) {
       setError('세션 참가에 실패했습니다. 코드를 확인해주세요.');
