@@ -1,7 +1,6 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { X, Save, Key, Info, CheckCircle2, BookOpen, Upload, Trash2, Loader2, FileText, Eye, EyeOff, Users, Share2, Database } from 'lucide-react';
-import { aiService, type AIProvider, type AIConfig, type FileMetadata } from '../services/AIService';
-import type { AcademicFileMeta } from '../types/liveblocks';
+import React, { useEffect, useState, useCallback } from 'react';
+import { X, Save, Key, Info, CheckCircle2, Upload, Trash2, Loader2, FileText, Eye, EyeOff, Share2, Database } from 'lucide-react';
+import { aiService, type AIProvider, type AIConfig } from '../services/AIService';
 import liveblocksService from '../services/LiveblocksService';
 import './AIConfigModal.css';
 
@@ -28,17 +27,6 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
 
     const currentUserId = liveblocksService.getCurrentUserId();
 
-    // 전문 지식 파일 상태
-    const [academicFiles, setAcademicFiles] = useState<FileMetadata[]>([]);
-    const [isUploading, setIsUploading] = useState(false);
-    const [sharedAcademicFiles, setSharedAcademicFiles] = useState<Record<string, AcademicFileMeta[]>>({});
-    const [activeUserIds, setActiveUserIds] = useState<string[]>(() => [currentUserId]);
-    const hasSharedForCurrentUser = !!sharedAcademicFiles[currentUserId]?.length;
-    const activeUserIdSet = useMemo(() => new Set(activeUserIds), [activeUserIds]);
-    const sharedAcademicEntries = Object.entries(sharedAcademicFiles).filter(
-        ([userId, files]) => files.length > 0 && activeUserIdSet.has(userId)
-    );
-
     // 공유 RAG 상태
     const [sharedRagDocs, setSharedRagDocs] = useState<Array<{ docId: string; docName: string; uploaderId: string; uploaderName: string; chunkCount: number; uploadedAt: number }>>([]);
     const [isUploadingToShared, setIsUploadingToShared] = useState(false);
@@ -51,34 +39,8 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
 
     useEffect(() => {
         if (!isOpen) return;
-
-        const localFiles = aiService.getAcademicFiles();
-        const sharedFiles = liveblocksService.getAcademicFilesByUser();
-
-        setAcademicFiles(localFiles);
-        setSharedAcademicFiles(sharedFiles);
         loadSharedRagDocs();
-
-        if (localFiles.length === 0 && sharedFiles[currentUserId]?.length) {
-            liveblocksService.publishAcademicFiles([]);
-        }
-    }, [currentUserId, isOpen]);
-
-    useEffect(() => {
-        if (!isOpen) return;
-        if (academicFiles.length > 0) return;
-        if (sharedAcademicFiles[currentUserId]?.length) {
-            liveblocksService.publishAcademicFiles([]);
-        }
-    }, [academicFiles, currentUserId, isOpen, sharedAcademicFiles]);
-
-    useEffect(() => {
-        if (!isOpen) return;
-        const unsubscribe = liveblocksService.onAcademicFiles((data) => {
-            setSharedAcademicFiles(data);
-        });
-        return unsubscribe;
-    }, [isOpen]);
+    }, [isOpen, loadSharedRagDocs]);
 
     // 공유 RAG 청크 변경 감지
     useEffect(() => {
@@ -88,19 +50,6 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
         });
         return unsubscribe;
     }, [isOpen, loadSharedRagDocs]);
-
-    useEffect(() => {
-        if (!isOpen) return;
-        setActiveUserIds([currentUserId]);
-        const unsubscribe = liveblocksService.onOthersPresence((others) => {
-            const otherIds = others
-                .map((entry) => entry.presence?.userId)
-                .filter((id): id is string => typeof id === 'string' && id.length > 0);
-            const nextIds = Array.from(new Set([currentUserId, ...otherIds]));
-            setActiveUserIds(nextIds);
-        });
-        return unsubscribe;
-    }, [currentUserId, isOpen]);
 
     if (!isOpen) return null;
 
@@ -118,85 +67,6 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
             setIsSaved(false);
             onClose();
         }, 1500);
-    };
-
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []);
-        if (files.length === 0) return;
-
-        const supportedFiles = files.filter(file => file.type === 'application/pdf' || file.type.startsWith('image/'));
-        if (supportedFiles.length === 0) {
-            alert('PDF 또는 이미지 파일만 업로드 가능합니다.');
-            e.target.value = '';
-            return;
-        }
-
-        const pdfCount = academicFiles.filter(file => file.mimeType === 'application/pdf').length;
-        const imageCount = academicFiles.filter(file => file.mimeType.startsWith('image/')).length;
-        const remainingPdfSlots = Math.max(0, 10 - pdfCount);
-        const remainingImageSlots = Math.max(0, 10 - imageCount);
-
-        const pdfFiles = supportedFiles.filter(file => file.type === 'application/pdf');
-        const imageFiles = supportedFiles.filter(file => file.type.startsWith('image/'));
-
-        if (pdfFiles.length > remainingPdfSlots || imageFiles.length > remainingImageSlots) {
-            alert(`PDF 최대 ${remainingPdfSlots}개, 이미지 최대 ${remainingImageSlots}개까지 업로드 가능합니다.`);
-        }
-
-        const filesToUpload = [
-            ...pdfFiles.slice(0, remainingPdfSlots),
-            ...imageFiles.slice(0, remainingImageSlots)
-        ];
-
-        if (filesToUpload.length === 0) {
-            e.target.value = '';
-            return;
-        }
-
-        try {
-            setIsUploading(true);
-            for (const file of filesToUpload) {
-                await aiService.addAcademicFile(file);
-            }
-            const updatedFiles = [...aiService.getAcademicFiles()];
-            setAcademicFiles(updatedFiles);
-            const ownerId = liveblocksService.getCurrentUserId();
-            const ownerName = liveblocksService.getCurrentUserDisplayName();
-            const metaList: AcademicFileMeta[] = updatedFiles.map(file => ({
-                name: file.name,
-                displayName: file.displayName,
-                mimeType: file.mimeType,
-                keywords: file.keywords,
-                uploadedAt: Date.now(),
-                ownerId,
-                ownerName,
-            }));
-            liveblocksService.publishAcademicFiles(metaList);
-        } catch (error) {
-            console.error('Failed to upload academic files:', error);
-            alert('파일 업로드에 실패했습니다. API 키를 확인해주세요.');
-        } finally {
-            setIsUploading(false);
-            e.target.value = '';
-        }
-    };
-
-    const handleRemoveFile = (fileName: string) => {
-        aiService.removeAcademicFile(fileName);
-        const updatedFiles = [...aiService.getAcademicFiles()];
-        setAcademicFiles(updatedFiles);
-        const ownerId = liveblocksService.getCurrentUserId();
-        const ownerName = liveblocksService.getCurrentUserDisplayName();
-        const metaList: AcademicFileMeta[] = updatedFiles.map(file => ({
-            name: file.name,
-            displayName: file.displayName,
-            mimeType: file.mimeType,
-            keywords: file.keywords,
-            uploadedAt: Date.now(),
-            ownerId,
-            ownerName,
-        }));
-        liveblocksService.publishAcademicFiles(metaList);
     };
 
     // 공유 RAG로 PDF 업로드
@@ -477,70 +347,8 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                         <p className="help-text">* 전환은 세션 연결 상태에서만 가능합니다.</p>
                     </div>
 
-                    {/* 전문가 지식 베이스 섹션 */}
-                    <div className="academic-section">
-                            <div className="academic-header">
-                                <label className="section-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <BookOpen size={16} color="#3b82f6" />
-                                    전문가 지식 베이스 (PDF/이미지)
-                                </label>
-                                <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-                                    PDF {academicFiles.filter(file => file.mimeType === 'application/pdf').length}/10 · 이미지 {academicFiles.filter(file => file.mimeType.startsWith('image/')).length}/10
-                                </span>
-                            </div>
-
-                            <div className="file-list">
-                                {academicFiles.length === 0 && hasSharedForCurrentUser && (
-                                    <p style={{ fontSize: '0.8rem', color: '#9ca3af', textAlign: 'center', margin: '10px 0' }}>
-                                        로컬 저장소가 초기화되어 전문 지식 베이스가 비어 있습니다. 세션 공유 목록은 메타데이터만 표시되며 실제 파일은 각 브라우저에만 저장됩니다. 필요하면 다시 업로드해 주세요.
-                                    </p>
-                                )}
-                                {academicFiles.map((file, idx) => (
-                                    <div key={idx} className="file-item">
-                                        <div className="file-info">
-                                            <FileText size={14} />
-                                            <span className="file-name" title={file.displayName || file.name}>
-                                                {file.displayName || file.name.replace('files/', '')}
-                                            </span>
-                                        </div>
-                                        <button className="remove-file-btn" onClick={() => handleRemoveFile(file.name)}>
-                                            <Trash2 size={14} />
-                                        </button>
-                                    </div>
-                                ))}
-                                {academicFiles.length === 0 && (
-                                    <p style={{ fontSize: '0.8rem', color: '#9ca3af', textAlign: 'center', margin: '10px 0' }}>
-                                        등록된 지식 파일이 없습니다.
-                                    </p>
-                                )}
-                            </div>
-
-                            <label className="upload-academic-btn">
-                                <input
-                                    type="file"
-                                    accept=".pdf,image/png,image/jpeg,image/webp"
-                                    multiple
-                                    style={{ display: 'none' }}
-                                    onChange={handleFileUpload}
-                                    disabled={isUploading}
-                                />
-                                {isUploading ? (
-                                    <>
-                                        <Loader2 size={16} className="spinner" /> 업로드 중...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Upload size={16} /> 전문 PDF/이미지 추가 (마인드맵 포함)
-                                    </>
-                                )}
-                            </label>
-                            <p className="help-text" style={{ marginTop: '8px', color: '#6b7280' }}>
-                                * PDF는 최대 10개, 이미지는 최대 10개까지 등록할 수 있습니다. 이미지 해상도는 3600x3600 이하만 지원됩니다.
-                            </p>
-                        </div>
-
-                        {/* 공유 RAG 섹션 (벡터 임베딩 공유) */}
-                        <div className="academic-section" style={{ marginTop: '16px', borderColor: '#10b981' }}>
+                    {/* 공유 RAG 섹션 (벡터 임베딩 공유) */}
+                        <div className="academic-section" style={{ borderColor: '#10b981' }}>
                             <div className="academic-header">
                                 <label className="section-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <Database size={16} color="#10b981" />
