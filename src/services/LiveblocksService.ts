@@ -142,6 +142,14 @@ class LiveblocksService {
             this.hasClearedIndexeddbCache = true;
             await this.resetIndexeddbCacheAfterSync(code);
             this.syncSessionMetadata();
+            
+            // 세션 연결 후 중복 노드/연결선 자동 정리
+            const cleanedNodes = this.cleanupDuplicateNodes();
+            const cleanedConnections = this.cleanupDuplicateConnections();
+            if (cleanedNodes > 0 || cleanedConnections > 0) {
+                console.log(`🧹 [Liveblocks] 세션 연결 시 중복 정리: 노드 ${cleanedNodes}개, 연결선 ${cleanedConnections}개 제거`);
+            }
+            
             this.provider?.off('sync', handleProviderSync);
         };
         this.provider.on('sync', handleProviderSync);
@@ -451,6 +459,35 @@ class LiveblocksService {
         return toDelete.length;
     }
 
+    /**
+     * Yjs 배열에서 중복 연결선 제거 (소스 레벨 cleanup)
+     * @returns 제거된 중복 연결선 수
+     */
+    public cleanupDuplicateConnections(): number {
+        if (!this.yDoc) return 0;
+        const connections = this.yDoc.getArray<LBConnectionData>('connections');
+        const seen = new Map<string, number>();
+        const toDelete: number[] = [];
+
+        connections.forEach((conn, index) => {
+            if (seen.has(conn.id)) {
+                // 이전 인덱스(오래된 항목)를 삭제 대상에 추가
+                toDelete.push(seen.get(conn.id)!);
+            }
+            seen.set(conn.id, index);
+        });
+
+        if (toDelete.length === 0) return 0;
+
+        // 역순으로 삭제 (인덱스 변동 방지)
+        this.yDoc.transact(() => {
+            toDelete.sort((a, b) => b - a).forEach(idx => connections.delete(idx, 1));
+        });
+
+        console.log(`🧹 [Liveblocks] cleanupDuplicateConnections: ${toDelete.length}개 중복 연결선 제거`);
+        return toDelete.length;
+    }
+
     public onChatMessages(callback: (messages: ChatMessage[]) => void): () => void {
         if (!this.yDoc) return () => { };
         const messages = this.yDoc.getArray<ChatMessage>('chatMessages');
@@ -518,20 +555,36 @@ class LiveblocksService {
             return;
         }
         const nodes = this.yDoc.getArray<StickyNoteData>('nodes');
-        const index = this.findNodeIndex(note.id);
-        console.log('📝 [Liveblocks] updateStickyNote:', { id: note.id, index, nodesLength: nodes.length });
+        
+        // 같은 ID의 모든 인덱스 수집 (중복 방지)
+        const indicesToDelete: number[] = [];
+        let latestNode: StickyNoteData | null = null;
+        nodes.toArray().forEach((n, idx) => {
+            if (n.id === note.id) {
+                indicesToDelete.push(idx);
+                latestNode = n; // 마지막 항목이 최신
+            }
+        });
+        
+        console.log('📝 [Liveblocks] updateStickyNote:', { id: note.id, duplicates: indicesToDelete.length, nodesLength: nodes.length });
+        
         // 로컬 업데이트 플래그 설정 (observe에서 스킵하도록)
         this.pendingLocalUpdates.add(note.id);
         this.yDoc.transact(() => {
-            const existing = index >= 0 ? nodes.get(index) : {};
+            const existing = latestNode ?? {};
             const fullNote: StickyNoteData = {
                 ...existing,
                 ...note,
                 timestamp: Date.now(),
                 author: this.displayName,
             } as StickyNoteData;
-            if (index >= 0) { nodes.delete(index, 1); nodes.insert(index, [fullNote]); }
-            else { nodes.push([fullNote]); }
+            
+            // 모든 중복 삭제 (역순으로 삭제하여 인덱스 변동 방지)
+            if (indicesToDelete.length > 0) {
+                indicesToDelete.sort((a, b) => b - a).forEach(idx => nodes.delete(idx, 1));
+            }
+            // 하나만 추가
+            nodes.push([fullNote]);
         });
         console.log('✅ [Liveblocks] updateStickyNote 완료:', note.id);
     }
@@ -544,11 +597,15 @@ class LiveblocksService {
         if (!this.yDoc || updates.length === 0) return;
         const nodes = this.yDoc.getArray<StickyNoteData>('nodes');
         
-        // 인덱스 미리 계산 (트랜잭션 내에서 인덱스가 변경되므로 Map 사용)
-        const indexMap = new Map<string, number>();
-        nodes.forEach((node, idx) => {
-            if (!indexMap.has(node.id)) {
-                indexMap.set(node.id, idx);
+        // 각 ID별로 모든 인덱스와 최신 데이터 수집 (중복 처리)
+        const nodeDataMap = new Map<string, { indices: number[]; latest: StickyNoteData }>();
+        nodes.toArray().forEach((node, idx) => {
+            const existing = nodeDataMap.get(node.id);
+            if (existing) {
+                existing.indices.push(idx);
+                existing.latest = node; // 마지막 항목이 최신
+            } else {
+                nodeDataMap.set(node.id, { indices: [idx], latest: node });
             }
         });
 
@@ -557,36 +614,63 @@ class LiveblocksService {
             this.pendingLocalUpdates.add(update.id);
         });
 
-        this.yDoc.transact(() => {
-            updates.forEach(update => {
-                const index = indexMap.get(update.id);
-                if (index === undefined || index < 0) return;
-                
-                const existing = nodes.get(index);
-                if (!existing) return;
-                
-                const fullNote: StickyNoteData = {
-                    ...existing,
-                    x: update.x,
-                    y: update.y,
-                    ...(update.content !== undefined && { content: update.content }),
-                    ...(update.layer !== undefined && { layer: update.layer }),
-                    ...(update.sentiment !== undefined && { sentiment: update.sentiment }),
-                    timestamp: Date.now(),
-                    author: this.displayName,
-                };
-                nodes.delete(index, 1);
-                nodes.insert(index, [fullNote]);
-            });
+        // 삭제할 모든 인덱스 수집
+        const allIndicesToDelete: number[] = [];
+        const nodesToInsert: StickyNoteData[] = [];
+        
+        updates.forEach(update => {
+            const data = nodeDataMap.get(update.id);
+            if (!data) return;
+            
+            // 모든 중복 인덱스 수집
+            allIndicesToDelete.push(...data.indices);
+            
+            // 최신 데이터 기반으로 업데이트된 노드 생성
+            const fullNote: StickyNoteData = {
+                ...data.latest,
+                x: update.x,
+                y: update.y,
+                ...(update.content !== undefined && { content: update.content }),
+                ...(update.layer !== undefined && { layer: update.layer }),
+                ...(update.sentiment !== undefined && { sentiment: update.sentiment }),
+                timestamp: Date.now(),
+                author: this.displayName,
+            };
+            nodesToInsert.push(fullNote);
         });
-        console.log(`✅ [Liveblocks] batchUpdateNodePositions 완료: ${updates.length}개 노드`);
+
+        this.yDoc.transact(() => {
+            // 모든 중복 삭제 (역순으로 삭제하여 인덱스 변동 방지)
+            allIndicesToDelete.sort((a, b) => b - a).forEach(idx => nodes.delete(idx, 1));
+            // 업데이트된 노드들 일괄 추가
+            if (nodesToInsert.length > 0) {
+                nodes.push(nodesToInsert);
+            }
+        });
+        console.log(`✅ [Liveblocks] batchUpdateNodePositions 완료: ${updates.length}개 노드, ${allIndicesToDelete.length - updates.length}개 중복 제거`);
     }
 
     public deleteStickyNote(noteId: string): void {
         if (!this.yDoc) return;
         const nodes = this.yDoc.getArray<StickyNoteData>('nodes');
-        const index = this.findNodeIndex(noteId);
-        if (index >= 0) nodes.delete(index, 1);
+        
+        // 같은 ID의 모든 인덱스 수집 (중복 포함)
+        const indicesToDelete: number[] = [];
+        nodes.toArray().forEach((n, idx) => {
+            if (n.id === noteId) {
+                indicesToDelete.push(idx);
+            }
+        });
+        
+        if (indicesToDelete.length > 0) {
+            this.yDoc.transact(() => {
+                // 역순으로 삭제하여 인덱스 변동 방지
+                indicesToDelete.sort((a, b) => b - a).forEach(idx => nodes.delete(idx, 1));
+            });
+            if (indicesToDelete.length > 1) {
+                console.log(`🧹 [Liveblocks] deleteStickyNote: ${noteId} - ${indicesToDelete.length}개 중복 포함 삭제`);
+            }
+        }
     }
 
     public updateConnection(connection: LBConnectionData): void {
