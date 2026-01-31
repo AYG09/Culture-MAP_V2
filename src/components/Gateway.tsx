@@ -323,7 +323,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
       
       // 2. 입력한 코드가 해당 세션의 코드 또는 커스텀 코드와 일치하는지 검증
       if (!validCodes.includes(inputCode)) {
-        setError(`코드가 일치하지 않습니다. (힌트: ${alias ? alias : targetCode})`);
+        setError('진입 코드가 일치하지 않습니다.');
         return;
       }
       
