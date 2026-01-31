@@ -511,6 +511,11 @@ class LiveblocksService {
             }
         });
 
+        // 로컬 업데이트 플래그 설정 (observe에서 스킵하도록)
+        updates.forEach(update => {
+            this.pendingLocalUpdates.add(update.id);
+        });
+
         this.yDoc.transact(() => {
             updates.forEach(update => {
                 const index = indexMap.get(update.id);
@@ -767,6 +772,12 @@ class LiveblocksService {
             const hasManyDeletes = event.changes.deleted.size > 1;
             const shouldEmitSnapshot = hasManyAdds || hasManyDeletes;
 
+            console.log('🔔 [Liveblocks] nodes observe:', {
+                addedCount: event.changes.added.size,
+                deletedCount: event.changes.deleted.size,
+                pendingLocalUpdates: Array.from(this.pendingLocalUpdates),
+            });
+
             // 전체 목록 변경 이벤트 (대량 변경만)
             if (shouldEmitSnapshot) {
                 this.emit('notes-changed', nodesArray.toArray());
@@ -780,9 +791,11 @@ class LiveblocksService {
                     notes.forEach((note) => {
                         // 로컬에서 업데이트한 항목이면 스킵
                         if (this.pendingLocalUpdates.has(note.id)) {
+                            console.log('⏭️ [Liveblocks] 로컬 업데이트 스킵:', note.id);
                             this.pendingLocalUpdates.delete(note.id);
                             return;
                         }
+                        console.log('📤 [Liveblocks] 원격 노드 emit:', note.id, { x: note.x, y: note.y });
                         this.emit('sticky-note-updated', note);
                     });
                 }

@@ -1307,6 +1307,11 @@ ${chatHistorySection}
           isUserLayerHeightChangeRef.current = true;
           setLayerHeights(newHeights);
 
+          // Liveblocks 직접 동기화 (useEffect 제거로 인한 직접 호출)
+          if (liveblocksService.isConnected()) {
+            liveblocksService.updateLayerSettings({ layerHeights: newHeights, layerOpacities });
+          }
+
           setTimeout(() => safeAutoLayout(false), 100);
         }
         break;
