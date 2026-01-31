@@ -228,7 +228,8 @@ export const convertConnectionToFlowEdge = (connection: ConnectionData): Edge =>
     source: connection.sourceId,
     target: connection.targetId,
     type: 'animatedFlow',
-    animated: connection.relationType === 'direct',
+    // animated 속성 제거: React Flow의 기본 animated는 CSS 점선 애니메이션을 적용하여
+    // 우리의 strokeDasharray 설정을 덮어씀. AnimatedFlowEdge는 animateMotion으로 자체 애니메이션 구현
     style: {
       strokeWidth: 2,
       stroke: edgeColor,
