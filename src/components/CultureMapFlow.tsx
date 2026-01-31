@@ -1137,10 +1137,23 @@ ${chatHistorySection}
           const edgeColor = isPositive ? '#10b981' : '#ef4444';
           const edgeId = `edge-${sourceId}-${targetId}-${batchTimestamp}-${index}`;
 
+          // 연결선 핸들 계산 (새로 생성된 노드 포함)
+          const sourceNode = updatedNodes.find(n => n.id === sourceId);
+          const targetNode = updatedNodes.find(n => n.id === targetId);
+          let sourceHandle: string | undefined;
+          let targetHandle: string | undefined;
+          if (sourceNode && targetNode) {
+            const handles = getOptimalHandles(sourceNode, targetNode);
+            sourceHandle = handles.sourceHandle;
+            targetHandle = handles.targetHandle;
+          }
+
           newEdges.push({
             id: edgeId,
             source: sourceId,
             target: targetId,
+            sourceHandle,
+            targetHandle,
             type: 'animatedFlow',
             style: {
               strokeWidth: 2,
@@ -1167,6 +1180,8 @@ ${chatHistorySection}
             relationType,
             isPositive,
             createdBy: 'ai',
+            sourceHandle,
+            targetHandle,
           });
         });
 
@@ -3541,6 +3556,8 @@ ${chatHistorySection}
                   ? 'indirect'
                   : 'direct',
               isPositive,
+              sourceHandle: e.sourceHandle ?? undefined,
+              targetHandle: e.targetHandle ?? undefined,
             });
 
             return {
@@ -3757,6 +3774,8 @@ ${chatHistorySection}
             targetId: edge.target,
             relationType: action,
             isPositive: (edge.data as { isPositive?: boolean })?.isPositive !== false,
+            sourceHandle: edge.sourceHandle ?? undefined,
+            targetHandle: edge.targetHandle ?? undefined,
           });
         }
       }
