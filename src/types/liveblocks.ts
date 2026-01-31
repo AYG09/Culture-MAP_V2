@@ -3,6 +3,7 @@
  * 실시간 협업을 위한 프레즌스, 스토리지, 이벤트 타입
  */
 
+import type { Json } from '@liveblocks/client';
 import type { PerceptionIntensity } from './culture';
 import type { AiAction } from './actions';
 
@@ -89,7 +90,7 @@ export interface SessionPresence {
     userColor: string;
     editingNodeId: string | null;
     lastActivity: number;
-    [key: string]: unknown; // JsonObject 호환을 위한 인덱스 시그니처
+    [key: string]: Json | undefined; // JsonObject 호환을 위한 인덱스 시그니처
 }
 
 // ============================================
