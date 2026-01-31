@@ -604,39 +604,6 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                                 ✨ 공유 RAG: 업로드된 PDF의 벡터 임베딩이 세션 전체에 공유되어 모든 참여자가 AI 검색에 활용할 수 있습니다.
                             </p>
                         </div>
-
-                        <div className="academic-section" style={{ marginTop: '16px' }}>
-                            <div className="academic-header">
-                                <label className="section-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <Users size={16} color="#6366f1" />
-                                    세션 공유 목록 (메타데이터)
-                                </label>
-                            </div>
-
-                            <div className="file-list">
-                                {sharedAcademicEntries.length === 0 && (
-                                    <p style={{ fontSize: '0.8rem', color: '#9ca3af', textAlign: 'center', margin: '10px 0' }}>
-                                        공유된 지식 파일이 없습니다.
-                                    </p>
-                                )}
-                                {sharedAcademicEntries.map(([userId, files]) => (
-                                    <div key={userId} className="file-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
-                                        <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                                            {files[0]?.ownerName || userId}의 업로드
-                                        </div>
-                                        {files.map((file) => (
-                                            <div key={file.name} className="file-info" style={{ paddingLeft: '4px' }}>
-                                                <FileText size={14} />
-                                                <span className="file-name" title={file.displayName}>{file.displayName}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ))}
-                            </div>
-                            <p className="help-text" style={{ marginTop: '8px', color: '#6b7280' }}>
-                                * 메타데이터만 표시. 실제 검색은 공유 RAG 섹션의 문서만 가능합니다.
-                            </p>
-                        </div>
                 </div>
 
                 <div className="modal-footer">
