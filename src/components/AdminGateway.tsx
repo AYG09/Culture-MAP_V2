@@ -1,6 +1,6 @@
 // src/components/AdminGateway.tsx - 관리자 패널 (2컬럼 레이아웃)
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, RefreshCw, Trash2, Users, Clock, Key, Save, Eye, EyeOff, Cloud, AlertTriangle, Building2, Edit3, Check, X, Shield, Plus, ChevronDown, ChevronRight, FolderInput } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Trash2, Users, Clock, Key, Save, Eye, EyeOff, Cloud, AlertTriangle, Building2, Edit3, Check, X, Shield, Plus, ChevronDown, ChevronRight, FolderInput, Lock, LockOpen } from 'lucide-react';
 import liveblocksService from '../services/LiveblocksService';
 import liveblocksAdminService from '../services/LiveblocksAdminService';
 import type { LiveblocksRoom } from '../services/LiveblocksAdminService';
@@ -62,6 +62,7 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
   // 아코디언 상태
   const [expandedOrgs, setExpandedOrgs] = useState<Set<string>>(new Set());
   const [expandedPwOrgs, setExpandedPwOrgs] = useState<Set<string>>(new Set());
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
   // 세션 이름 편집
   const [editingSessionName, setEditingSessionName] = useState<string | null>(null);
@@ -69,6 +70,12 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
 
   // 이동 드롭다운 상태
   const [showMoveDropdown, setShowMoveDropdown] = useState<string | null>(null);
+
+  // 세션별 비밀번호 관리
+  const [sessionPasswords, setSessionPasswords] = useState<Record<string, string>>({});
+  const [editingSessionPw, setEditingSessionPw] = useState<string | null>(null);
+  const [editingSessionPwValue, setEditingSessionPwValue] = useState('');
+  const [savingSessionPw, setSavingSessionPw] = useState(false);
 
   // 기존 조직 목록 (자동완성용)
   const existingOrganizations = useMemo(() => {
@@ -153,6 +160,7 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
     loadCloudRooms();
     loadMasterKey();
     loadOrgPasswords();
+    loadSessionPasswords();
   }, []);
 
   // 마스터키 로드
@@ -219,7 +227,9 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
       setError('기업명과 비밀번호를 모두 입력하세요.');
       return;
     }
-    await saveOrgPassword(newOrgName.trim(), newOrgPw.trim());
+    // '미지정'은 빈 문자열로 저장
+    const orgKey = newOrgName.trim() === '미지정' ? '' : newOrgName.trim();
+    await saveOrgPassword(orgKey, newOrgPw.trim());
     setNewOrgName('');
     setNewOrgPw('');
   };
@@ -236,6 +246,41 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
       });
     } catch (err) {
       console.error('기업 비밀번호 삭제 실패:', err);
+    }
+  };
+
+  // 세션 비밀번호 목록 로드
+  const loadSessionPasswords = async () => {
+    try {
+      const passwords = await liveblocksService.getAllSessionPasswords();
+      setSessionPasswords(passwords);
+    } catch (err) {
+      console.error('세션 비밀번호 로드 실패:', err);
+    }
+  };
+
+  // 세션 비밀번호 저장
+  const saveSessionPassword = async (code: string, password: string) => {
+    setSavingSessionPw(true);
+    try {
+      if (password.trim()) {
+        await liveblocksService.setSessionPassword(code, password);
+        setSessionPasswords(prev => ({ ...prev, [code]: password }));
+      } else {
+        await liveblocksService.deleteSessionPassword(code);
+        setSessionPasswords(prev => {
+          const updated = { ...prev };
+          delete updated[code];
+          return updated;
+        });
+      }
+      setEditingSessionPw(null);
+      setEditingSessionPwValue('');
+    } catch (err) {
+      console.error('세션 비밀번호 저장 실패:', err);
+      setError('세션 비밀번호 저장에 실패했습니다.');
+    } finally {
+      setSavingSessionPw(false);
     }
   };
 
@@ -634,9 +679,9 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
                 </div>
               ) : (
                 Object.entries(orgPasswords).map(([org, pw]) => (
-                  <div key={org} className="org-password-item">
+                  <div key={org || '__empty__'} className="org-password-item">
                     <div className="org-password-info">
-                      <span className="org-name">{org}</span>
+                      <span className="org-name">{org || '미지정'}</span>
                       {editingOrgPw === org ? (
                         <div className="org-pw-edit-form">
                           <input
@@ -694,11 +739,12 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
                 type="text"
                 value={newOrgName}
                 onChange={(e) => setNewOrgName(e.target.value)}
-                placeholder="기업명"
+                placeholder="기업명 (미지정 포함)"
                 list="existing-orgs"
               />
               <datalist id="existing-orgs">
-                {existingOrganizations.map(org => (
+                <option value="미지정" />
+                {existingOrganizations.filter(org => org !== '미지정').map(org => (
                   <option key={org} value={org} />
                 ))}
               </datalist>
@@ -844,10 +890,52 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
                               ) : (
                                 <>
                                   <div className="session-info">
-                                    <div className="session-name">{session.name || '이름 없음'}</div>
+                                    <div className="session-name">
+                                      {sessionPasswords[session.code] ? <Lock size={12} style={{ marginRight: '4px', color: '#6366f1' }} /> : null}
+                                      {session.name || '이름 없음'}
+                                    </div>
                                     <div className="session-code">{session.code}</div>
                                   </div>
                                   <div className="session-actions">
+                                    {editingSessionPw === session.code ? (
+                                      <div className="session-edit-inline" style={{ marginRight: '0.5rem' }}>
+                                        <input
+                                          type="text"
+                                          value={editingSessionPwValue}
+                                          onChange={(e) => setEditingSessionPwValue(e.target.value)}
+                                          placeholder="비밀번호 (빈값=해제)"
+                                          style={{ width: '100px', fontSize: '0.8rem' }}
+                                          autoFocus
+                                        />
+                                        <button
+                                          onClick={() => saveSessionPassword(session.code, editingSessionPwValue)}
+                                          disabled={savingSessionPw}
+                                          className="save-org-btn"
+                                          title="저장"
+                                        >
+                                          <Check size={12} />
+                                        </button>
+                                        <button
+                                          onClick={() => { setEditingSessionPw(null); setEditingSessionPwValue(''); }}
+                                          className="cancel-org-btn"
+                                          title="취소"
+                                        >
+                                          <X size={12} />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        className={`session-action-btn ${sessionPasswords[session.code] ? 'edit' : ''}`}
+                                        onClick={() => {
+                                          setEditingSessionPw(session.code);
+                                          setEditingSessionPwValue(sessionPasswords[session.code] || '');
+                                        }}
+                                        title={sessionPasswords[session.code] ? '비밀번호 수정' : '비밀번호 설정'}
+                                        style={{ background: sessionPasswords[session.code] ? '#e0e7ff' : '#f1f5f9' }}
+                                      >
+                                        {sessionPasswords[session.code] ? <Lock size={14} /> : <LockOpen size={14} />}
+                                      </button>
+                                    )}
                                     <button
                                       className="session-action-btn edit"
                                       onClick={() => startEditSessionName(session)}
@@ -900,69 +988,80 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
         </div>
       </div>
 
-      {/* 클라우드 룸 관리 (전체 너비) */}
+      {/* 고급 설정 (클라우드 룸 관리) - 아코디언 */}
       <section className="admin-section admin-full-width">
-        <div className="section-header">
-          <h3><Cloud size={18} /> 클라우드 룸 관리 ({cloudRooms.length}개)</h3>
-          <div className="section-actions">
-            <button onClick={loadCloudRooms} className="refresh-btn" disabled={loadingRooms}>
-              <RefreshCw size={16} className={loadingRooms ? 'spinning' : ''} />
-              새로고침
-            </button>
-            {selectedRooms.size > 0 && (
-              <button onClick={handleDeleteSelectedRooms} className="clear-all-btn" disabled={deletingRooms}>
-                <Trash2 size={16} />
-                {deletingRooms ? '삭제 중...' : `${selectedRooms.size}개 삭제`}
-              </button>
-            )}
+        <div
+          className={`accordion-header ${showAdvancedSettings ? 'expanded' : ''}`}
+          onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+        >
+          <div className="accordion-title">
+            <Cloud size={18} />
+            <span>고급 설정: 클라우드 룸 관리</span>
+            <span className="accordion-badge">{cloudRooms.length}</span>
+          </div>
+          <div className="accordion-icon">
+            {showAdvancedSettings ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </div>
         </div>
-
-        <p className="section-description">
-          <AlertTriangle size={14} /> Liveblocks 서버에 저장된 실제 룸입니다.
-          불필요한 룸을 삭제하여 정리하세요. (Secret Key 필요)
-        </p>
-
-        {loadingRooms ? (
-          <div className="loading-state">
-            <RefreshCw size={24} className="spinning" />
-            <p>클라우드 룸 로딩 중...</p>
-          </div>
-        ) : cloudRooms.length === 0 ? (
-          <div className="empty-state">
-            <p>클라우드 룸이 없거나 API 키가 설정되지 않았습니다.</p>
-            <p className="hint">Vercel 환경변수에 LIVEBLOCKS_SECRET_KEY를 설정하세요.</p>
-          </div>
-        ) : (
-          <>
-            <div className="select-all-row">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={selectedRooms.size === cloudRooms.length && cloudRooms.length > 0}
-                  onChange={toggleSelectAll}
-                />
-                전체 선택
-              </label>
-              <span className="room-count">{selectedRooms.size}개 선택됨</span>
+        
+        <div className={`accordion-content ${showAdvancedSettings ? '' : 'collapsed'}`}>
+          <div className="section-header" style={{ marginBottom: '0.75rem' }}>
+            <p className="section-description" style={{ margin: 0 }}>
+              <AlertTriangle size={14} /> Liveblocks 서버의 실제 룸입니다. (Secret Key 필요)
+            </p>
+            <div className="section-actions">
+              <button onClick={loadCloudRooms} className="refresh-btn" disabled={loadingRooms}>
+                <RefreshCw size={16} className={loadingRooms ? 'spinning' : ''} />
+              </button>
+              {selectedRooms.size > 0 && (
+                <button onClick={handleDeleteSelectedRooms} className="clear-all-btn" disabled={deletingRooms}>
+                  <Trash2 size={16} />
+                  {deletingRooms ? '삭제 중...' : `${selectedRooms.size}개 삭제`}
+                </button>
+              )}
             </div>
-            <div className="cloud-rooms-list">
-              {cloudRooms.map((room) => (
-                <div key={room.id} className={`cloud-room-card ${selectedRooms.has(room.id) ? 'selected' : ''}`}>
-                  <label className="room-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={selectedRooms.has(room.id)}
-                      onChange={() => toggleRoomSelection(room.id)}
-                    />
-                    <code className="room-id">{room.id}</code>
-                  </label>
-                  <span className="room-date">{formatTime(room.lastConnectionAt)}</span>
-                </div>
-              ))}
+          </div>
+
+          {loadingRooms ? (
+            <div className="loading-state">
+              <RefreshCw size={24} className="spinning" />
+              <p>클라우드 룸 로딩 중...</p>
             </div>
-          </>
-        )}
+          ) : cloudRooms.length === 0 ? (
+            <div className="empty-state">
+              <p>클라우드 룸이 없거나 API 키가 설정되지 않았습니다.</p>
+            </div>
+          ) : (
+            <>
+              <div className="select-all-row">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={selectedRooms.size === cloudRooms.length && cloudRooms.length > 0}
+                    onChange={toggleSelectAll}
+                  />
+                  전체 선택
+                </label>
+                <span className="room-count">{selectedRooms.size}개 선택됨</span>
+              </div>
+              <div className="cloud-rooms-list">
+                {cloudRooms.map((room) => (
+                  <div key={room.id} className={`cloud-room-card ${selectedRooms.has(room.id) ? 'selected' : ''}`}>
+                    <label className="room-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={selectedRooms.has(room.id)}
+                        onChange={() => toggleRoomSelection(room.id)}
+                      />
+                      <code className="room-id">{room.id}</code>
+                    </label>
+                    <span className="room-date">{formatTime(room.lastConnectionAt)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </section>
 
       {/* 안내 */}

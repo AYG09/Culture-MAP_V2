@@ -1480,6 +1480,67 @@ class LiveblocksService {
             console.log('✅ 기업 비밀번호 삭제:', org);
         }
     }
+
+    // ============================================
+    // 세션별 비밀번호 관리
+    // ============================================
+
+    /**
+     * 세션 비밀번호 설정
+     */
+    public async setSessionPassword(sessionCode: string, password: string): Promise<void> {
+        const config = await this.connectToConfigRoom();
+        const sessionPasswords = config.get('sessionPasswords') as Record<string, string> | undefined || {};
+        sessionPasswords[sessionCode] = password;
+        config.set('sessionPasswords', sessionPasswords);
+        config.set('updatedAt', Date.now());
+        console.log('✅ 세션 비밀번호 설정:', sessionCode);
+    }
+
+    /**
+     * 세션 비밀번호 가져오기
+     */
+    public async getSessionPassword(sessionCode: string): Promise<string | null> {
+        const config = await this.connectToConfigRoom();
+        const sessionPasswords = config.get('sessionPasswords') as Record<string, string> | undefined;
+        return sessionPasswords?.[sessionCode] || null;
+    }
+
+    /**
+     * 세션 비밀번호 검증
+     */
+    public async validateSessionPassword(sessionCode: string, inputPw: string): Promise<boolean> {
+        const savedPw = await this.getSessionPassword(sessionCode);
+        if (!savedPw) {
+            // 비밀번호 미설정 시 통과
+            return true;
+        }
+        return inputPw === savedPw;
+    }
+
+    /**
+     * 모든 세션 비밀번호 가져오기 (관리자용)
+     */
+    public async getAllSessionPasswords(): Promise<Record<string, string>> {
+        const config = await this.connectToConfigRoom();
+        const sessionPasswords = config.get('sessionPasswords') as Record<string, string> | undefined;
+        return sessionPasswords || {};
+    }
+
+    /**
+     * 세션 비밀번호 삭제
+     */
+    public async deleteSessionPassword(sessionCode: string): Promise<void> {
+        const config = await this.connectToConfigRoom();
+        const sessionPasswords = config.get('sessionPasswords') as Record<string, string> | undefined;
+        
+        if (sessionPasswords && sessionPasswords[sessionCode]) {
+            delete sessionPasswords[sessionCode];
+            config.set('sessionPasswords', sessionPasswords);
+            config.set('updatedAt', Date.now());
+            console.log('✅ 세션 비밀번호 삭제:', sessionCode);
+        }
+    }
 }
 
 export const liveblocksService = new LiveblocksService();

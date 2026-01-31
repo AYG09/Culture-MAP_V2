@@ -960,11 +960,6 @@
 .session-card-compact .session-actions {
   display: flex;
   gap: 0.25rem;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.session-card-compact:hover .session-actions {
   opacity: 1;
 }
 
