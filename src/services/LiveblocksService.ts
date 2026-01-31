@@ -880,10 +880,8 @@ class LiveblocksService {
             const nodesArray = this.yDoc!.getArray<StickyNoteData>('nodes');
             const delta = event.changes.delta;
             
-            console.log('🔔 [Liveblocks] nodes observe:', {
-                deltaLength: delta.length,
-                pendingLocalUpdates: Array.from(this.pendingLocalUpdates),
-            });
+            // 변경이 없으면 무시
+            if (delta.length === 0 && event.changes.deleted.size === 0) return;
 
             // Delta에서 insert된 노드들 추출
             const insertedNotes: StickyNoteData[] = [];
@@ -903,11 +901,15 @@ class LiveblocksService {
                 }
             }
 
-            // 대량 변경인 경우 전체 리스트 emit
-            const hasManyAdds = insertedNotes.length > 1;
-            const hasManyDeletes = event.changes.deleted.size > 1;
+            // 대량 변경인 경우 전체 리스트 emit (개별 emit 스킵)
+            const hasManyAdds = insertedNotes.length > 3; // 3개 초과면 대량 변경으로 간주
+            const hasManyDeletes = event.changes.deleted.size > 3;
             if (hasManyAdds || hasManyDeletes) {
+                console.log('📦 [Liveblocks] 대량 노드 변경 감지:', { adds: insertedNotes.length, deletes: event.changes.deleted.size });
                 this.emit('notes-changed', nodesArray.toArray());
+                // 대량 변경 시 pendingLocalUpdates 정리
+                insertedNotes.forEach(note => this.pendingLocalUpdates.delete(note?.id));
+                return; // 개별 emit 스킵
             }
 
             // 개별 노드 변경 이벤트 (추가/수정) - 로컬 업데이트는 스킵
@@ -916,16 +918,15 @@ class LiveblocksService {
                 
                 // 로컬에서 업데이트한 항목이면 스킵
                 if (this.pendingLocalUpdates.has(note.id)) {
-                    console.log('⏭️ [Liveblocks] 로컬 업데이트 스킵:', note.id);
                     this.pendingLocalUpdates.delete(note.id);
                     continue;
                 }
                 
-                console.log('📤 [Liveblocks] 원격 노드 emit:', note.id, { x: note.x, y: note.y });
+                console.log('📤 [Liveblocks] 원격 노드 emit:', note.id);
                 this.emit('sticky-note-updated', note);
             }
 
-            // 삭제 이벤트 처리 (delta에서 직접 확인하기 어려우므로 deleted set 사용)
+            // 삭제 이벤트 처리 - 로컬 업데이트 중인 항목은 스킵 (delete+insert 패턴)
             event.changes.deleted.forEach((item) => {
                 const content = item.content as unknown;
                 let notes: StickyNoteData[] = [];
@@ -938,6 +939,13 @@ class LiveblocksService {
                 
                 notes.forEach((note) => {
                     if (!note || !note.id) return;
+                    
+                    // 로컬에서 업데이트 중인 항목이면 삭제 이벤트 스킵 (delete+insert 패턴에서 발생)
+                    if (this.pendingLocalUpdates.has(note.id)) {
+                        console.log('⏭️ [Liveblocks] 로컬 업데이트 중 노드 삭제 스킵:', note.id);
+                        return;
+                    }
+                    
                     const stillExists = nodesArray.toArray().some((n) => n.id === note.id);
                     if (!stillExists) {
                         this.emit('sticky-note-deleted', { noteId: note.id });
@@ -960,11 +968,15 @@ class LiveblocksService {
                 }
             }
 
-            // 대량 변경인 경우 전체 리스트 emit
-            const hasManyAdds = insertedConnections.length > 1;
-            const hasManyDeletes = event.changes.deleted.size > 1;
+            // 대량 변경인 경우 전체 리스트 emit (개별 emit 스킵)
+            const hasManyAdds = insertedConnections.length > 3; // 3개 초과면 대량 변경으로 간주
+            const hasManyDeletes = event.changes.deleted.size > 3;
             if (hasManyAdds || hasManyDeletes) {
+                console.log('📦 [Liveblocks] 대량 연결선 변경 감지:', { adds: insertedConnections.length, deletes: event.changes.deleted.size });
                 this.emit('connections-changed', connectionsArray.toArray());
+                // 대량 변경 시 pendingLocalUpdates 정리
+                insertedConnections.forEach(conn => this.pendingLocalUpdates.delete(conn?.id));
+                return; // 개별 emit 스킵
             }
 
             // 개별 연결선 변경 이벤트 (추가/수정) - 로컬 업데이트는 스킵
@@ -980,7 +992,7 @@ class LiveblocksService {
                 this.emit('connection-updated', conn);
             }
 
-            // 삭제 이벤트 처리
+            // 삭제 이벤트 처리 - 로컬 업데이트 중인 항목은 스킵 (delete+insert 패턴)
             event.changes.deleted.forEach((item) => {
                 const content = item.content as unknown;
                 let connections: LBConnectionData[] = [];
@@ -993,6 +1005,13 @@ class LiveblocksService {
                 
                 connections.forEach((conn) => {
                     if (!conn || !conn.id) return;
+                    
+                    // 로컬에서 업데이트 중인 항목이면 삭제 이벤트 스킵 (delete+insert 패턴에서 발생)
+                    if (this.pendingLocalUpdates.has(conn.id)) {
+                        console.log('⏭️ [Liveblocks] 로컬 업데이트 중 삭제 스킵:', conn.id);
+                        return;
+                    }
+                    
                     const stillExists = connectionsArray.toArray().some((c) => c.id === conn.id);
                     if (!stillExists) {
                         this.emit('connection-deleted', { connectionId: conn.id });
