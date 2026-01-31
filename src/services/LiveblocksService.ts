@@ -181,6 +181,37 @@ class LiveblocksService {
             if (this.yDoc) {
                 this.publishAcademicFiles([]);
             }
+            
+            // Liveblocks 서버에 동기화 완료 대기 (최대 2초)
+            if (this.provider) {
+                console.log('⏳ [Liveblocks] 서버 동기화 대기 중...');
+                await new Promise<void>((resolve) => {
+                    // provider가 이미 synced 상태면 바로 진행
+                    if (this.provider?.synced) {
+                        console.log('✅ [Liveblocks] 이미 동기화됨');
+                        resolve();
+                        return;
+                    }
+                    
+                    // 동기화 완료 대기 (타임아웃 2초)
+                    const timeout = setTimeout(() => {
+                        console.warn('⚠️ [Liveblocks] 동기화 타임아웃 - 강제 진행');
+                        resolve();
+                    }, 2000);
+                    
+                    const checkSync = () => {
+                        if (this.provider?.synced) {
+                            clearTimeout(timeout);
+                            console.log('✅ [Liveblocks] 동기화 완료');
+                            resolve();
+                        } else {
+                            setTimeout(checkSync, 100);
+                        }
+                    };
+                    checkSync();
+                });
+            }
+            
             if (this.provider) {
                 this.provider.destroy();
                 this.provider = null;
