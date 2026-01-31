@@ -277,6 +277,14 @@ const CultureMapFlow = ({
 
     applyingLayerSettingsRef.current = true;
     isUserLayerHeightChangeRef.current = false;
+    
+    // ref를 즉시 업데이트하여 다음 호출 시 heightsEqual = true가 되도록 함
+    layerHeightsRef.current = settings.layerHeights;
+    layerOpacitiesRef.current = settings.layerOpacities;
+    if (hasBackgroundUpdate) {
+      showLayerBackgroundRef.current = settings.showLayerBackground as boolean;
+    }
+    
     setLayerHeights(settings.layerHeights);
     setLayerOpacities(settings.layerOpacities);
 
@@ -2024,28 +2032,36 @@ ${chatHistorySection}
   }, [applyLayerSettings]);
 
   useEffect(() => {
-    if (applyingLayerSettingsRef.current) return;
-    if (isHydratingRef.current) return;
-    if (!liveblocksService.isConnected()) return;
+    // queueMicrotask로 지연하여 RAF 이후에 실행되도록 보장
+    const cancelled = { current: false };
+    
+    queueMicrotask(() => {
+      if (cancelled.current) return;
+      if (applyingLayerSettingsRef.current) return;
+      if (isHydratingRef.current) return;
+      if (!liveblocksService.isConnected()) return;
 
-    const lastSynced = lastSyncedLayerSettingsRef.current;
-    if (
-      lastSynced
-      && areNumberArraysEqual(layerHeights, lastSynced.layerHeights)
-      && areNumberArraysEqual(layerOpacities, lastSynced.layerOpacities)
-    ) {
-      return;
-    }
+      const lastSynced = lastSyncedLayerSettingsRef.current;
+      if (
+        lastSynced
+        && areNumberArraysEqual(layerHeights, lastSynced.layerHeights)
+        && areNumberArraysEqual(layerOpacities, lastSynced.layerOpacities)
+      ) {
+        return;
+      }
 
-    liveblocksService.updateLayerSettings({
-      layerHeights,
-      layerOpacities,
+      liveblocksService.updateLayerSettings({
+        layerHeights,
+        layerOpacities,
+      });
+
+      lastSyncedLayerSettingsRef.current = {
+        layerHeights: [...layerHeights],
+        layerOpacities: [...layerOpacities],
+      };
     });
 
-    lastSyncedLayerSettingsRef.current = {
-      layerHeights: [...layerHeights],
-      layerOpacities: [...layerOpacities],
-    };
+    return () => { cancelled.current = true; };
   }, [layerHeights, layerOpacities]);
 
   useEffect(() => {
