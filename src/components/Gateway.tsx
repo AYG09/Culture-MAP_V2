@@ -1,6 +1,6 @@
-// src/components/Gateway.tsx - 새로운 UI/UX
-import { useState, useEffect, useCallback, type ReactNode } from 'react';
-import { Search, Plus, Users, Clock, Settings, LogIn, X } from 'lucide-react';
+// src/components/Gateway.tsx - 기업별 폴더 구조 UI
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
+import { Search, Plus, Users, Clock, Settings, LogIn, X, Folder, ArrowLeft, Building2 } from 'lucide-react';
 import liveblocksService from '../services/LiveblocksService';
 import AdminGateway from './AdminGateway';
 import './ModalBase.css';
@@ -12,6 +12,7 @@ interface SessionInfo {
   userCount: number;
   lastActivity: string;
   isActive: boolean;
+  organization?: string;
 }
 
 interface GatewayProps {
@@ -26,6 +27,9 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // 폴더 구조 상태
+  const [selectedOrg, setSelectedOrg] = useState<string | null>(null);
+
   // 모달 상태
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -35,6 +39,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
   // 입력 상태
   const [newSessionName, setNewSessionName] = useState('');
   const [newSessionCode, setNewSessionCode] = useState('');
+  const [newSessionOrg, setNewSessionOrg] = useState('');
   const [hostPassword, setHostPassword] = useState('');
   const [sessionCode, setSessionCode] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
@@ -103,7 +108,8 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
         name: s.name,
         userCount: 0,
         lastActivity: new Date(s.createdAt).toLocaleString('ko-KR'),
-        isActive: true
+        isActive: true,
+        organization: s.organization
       }));
       setSessions(formattedSessions);
       console.log('📋 세션 레지스트리 로드:', formattedSessions.length, '개');
@@ -120,6 +126,60 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
       }
     }
   }, [setSessions]);
+
+  // 기업별 그룹화
+  const organizationGroups = useMemo(() => {
+    const groups: Record<string, SessionInfo[]> = {};
+    sessions.forEach(session => {
+      const org = session.organization || '미분류';
+      if (!groups[org]) {
+        groups[org] = [];
+      }
+      groups[org].push(session);
+    });
+    // 기업명 정렬 (미분류는 맨 뒤로)
+    const sortedEntries = Object.entries(groups).sort(([a], [b]) => {
+      if (a === '미분류') return 1;
+      if (b === '미분류') return -1;
+      return a.localeCompare(b, 'ko');
+    });
+    return sortedEntries;
+  }, [sessions]);
+
+  // 현재 보여줄 세션 (폴더 선택 시 해당 기업만)
+  const currentSessions = useMemo(() => {
+    if (!selectedOrg) return [];
+    return sessions.filter(s => (s.organization || '미분류') === selectedOrg);
+  }, [sessions, selectedOrg]);
+
+  // 검색 필터링 (폴더 또는 세션)
+  const filteredOrganizations = useMemo(() => {
+    if (!searchQuery) return organizationGroups;
+    const query = searchQuery.toLowerCase();
+    return organizationGroups.filter(([org, orgSessions]) =>
+      org.toLowerCase().includes(query) ||
+      orgSessions.some(s => s.name.toLowerCase().includes(query))
+    );
+  }, [organizationGroups, searchQuery]);
+
+  const filteredSessions = useMemo(() => {
+    if (!searchQuery) return currentSessions;
+    const query = searchQuery.toLowerCase();
+    return currentSessions.filter(s =>
+      s.name.toLowerCase().includes(query)
+    );
+  }, [currentSessions, searchQuery]);
+
+  // 기존 기업 목록 (세션 생성 시 드롭다운용)
+  const existingOrganizations = useMemo(() => {
+    const orgs = new Set<string>();
+    sessions.forEach(s => {
+      if (s.organization && s.organization !== '미분류') {
+        orgs.add(s.organization);
+      }
+    });
+    return Array.from(orgs).sort((a, b) => a.localeCompare(b, 'ko'));
+  }, [sessions]);
 
   // 초기화
   useEffect(() => {
@@ -185,6 +245,14 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
         return;
       }
 
+      // 기업명 필수 체크
+      const orgName = newSessionOrg.trim();
+      if (!orgName) {
+        setError('기업명을 입력해주세요.');
+        setIsSubmitting(false);
+        return;
+      }
+
       if (normalizedCode) {
         const registry = await liveblocksService.getSessionRegistry();
         const isDuplicate = registry.some((session) => session.code === normalizedCode);
@@ -198,7 +266,8 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
       const code = await liveblocksService.createSession(
         newSessionName || '새 세션',
         'workshop',
-        normalizedCode || undefined
+        normalizedCode || undefined,
+        orgName
       );
 
       persistLastSession(code, true);
@@ -209,6 +278,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
         userCount: 1,
         lastActivity: '방금 전',
         isActive: true,
+        organization: orgName,
       });
 
       setIsAuth(true);
@@ -268,12 +338,6 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
     }
   };
 
-  // 필터링된 세션 목록
-  const filteredSessions = sessions.filter(s =>
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.code.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   if (isLoading) {
     return (
       <div className="gateway-container">
@@ -322,6 +386,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
               setError('');
               setNewSessionName('');
               setNewSessionCode('');
+              setNewSessionOrg('');
               setHostPassword('');
               setShowCreateModal(true);
             }}
@@ -346,52 +411,89 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
           <Search size={18} className="search-icon" />
           <input
             type="text"
-            placeholder="세션 검색..."
+            placeholder={selectedOrg ? "세션 검색..." : "기업/세션 검색..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="search-input"
           />
         </div>
 
-        {/* 세션 목록 */}
+        {/* 폴더/세션 목록 */}
         <div className="session-list">
-          <h3 className="session-list-title">📋 진행 중인 세션</h3>
-          {filteredSessions.length === 0 ? (
-            <div className="no-sessions">
-              <p>진행 중인 세션이 없습니다.</p>
-              <p className="hint">새 세션을 만들거나 세션 코드로 입장하세요.</p>
-            </div>
-          ) : (
-            filteredSessions.map((session) => (
-              <div key={session.code} className="session-item">
-                <div className="session-info">
-                  <div className="session-name">
-                    <span className={`status-dot ${session.isActive ? 'active' : ''}`}></span>
-                    {session.name}
-                  </div>
-                  <div className="session-meta">
-                    <span className="session-code">{session.code}</span>
-                    <span className="session-users"><Users size={14} /> {session.userCount}명</span>
-                    <span className="session-time"><Clock size={14} /> {session.lastActivity}</span>
-                  </div>
-                </div>
-                <button
-                  className="session-join-btn"
-                  onClick={() => {
-                    setSessionCode(session.code);
-                    setError('');
-                    setShowJoinModal(true);
-                  }}
-                >
-                  입장
+          {selectedOrg ? (
+            // 특정 기업의 세션 목록
+            <>
+              <div className="folder-header">
+                <button className="back-btn" onClick={() => { setSelectedOrg(null); setSearchQuery(''); }}>
+                  <ArrowLeft size={18} />
                 </button>
+                <h3 className="session-list-title">
+                  <Building2 size={18} /> {selectedOrg}
+                </h3>
               </div>
-            ))
+              {filteredSessions.length === 0 ? (
+                <div className="no-sessions">
+                  <p>세션이 없습니다.</p>
+                </div>
+              ) : (
+                filteredSessions.map((session) => (
+                  <div key={session.code} className="session-item">
+                    <div className="session-info">
+                      <div className="session-name">
+                        <span className={`status-dot ${session.isActive ? 'active' : ''}`}></span>
+                        {session.name}
+                      </div>
+                      <div className="session-meta">
+                        <span className="session-time"><Clock size={14} /> {session.lastActivity}</span>
+                      </div>
+                    </div>
+                    <button
+                      className="session-join-btn"
+                      onClick={() => {
+                        setSessionCode('');
+                        setError('');
+                        setShowJoinModal(true);
+                      }}
+                    >
+                      입장
+                    </button>
+                  </div>
+                ))
+              )}
+            </>
+          ) : (
+            // 기업 폴더 목록
+            <>
+              <h3 className="session-list-title">📁 기업별 세션</h3>
+              {filteredOrganizations.length === 0 ? (
+                <div className="no-sessions">
+                  <p>등록된 세션이 없습니다.</p>
+                  <p className="hint">새 세션을 만들거나 세션 코드로 입장하세요.</p>
+                </div>
+              ) : (
+                filteredOrganizations.map(([org, orgSessions]) => (
+                  <div
+                    key={org}
+                    className="folder-item"
+                    onClick={() => { setSelectedOrg(org); setSearchQuery(''); }}
+                  >
+                    <div className="folder-info">
+                      <Folder size={24} className="folder-icon" />
+                      <div className="folder-details">
+                        <span className="folder-name">{org}</span>
+                        <span className="folder-count">{orgSessions.length}개 세션</span>
+                      </div>
+                    </div>
+                    <ArrowLeft size={18} className="folder-arrow" style={{ transform: 'rotate(180deg)' }} />
+                  </div>
+                ))
+              )}
+            </>
           )}
         </div>
 
         <div className="gateway-footer">
-          <p>💡 세션에 입장하여 조직문화 맵을 함께 만들어보세요!</p>
+          <p>💡 세션에 입장하려면 접속 코드가 필요합니다. 관리자에게 문의하세요.</p>
         </div>
       </div>
 
@@ -431,6 +533,25 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
                   </button>
                 </div>
                 <div className="session-code-help">3~12자 영문/숫자/하이픈 사용 가능. 비워두면 자동 생성됩니다.</div>
+              </div>
+              <div className="form-group">
+                <label>기업명 (필수)</label>
+                <div className="org-input-row">
+                  <input
+                    type="text"
+                    value={newSessionOrg}
+                    onChange={(e) => setNewSessionOrg(e.target.value)}
+                    placeholder="예: 삼양KCI"
+                    list="org-suggestions"
+                    required
+                  />
+                  <datalist id="org-suggestions">
+                    {existingOrganizations.map(org => (
+                      <option key={org} value={org} />
+                    ))}
+                  </datalist>
+                </div>
+                <div className="session-code-help">기존 기업명을 선택하거나 새로 입력하세요.</div>
               </div>
               <div className="form-group">
                 <label>호스트 비밀번호</label>

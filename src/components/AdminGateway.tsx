@@ -1,6 +1,6 @@
 // src/components/AdminGateway.tsx - 단순화된 관리자 패널
-import { useState, useEffect } from 'react';
-import { ArrowLeft, RefreshCw, Trash2, Users, Clock, Key, Save, Eye, EyeOff, Cloud, AlertTriangle } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { ArrowLeft, RefreshCw, Trash2, Users, Clock, Key, Save, Eye, EyeOff, Cloud, AlertTriangle, Building2, Edit3, Check, X } from 'lucide-react';
 import liveblocksService from '../services/LiveblocksService';
 import liveblocksAdminService from '../services/LiveblocksAdminService';
 import type { LiveblocksRoom } from '../services/LiveblocksAdminService';
@@ -17,6 +17,7 @@ interface SessionInfo {
   lastActivity: string;
   createdAt: string;
   type: string;
+  organization?: string;
 }
 
 const AdminGateway = ({ onBack }: AdminGatewayProps) => {
@@ -35,6 +36,22 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [selectedRooms, setSelectedRooms] = useState<Set<string>>(new Set());
   const [deletingRooms, setDeletingRooms] = useState(false);
+
+  // 조직 마이그레이션
+  const [editingOrgCode, setEditingOrgCode] = useState<string | null>(null);
+  const [editingOrgValue, setEditingOrgValue] = useState('');
+  const [bulkOrg, setBulkOrg] = useState('');
+  const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
+  const [migratingOrg, setMigratingOrg] = useState(false);
+
+  // 기존 조직 목록 (자동완성용)
+  const existingOrganizations = useMemo(() => {
+    const orgs = new Set<string>();
+    sessions.forEach(s => {
+      if (s.organization) orgs.add(s.organization);
+    });
+    return Array.from(orgs).sort();
+  }, [sessions]);
 
   // 초기 로드
   useEffect(() => {
@@ -87,7 +104,8 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
         userCount: 0,
         lastActivity: new Date(session.createdAt).toLocaleString('ko-KR'),
         createdAt: new Date(session.createdAt).toISOString(),
-        type: session.type
+        type: session.type,
+        organization: session.organization || ''
       }));
       setSessions(formattedSessions);
       setError('');
@@ -160,6 +178,78 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
     localStorage.removeItem('culture-map-sessions');
     localStorage.removeItem('culture-map-last-session');
     await loadSessions();
+  };
+
+  // 단일 세션 조직 수정 시작
+  const startEditOrg = (session: SessionInfo) => {
+    setEditingOrgCode(session.code);
+    setEditingOrgValue(session.organization || '');
+  };
+
+  // 단일 세션 조직 저장
+  const saveEditOrg = async () => {
+    if (!editingOrgCode) return;
+    try {
+      await liveblocksService.updateSessionOrganization(editingOrgCode, editingOrgValue);
+      setEditingOrgCode(null);
+      setEditingOrgValue('');
+      await loadSessions();
+    } catch (err) {
+      console.error('조직 업데이트 실패:', err);
+      setError('조직 업데이트에 실패했습니다.');
+    }
+  };
+
+  // 조직 수정 취소
+  const cancelEditOrg = () => {
+    setEditingOrgCode(null);
+    setEditingOrgValue('');
+  };
+
+  // 세션 선택 토글
+  const toggleSessionSelection = (code: string) => {
+    setSelectedSessions(prev => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  };
+
+  // 전체 세션 선택/해제
+  const toggleSelectAllSessions = () => {
+    if (selectedSessions.size === sessions.length) {
+      setSelectedSessions(new Set());
+    } else {
+      setSelectedSessions(new Set(sessions.map(s => s.code)));
+    }
+  };
+
+  // 선택된 세션 일괄 조직 마이그레이션
+  const handleBulkMigration = async () => {
+    if (selectedSessions.size === 0 || !bulkOrg.trim()) {
+      setError('세션을 선택하고 조직명을 입력하세요.');
+      return;
+    }
+    if (!window.confirm(`선택된 ${selectedSessions.size}개 세션을 "${bulkOrg}" 조직으로 마이그레이션하시겠습니까?`)) {
+      return;
+    }
+
+    setMigratingOrg(true);
+    try {
+      await liveblocksService.bulkUpdateSessionOrganization(
+        Array.from(selectedSessions),
+        bulkOrg.trim()
+      );
+      setSelectedSessions(new Set());
+      setBulkOrg('');
+      await loadSessions();
+    } catch (err) {
+      console.error('일괄 마이그레이션 실패:', err);
+      setError('일괄 마이그레이션에 실패했습니다.');
+    } finally {
+      setMigratingOrg(false);
+    }
   };
 
   // 시간 포맷
@@ -317,29 +407,108 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
             <p className="hint">Gateway에서 새 세션을 만들면 여기에 표시됩니다.</p>
           </div>
         ) : (
-          <div className="sessions-list">
-            {sessions.map((session) => (
-              <div key={session.code} className="session-card">
-                <div className="session-main">
-                  <div className="session-name-row">
-                    <span className="session-name">{session.name || '이름 없음'}</span>
-                    <code className="session-code">{session.code}</code>
-                  </div>
-                  <div className="session-meta">
-                    <span><Users size={14} /> {session.userCount || 0}명</span>
-                    <span><Clock size={14} /> {formatTime(session.lastActivity || session.createdAt)}</span>
-                  </div>
+          <>
+            {/* 일괄 마이그레이션 도구 */}
+            <div className="bulk-migration-bar">
+              <label className="select-all-label">
+                <input
+                  type="checkbox"
+                  checked={selectedSessions.size === sessions.length && sessions.length > 0}
+                  onChange={toggleSelectAllSessions}
+                />
+                전체 선택 ({selectedSessions.size}/{sessions.length})
+              </label>
+              {selectedSessions.size > 0 && (
+                <div className="bulk-migration-form">
+                  <input
+                    type="text"
+                    value={bulkOrg}
+                    onChange={(e) => setBulkOrg(e.target.value)}
+                    placeholder="조직명 입력"
+                    list="admin-org-suggestions"
+                  />
+                  <datalist id="admin-org-suggestions">
+                    {existingOrganizations.map(org => (
+                      <option key={org} value={org} />
+                    ))}
+                  </datalist>
+                  <button
+                    onClick={handleBulkMigration}
+                    disabled={migratingOrg || !bulkOrg.trim()}
+                    className="migrate-btn"
+                  >
+                    <Building2 size={14} />
+                    {migratingOrg ? '이동 중...' : '일괄 이동'}
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleDeleteSession(session.code, session.name)}
-                  className="delete-session-btn"
-                  title="세션 삭제"
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            ))}
-          </div>
+              )}
+            </div>
+
+            <div className="sessions-list">
+              {sessions.map((session) => (
+                <div key={session.code} className={`session-card ${selectedSessions.has(session.code) ? 'selected' : ''}`}>
+                  <label className="session-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={selectedSessions.has(session.code)}
+                      onChange={() => toggleSessionSelection(session.code)}
+                    />
+                  </label>
+                  <div className="session-main">
+                    <div className="session-name-row">
+                      <span className="session-name">{session.name || '이름 없음'}</span>
+                      <code className="session-code">{session.code}</code>
+                    </div>
+                    <div className="session-org-row">
+                      {editingOrgCode === session.code ? (
+                        <div className="org-edit-form">
+                          <input
+                            type="text"
+                            value={editingOrgValue}
+                            onChange={(e) => setEditingOrgValue(e.target.value)}
+                            placeholder="조직명"
+                            list="admin-org-suggestions"
+                            autoFocus
+                          />
+                          <button onClick={saveEditOrg} className="save-org-btn" title="저장">
+                            <Check size={14} />
+                          </button>
+                          <button onClick={cancelEditOrg} className="cancel-org-btn" title="취소">
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="org-display">
+                          <Building2 size={12} />
+                          <span className={session.organization ? '' : 'no-org'}>
+                            {session.organization || '미지정'}
+                          </span>
+                          <button
+                            onClick={() => startEditOrg(session)}
+                            className="edit-org-btn"
+                            title="조직 수정"
+                          >
+                            <Edit3 size={12} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="session-meta">
+                      <span><Users size={14} /> {session.userCount || 0}명</span>
+                      <span><Clock size={14} /> {formatTime(session.lastActivity || session.createdAt)}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteSession(session.code, session.name)}
+                    className="delete-session-btn"
+                    title="세션 삭제"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </section>
 

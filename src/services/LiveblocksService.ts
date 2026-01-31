@@ -79,17 +79,17 @@ class LiveblocksService {
         return this.currentSession;
     }
 
-    public async createSession(sessionName?: string, sessionType: SessionType = 'workshop', customCode?: string): Promise<string> {
+    public async createSession(sessionName?: string, sessionType: SessionType = 'workshop', customCode?: string, organization?: string): Promise<string> {
         const normalizedCode = customCode ? this.normalizeSessionCode(customCode) : null;
         if (normalizedCode && !this.isValidSessionCode(normalizedCode)) {
             throw new Error('세션 코드가 올바르지 않습니다. 3~12자 영문/숫자/하이픈만 사용할 수 있습니다.');
         }
         const code = normalizedCode ?? this.generateSessionCode();
-        await this.joinSession(code, true, sessionName, sessionType);
+        await this.joinSession(code, true, sessionName, sessionType, organization);
         return code;
     }
 
-    public async joinSession(code: string, isHost: boolean = false, sessionName?: string, sessionType: SessionType = 'workshop'): Promise<void> {
+    public async joinSession(code: string, isHost: boolean = false, sessionName?: string, sessionType: SessionType = 'workshop', organization?: string): Promise<void> {
         if (!this.client) throw new Error('Liveblocks 클라이언트가 초기화되지 않았습니다.');
 
         await this.leaveSession();
@@ -128,7 +128,7 @@ class LiveblocksService {
 
         if (isHost) {
             try {
-                await this.registerSession(code, sessionName || `세션 ${code}`, sessionType);
+                await this.registerSession(code, sessionName || `세션 ${code}`, sessionType, organization);
             } catch (error) {
                 console.warn('⚠️ 세션 레지스트리 등록 실패:', error);
             }
@@ -1251,29 +1251,30 @@ class LiveblocksService {
     /**
      * 세션을 레지스트리에 등록
      */
-    public async registerSession(code: string, name: string, type: SessionType): Promise<void> {
+    public async registerSession(code: string, name: string, type: SessionType, organization?: string): Promise<void> {
         await this.connectToConfigRoom();
         const sessionsMap = this.configDoc?.getMap<unknown>('sessions');
 
         if (!sessionsMap) return;
 
-        const existing = sessionsMap.get(code) as { code: string; name: string; type: string; createdAt: number; createdBy: string } | undefined;
+        const existing = sessionsMap.get(code) as { code: string; name: string; type: string; createdAt: number; createdBy: string; organization?: string } | undefined;
         const sessionData = {
             code,
             name,
             type,
+            organization: organization ?? existing?.organization,
             createdAt: existing?.createdAt ?? Date.now(),
             createdBy: existing?.createdBy ?? this.displayName
         };
 
         sessionsMap.set(code, sessionData);
-        console.log('✅ 세션 레지스트리에 등록:', code);
+        console.log('✅ 세션 레지스트리에 등록:', code, organization ? `(${organization})` : '');
     }
 
     /**
      * 세션 레지스트리 목록 조회
      */
-    public async getSessionRegistry(): Promise<Array<{ code: string; name: string; type: string; createdAt: number }>> {
+    public async getSessionRegistry(): Promise<Array<{ code: string; name: string; type: string; createdAt: number; organization?: string }>> {
         await this.connectToConfigRoom();
         const sessionsMap = this.configDoc?.getMap<unknown>('sessions');
 
@@ -1281,9 +1282,9 @@ class LiveblocksService {
             return [];
         }
 
-        const sessions: Array<{ code: string; name: string; type: string; createdAt: number }> = [];
+        const sessions: Array<{ code: string; name: string; type: string; createdAt: number; organization?: string }> = [];
         sessionsMap.forEach((value, key) => {
-            const session = value as { code: string; name: string; type: string; createdAt: number };
+            const session = value as { code: string; name: string; type: string; createdAt: number; organization?: string };
             sessions.push({ ...session, code: key });
         });
 
@@ -1302,6 +1303,48 @@ class LiveblocksService {
             sessionsMap.delete(code);
             console.log('✅ 세션 레지스트리에서 제거:', code);
         }
+    }
+
+    /**
+     * 세션의 organization(기업명) 업데이트
+     */
+    public async updateSessionOrganization(code: string, organization: string): Promise<void> {
+        await this.connectToConfigRoom();
+        const sessionsMap = this.configDoc?.getMap<unknown>('sessions');
+
+        if (!sessionsMap) return;
+
+        const existing = sessionsMap.get(code) as { code: string; name: string; type: string; createdAt: number; createdBy: string; organization?: string } | undefined;
+        if (!existing) {
+            console.warn('⚠️ 세션을 찾을 수 없음:', code);
+            return;
+        }
+
+        const updatedData = {
+            ...existing,
+            organization
+        };
+
+        sessionsMap.set(code, updatedData);
+        console.log('✅ 세션 organization 업데이트:', code, '→', organization);
+    }
+
+    /**
+     * 여러 세션의 organization 일괄 업데이트
+     */
+    public async bulkUpdateSessionOrganization(codes: string[], organization: string): Promise<void> {
+        await this.connectToConfigRoom();
+        const sessionsMap = this.configDoc?.getMap<unknown>('sessions');
+
+        if (!sessionsMap) return;
+
+        for (const code of codes) {
+            const existing = sessionsMap.get(code) as { code: string; name: string; type: string; createdAt: number; createdBy: string; organization?: string } | undefined;
+            if (existing) {
+                sessionsMap.set(code, { ...existing, organization });
+            }
+        }
+        console.log('✅ 세션 organization 일괄 업데이트:', codes.length, '개 →', organization);
     }
 }
 

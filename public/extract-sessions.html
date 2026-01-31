@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>세션 목록 추출</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #1a1a2e; color: #eee; }
+        table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+        th, td { border: 1px solid #444; padding: 10px; text-align: left; }
+        th { background: #16213e; }
+        tr:nth-child(even) { background: #0f3460; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; background: #e94560; color: white; border: none; border-radius: 5px; }
+        button:hover { background: #f05454; }
+        #loading { color: #ffc107; }
+        .code { font-family: monospace; background: #333; padding: 2px 6px; border-radius: 3px; }
+        textarea { width: 100%; height: 200px; margin-top: 20px; background: #1a1a2e; color: #0f0; border: 1px solid #444; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>🔐 세션 목록 추출</h1>
+    <p>Liveblocks config room에서 세션 레지스트리를 조회합니다.</p>
+    <button onclick="extractSessions()">세션 목록 추출</button>
+    <p id="loading" style="display:none;">로딩 중...</p>
+    
+    <table id="result" style="display:none;">
+        <thead>
+            <tr>
+                <th>번호</th>
+                <th>세션 코드</th>
+                <th>세션 이름</th>
+                <th>타입</th>
+                <th>생성일</th>
+            </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+    </table>
+    
+    <h3 style="margin-top: 30px;">📋 복사용 텍스트:</h3>
+    <textarea id="copyText" readonly></textarea>
+
+    <script type="module">
+        import liveblocksService from '/src/services/LiveblocksService.ts';
+        
+        window.extractSessions = async function() {
+            const loading = document.getElementById('loading');
+            const table = document.getElementById('result');
+            const tbody = document.getElementById('tbody');
+            const copyText = document.getElementById('copyText');
+            
+            loading.style.display = 'block';
+            table.style.display = 'none';
+            tbody.innerHTML = '';
+            
+            try {
+                const sessions = await liveblocksService.getSessionRegistry();
+                
+                loading.style.display = 'none';
+                table.style.display = 'table';
+                
+                let textOutput = '번호\t세션코드\t세션이름\t타입\t생성일\n';
+                textOutput += '─'.repeat(60) + '\n';
+                
+                sessions.forEach((session, index) => {
+                    const date = new Date(session.createdAt).toLocaleString('ko-KR');
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td class="code">${session.code}</td>
+                        <td>${session.name}</td>
+                        <td>${session.type}</td>
+                        <td>${date}</td>
+                    `;
+                    tbody.appendChild(row);
+                    
+                    textOutput += `${index + 1}\t${session.code}\t${session.name}\t${session.type}\t${date}\n`;
+                });
+                
+                copyText.value = textOutput;
+                
+            } catch (err) {
+                loading.textContent = '오류: ' + err.message;
+                console.error(err);
+            }
+        };
+    </script>
+</body>
+</html>

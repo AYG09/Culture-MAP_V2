@@ -366,3 +366,93 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* 폴더 구조 스타일 */
+.folder-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.folder-header .session-list-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: #f3f4f6;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.back-btn:hover {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.folder-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 12px;
+  margin-bottom: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+}
+
+.folder-item:hover {
+  background: #f3f4f6;
+  border-color: #667eea;
+  transform: translateX(4px);
+}
+
+.folder-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.folder-icon {
+  color: #667eea;
+}
+
+.folder-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.folder-name {
+  font-weight: 600;
+  color: #1f2937;
+  font-size: 1rem;
+}
+
+.folder-count {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.folder-arrow {
+  color: #9ca3af;
+  transition: color 0.2s;
+}
+
+.folder-item:hover .folder-arrow {
+  color: #667eea;
+}
