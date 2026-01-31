@@ -1,6 +1,6 @@
-// src/components/AdminGateway.tsx - 단순화된 관리자 패널
+// src/components/AdminGateway.tsx - 관리자 패널 (2컬럼 레이아웃)
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, RefreshCw, Trash2, Users, Clock, Key, Save, Eye, EyeOff, Cloud, AlertTriangle, Building2, Edit3, Check, X, Shield, Plus } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Trash2, Users, Clock, Key, Save, Eye, EyeOff, Cloud, AlertTriangle, Building2, Edit3, Check, X, Shield, Plus, ChevronDown, ChevronRight, FolderInput } from 'lucide-react';
 import liveblocksService from '../services/LiveblocksService';
 import liveblocksAdminService from '../services/LiveblocksAdminService';
 import type { LiveblocksRoom } from '../services/LiveblocksAdminService';
@@ -59,6 +59,17 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
   const [newOrgPw, setNewOrgPw] = useState('');
   const [savingOrgPw, setSavingOrgPw] = useState(false);
 
+  // 아코디언 상태
+  const [expandedOrgs, setExpandedOrgs] = useState<Set<string>>(new Set());
+  const [expandedPwOrgs, setExpandedPwOrgs] = useState<Set<string>>(new Set());
+
+  // 세션 이름 편집
+  const [editingSessionName, setEditingSessionName] = useState<string | null>(null);
+  const [editingSessionNameValue, setEditingSessionNameValue] = useState('');
+
+  // 이동 드롭다운 상태
+  const [showMoveDropdown, setShowMoveDropdown] = useState<string | null>(null);
+
   // 기존 조직 목록 (자동완성용)
   const existingOrganizations = useMemo(() => {
     const orgs = new Set<string>();
@@ -67,6 +78,73 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
     });
     return Array.from(orgs).sort();
   }, [sessions]);
+
+  // 조직별 세션 그룹화
+  const organizationGroups = useMemo(() => {
+    const groups: Record<string, SessionInfo[]> = {};
+    sessions.forEach(s => {
+      const org = s.organization || '미지정';
+      if (!groups[org]) groups[org] = [];
+      groups[org].push(s);
+    });
+    // 정렬: 미지정은 마지막
+    const sortedKeys = Object.keys(groups).sort((a, b) => {
+      if (a === '미지정') return 1;
+      if (b === '미지정') return -1;
+      return a.localeCompare(b, 'ko');
+    });
+    return sortedKeys.map(org => ({ org, sessions: groups[org] }));
+  }, [sessions]);
+
+  // 아코디언 토글
+  const toggleOrgAccordion = (org: string) => {
+    setExpandedOrgs(prev => {
+      const next = new Set(prev);
+      if (next.has(org)) next.delete(org);
+      else next.add(org);
+      return next;
+    });
+  };
+
+  const togglePwOrgAccordion = (org: string) => {
+    setExpandedPwOrgs(prev => {
+      const next = new Set(prev);
+      if (next.has(org)) next.delete(org);
+      else next.add(org);
+      return next;
+    });
+  };
+
+  // 세션 이름 편집 시작
+  const startEditSessionName = (session: SessionInfo) => {
+    setEditingSessionName(session.code);
+    setEditingSessionNameValue(session.name || '');
+  };
+
+  // 세션 이름 저장
+  const saveSessionName = async (code: string) => {
+    try {
+      await liveblocksService.updateSessionName(code, editingSessionNameValue);
+      setEditingSessionName(null);
+      setEditingSessionNameValue('');
+      await loadSessions();
+    } catch (err) {
+      console.error('세션 이름 변경 실패:', err);
+      setError('세션 이름 변경에 실패했습니다.');
+    }
+  };
+
+  // 세션 기업 이동
+  const moveSessionToOrg = async (code: string, targetOrg: string) => {
+    try {
+      await liveblocksService.updateSessionOrganization(code, targetOrg === '미지정' ? '' : targetOrg);
+      setShowMoveDropdown(null);
+      await loadSessions();
+    } catch (err) {
+      console.error('세션 이동 실패:', err);
+      setError('세션 이동에 실패했습니다.');
+    }
+  };
 
   // 초기 로드
   useEffect(() => {
@@ -317,6 +395,23 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
     });
   };
 
+  // 조직 내 세션 전체 선택/해제
+  const toggleSelectOrgSessions = (org: string) => {
+    const orgSessions = sessions.filter(s => (s.organization || '미지정') === org);
+    const orgCodes = orgSessions.map(s => s.code);
+    const allSelected = orgCodes.every(code => selectedSessions.has(code));
+    
+    setSelectedSessions(prev => {
+      const next = new Set(prev);
+      if (allSelected) {
+        orgCodes.forEach(code => next.delete(code));
+      } else {
+        orgCodes.forEach(code => next.add(code));
+      }
+      return next;
+    });
+  };
+
   // 전체 세션 선택/해제
   const toggleSelectAllSessions = () => {
     if (selectedSessions.size === sessions.length) {
@@ -442,331 +537,371 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
         </div>
       )}
 
-      {/* 호스트 비밀번호 설정 섹션 */}
-      <section className="admin-section">
-        <h3><Key size={18} /> 호스트 비밀번호 설정</h3>
-        <p className="section-description">
-          새 세션 생성 시 필요한 호스트 비밀번호입니다.
-          이 비밀번호를 아는 사람만 새로운 세션을 만들 수 있습니다.
-        </p>
-
-        <div className="password-form">
-          <div className="password-input-group">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              value={hostPassword}
-              onChange={(e) => setHostPassword(e.target.value)}
-              placeholder="호스트 비밀번호 입력"
-              className="password-input"
-            />
-            <button
-              type="button"
-              className="toggle-visibility-btn"
-              onClick={() => setShowPassword(!showPassword)}
-            >
-              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
+      {/* 2컬럼 그리드 레이아웃 */}
+      <div className="admin-panels-grid">
+        {/* 왼쪽 패널: 비밀번호 관리 */}
+        <div className="admin-panel">
+          <div className="panel-title">
+            <Key size={18} />
+            <h3>비밀번호 관리</h3>
           </div>
-          <button
-            onClick={saveHostPassword}
-            disabled={saving}
-            className="save-btn"
-          >
-            <Save size={16} />
-            {saving ? '저장 중...' : '저장'}
-          </button>
-        </div>
-        {saveMessage && <p className="save-message">{saveMessage}</p>}
-      </section>
 
-      {/* 마스터키 설정 섹션 */}
-      <section className="admin-section">
-        <h3><Shield size={18} /> 마스터키 설정</h3>
-        <p className="section-description">
-          마스터키를 가진 사람은 모든 기업 폴더에 비밀번호 없이 접근할 수 있습니다.
-          기본값: <code>welcome09@!</code>
-        </p>
-
-        <div className="password-form">
-          <div className="password-input-group">
-            <input
-              type={showMasterKey ? 'text' : 'password'}
-              value={masterKey}
-              readOnly
-              placeholder="현재 마스터키"
-              className="password-input"
-              style={{ backgroundColor: '#f1f5f9' }}
-            />
-            <button
-              type="button"
-              className="toggle-visibility-btn"
-              onClick={() => setShowMasterKey(!showMasterKey)}
-            >
-              {showMasterKey ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
-          </div>
-        </div>
-
-        <div className="password-form" style={{ marginTop: '0.75rem' }}>
-          <div className="password-input-group">
-            <input
-              type="text"
-              value={newMasterKey}
-              onChange={(e) => setNewMasterKey(e.target.value)}
-              placeholder="새 마스터키 입력"
-              className="password-input"
-            />
-          </div>
-          <button
-            onClick={saveMasterKeyHandler}
-            disabled={savingMasterKey}
-            className="save-btn"
-          >
-            <Save size={16} />
-            {savingMasterKey ? '저장 중...' : '변경'}
-          </button>
-        </div>
-        {masterKeyMessage && <p className="save-message">{masterKeyMessage}</p>}
-      </section>
-
-      {/* 기업 비밀번호 관리 섹션 */}
-      <section className="admin-section">
-        <h3><Building2 size={18} /> 기업 폴더 비밀번호 관리</h3>
-        <p className="section-description">
-          각 기업 폴더에 접근하기 위한 비밀번호를 설정합니다.
-          비밀번호가 없는 기업은 누구나 접근할 수 있습니다.
-        </p>
-
-        {/* 기존 기업 비밀번호 목록 */}
-        <div className="org-password-list">
-          {Object.entries(orgPasswords).length === 0 ? (
-            <div className="empty-state" style={{ padding: '1rem' }}>
-              <p>설정된 기업 비밀번호가 없습니다.</p>
-            </div>
-          ) : (
-            Object.entries(orgPasswords).map(([org, pw]) => (
-              <div key={org} className="org-password-item">
-                <div className="org-password-info">
-                  <span className="org-name">{org}</span>
-                  {editingOrgPw === org ? (
-                    <div className="org-pw-edit-form">
-                      <input
-                        type="text"
-                        value={editingOrgPwValue}
-                        onChange={(e) => setEditingOrgPwValue(e.target.value)}
-                        placeholder="새 비밀번호"
-                        autoFocus
-                      />
-                      <button
-                        onClick={() => saveOrgPassword(org, editingOrgPwValue)}
-                        disabled={savingOrgPw}
-                        className="save-org-btn"
-                      >
-                        <Check size={14} />
-                      </button>
-                      <button
-                        onClick={() => { setEditingOrgPw(null); setEditingOrgPwValue(''); }}
-                        className="cancel-org-btn"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="org-pw-masked">{'•'.repeat(pw.length)}</span>
-                  )}
-                </div>
-                <div className="org-password-actions">
-                  {editingOrgPw !== org && (
-                    <>
-                      <button
-                        onClick={() => { setEditingOrgPw(org); setEditingOrgPwValue(pw); }}
-                        className="edit-org-btn"
-                        title="수정"
-                      >
-                        <Edit3 size={14} />
-                      </button>
-                      <button
-                        onClick={() => deleteOrgPassword(org)}
-                        className="delete-org-btn"
-                        title="삭제"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* 새 기업 비밀번호 추가 */}
-        <div className="add-org-password-form">
-          <input
-            type="text"
-            value={newOrgName}
-            onChange={(e) => setNewOrgName(e.target.value)}
-            placeholder="기업명"
-            list="existing-orgs"
-          />
-          <datalist id="existing-orgs">
-            {existingOrganizations.map(org => (
-              <option key={org} value={org} />
-            ))}
-          </datalist>
-          <input
-            type="text"
-            value={newOrgPw}
-            onChange={(e) => setNewOrgPw(e.target.value)}
-            placeholder="비밀번호"
-          />
-          <button
-            onClick={addNewOrgPassword}
-            disabled={savingOrgPw || !newOrgName.trim() || !newOrgPw.trim()}
-            className="add-org-btn"
-          >
-            <Plus size={16} />
-            추가
-          </button>
-        </div>
-      </section>
-
-      {/* 세션 관리 섹션 */}
-      <section className="admin-section">
-        <div className="section-header">
-          <h3><Users size={18} /> 세션 관리 ({sessions.length}개)</h3>
-          <div className="section-actions">
-            <button onClick={loadSessions} className="refresh-btn" disabled={loading}>
-              <RefreshCw size={16} className={loading ? 'spinning' : ''} />
-              새로고침
-            </button>
-            {sessions.length > 0 && (
-              <button onClick={handleClearAllSessions} className="clear-all-btn">
-                <Trash2 size={16} />
-                전체 삭제
-              </button>
-            )}
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="loading-state">
-            <RefreshCw size={24} className="spinning" />
-            <p>로딩 중...</p>
-          </div>
-        ) : sessions.length === 0 ? (
-          <div className="empty-state">
-            <p>등록된 세션이 없습니다.</p>
-            <p className="hint">Gateway에서 새 세션을 만들면 여기에 표시됩니다.</p>
-          </div>
-        ) : (
-          <>
-            {/* 일괄 마이그레이션 도구 */}
-            <div className="bulk-migration-bar">
-              <label className="select-all-label">
+          {/* 호스트 비밀번호 */}
+          <section className="admin-section">
+            <h3><Key size={18} /> 호스트 비밀번호</h3>
+            <p className="section-description">
+              새 세션 생성 시 필요한 비밀번호입니다.
+            </p>
+            <div className="password-form">
+              <div className="password-input-group">
                 <input
-                  type="checkbox"
-                  checked={selectedSessions.size === sessions.length && sessions.length > 0}
-                  onChange={toggleSelectAllSessions}
+                  type={showPassword ? 'text' : 'password'}
+                  value={hostPassword}
+                  onChange={(e) => setHostPassword(e.target.value)}
+                  placeholder="호스트 비밀번호 입력"
+                  className="password-input"
                 />
-                전체 선택 ({selectedSessions.size}/{sessions.length})
-              </label>
-              {selectedSessions.size > 0 && (
-                <div className="bulk-migration-form">
-                  <input
-                    type="text"
-                    value={bulkOrg}
-                    onChange={(e) => setBulkOrg(e.target.value)}
-                    placeholder="조직명 입력"
-                    list="admin-org-suggestions"
-                  />
-                  <datalist id="admin-org-suggestions">
-                    {existingOrganizations.map(org => (
-                      <option key={org} value={org} />
-                    ))}
-                  </datalist>
-                  <button
-                    onClick={handleBulkMigration}
-                    disabled={migratingOrg || !bulkOrg.trim()}
-                    className="migrate-btn"
-                  >
-                    <Building2 size={14} />
-                    {migratingOrg ? '이동 중...' : '일괄 이동'}
-                  </button>
-                </div>
-              )}
+                <button
+                  type="button"
+                  className="toggle-visibility-btn"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              <button onClick={saveHostPassword} disabled={saving} className="save-btn">
+                <Save size={16} />
+                {saving ? '저장 중...' : '저장'}
+              </button>
             </div>
+            {saveMessage && <p className="save-message">{saveMessage}</p>}
+          </section>
 
-            <div className="sessions-list">
-              {sessions.map((session) => (
-                <div key={session.code} className={`session-card ${selectedSessions.has(session.code) ? 'selected' : ''}`}>
-                  <label className="session-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={selectedSessions.has(session.code)}
-                      onChange={() => toggleSessionSelection(session.code)}
-                    />
-                  </label>
-                  <div className="session-main">
-                    <div className="session-name-row">
-                      <span className="session-name">{session.name || '이름 없음'}</span>
-                      <code className="session-code">{session.code}</code>
-                    </div>
-                    <div className="session-org-row">
-                      {editingOrgCode === session.code ? (
-                        <div className="org-edit-form">
+          {/* 마스터키 */}
+          <section className="admin-section">
+            <h3><Shield size={18} /> 마스터키</h3>
+            <p className="section-description">
+              모든 기업 폴더에 접근 가능한 마스터키. 기본값: <code>welcome09@!</code>
+            </p>
+            <div className="password-form">
+              <div className="password-input-group">
+                <input
+                  type={showMasterKey ? 'text' : 'password'}
+                  value={masterKey}
+                  readOnly
+                  placeholder="현재 마스터키"
+                  className="password-input"
+                  style={{ backgroundColor: '#f1f5f9' }}
+                />
+                <button
+                  type="button"
+                  className="toggle-visibility-btn"
+                  onClick={() => setShowMasterKey(!showMasterKey)}
+                >
+                  {showMasterKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+            <div className="password-form" style={{ marginTop: '0.75rem' }}>
+              <div className="password-input-group">
+                <input
+                  type="text"
+                  value={newMasterKey}
+                  onChange={(e) => setNewMasterKey(e.target.value)}
+                  placeholder="새 마스터키 입력"
+                  className="password-input"
+                />
+              </div>
+              <button onClick={saveMasterKeyHandler} disabled={savingMasterKey} className="save-btn">
+                <Save size={16} />
+                {savingMasterKey ? '저장 중...' : '변경'}
+              </button>
+            </div>
+            {masterKeyMessage && <p className="save-message">{masterKeyMessage}</p>}
+          </section>
+
+          {/* 기업 폴더 비밀번호 */}
+          <section className="admin-section">
+            <h3><Building2 size={18} /> 기업 폴더 비밀번호</h3>
+            <p className="section-description">
+              각 기업 폴더 접근 시 필요한 비밀번호입니다.
+            </p>
+
+            <div className="org-password-list">
+              {Object.entries(orgPasswords).length === 0 ? (
+                <div className="empty-state" style={{ padding: '1rem' }}>
+                  <p>설정된 기업 비밀번호가 없습니다.</p>
+                </div>
+              ) : (
+                Object.entries(orgPasswords).map(([org, pw]) => (
+                  <div key={org} className="org-password-item">
+                    <div className="org-password-info">
+                      <span className="org-name">{org}</span>
+                      {editingOrgPw === org ? (
+                        <div className="org-pw-edit-form">
                           <input
                             type="text"
-                            value={editingOrgValue}
-                            onChange={(e) => setEditingOrgValue(e.target.value)}
-                            placeholder="조직명"
-                            list="admin-org-suggestions"
+                            value={editingOrgPwValue}
+                            onChange={(e) => setEditingOrgPwValue(e.target.value)}
+                            placeholder="새 비밀번호"
                             autoFocus
                           />
-                          <button onClick={saveEditOrg} className="save-org-btn" title="저장">
+                          <button
+                            onClick={() => saveOrgPassword(org, editingOrgPwValue)}
+                            disabled={savingOrgPw}
+                            className="save-org-btn"
+                          >
                             <Check size={14} />
                           </button>
-                          <button onClick={cancelEditOrg} className="cancel-org-btn" title="취소">
+                          <button
+                            onClick={() => { setEditingOrgPw(null); setEditingOrgPwValue(''); }}
+                            className="cancel-org-btn"
+                          >
                             <X size={14} />
                           </button>
                         </div>
                       ) : (
-                        <div className="org-display">
-                          <Building2 size={12} />
-                          <span className={session.organization ? '' : 'no-org'}>
-                            {session.organization || '미지정'}
-                          </span>
-                          <button
-                            onClick={() => startEditOrg(session)}
-                            className="edit-org-btn"
-                            title="조직 수정"
-                          >
-                            <Edit3 size={12} />
-                          </button>
-                        </div>
+                        <span className="org-pw-masked">{'•'.repeat(pw.length)}</span>
                       )}
                     </div>
-                    <div className="session-meta">
-                      <span><Users size={14} /> {session.userCount || 0}명</span>
-                      <span><Clock size={14} /> {formatTime(session.lastActivity || session.createdAt)}</span>
+                    <div className="org-password-actions">
+                      {editingOrgPw !== org && (
+                        <>
+                          <button
+                            onClick={() => { setEditingOrgPw(org); setEditingOrgPwValue(pw); }}
+                            className="edit-org-btn"
+                            title="수정"
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                          <button
+                            onClick={() => deleteOrgPassword(org)}
+                            className="delete-org-btn"
+                            title="삭제"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleDeleteSession(session.code, session.name)}
-                    className="delete-session-btn"
-                    title="세션 삭제"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              ))}
+                ))
+              )}
             </div>
-          </>
-        )}
-      </section>
 
-      {/* 클라우드 룸 관리 섹션 */}
-      <section className="admin-section">
+            <div className="add-org-password-form">
+              <input
+                type="text"
+                value={newOrgName}
+                onChange={(e) => setNewOrgName(e.target.value)}
+                placeholder="기업명"
+                list="existing-orgs"
+              />
+              <datalist id="existing-orgs">
+                {existingOrganizations.map(org => (
+                  <option key={org} value={org} />
+                ))}
+              </datalist>
+              <input
+                type="text"
+                value={newOrgPw}
+                onChange={(e) => setNewOrgPw(e.target.value)}
+                placeholder="비밀번호"
+              />
+              <button
+                onClick={addNewOrgPassword}
+                disabled={savingOrgPw || !newOrgName.trim() || !newOrgPw.trim()}
+                className="add-org-btn"
+              >
+                <Plus size={16} />
+                추가
+              </button>
+            </div>
+          </section>
+        </div>
+
+        {/* 오른쪽 패널: 세션 관리 */}
+        <div className="admin-panel">
+          <div className="panel-title">
+            <Users size={18} />
+            <h3>세션 관리 ({sessions.length}개)</h3>
+            <div className="section-actions" style={{ marginLeft: 'auto' }}>
+              <button onClick={loadSessions} className="refresh-btn" disabled={loading}>
+                <RefreshCw size={16} className={loading ? 'spinning' : ''} />
+              </button>
+              {sessions.length > 0 && (
+                <button onClick={handleClearAllSessions} className="clear-all-btn">
+                  <Trash2 size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <section className="admin-section">
+            {loading ? (
+              <div className="loading-state">
+                <RefreshCw size={24} className="spinning" />
+                <p>로딩 중...</p>
+              </div>
+            ) : sessions.length === 0 ? (
+              <div className="empty-state">
+                <p>등록된 세션이 없습니다.</p>
+                <p className="hint">Gateway에서 새 세션을 만들면 여기에 표시됩니다.</p>
+              </div>
+            ) : (
+              <>
+                {/* 일괄 마이그레이션 도구 */}
+                <div className="bulk-migration-bar">
+                  <label className="select-all-label">
+                    <input
+                      type="checkbox"
+                      checked={selectedSessions.size === sessions.length && sessions.length > 0}
+                      onChange={toggleSelectAllSessions}
+                    />
+                    전체 ({selectedSessions.size}/{sessions.length})
+                  </label>
+                  {selectedSessions.size > 0 && (
+                    <div className="bulk-migration-form">
+                      <input
+                        type="text"
+                        value={bulkOrg}
+                        onChange={(e) => setBulkOrg(e.target.value)}
+                        placeholder="조직명"
+                        list="admin-org-suggestions"
+                      />
+                      <datalist id="admin-org-suggestions">
+                        {existingOrganizations.map(org => (
+                          <option key={org} value={org} />
+                        ))}
+                      </datalist>
+                      <button
+                        onClick={handleBulkMigration}
+                        disabled={migratingOrg || !bulkOrg.trim()}
+                        className="migrate-btn"
+                      >
+                        <FolderInput size={14} />
+                        {migratingOrg ? '이동 중...' : '이동'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* 조직별 아코디언 */}
+                <div className="org-groups">
+                  {organizationGroups.map(({ org, sessions: orgSessions }) => (
+                    <div key={org} className="org-group">
+                      <div
+                        className={`accordion-header ${expandedOrgs.has(org) ? 'expanded' : ''}`}
+                        onClick={() => toggleOrgAccordion(org)}
+                      >
+                        <div className="accordion-title">
+                          <Building2 size={14} />
+                          <span>{org}</span>
+                          <span className="accordion-badge">{orgSessions.length}</span>
+                        </div>
+                        <div className="accordion-icon" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <label
+                            className="select-all-label"
+                            onClick={(e) => { e.stopPropagation(); toggleSelectOrgSessions(org); }}
+                            style={{ fontSize: '0.75rem' }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={orgSessions.every(s => selectedSessions.has(s.code))}
+                              onChange={() => {}}
+                              style={{ width: '14px', height: '14px' }}
+                            />
+                          </label>
+                          {expandedOrgs.has(org) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        </div>
+                      </div>
+                      <div className={`accordion-content ${expandedOrgs.has(org) ? '' : 'collapsed'}`}>
+                        <div className="org-sessions-list">
+                          {orgSessions.map((session) => (
+                            <div key={session.code} className={`session-card-compact ${selectedSessions.has(session.code) ? 'selected' : ''}`}>
+                              <label className="session-checkbox">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedSessions.has(session.code)}
+                                  onChange={() => toggleSessionSelection(session.code)}
+                                />
+                              </label>
+                              {editingSessionName === session.code ? (
+                                <div className="session-edit-inline">
+                                  <input
+                                    type="text"
+                                    value={editingSessionNameValue}
+                                    onChange={(e) => setEditingSessionNameValue(e.target.value)}
+                                    autoFocus
+                                  />
+                                  <button onClick={() => saveSessionName(session.code)} className="save-org-btn" title="저장">
+                                    <Check size={14} />
+                                  </button>
+                                  <button onClick={() => setEditingSessionName(null)} className="cancel-org-btn" title="취소">
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="session-info">
+                                    <div className="session-name">{session.name || '이름 없음'}</div>
+                                    <div className="session-code">{session.code}</div>
+                                  </div>
+                                  <div className="session-actions">
+                                    <button
+                                      className="session-action-btn edit"
+                                      onClick={() => startEditSessionName(session)}
+                                      title="이름 편집"
+                                    >
+                                      <Edit3 size={14} />
+                                    </button>
+                                    <div className="move-dropdown">
+                                      <button
+                                        className="session-action-btn move"
+                                        onClick={() => setShowMoveDropdown(showMoveDropdown === session.code ? null : session.code)}
+                                        title="기업 이동"
+                                      >
+                                        <FolderInput size={14} />
+                                      </button>
+                                      {showMoveDropdown === session.code && (
+                                        <div className="move-dropdown-menu">
+                                          {['미지정', ...existingOrganizations].map(targetOrg => (
+                                            <button
+                                              key={targetOrg}
+                                              className={`move-dropdown-item ${(session.organization || '미지정') === targetOrg ? 'current' : ''}`}
+                                              onClick={() => moveSessionToOrg(session.code, targetOrg)}
+                                            >
+                                              {targetOrg}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <button
+                                      className="session-action-btn delete"
+                                      onClick={() => handleDeleteSession(session.code, session.name)}
+                                      title="삭제"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+      </div>
+
+      {/* 클라우드 룸 관리 (전체 너비) */}
+      <section className="admin-section admin-full-width">
         <div className="section-header">
           <h3><Cloud size={18} /> 클라우드 룸 관리 ({cloudRooms.length}개)</h3>
           <div className="section-actions">

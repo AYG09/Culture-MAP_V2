@@ -1,12 +1,71 @@
-/* src/components/AdminGateway.css - 단순화된 관리자 패널 스타일 */
+/* src/components/AdminGateway.css - 관리자 패널 스타일 (2컬럼 레이아웃) */
 
 .admin-gateway-container {
-  max-width: 800px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 2rem;
   min-height: 100vh;
+  max-height: 100vh;
+  overflow-y: auto;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* 2컬럼 그리드 래퍼 */
+.admin-panels-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.admin-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: calc(100vh - 250px);
+  overflow-y: auto;
+}
+
+.admin-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.admin-panel::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.admin-panel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 3px;
+}
+
+.admin-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+/* 패널 타이틀 */
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  margin-bottom: 0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.panel-title h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+/* 전체 너비 섹션 (하단) */
+.admin-full-width {
+  width: 100%;
 }
 
 /* 헤더 */
@@ -334,8 +393,17 @@
   color: #666;
 }
 
-/* 반응형 */
-@media (max-width: 600px) {
+/* 반응형 - 모바일 단일 컬럼 */
+@media (max-width: 900px) {
+  .admin-panels-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .admin-panel {
+    max-height: none;
+    overflow-y: visible;
+  }
+  
   .admin-gateway-container {
     padding: 1rem;
   }
@@ -762,4 +830,242 @@
 .add-org-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* ========================================
+   아코디언 스타일
+   ======================================== */
+
+.accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.accordion-header:hover {
+  background: #f1f5f9;
+}
+
+.accordion-header.expanded {
+  background: #e0e7ff;
+  border-radius: 8px 8px 0 0;
+}
+
+.accordion-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.accordion-badge {
+  background: #6366f1;
+  color: white;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.accordion-icon {
+  color: #64748b;
+  transition: transform 0.2s;
+}
+
+.accordion-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.accordion-content {
+  border: 1px solid #e2e8f0;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  padding: 0.75rem;
+  background: white;
+}
+
+.accordion-content.collapsed {
+  display: none;
+}
+
+/* 조직 그룹 스타일 */
+.org-group {
+  margin-bottom: 0.75rem;
+}
+
+.org-group:last-child {
+  margin-bottom: 0;
+}
+
+.org-sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* 세션 카드 컴팩트 */
+.session-card-compact {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.session-card-compact:hover {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+
+.session-card-compact.selected {
+  background: #eff6ff;
+  border-color: #6366f1;
+}
+
+.session-card-compact .session-checkbox input {
+  width: 14px;
+  height: 14px;
+}
+
+.session-card-compact .session-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.session-card-compact .session-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-card-compact .session-code {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-family: monospace;
+}
+
+.session-card-compact .session-actions {
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.session-card-compact:hover .session-actions {
+  opacity: 1;
+}
+
+.session-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.session-action-btn.edit {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.session-action-btn.edit:hover {
+  background: #c7d2fe;
+}
+
+.session-action-btn.move {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.session-action-btn.move:hover {
+  background: #fde68a;
+}
+
+.session-action-btn.delete {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.session-action-btn.delete:hover {
+  background: #fecaca;
+}
+
+/* 세션 편집 인라인 */
+.session-edit-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.session-edit-inline input {
+  flex: 1;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #6366f1;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.session-edit-inline input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+/* 이동 드롭다운 */
+.move-dropdown {
+  position: relative;
+}
+
+.move-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 10;
+  min-width: 160px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 0.5rem;
+}
+
+.move-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.move-dropdown-item:hover {
+  background: #f1f5f9;
+}
+
+.move-dropdown-item.current {
+  background: #e0e7ff;
+  color: #4338ca;
+  font-weight: 500;
 }
