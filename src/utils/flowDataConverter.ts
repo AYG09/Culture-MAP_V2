@@ -245,6 +245,9 @@ export const convertConnectionToFlowEdge = (connection: ConnectionData): Edge =>
       relationType: connection.relationType,
       isPositive: connection.isPositive,
     },
+    // 핸들 정보 유지 (세션 재접속 시 연결선 흐름 보존)
+    sourceHandle: connection.sourceHandle,
+    targetHandle: connection.targetHandle,
   };
 };
 

@@ -597,12 +597,17 @@ class LiveblocksService {
             ...connection,
             relationType,
             isPositive: connection.isPositive !== false,
+            // 핸들 정보 보존 (세션 재접속 시 연결선 흐름 유지)
+            sourceHandle: connection.sourceHandle,
+            targetHandle: connection.targetHandle,
         };
         
         console.log('🔄 [Liveblocks] updateConnection 호출:', {
             id: connection.id,
             inputRelationType: connection.relationType,
             normalizedRelationType: relationType,
+            sourceHandle: connection.sourceHandle,
+            targetHandle: connection.targetHandle,
         });
         
         // 로컬 업데이트 플래그 설정
@@ -918,12 +923,24 @@ class LiveblocksService {
 
     private findNodeIndex(id: string): number {
         if (!this.yDoc) return -1;
-        return this.yDoc.getArray<StickyNoteData>('nodes').toArray().findIndex(n => n.id === id);
+        const nodes = this.yDoc.getArray<StickyNoteData>('nodes').toArray();
+        // 마지막 항목의 인덱스 반환 (중복 시 최신 항목 업데이트)
+        let lastIndex = -1;
+        nodes.forEach((n, i) => {
+            if (n.id === id) lastIndex = i;
+        });
+        return lastIndex;
     }
 
     private findConnectionIndex(id: string): number {
         if (!this.yDoc) return -1;
-        return this.yDoc.getArray<LBConnectionData>('connections').toArray().findIndex(c => c.id === id);
+        const connections = this.yDoc.getArray<LBConnectionData>('connections').toArray();
+        // 마지막 항목의 인덱스 반환 (중복 시 최신 항목 업데이트)
+        let lastIndex = -1;
+        connections.forEach((c, i) => {
+            if (c.id === id) lastIndex = i;
+        });
+        return lastIndex;
     }
 
     private generateSessionCode(): string {
