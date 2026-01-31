@@ -1100,6 +1100,7 @@ ${chatHistorySection}
             style: {
               strokeWidth: 2,
               stroke: edgeColor,
+              strokeDasharray: relationType === 'indirect' ? '5 5' : undefined,
             },
             markerEnd: {
               type: 'arrowclosed',
@@ -1900,14 +1901,6 @@ ${chatHistorySection}
 
       const mappedNotes = rawNotes.map(mapLiveblocksNoteToNoteData);
       const mappedConnections = rawConnections.map(mapLiveblocksConnectionToConnectionData);
-      
-      // 디버그: 복원된 연결선의 relationType 확인
-      const indirectConnections = mappedConnections.filter(c => c.relationType === 'indirect');
-      if (indirectConnections.length > 0) {
-        console.log('🔍 [React Flow] indirect 연결선 발견:', indirectConnections.map(c => ({ id: c.id, relationType: c.relationType })));
-      } else {
-        console.log('⚠️ [React Flow] 모든 연결선이 direct:', mappedConnections.length);
-      }
 
       isHydratingRef.current = true;
       previousLayerStartsRef.current = null;
@@ -3578,9 +3571,6 @@ ${chatHistorySection}
 
           const { connections: updatedConnections } = convertFromFlowData(nodes, updatedEdges);
           onConnectionsChange(updatedConnections);
-
-          // 🔥 DEBUG: 컨텍스트 메뉴에서 전달된 action 값 확인
-          console.log('🎯 [Context Menu] 연결선 유형 변경:', { edgeId: edge.id, action, expectedRelationType: action });
 
           liveblocksService.updateConnection({
             id: edge.id,
