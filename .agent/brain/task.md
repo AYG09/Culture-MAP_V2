@@ -687,3 +687,32 @@
 - [ ] 컨설팅 → 워크샵 전환 동작 확인 (사용자 환경)
 
 ---
+
+# Task List: Liveblocks 복원 루프/실시간 동기화 안정화
+
+## 진행 상황
+- 🔲 미완료
+- 🔄 진행 중
+- ✅ 완료
+
+---
+
+## Task 1: snapshot 이벤트 조건 제한
+- [x] notes/connection 스냅샷 emit 조건을 대량 변경에만 제한
+
+## Task 2: hydrate 호출 coalesce
+- [x] notes/connection 변경 hydrate를 RAF로 coalesce
+
+## Task 3: 로컬 변경 핸들러 최신 상태 반영
+- [x] apply*Changes 결과를 setNodes/setEdges로 적용하고 refs 즉시 갱신
+
+## Task 4: 문서 업데이트
+- [x] implementation_plan.md 업데이트
+- [x] walkthrough.md 변경 사항 기록
+
+## Task 5: 검증
+- [ ] 노드 위치 변경이 타 사용자에게 즉시 반영되는지 확인 (사용자 환경)
+- [ ] 연결선 유형 변경이 타 사용자에게 즉시 반영되는지 확인 (사용자 환경)
+- [ ] 복원 로그가 과도하게 반복되지 않는지 확인 (사용자 환경)
+
+---

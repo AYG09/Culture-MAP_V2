@@ -756,10 +756,9 @@ class LiveblocksService {
         // 노드 변경 감지 - 개별 노드마다 이벤트 발생
         this.yDoc.getArray<StickyNoteData>('nodes').observe((event) => {
             const nodesArray = this.yDoc!.getArray<StickyNoteData>('nodes');
-            const transaction = event.transaction;
             const hasManyAdds = event.changes.added.size > 1;
             const hasManyDeletes = event.changes.deleted.size > 1;
-            const shouldEmitSnapshot = !transaction.local || hasManyAdds || hasManyDeletes;
+            const shouldEmitSnapshot = hasManyAdds || hasManyDeletes;
 
             // 전체 목록 변경 이벤트 (원격 or 대량 변경만)
             if (shouldEmitSnapshot) {
@@ -795,10 +794,9 @@ class LiveblocksService {
         // 연결선 변경 감지 - 개별 연결선마다 이벤트 발생
         this.yDoc.getArray<LBConnectionData>('connections').observe((event) => {
             const connectionsArray = this.yDoc!.getArray<LBConnectionData>('connections');
-            const transaction = event.transaction;
             const hasManyAdds = event.changes.added.size > 1;
             const hasManyDeletes = event.changes.deleted.size > 1;
-            const shouldEmitSnapshot = !transaction.local || hasManyAdds || hasManyDeletes;
+            const shouldEmitSnapshot = hasManyAdds || hasManyDeletes;
 
             // 전체 목록 변경 이벤트 (원격 or 대량 변경만)
             if (shouldEmitSnapshot) {

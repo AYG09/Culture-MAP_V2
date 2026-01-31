@@ -2043,3 +2043,45 @@
 1. 행동 레이어 가시성 개선 여부 확인 필요(사용자 환경)
 2. 유형/무형 레버 과확장 해소 여부 확인 필요(사용자 환경)
 3. 자동 정렬 후 레이어 이탈 없음 확인 필요(사용자 환경)
+
+---
+
+# Walkthrough: Liveblocks 복원 루프/실시간 동기화 안정화
+
+## 완료 일시
+2026-01-31
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. notes-changed/connections-changed 복원 로그 과다 및 점멸 감소
+2. 노드 위치/연결선 타입 변경의 실시간 반영 안정화
+3. 로컬 변경 처리 시 stale 상태 전파 방지
+
+---
+
+## ✅ 해결 조치
+
+1. Liveblocks snapshot 이벤트를 대량 변경에만 emit하도록 제한
+2. notes/connection 변경 hydrate를 requestAnimationFrame으로 coalesce
+3. handleNodesChange/handleEdgesChange에서 apply*Changes 결과를 즉시 적용하고 refs 갱신
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/services/LiveblocksService.ts` | snapshot emit 조건 제한 |
+| `src/components/CultureMapFlow.tsx` | 변경 핸들러 최신 상태 반영, hydrate coalesce |
+| `.agent/brain/implementation_plan.md` | 계획 섹션 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. 노드 드래그 후 타 사용자 화면에서 위치 즉시 반영 확인 필요(사용자 환경)
+2. 연결선 유형 변경 시 타 사용자 화면에서 즉시 반영 확인 필요(사용자 환경)
+3. 복원 로그 과다 발생 여부 확인 필요(사용자 환경)

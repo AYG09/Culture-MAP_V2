@@ -2226,3 +2226,67 @@ git checkout -- .agent/brain/walkthrough.md
 1. JSON 가져오기 후 노드/연결 수가 일치하는지 확인
 2. 새로고침/재접속 후에도 맵이 유지되는지 확인
 3. 채팅에서 JSON 첨부 시 업로드 없이 AI 응답이 생성되는지 확인
+
+---
+
+# Implementation Plan: Liveblocks 복원 루프/실시간 동기화 안정화
+
+## 목표
+1. notes-changed/connections-changed 복원 로그 과다 및 점멸 감소
+2. 노드 위치/연결선 타입 변경이 타 사용자에게 즉시 반영
+3. 로컬 변경 처리 시 stale 상태 전파 방지
+
+---
+
+## 핵심 변경 범위
+
+### 1) Liveblocks snapshot 이벤트 조건 제한
+- notes-changed/connections-changed는 대량 변경(배치/복원)에서만 emit
+- 단일 업데이트는 sticky-note-updated/connection-updated로 처리
+
+### 2) hydrate 호출 coalesce
+- notes/connection 변경 이벤트에서 requestAnimationFrame으로 hydrate 1회만 실행
+
+### 3) 로컬 변경 핸들러 최신 상태 반영
+- handleNodesChange/handleEdgesChange에서 apply*Changes 결과를 즉시 setNodes/setEdges
+- refs를 즉시 갱신하고 onNotesChange/onConnectionsChange는 최신 refs 기준
+
+---
+
+## 리스크 및 대응
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 대량 변경 이벤트 누락 | 초기 복원 실패 | hasManyAdds/hasManyDeletes 기준 유지, restore/batch 시나리오 검증 |
+| hydrate 지연 | 업데이트 반영 지연 | RAF 1프레임 지연만 허용 |
+
+---
+
+## 참고 사항
+- Context7 쿼터 초과로 공식 문서 조회 불가
+- Tavily 검색 기반으로 Yjs/React 루프 방지 원칙 적용
+
+---
+
+## 롤백 계획
+
+### 트리거 조건
+- 복원 누락 또는 실시간 동기화 실패 재현
+
+### 롤백 절차
+```bash
+git checkout -- src/services/LiveblocksService.ts
+git checkout -- src/components/CultureMapFlow.tsx
+git checkout -- .agent/brain/implementation_plan.md
+git checkout -- .agent/brain/task.md
+git checkout -- .agent/brain/walkthrough.md
+```
+
+---
+
+## 검증 계획
+
+### 수동 검증
+1. 노드 드래그 후 타 사용자 화면에서 위치 즉시 반영 확인
+2. 연결선 유형 변경 시 타 사용자 화면에서 즉시 반영 확인
+3. notes-changed/connections-changed 로그가 과도하게 반복되지 않는지 확인

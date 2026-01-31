@@ -11,6 +11,7 @@ import {
   useEdgesState,
   addEdge,
   applyNodeChanges,
+  applyEdgeChanges,
   ConnectionMode,
   type Connection,
   type Edge,
@@ -202,14 +203,15 @@ const CultureMapFlow = ({
   const isConsultingMode = sessionType === 'consulting';
 
   // React Flow 노드/엣지 상태
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const [nodes, setNodes] = useNodesState<Node>([]);
+  const [edges, setEdges] = useEdgesState<Edge>([]);
 
   const nodesRef = useRef<Node[]>([]);
   const edgesRef = useRef<Edge[]>([]);
   const layoutSpacingRef = useRef<'compact' | 'normal' | 'wide'>('normal');
   const previousLayerStartsRef = useRef<number[] | null>(null);
   const isHydratingRef = useRef(false);
+  const pendingHydrateRef = useRef<number | null>(null);
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -1928,6 +1930,18 @@ ${chatHistorySection}
     ]
   );
 
+  const scheduleHydrate = useCallback(
+    (reason: string) => {
+      if (pendingHydrateRef.current !== null) return;
+
+      pendingHydrateRef.current = requestAnimationFrame(() => {
+        pendingHydrateRef.current = null;
+        hydrateFromLiveblocks(reason);
+      });
+    },
+    [hydrateFromLiveblocks]
+  );
+
   useEffect(() => {
     type EventHandler = (...args: unknown[]) => void;
 
@@ -2348,10 +2362,10 @@ ${chatHistorySection}
     // Liveblocks 이벤트 리스너 등록
     type EventHandler = (...args: unknown[]) => void;
     const handleNotesChanged: EventHandler = () => {
-      hydrateFromLiveblocks('notes-changed');
+      scheduleHydrate('notes-changed');
     };
     const handleConnectionsChanged: EventHandler = () => {
-      hydrateFromLiveblocks('connections-changed');
+      scheduleHydrate('connections-changed');
     };
 
     liveblocksService.on('sticky-note-updated', handleStickyNoteUpdated as EventHandler);
@@ -2365,6 +2379,10 @@ ${chatHistorySection}
 
     // Cleanup: 컴포넌트 언마운트 시 리스너 제거
     return () => {
+      if (pendingHydrateRef.current !== null) {
+        cancelAnimationFrame(pendingHydrateRef.current);
+        pendingHydrateRef.current = null;
+      }
       liveblocksService.off('sticky-note-updated', handleStickyNoteUpdated as EventHandler);
       liveblocksService.off('sticky-note-deleted', handleStickyNoteDeleted as EventHandler);
       liveblocksService.off('connection-updated', handleConnectionUpdated as EventHandler);
@@ -2378,7 +2396,7 @@ ${chatHistorySection}
     handleNodeContentUpdate,
     handleStartNodeEditing,
     handleStopNodeEditing,
-    hydrateFromLiveblocks,
+    scheduleHydrate,
     setNodes,
     setEdges,
   ]);
@@ -2695,12 +2713,14 @@ ${chatHistorySection}
         };
       });
 
-      onNodesChange(clampedChanges);
+      const nextNodes = applyNodeChanges(clampedChanges, nodesRef.current);
+      setNodes(nextNodes);
+      nodesRef.current = nextNodes;
 
       // 위치 변경 완료 시 Firebase 동기화
       clampedChanges.forEach((change) => {
         if (change.type === 'position' && !change.dragging && change.position) {
-          const node = nodes.find((n) => n.id === change.id);
+          const node = nextNodes.find((n) => n.id === change.id);
           if (node) {
             // 노드 타입에 따른 층위 계산
             const layerMap: { [key: string]: number } = {
@@ -2750,10 +2770,10 @@ ${chatHistorySection}
       });
 
       // 로컬 상태 업데이트
-      const updatedData = convertFromFlowData(nodes, edges);
+      const updatedData = convertFromFlowData(nodesRef.current, edgesRef.current);
       onNotesChange(updatedData.notes);
     },
-    [getCurrentUserId, layerHeights, nodes, edges, isConsultingMode, onNodesChange, onNotesChange]
+    [getCurrentUserId, layerHeights, isConsultingMode, onNotesChange, setNodes]
   );
 
   // ============================================================================
@@ -2761,24 +2781,24 @@ ${chatHistorySection}
   // ============================================================================
   const handleEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
-      onEdgesChange(changes);
+      const previousEdges = edgesRef.current;
+      const nextEdges = applyEdgeChanges(changes, previousEdges);
+      setEdges(nextEdges);
+      edgesRef.current = nextEdges;
 
       // 엣지 삭제 시 Firebase 동기화
       changes.forEach((change) => {
         if (change.type === 'remove') {
-          const edge = edges.find((e) => e.id === change.id);
-          if (edge) {
-            liveblocksService.deleteConnection(edge.id);
-            console.log('🗑️ [React Flow] Firebase 연결선 삭제:', edge.id);
-          }
+          liveblocksService.deleteConnection(change.id);
+          console.log('🗑️ [React Flow] Firebase 연결선 삭제:', change.id);
         }
       });
 
       // 로컬 상태 업데이트
-      const updatedData = convertFromFlowData(nodes, edges);
+      const updatedData = convertFromFlowData(nodesRef.current, edgesRef.current);
       onConnectionsChange(updatedData.connections);
     },
-    [nodes, edges, onEdgesChange, onConnectionsChange]
+    [onConnectionsChange, setEdges]
   );
 
   // ============================================================================
