@@ -1900,6 +1900,14 @@ ${chatHistorySection}
 
       const mappedNotes = rawNotes.map(mapLiveblocksNoteToNoteData);
       const mappedConnections = rawConnections.map(mapLiveblocksConnectionToConnectionData);
+      
+      // 디버그: 복원된 연결선의 relationType 확인
+      const indirectConnections = mappedConnections.filter(c => c.relationType === 'indirect');
+      if (indirectConnections.length > 0) {
+        console.log('🔍 [React Flow] indirect 연결선 발견:', indirectConnections.map(c => ({ id: c.id, relationType: c.relationType })));
+      } else {
+        console.log('⚠️ [React Flow] 모든 연결선이 direct:', mappedConnections.length);
+      }
 
       isHydratingRef.current = true;
       previousLayerStartsRef.current = null;
