@@ -118,6 +118,16 @@ const SessionManager: React.FC<SessionManagerProps> = ({
     try {
       // 커스텀 코드(별칭) 또는 원본 코드로 실제 세션 코드 resolve
       const resolvedCode = await liveblocksService.resolveSessionCode(sessionCode);
+      
+      // ⚠️ 중요: 세션 레지스트리에서 존재 여부 먼저 확인 (Liveblocks는 없는 룸도 자동 생성함)
+      const existingSessions = await liveblocksService.getSessionRegistry();
+      const sessionExists = existingSessions.some(s => s.code.toUpperCase() === resolvedCode.toUpperCase());
+      
+      if (!sessionExists) {
+        setError(`존재하지 않는 세션입니다: ${sessionCode.toUpperCase()}`);
+        return;
+      }
+      
       await liveblocksService.joinSession(resolvedCode, false);
 
       const sessionData = {
