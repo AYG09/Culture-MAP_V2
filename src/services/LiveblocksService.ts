@@ -1346,6 +1346,141 @@ class LiveblocksService {
         }
         console.log('✅ 세션 organization 일괄 업데이트:', codes.length, '개 →', organization);
     }
+
+    /**
+     * 세션명 변경 (레지스트리 반영)
+     */
+    public async updateSessionName(code: string, name: string): Promise<void> {
+        await this.connectToConfigRoom();
+        const sessionsMap = this.configDoc?.getMap<unknown>('sessions');
+
+        if (!sessionsMap) return;
+
+        const existing = sessionsMap.get(code) as { code: string; name: string; type: string; createdAt: number; createdBy: string; organization?: string } | undefined;
+        if (!existing) {
+            console.warn('⚠️ 세션을 찾을 수 없음:', code);
+            return;
+        }
+
+        const updatedData = {
+            ...existing,
+            name
+        };
+
+        sessionsMap.set(code, updatedData);
+        console.log('✅ 세션명 업데이트:', code, '→', name);
+
+        // 현재 세션이면 로컬 상태도 업데이트
+        if (this.currentSession && this.currentSession.code === code) {
+            this.currentSession = { ...this.currentSession, name };
+        }
+    }
+
+    // ==================== 마스터키 관리 ====================
+
+    private readonly DEFAULT_MASTER_KEY = 'welcome09@!';
+
+    /**
+     * 마스터키 가져오기 (없으면 기본값 설정)
+     */
+    public async getMasterKey(): Promise<string> {
+        const config = await this.connectToConfigRoom();
+        let masterKey = config.get('masterKey') as string | undefined;
+        
+        if (!masterKey) {
+            // 기본값 설정
+            config.set('masterKey', this.DEFAULT_MASTER_KEY);
+            masterKey = this.DEFAULT_MASTER_KEY;
+            console.log('🔑 마스터키 기본값 설정:', this.DEFAULT_MASTER_KEY);
+        }
+        
+        return masterKey;
+    }
+
+    /**
+     * 마스터키 설정 (관리자만 사용)
+     */
+    public async setMasterKey(key: string): Promise<void> {
+        const config = await this.connectToConfigRoom();
+        config.set('masterKey', key);
+        config.set('updatedAt', Date.now());
+        console.log('✅ 마스터키 변경 완료');
+    }
+
+    /**
+     * 마스터키 검증
+     */
+    public async validateMasterKey(input: string): Promise<boolean> {
+        const masterKey = await this.getMasterKey();
+        return input === masterKey;
+    }
+
+    // ==================== 기업 비밀번호 관리 ====================
+
+    /**
+     * 기업 비밀번호 설정
+     */
+    public async setOrganizationPassword(org: string, password: string): Promise<void> {
+        const config = await this.connectToConfigRoom();
+        
+        // organizationPasswords Map 가져오기 또는 생성
+        let orgPasswords = config.get('organizationPasswords') as Record<string, string> | undefined;
+        if (!orgPasswords) {
+            orgPasswords = {};
+        }
+        
+        orgPasswords[org] = password;
+        config.set('organizationPasswords', orgPasswords);
+        config.set('updatedAt', Date.now());
+        console.log('✅ 기업 비밀번호 설정:', org);
+    }
+
+    /**
+     * 기업 비밀번호 가져오기
+     */
+    public async getOrganizationPassword(org: string): Promise<string | null> {
+        const config = await this.connectToConfigRoom();
+        const orgPasswords = config.get('organizationPasswords') as Record<string, string> | undefined;
+        
+        if (!orgPasswords) return null;
+        return orgPasswords[org] || null;
+    }
+
+    /**
+     * 기업 비밀번호 검증
+     */
+    public async validateOrganizationPassword(org: string, inputPw: string): Promise<boolean> {
+        const savedPw = await this.getOrganizationPassword(org);
+        if (!savedPw) {
+            // 비밀번호 미설정 시 통과
+            return true;
+        }
+        return inputPw === savedPw;
+    }
+
+    /**
+     * 모든 기업 비밀번호 가져오기 (관리자용)
+     */
+    public async getAllOrganizationPasswords(): Promise<Record<string, string>> {
+        const config = await this.connectToConfigRoom();
+        const orgPasswords = config.get('organizationPasswords') as Record<string, string> | undefined;
+        return orgPasswords || {};
+    }
+
+    /**
+     * 기업 비밀번호 삭제
+     */
+    public async deleteOrganizationPassword(org: string): Promise<void> {
+        const config = await this.connectToConfigRoom();
+        const orgPasswords = config.get('organizationPasswords') as Record<string, string> | undefined;
+        
+        if (orgPasswords && orgPasswords[org]) {
+            delete orgPasswords[org];
+            config.set('organizationPasswords', orgPasswords);
+            config.set('updatedAt', Date.now());
+            console.log('✅ 기업 비밀번호 삭제:', org);
+        }
+    }
 }
 
 export const liveblocksService = new LiveblocksService();

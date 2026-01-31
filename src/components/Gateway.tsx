@@ -30,6 +30,12 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
   // 폴더 구조 상태
   const [selectedOrg, setSelectedOrg] = useState<string | null>(null);
 
+  // 1번 게이트 (기업 폴더 비밀번호)
+  const [showOrgPasswordModal, setShowOrgPasswordModal] = useState(false);
+  const [pendingOrg, setPendingOrg] = useState<string | null>(null);
+  const [orgPassword, setOrgPassword] = useState('');
+  const [bypassedByMasterKey, setBypassedByMasterKey] = useState(false);
+
   // 모달 상태
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -314,6 +320,78 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
     }
   };
 
+  // 1번 게이트: 기업 폴더 클릭 핸들러
+  const handleFolderClick = async (org: string) => {
+    // 미분류는 비밀번호 검증 스킵
+    if (org === '미분류') {
+      setSelectedOrg(org);
+      setSearchQuery('');
+      return;
+    }
+
+    // 이미 마스터키로 통과했으면 바로 진입
+    if (bypassedByMasterKey) {
+      setSelectedOrg(org);
+      setSearchQuery('');
+      return;
+    }
+
+    // 비밀번호 설정 여부 확인
+    const hasPassword = await liveblocksService.getOrganizationPassword(org);
+    if (!hasPassword) {
+      // 비밀번호 미설정 시 바로 진입
+      setSelectedOrg(org);
+      setSearchQuery('');
+      return;
+    }
+
+    // 비밀번호 모달 표시
+    setPendingOrg(org);
+    setOrgPassword('');
+    setError('');
+    setShowOrgPasswordModal(true);
+  };
+
+  // 1번 게이트: 비밀번호 검증
+  const handleOrgPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pendingOrg) return;
+
+    setError('');
+    setIsSubmitting(true);
+
+    try {
+      // 마스터키 먼저 확인
+      const isMasterKey = await liveblocksService.validateMasterKey(orgPassword);
+      if (isMasterKey) {
+        setBypassedByMasterKey(true);
+        setSelectedOrg(pendingOrg);
+        setSearchQuery('');
+        setShowOrgPasswordModal(false);
+        setPendingOrg(null);
+        setOrgPassword('');
+        return;
+      }
+
+      // 기업 비밀번호 확인
+      const isValid = await liveblocksService.validateOrganizationPassword(pendingOrg, orgPassword);
+      if (isValid) {
+        setSelectedOrg(pendingOrg);
+        setSearchQuery('');
+        setShowOrgPasswordModal(false);
+        setPendingOrg(null);
+        setOrgPassword('');
+      } else {
+        setError('비밀번호가 올바르지 않습니다.');
+      }
+    } catch (err) {
+      console.error('Password validation failed:', err);
+      setError('비밀번호 검증에 실패했습니다.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // 관리자 인증
   const handleAdminAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -449,13 +527,27 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
                     </div>
                     <button
                       className="session-join-btn"
-                      onClick={() => {
+                      onClick={async () => {
+                        // 마스터키로 바이패스 시 바로 입장
+                        if (bypassedByMasterKey) {
+                          try {
+                            await liveblocksService.joinSession(session.code, false);
+                            persistLastSession(session.code, false);
+                            setIsAuth(true);
+                            if (onAuthenticated) onAuthenticated(session.code);
+                          } catch (err) {
+                            console.error('Session join failed:', err);
+                            setError('세션 입장에 실패했습니다.');
+                          }
+                          return;
+                        }
+                        // 일반 사용자는 코드 입력 모달
                         setSessionCode('');
                         setError('');
                         setShowJoinModal(true);
                       }}
                     >
-                      입장
+                      {bypassedByMasterKey ? '바로 입장' : '입장'}
                     </button>
                   </div>
                 ))
@@ -475,7 +567,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
                   <div
                     key={org}
                     className="folder-item"
-                    onClick={() => { setSelectedOrg(org); setSearchQuery(''); }}
+                    onClick={() => handleFolderClick(org)}
                   >
                     <div className="folder-info">
                       <Folder size={24} className="folder-icon" />
@@ -615,6 +707,39 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
               <div className="modal-actions">
                 <button type="button" className="btn-cancel" onClick={() => setShowAdminModal(false)}>취소</button>
                 <button type="submit" className="btn-primary" disabled={isSubmitting}>{isSubmitting ? '인증 중...' : '인증'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 1번 게이트: 기업 폴더 비밀번호 모달 */}
+      {showOrgPasswordModal && (
+        <div className="cm-modal-overlay gateway-modal-overlay" onClick={() => setShowOrgPasswordModal(false)}>
+          <div className="cm-modal gateway-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="cm-modal-header gateway-modal-header">
+              <h3 className="cm-modal-title">🔐 {pendingOrg} 접근</h3>
+              <button className="cm-modal-close gateway-modal-close" onClick={() => setShowOrgPasswordModal(false)}><X size={20} /></button>
+            </div>
+            <form onSubmit={handleOrgPasswordSubmit}>
+              <div className="form-group">
+                <label>비밀번호 또는 마스터키</label>
+                <input
+                  type="password"
+                  value={orgPassword}
+                  onChange={(e) => setOrgPassword(e.target.value)}
+                  placeholder="비밀번호 입력"
+                  autoFocus
+                  required
+                />
+                <p className="form-hint">기업 접근 비밀번호 또는 마스터키를 입력하세요.</p>
+              </div>
+              {error && <div className="error-message">{error}</div>}
+              <div className="modal-actions">
+                <button type="button" className="btn-cancel" onClick={() => setShowOrgPasswordModal(false)}>취소</button>
+                <button type="submit" className="btn-primary" disabled={isSubmitting || !orgPassword}>
+                  {isSubmitting ? '확인 중...' : '확인'}
+                </button>
               </div>
             </form>
           </div>

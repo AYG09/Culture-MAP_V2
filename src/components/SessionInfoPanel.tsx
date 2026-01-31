@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
+import liveblocksService from '../services/LiveblocksService';
 import './SessionInfoPanel.css';
 
 interface SessionInfoPanelProps {
@@ -93,10 +94,9 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
     }
 
     try {
-      // TODO: Liveblocks에서 세션 이름 변경 기능 구현 필요
-      // 현재는 로컬에서만 변경
+      await liveblocksService.updateSessionName(sessionCode, editedName.trim());
       setIsEditingName(false);
-      alert('세션 이름이 변경되었습니다! (로컬 변경)');
+      alert('세션 이름이 변경되었습니다!');
     } catch (error) {
       console.error('세션 이름 변경 실패:', error);
       alert('세션 이름 변경에 실패했습니다.');

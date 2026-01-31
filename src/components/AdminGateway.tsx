@@ -1,6 +1,6 @@
 // src/components/AdminGateway.tsx - 단순화된 관리자 패널
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, RefreshCw, Trash2, Users, Clock, Key, Save, Eye, EyeOff, Cloud, AlertTriangle, Building2, Edit3, Check, X } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Trash2, Users, Clock, Key, Save, Eye, EyeOff, Cloud, AlertTriangle, Building2, Edit3, Check, X, Shield, Plus } from 'lucide-react';
 import liveblocksService from '../services/LiveblocksService';
 import liveblocksAdminService from '../services/LiveblocksAdminService';
 import type { LiveblocksRoom } from '../services/LiveblocksAdminService';
@@ -44,6 +44,21 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
   const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
   const [migratingOrg, setMigratingOrg] = useState(false);
 
+  // 마스터키 관리
+  const [masterKey, setMasterKey] = useState('');
+  const [newMasterKey, setNewMasterKey] = useState('');
+  const [showMasterKey, setShowMasterKey] = useState(false);
+  const [savingMasterKey, setSavingMasterKey] = useState(false);
+  const [masterKeyMessage, setMasterKeyMessage] = useState('');
+
+  // 기업 비밀번호 관리
+  const [orgPasswords, setOrgPasswords] = useState<Record<string, string>>({});
+  const [editingOrgPw, setEditingOrgPw] = useState<string | null>(null);
+  const [editingOrgPwValue, setEditingOrgPwValue] = useState('');
+  const [newOrgName, setNewOrgName] = useState('');
+  const [newOrgPw, setNewOrgPw] = useState('');
+  const [savingOrgPw, setSavingOrgPw] = useState(false);
+
   // 기존 조직 목록 (자동완성용)
   const existingOrganizations = useMemo(() => {
     const orgs = new Set<string>();
@@ -58,7 +73,93 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
     loadSessions();
     loadHostPassword();
     loadCloudRooms();
+    loadMasterKey();
+    loadOrgPasswords();
   }, []);
+
+  // 마스터키 로드
+  const loadMasterKey = async () => {
+    try {
+      const key = await liveblocksService.getMasterKey();
+      setMasterKey(key);
+    } catch (err) {
+      console.error('마스터키 로드 실패:', err);
+    }
+  };
+
+  // 마스터키 저장
+  const saveMasterKeyHandler = async () => {
+    if (!newMasterKey.trim()) {
+      setMasterKeyMessage('❌ 새 마스터키를 입력하세요.');
+      return;
+    }
+    setSavingMasterKey(true);
+    setMasterKeyMessage('');
+    try {
+      await liveblocksService.setMasterKey(newMasterKey.trim());
+      setMasterKey(newMasterKey.trim());
+      setNewMasterKey('');
+      setMasterKeyMessage('✅ 마스터키가 변경되었습니다!');
+      setTimeout(() => setMasterKeyMessage(''), 5000);
+    } catch (err) {
+      console.error('마스터키 저장 실패:', err);
+      setMasterKeyMessage('❌ 저장 실패. 다시 시도해주세요.');
+    } finally {
+      setSavingMasterKey(false);
+    }
+  };
+
+  // 기업 비밀번호 목록 로드
+  const loadOrgPasswords = async () => {
+    try {
+      const passwords = await liveblocksService.getAllOrganizationPasswords();
+      setOrgPasswords(passwords);
+    } catch (err) {
+      console.error('기업 비밀번호 로드 실패:', err);
+    }
+  };
+
+  // 기업 비밀번호 저장
+  const saveOrgPassword = async (org: string, password: string) => {
+    setSavingOrgPw(true);
+    try {
+      await liveblocksService.setOrganizationPassword(org, password);
+      setOrgPasswords(prev => ({ ...prev, [org]: password }));
+      setEditingOrgPw(null);
+      setEditingOrgPwValue('');
+    } catch (err) {
+      console.error('기업 비밀번호 저장 실패:', err);
+      setError('기업 비밀번호 저장에 실패했습니다.');
+    } finally {
+      setSavingOrgPw(false);
+    }
+  };
+
+  // 새 기업 비밀번호 추가
+  const addNewOrgPassword = async () => {
+    if (!newOrgName.trim() || !newOrgPw.trim()) {
+      setError('기업명과 비밀번호를 모두 입력하세요.');
+      return;
+    }
+    await saveOrgPassword(newOrgName.trim(), newOrgPw.trim());
+    setNewOrgName('');
+    setNewOrgPw('');
+  };
+
+  // 기업 비밀번호 삭제
+  const deleteOrgPassword = async (org: string) => {
+    if (!window.confirm(`"${org}" 기업의 비밀번호를 삭제하시겠습니까?`)) return;
+    try {
+      await liveblocksService.deleteOrganizationPassword(org);
+      setOrgPasswords(prev => {
+        const updated = { ...prev };
+        delete updated[org];
+        return updated;
+      });
+    } catch (err) {
+      console.error('기업 비밀번호 삭제 실패:', err);
+    }
+  };
 
   // 호스트 비밀번호 로드 (Liveblocks에서)
   const loadHostPassword = async () => {
@@ -376,6 +477,158 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
           </button>
         </div>
         {saveMessage && <p className="save-message">{saveMessage}</p>}
+      </section>
+
+      {/* 마스터키 설정 섹션 */}
+      <section className="admin-section">
+        <h3><Shield size={18} /> 마스터키 설정</h3>
+        <p className="section-description">
+          마스터키를 가진 사람은 모든 기업 폴더에 비밀번호 없이 접근할 수 있습니다.
+          기본값: <code>welcome09@!</code>
+        </p>
+
+        <div className="password-form">
+          <div className="password-input-group">
+            <input
+              type={showMasterKey ? 'text' : 'password'}
+              value={masterKey}
+              readOnly
+              placeholder="현재 마스터키"
+              className="password-input"
+              style={{ backgroundColor: '#f1f5f9' }}
+            />
+            <button
+              type="button"
+              className="toggle-visibility-btn"
+              onClick={() => setShowMasterKey(!showMasterKey)}
+            >
+              {showMasterKey ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
+        </div>
+
+        <div className="password-form" style={{ marginTop: '0.75rem' }}>
+          <div className="password-input-group">
+            <input
+              type="text"
+              value={newMasterKey}
+              onChange={(e) => setNewMasterKey(e.target.value)}
+              placeholder="새 마스터키 입력"
+              className="password-input"
+            />
+          </div>
+          <button
+            onClick={saveMasterKeyHandler}
+            disabled={savingMasterKey}
+            className="save-btn"
+          >
+            <Save size={16} />
+            {savingMasterKey ? '저장 중...' : '변경'}
+          </button>
+        </div>
+        {masterKeyMessage && <p className="save-message">{masterKeyMessage}</p>}
+      </section>
+
+      {/* 기업 비밀번호 관리 섹션 */}
+      <section className="admin-section">
+        <h3><Building2 size={18} /> 기업 폴더 비밀번호 관리</h3>
+        <p className="section-description">
+          각 기업 폴더에 접근하기 위한 비밀번호를 설정합니다.
+          비밀번호가 없는 기업은 누구나 접근할 수 있습니다.
+        </p>
+
+        {/* 기존 기업 비밀번호 목록 */}
+        <div className="org-password-list">
+          {Object.entries(orgPasswords).length === 0 ? (
+            <div className="empty-state" style={{ padding: '1rem' }}>
+              <p>설정된 기업 비밀번호가 없습니다.</p>
+            </div>
+          ) : (
+            Object.entries(orgPasswords).map(([org, pw]) => (
+              <div key={org} className="org-password-item">
+                <div className="org-password-info">
+                  <span className="org-name">{org}</span>
+                  {editingOrgPw === org ? (
+                    <div className="org-pw-edit-form">
+                      <input
+                        type="text"
+                        value={editingOrgPwValue}
+                        onChange={(e) => setEditingOrgPwValue(e.target.value)}
+                        placeholder="새 비밀번호"
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => saveOrgPassword(org, editingOrgPwValue)}
+                        disabled={savingOrgPw}
+                        className="save-org-btn"
+                      >
+                        <Check size={14} />
+                      </button>
+                      <button
+                        onClick={() => { setEditingOrgPw(null); setEditingOrgPwValue(''); }}
+                        className="cancel-org-btn"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="org-pw-masked">{'•'.repeat(pw.length)}</span>
+                  )}
+                </div>
+                <div className="org-password-actions">
+                  {editingOrgPw !== org && (
+                    <>
+                      <button
+                        onClick={() => { setEditingOrgPw(org); setEditingOrgPwValue(pw); }}
+                        className="edit-org-btn"
+                        title="수정"
+                      >
+                        <Edit3 size={14} />
+                      </button>
+                      <button
+                        onClick={() => deleteOrgPassword(org)}
+                        className="delete-org-btn"
+                        title="삭제"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* 새 기업 비밀번호 추가 */}
+        <div className="add-org-password-form">
+          <input
+            type="text"
+            value={newOrgName}
+            onChange={(e) => setNewOrgName(e.target.value)}
+            placeholder="기업명"
+            list="existing-orgs"
+          />
+          <datalist id="existing-orgs">
+            {existingOrganizations.map(org => (
+              <option key={org} value={org} />
+            ))}
+          </datalist>
+          <input
+            type="text"
+            value={newOrgPw}
+            onChange={(e) => setNewOrgPw(e.target.value)}
+            placeholder="비밀번호"
+          />
+          <button
+            onClick={addNewOrgPassword}
+            disabled={savingOrgPw || !newOrgName.trim() || !newOrgPw.trim()}
+            className="add-org-btn"
+          >
+            <Plus size={16} />
+            추가
+          </button>
+        </div>
       </section>
 
       {/* 세션 관리 섹션 */}
