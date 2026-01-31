@@ -3045,8 +3045,8 @@ ${chatHistorySection}
   
   // Liveblocks useOthers 훅으로 다른 사용자 커서 가져오기
   // shallow selector를 사용하여 커서 변경 시 항상 새 배열 반환 → 리렌더링 트리거
-  const otherCursors = useOthers((others) =>
-    others
+  const otherCursors = useOthers((others) => {
+    const cursors = others
       .filter((other) => other.presence?.cursor != null)
       .map((other) => ({
         id: String(other.connectionId),
@@ -3054,8 +3054,11 @@ ${chatHistorySection}
         y: other.presence.cursor!.y,
         userName: other.presence.userName,
         userColor: other.presence.userColor,
-      }))
-  );
+      }));
+    // 디버깅: 커서 상태 변화 확인
+    console.log('👁️ [Cursor] otherCursors:', cursors.length, cursors);
+    return cursors;
+  });
   const updateMyPresence = useUpdateMyPresence();
 
   const handlePaneMouseMove = useCallback((event: React.MouseEvent) => {
@@ -3963,52 +3966,51 @@ ${chatHistorySection}
               >
                 <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
 
-                {otherCursors.length > 0 && (
-                  <ViewportPortal>
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        pointerEvents: 'none',
-                        zIndex: 5,
-                      }}
-                    >
-                      {otherCursors.map((cursor) => (
+                {/* 다른 사용자 커서 - ViewportPortal 항상 마운트 (조건부 렌더링 제거) */}
+                <ViewportPortal>
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      pointerEvents: 'none',
+                      zIndex: 5,
+                    }}
+                  >
+                    {otherCursors.map((cursor) => (
+                      <div
+                        key={cursor.id}
+                        style={{
+                          position: 'absolute',
+                          transform: `translate(${cursor.x}px, ${cursor.y}px)`,
+                        }}
+                      >
                         <div
-                          key={cursor.id}
                           style={{
-                            position: 'absolute',
-                            transform: `translate(${cursor.x}px, ${cursor.y}px)`,
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            backgroundColor: cursor.userColor || '#8b5cf6',
+                            boxShadow: '0 0 6px rgba(0, 0, 0, 0.35)',
+                          }}
+                        />
+                        <div
+                          style={{
+                            marginTop: 4,
+                            padding: '2px 6px',
+                            borderRadius: 6,
+                            backgroundColor: 'rgba(0,0,0,0.65)',
+                            color: '#fff',
+                            fontSize: 10,
+                            whiteSpace: 'nowrap',
                           }}
                         >
-                          <div
-                            style={{
-                              width: 8,
-                              height: 8,
-                              borderRadius: '50%',
-                              backgroundColor: cursor.userColor || '#8b5cf6',
-                              boxShadow: '0 0 6px rgba(0, 0, 0, 0.35)',
-                            }}
-                          />
-                          <div
-                            style={{
-                              marginTop: 4,
-                              padding: '2px 6px',
-                              borderRadius: 6,
-                              backgroundColor: 'rgba(0,0,0,0.65)',
-                              color: '#fff',
-                              fontSize: 10,
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {cursor.userName ?? '참여자'}
-                          </div>
+                          {cursor.userName ?? '참여자'}
                         </div>
-                      ))}
-                    </div>
-                  </ViewportPortal>
-                )}
+                      </div>
+                    ))}
+                  </div>
+                </ViewportPortal>
 
                 {/* 층위 배경 레이어 (ViewportPortal 사용 - transform 적용됨) */}
                 {showLayerBackground && (
