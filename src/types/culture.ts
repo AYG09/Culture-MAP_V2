@@ -197,6 +197,10 @@ export interface ConnectionData {
   description?: string;
   /** 생성자 구분: 'user' (사용자) | 'ai' (AI) - 사용자가 편집하면 즉시 'user'로 변경 */
   createdBy?: 'user' | 'ai';
+  /** 연결선 소스 핸들 위치 (top/bottom/left/right) */
+  sourceHandle?: string;
+  /** 연결선 타겟 핸들 위치 (top/bottom/left/right) */
+  targetHandle?: string;
 }
 
 /**

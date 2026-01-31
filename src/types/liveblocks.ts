@@ -128,6 +128,10 @@ export interface ConnectionData {
     type?: string;
     /** 생성자 구분: 'user' (사용자) | 'ai' (AI) - AI는 사용자 생성 항목을 임의로 수정 불가 */
     createdBy?: 'user' | 'ai';
+    /** 연결선 소스 핸들 위치 (top/bottom/left/right) */
+    sourceHandle?: string;
+    /** 연결선 타겟 핸들 위치 (top/bottom/left/right) */
+    targetHandle?: string;
 }
 
 export interface SessionMetadata {

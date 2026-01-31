@@ -198,6 +198,10 @@ const mapLiveblocksConnectionToConnectionData = (
     targetId: connection.targetId,
     relationType,
     isPositive: connection.isPositive !== false,
+    createdBy: connection.createdBy,
+    // 핸들 정보 유지 (저장된 연결선 흐름 보존)
+    sourceHandle: connection.sourceHandle,
+    targetHandle: connection.targetHandle,
   };
 };
 
@@ -1391,6 +1395,8 @@ ${chatHistorySection}
             relationType,
             isPositive,
             createdBy: 'ai',
+            sourceHandle,
+            targetHandle,
           });
         }
         break;
@@ -3150,7 +3156,7 @@ ${chatHistorySection}
 
       setEdges((eds) => addEdge(newEdge, eds));
 
-      // Firebase 실시간 동기화
+      // Firebase 실시간 동기화 (핸들 정보 포함)
       liveblocksService.updateConnection({
         id: newEdge.id,
         sourceId: params.source!,
@@ -3158,6 +3164,8 @@ ${chatHistorySection}
         relationType: 'direct',
         isPositive: isPositive,
         createdBy: 'user',
+        sourceHandle: resolvedSourceHandle ?? undefined,
+        targetHandle: resolvedTargetHandle ?? undefined,
       });
 
       console.log('🔗 [React Flow] Firebase 연결선 생성:', {

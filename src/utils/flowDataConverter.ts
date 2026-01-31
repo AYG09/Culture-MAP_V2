@@ -258,6 +258,8 @@ export const convertFlowEdgeToConnection = (edge: Edge): ConnectionData => {
 
   const isPositiveFromData = (edge.data as { isPositive?: boolean } | undefined)?.isPositive;
   const isPositive = isPositiveFromData !== undefined ? isPositiveFromData : true;
+  
+  const createdByFromData = (edge.data as { createdBy?: 'user' | 'ai' } | undefined)?.createdBy;
 
   return {
     id: edge.id,
@@ -265,6 +267,10 @@ export const convertFlowEdgeToConnection = (edge: Edge): ConnectionData => {
     targetId: edge.target,
     relationType,
     isPositive,
+    createdBy: createdByFromData,
+    // 핸들 정보 저장 (연결선 흘름 보존)
+    sourceHandle: edge.sourceHandle ?? undefined,
+    targetHandle: edge.targetHandle ?? undefined,
   };
 };
 
