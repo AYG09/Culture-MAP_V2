@@ -925,13 +925,12 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
                                       </div>
                                     ) : (
                                       <button
-                                        className={`session-action-btn ${sessionPasswords[session.code] ? 'edit' : ''}`}
+                                        className={`session-action-btn lock ${sessionPasswords[session.code] ? 'active' : ''}`}
                                         onClick={() => {
                                           setEditingSessionPw(session.code);
                                           setEditingSessionPwValue(sessionPasswords[session.code] || '');
                                         }}
                                         title={sessionPasswords[session.code] ? '비밀번호 수정' : '비밀번호 설정'}
-                                        style={{ background: sessionPasswords[session.code] ? '#e0e7ff' : '#f1f5f9' }}
                                       >
                                         {sessionPasswords[session.code] ? <Lock size={14} /> : <LockOpen size={14} />}
                                       </button>

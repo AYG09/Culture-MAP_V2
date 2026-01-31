@@ -973,6 +973,12 @@
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.session-action-btn:hover {
+  background: #e2e8f0;
 }
 
 .session-action-btn.edit {
@@ -1000,6 +1006,21 @@
 
 .session-action-btn.delete:hover {
   background: #fecaca;
+}
+
+.session-action-btn.lock {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.session-action-btn.lock:hover {
+  background: #e2e8f0;
+  color: #64748b;
+}
+
+.session-action-btn.lock.active {
+  background: #e0e7ff;
+  color: #6366f1;
 }
 
 /* 세션 편집 인라인 */
