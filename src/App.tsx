@@ -4,6 +4,7 @@ import { BrowserRouter as Router } from 'react-router-dom';
 import Gateway from './components/Gateway';
 import CultureMapFlow from './components/CultureMapFlow';
 import VideoSplash from './components/VideoSplash';
+import LiveblocksRoomProvider from './components/LiveblocksRoomProvider';
 import liveblocksService from './services/LiveblocksService';
 import aiService from './services/AIService';
 
@@ -71,6 +72,7 @@ function App() {
   const [, setConnections] = useState<ConnectionData[]>([]);
   const [showVideoSplash, setShowVideoSplash] = useState(import.meta.env.VITE_SKIP_GATE !== 'true');
   const [isLiveblocksInitialized, setIsLiveblocksInitialized] = useState(false);
+  const [currentSessionCode, setCurrentSessionCode] = useState<string | null>(null);
 
   // AI 서비스 초기화 (BYOK)
   useEffect(() => {
@@ -95,6 +97,7 @@ function App() {
   // Gateway에서 세션 입장 시 처리 (새 인터페이스: sessionCode만 받음)
   const handleAuthenticated = useCallback((sessionCode: string) => {
     console.log('✅ 세션 입장 완료:', sessionCode);
+    setCurrentSessionCode(sessionCode);
     // Gateway에서 이미 liveblocksService.joinSession() 호출했으므로
     // 여기서는 추가 작업 필요 없음
   }, []);
@@ -104,6 +107,7 @@ function App() {
     const existingSession = liveblocksService.getCurrentSession();
     if (existingSession) {
       console.log('📍 기존 세션 감지:', existingSession);
+      setCurrentSessionCode(existingSession.code);
     }
   }, []);
 
@@ -246,15 +250,22 @@ function App() {
       {/* 메인 앱 */}
       {!showVideoSplash && (
         <Gateway onAuthenticated={handleAuthenticated}>
-          <Router>
-            <div className="app-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <CultureMapFlow
-                onNotesChange={handleNotesChange}
-                onConnectionsChange={handleConnectionsChange}
-                onNodeUpdate={handleNodeUpdate}
-              />
-            </div>
-          </Router>
+          <LiveblocksRoomProvider
+            sessionCode={currentSessionCode}
+            userName={liveblocksService.getCurrentUserDisplayName()}
+            userColor={liveblocksService.getCurrentUserColor()}
+            userId={liveblocksService.getCurrentUserId()}
+          >
+            <Router>
+              <div className="app-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <CultureMapFlow
+                  onNotesChange={handleNotesChange}
+                  onConnectionsChange={handleConnectionsChange}
+                  onNodeUpdate={handleNodeUpdate}
+                />
+              </div>
+            </Router>
+          </LiveblocksRoomProvider>
         </Gateway>
       )}
     </>

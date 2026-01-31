@@ -56,6 +56,36 @@ Sequential Thinking, Tavily, Context7 MCP를 활용한 체계적 개발 워크�
 
 **Skill 참조**: `.agent/skills/google-genai-sdk/SKILL.md` (Gemini SDK 전용 가이드)
 
+### 1-2c. 🔍 결론 검증 단계 (⚠️ 필수)
+> **Sequential Thinking에서 도출한 결론은 반드시 검증해야 함**
+
+Sequential Thinking을 통해 문제 원인이나 해결책을 도출했다면, **구현 전에 반드시 검증**:
+
+**검증 절차:**
+1. **Context7 검증**: 도출한 결론이 공식 문서의 권장 패턴과 일치하는지 확인
+   - `mcp_context7_query-docs`로 관련 API/패턴 조회
+   - 결론과 공식 문서 사이의 불일치 확인
+   
+2. **Tavily 검증**: 실제 사례와 커뮤니티 경험 확인
+   - `mcp_tavily_tavily-search`로 유사 문제 해결 사례 검색
+   - 결론과 다른 해결책이 더 적합한지 검토
+
+3. **불일치 발견 시 대응**:
+   | 상황 | 행동 |
+   |------|------|
+   | 결론 ≠ 공식 문서 | 공식 문서 우선 채택 |
+   | 결론 ≠ 커뮤니티 사례 | 양쪽 분석 후 최선책 선택 |
+   | 결론 = 공식 + 커뮤니티 | ✅ 검증 완료, 구현 진행 |
+
+**예시**: 
+```
+가설: "Liveblocks cursor가 표시되지 않는 원인은 sync-complete 이벤트 타이밍"
+
+검증 1 (Context7): Liveblocks presence 공식 문서 → room.subscribe('others') 권장 패턴 확인
+검증 2 (Tavily): "Liveblocks cursor not showing" 검색 → 유사 이슈 및 해결책 확인
+결과: 가설 수정 또는 확정
+```
+
 ### 1-3. 역할/작업 정의
 - 사용자가 비개발자임을 고려하여 누락된 필수 작업 식별
 - 기술적 요구사항을 구체적으로 정의

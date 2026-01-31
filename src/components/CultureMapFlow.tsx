@@ -23,6 +23,7 @@ import {
   type ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { useOthers, useUpdateMyPresence } from '@liveblocks/react';
 import {
   ResultNode,
   BehaviorNode,
@@ -3003,53 +3004,26 @@ ${chatHistorySection}
   }, []);
 
   const lastPresenceUpdateRef = useRef(0);
-  const [otherCursors, setOtherCursors] = useState<Array<{
-    id: string;
-    x: number;
-    y: number;
-    userName?: string;
-    userColor?: string;
-  }>>([]);
-
-  useEffect(() => {
-    let unsubscribe = () => { };
-
-    const handleSync = () => {
-      if (!liveblocksService.isConnected()) return;
-
-      unsubscribe();
-      unsubscribe = liveblocksService.onOthersPresence((others) => {
-        const cursors = others
-          .map(({ id, presence }) => ({
-            id,
-            cursor: presence?.cursor,
-            userName: presence?.userName,
-            userColor: presence?.userColor,
-          }))
-          .filter((entry) => Boolean(entry.cursor))
-          .map((entry) => ({
-            id: entry.id,
-            x: entry.cursor!.x,
-            y: entry.cursor!.y,
-            userName: entry.userName,
-            userColor: entry.userColor,
-          }));
-
-        setOtherCursors(cursors);
-      });
-    };
-
-    handleSync();
-    liveblocksService.on('sync-complete', handleSync);
-
-    return () => {
-      liveblocksService.off('sync-complete', handleSync);
-      unsubscribe();
-    };
-  }, []);
+  
+  // Liveblocks useOthers 훅으로 다른 사용자 커서 가져오기
+  const others = useOthers();
+  const updateMyPresence = useUpdateMyPresence();
+  
+  // 다른 사용자 커서 데이터 추출
+  const otherCursors = useMemo(() => {
+    return others
+      .filter((other) => other.presence?.cursor != null)
+      .map((other) => ({
+        id: String(other.connectionId),
+        x: other.presence.cursor!.x,
+        y: other.presence.cursor!.y,
+        userName: other.presence.userName,
+        userColor: other.presence.userColor,
+      }));
+  }, [others]);
 
   const handlePaneMouseMove = useCallback((event: React.MouseEvent) => {
-    if (!reactFlowInstance || !liveblocksService.isConnected()) return;
+    if (!reactFlowInstance) return;
 
     const now = performance.now();
     if (now - lastPresenceUpdateRef.current < 50) return;
@@ -3068,13 +3042,18 @@ ${chatHistorySection}
       projector.project?.({ x: event.clientX, y: event.clientY }) ??
       { x: event.clientX, y: event.clientY };
 
+    // Liveblocks React 훅으로 presence 업데이트
+    updateMyPresence({ cursor });
+    // 기존 서비스도 업데이트 (다른 곳에서 사용할 수 있음)
     liveblocksService.updatePresence({ cursor });
-  }, [reactFlowInstance]);
+  }, [reactFlowInstance, updateMyPresence]);
 
   const handlePaneMouseLeave = useCallback(() => {
-    if (!liveblocksService.isConnected()) return;
+    // Liveblocks React 훅으로 presence 업데이트
+    updateMyPresence({ cursor: null });
+    // 기존 서비스도 업데이트
     liveblocksService.updatePresence({ cursor: null });
-  }, []);
+  }, [updateMyPresence]);
 
   // ============================================================================
   // 노드 클릭 이벤트
