@@ -266,9 +266,9 @@ class LiveblocksService {
     ): () => void {
         if (!this.room) return () => { };
         const unsubscribe = this.room.subscribe('others', (others) => {
-            const list = typeof (others as { toArray?: () => Array<{ id: string; presence: SessionPresence }> }).toArray === 'function'
-                ? (others as { toArray: () => Array<{ id: string; presence: SessionPresence }> }).toArray()
-                : Array.from(others as Iterable<{ id: string; presence: SessionPresence }>);
+            const list = Array.isArray(others)
+                ? others.map(u => ({ id: u.id ?? u.connectionId ?? '', presence: u.presence as SessionPresence }))
+                : [];
             callback(list);
         });
         return unsubscribe;
@@ -887,7 +887,6 @@ class LiveblocksService {
 
             // Delta에서 insert된 노드들 추출
             const insertedNotes: StickyNoteData[] = [];
-            const deletedNoteIds: string[] = [];
             
             // retain 위치 추적을 위한 인덱스
             let currentIndex = 0;

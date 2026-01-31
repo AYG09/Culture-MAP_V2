@@ -89,6 +89,7 @@ export interface SessionPresence {
     userColor: string;
     editingNodeId: string | null;
     lastActivity: number;
+    [key: string]: unknown; // JsonObject 호환을 위한 인덱스 시그니처
 }
 
 // ============================================
