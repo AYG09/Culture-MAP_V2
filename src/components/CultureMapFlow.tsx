@@ -23,7 +23,7 @@ import {
   type ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useOthers, useUpdateMyPresence } from '@liveblocks/react';
+import { useOthers, useUpdateMyPresence } from '@liveblocks/react/suspense';
 import {
   ResultNode,
   BehaviorNode,
@@ -2277,9 +2277,8 @@ ${chatHistorySection}
           type: nodeType,
           position: { x: nextX, y: nextY },
           data: updatedData,
-          width: note.width || (existingNode?.width as number) || 200,
-          height: note.height || (existingNode?.height as number) || 120,
           selected: existingNode?.selected ?? false,
+          draggable: true,
         };
 
         if (existingIndex >= 0) {
