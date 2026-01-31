@@ -3049,7 +3049,7 @@ ${chatHistorySection}
   
   // 다른 사용자 커서 데이터 추출
   const otherCursors = useMemo(() => {
-    return others
+    const cursors = others
       .filter((other) => other.presence?.cursor != null)
       .map((other) => ({
         id: String(other.connectionId),
@@ -3058,6 +3058,13 @@ ${chatHistorySection}
         userName: other.presence.userName,
         userColor: other.presence.userColor,
       }));
+    
+    // 디버깅: others 배열 상태 확인
+    if (others.length > 0 || cursors.length > 0) {
+      console.log('👁️ [Presence] others:', others.length, 'cursors:', cursors.length, cursors);
+    }
+    
+    return cursors;
   }, [others]);
 
   const handlePaneMouseMove = useCallback((event: React.MouseEvent) => {
@@ -3082,15 +3089,16 @@ ${chatHistorySection}
 
     // Liveblocks React 훅으로 presence 업데이트
     updateMyPresence({ cursor });
-    // 기존 서비스도 업데이트 (다른 곳에서 사용할 수 있음)
-    liveblocksService.updatePresence({ cursor });
+    // 디버깅: 커서 업데이트 확인 (주기적 로그 방지를 위해 1초마다 로그)
+    if (now % 1000 < 100) {
+      console.log('👉 [Presence] cursor update:', cursor);
+    }
   }, [reactFlowInstance, updateMyPresence]);
 
   const handlePaneMouseLeave = useCallback(() => {
     // Liveblocks React 훅으로 presence 업데이트
     updateMyPresence({ cursor: null });
-    // 기존 서비스도 업데이트
-    liveblocksService.updatePresence({ cursor: null });
+    console.log('👈 [Presence] cursor left');
   }, [updateMyPresence]);
 
   // ============================================================================
