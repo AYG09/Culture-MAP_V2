@@ -379,7 +379,16 @@ class LiveblocksService {
         // dedupe by id
         const deduped = new Map<string, LBConnectionData>();
         rawArray.forEach(conn => deduped.set(conn.id, conn));
-        return Array.from(deduped.values());
+        const result = Array.from(deduped.values());
+        
+        // 디버그: 각 연결선의 relationType 확인
+        console.log('📥 [Liveblocks] getConnections 호출:', {
+            rawCount: rawArray.length,
+            dedupedCount: result.length,
+            connections: result.map(c => ({ id: c.id, relationType: c.relationType })),
+        });
+        
+        return result;
     }
 
     /**
@@ -558,6 +567,13 @@ class LiveblocksService {
             relationType,
             isPositive: connection.isPositive !== false,
         };
+        
+        console.log('🔄 [Liveblocks] updateConnection 호출:', {
+            id: connection.id,
+            inputRelationType: connection.relationType,
+            normalizedRelationType: relationType,
+        });
+        
         // 로컬 업데이트 플래그 설정
         this.pendingLocalUpdates.add(connection.id);
         const indicesToDelete: number[] = [];
@@ -571,6 +587,14 @@ class LiveblocksService {
                 indicesToDelete.sort((a, b) => b - a).forEach((idx) => connections.delete(idx, 1));
             }
             connections.push([normalized]);
+        });
+        
+        // 저장 후 확인 로그
+        const afterSave = connections.toArray().filter(c => c.id === connection.id);
+        console.log('✅ [Liveblocks] updateConnection 완료:', {
+            id: connection.id,
+            savedRelationType: afterSave[afterSave.length - 1]?.relationType,
+            totalConnectionsWithId: afterSave.length,
         });
     }
 
