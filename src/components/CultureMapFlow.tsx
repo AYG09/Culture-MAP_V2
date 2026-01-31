@@ -212,6 +212,7 @@ const CultureMapFlow = ({
   const previousLayerStartsRef = useRef<number[] | null>(null);
   const isHydratingRef = useRef(false);
   const pendingHydrateRef = useRef<number | null>(null);
+  const isAutoLayerHeightsRef = useRef(false);
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -2100,6 +2101,7 @@ ${chatHistorySection}
 
     const shouldUpdate = nextHeights.some((height, index) => height !== layerHeights[index]);
     if (shouldUpdate) {
+      isAutoLayerHeightsRef.current = true;
       setLayerHeights(nextHeights);
     }
   }, [nodes, layerHeights]);
@@ -2134,6 +2136,11 @@ ${chatHistorySection}
 
     const previousStarts = previousLayerStartsRef.current ?? nextStarts;
     previousLayerStartsRef.current = nextStarts;
+
+    if (isAutoLayerHeightsRef.current) {
+      isAutoLayerHeightsRef.current = false;
+      return;
+    }
 
     const deltas = nextStarts.map((start, index) => start - (previousStarts[index] ?? start));
     const hasShift = deltas.some((delta) => delta !== 0);
