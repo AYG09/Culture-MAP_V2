@@ -938,9 +938,10 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
                                           type="text"
                                           value={editingSessionPwValue}
                                           onChange={(e) => setEditingSessionPwValue(e.target.value)}
-                                          placeholder="비밀번호 (빈값=해제)"
-                                          style={{ width: '100px', fontSize: '0.8rem' }}
+                                          placeholder="추가 비밀번호 (빈값=없음)"
+                                          style={{ width: '120px', fontSize: '0.8rem' }}
                                           autoFocus
+                                          title={`세션 코드(${session.code})와 별도로 추가 비밀번호를 설정합니다`}
                                         />
                                         <button
                                           onClick={() => saveSessionPassword(session.code, editingSessionPwValue)}

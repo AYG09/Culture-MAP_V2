@@ -1446,7 +1446,7 @@ class LiveblocksService {
     }
 
     /**
-     * 기업 비밀번호 검증
+     * 기업 비밀번호 검증 (대소문자 구분 없음)
      */
     public async validateOrganizationPassword(org: string, inputPw: string): Promise<boolean> {
         const savedPw = await this.getOrganizationPassword(org);
@@ -1454,7 +1454,7 @@ class LiveblocksService {
             // 비밀번호 미설정 시 통과
             return true;
         }
-        return inputPw === savedPw;
+        return inputPw.toLowerCase() === savedPw.toLowerCase();
     }
 
     /**
@@ -1507,7 +1507,7 @@ class LiveblocksService {
     }
 
     /**
-     * 세션 비밀번호 검증
+     * 세션 비밀번호 검증 (대소문자 구분 없음)
      */
     public async validateSessionPassword(sessionCode: string, inputPw: string): Promise<boolean> {
         const savedPw = await this.getSessionPassword(sessionCode);
@@ -1515,7 +1515,7 @@ class LiveblocksService {
             // 비밀번호 미설정 시 통과
             return true;
         }
-        return inputPw === savedPw;
+        return inputPw.toLowerCase() === savedPw.toLowerCase();
     }
 
     /**
