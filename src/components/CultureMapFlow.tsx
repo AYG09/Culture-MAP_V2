@@ -3044,12 +3044,9 @@ ${chatHistorySection}
   const lastPresenceUpdateRef = useRef(0);
   
   // Liveblocks useOthers 훅으로 다른 사용자 커서 가져오기
-  const others = useOthers();
-  const updateMyPresence = useUpdateMyPresence();
-  
-  // 다른 사용자 커서 데이터 추출
-  const otherCursors = useMemo(() => {
-    const cursors = others
+  // shallow selector를 사용하여 커서 변경 시 항상 새 배열 반환 → 리렌더링 트리거
+  const otherCursors = useOthers((others) =>
+    others
       .filter((other) => other.presence?.cursor != null)
       .map((other) => ({
         id: String(other.connectionId),
@@ -3057,15 +3054,9 @@ ${chatHistorySection}
         y: other.presence.cursor!.y,
         userName: other.presence.userName,
         userColor: other.presence.userColor,
-      }));
-    
-    // 디버깅: others 배열 상태 확인
-    if (others.length > 0 || cursors.length > 0) {
-      console.log('👁️ [Presence] others:', others.length, 'cursors:', cursors.length, cursors);
-    }
-    
-    return cursors;
-  }, [others]);
+      }))
+  );
+  const updateMyPresence = useUpdateMyPresence();
 
   const handlePaneMouseMove = useCallback((event: React.MouseEvent) => {
     if (!reactFlowInstance) return;
@@ -3089,16 +3080,11 @@ ${chatHistorySection}
 
     // Liveblocks React 훅으로 presence 업데이트
     updateMyPresence({ cursor });
-    // 디버깅: 커서 업데이트 확인 (주기적 로그 방지를 위해 1초마다 로그)
-    if (now % 1000 < 100) {
-      console.log('👉 [Presence] cursor update:', cursor);
-    }
   }, [reactFlowInstance, updateMyPresence]);
 
   const handlePaneMouseLeave = useCallback(() => {
     // Liveblocks React 훅으로 presence 업데이트
     updateMyPresence({ cursor: null });
-    console.log('👈 [Presence] cursor left');
   }, [updateMyPresence]);
 
   // ============================================================================
