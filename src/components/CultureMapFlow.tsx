@@ -3579,6 +3579,9 @@ ${chatHistorySection}
           const { connections: updatedConnections } = convertFromFlowData(nodes, updatedEdges);
           onConnectionsChange(updatedConnections);
 
+          // 🔥 DEBUG: 컨텍스트 메뉴에서 전달된 action 값 확인
+          console.log('🎯 [Context Menu] 연결선 유형 변경:', { edgeId: edge.id, action, expectedRelationType: action });
+
           liveblocksService.updateConnection({
             id: edge.id,
             sourceId: edge.source,
