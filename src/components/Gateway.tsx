@@ -41,6 +41,9 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  
+  // 2번 게이트 (세션 진입 코드 검증)
+  const [pendingSession, setPendingSession] = useState<{ code: string; name: string } | null>(null);
 
   // 입력 상태
   const [newSessionName, setNewSessionName] = useState('');
@@ -298,22 +301,42 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
     }
   };
 
-  // 세션 입장
+  // 세션 입장 (2번 게이트: 진입 코드 검증)
   const handleJoinSession = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
 
     try {
-      const code = sessionCode.toUpperCase();
-      await liveblocksService.joinSession(code, false);
-      persistLastSession(code, false);
+      if (!pendingSession) {
+        setError('세션 정보가 없습니다.');
+        return;
+      }
+
+      const inputCode = sessionCode.toUpperCase();
+      const targetCode = pendingSession.code.toUpperCase();
+      
+      // 1. 세션의 커스텀 코드(별칭) 확인
+      const alias = await liveblocksService.getSessionAlias(pendingSession.code);
+      const validCodes = [targetCode];
+      if (alias) validCodes.push(alias.toUpperCase());
+      
+      // 2. 입력한 코드가 해당 세션의 코드 또는 커스텀 코드와 일치하는지 검증
+      if (!validCodes.includes(inputCode)) {
+        setError(`코드가 일치하지 않습니다. (힌트: ${alias ? alias : targetCode})`);
+        return;
+      }
+      
+      // 3. 검증 통과 시 해당 세션으로 진입
+      await liveblocksService.joinSession(pendingSession.code, false);
+      persistLastSession(pendingSession.code, false);
       setIsAuth(true);
       setShowJoinModal(false);
-      if (onAuthenticated) onAuthenticated(code);
+      setPendingSession(null);
+      if (onAuthenticated) onAuthenticated(pendingSession.code);
     } catch (err) {
       console.error('Session join failed:', err);
-      setError('세션 입장에 실패했습니다. 코드를 확인해주세요.');
+      setError('세션 입장에 실패했습니다.');
       clearLastSession();
     } finally {
       setIsSubmitting(false);
@@ -541,7 +564,8 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
                           }
                           return;
                         }
-                        // 일반 사용자는 코드 입력 모달
+                        // 일반 사용자는 코드 입력 모달 (해당 세션 정보 저장)
+                        setPendingSession({ code: session.code, name: session.name || session.code });
                         setSessionCode('');
                         setError('');
                         setShowJoinModal(true);
@@ -659,22 +683,26 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
         </div>
       )}
 
-      {/* 세션 입장 모달 */}
-      {showJoinModal && (
-        <div className="cm-modal-overlay gateway-modal-overlay" onClick={() => setShowJoinModal(false)}>
+      {/* 세션 입장 모달 (2번 게이트: 진입 코드 검증) */}
+      {showJoinModal && pendingSession && (
+        <div className="cm-modal-overlay gateway-modal-overlay" onClick={() => { setShowJoinModal(false); setPendingSession(null); }}>
           <div className="cm-modal gateway-modal" onClick={(e) => e.stopPropagation()}>
             <div className="cm-modal-header gateway-modal-header">
-              <h3 className="cm-modal-title">🚀 세션 입장</h3>
-              <button className="cm-modal-close gateway-modal-close" onClick={() => setShowJoinModal(false)}><X size={20} /></button>
+              <h3 className="cm-modal-title">🔐 세션 진입 코드 확인</h3>
+              <button className="cm-modal-close gateway-modal-close" onClick={() => { setShowJoinModal(false); setPendingSession(null); }}><X size={20} /></button>
             </div>
             <form onSubmit={handleJoinSession}>
+              <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: '8px', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.85rem', color: '#64748b' }}>입장하려는 세션</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#4f46e5' }}>{pendingSession.name}</div>
+              </div>
               <div className="form-group">
-                <label>세션 코드</label>
+                <label>진입 코드</label>
                 <input
                   type="text"
                   value={sessionCode}
                   onChange={(e) => setSessionCode(e.target.value.toUpperCase())}
-                  placeholder="6자리 코드 입력"
+                  placeholder="세션 코드 또는 커스텀 코드"
                   maxLength={20}
                   autoFocus
                   style={{ textTransform: 'uppercase', letterSpacing: '0.2em', textAlign: 'center', fontSize: '1.5rem' }}
@@ -682,8 +710,8 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
               </div>
               {error && <div className="error-message">{error}</div>}
               <div className="modal-actions">
-                <button type="button" className="btn-cancel" onClick={() => setShowJoinModal(false)}>취소</button>
-                <button type="submit" className="btn-primary" disabled={isSubmitting || sessionCode.length < 3}>{isSubmitting ? '입장 중...' : '입장'}</button>
+                <button type="button" className="btn-cancel" onClick={() => { setShowJoinModal(false); setPendingSession(null); }}>취소</button>
+                <button type="submit" className="btn-primary" disabled={isSubmitting || sessionCode.length < 3}>{isSubmitting ? '확인' : '확인'}</button>
               </div>
             </form>
           </div>
