@@ -57,6 +57,7 @@ const NODE_HEIGHT = 120;
 const LAYER_PADDING_Y = 40;
 export const LAYER_MAX_HEIGHT = 1000; // 레이어 최대 높이 (복잡한 선-후 관계 대응)
 const INTRA_LAYER_ROW_OFFSET = 150; // 동일 레이어 내 선-후 관계 Y 오프셋
+const NODE_MIN_PADDING = 30; // 노드 간 최소 간격 (겨침 방지)
 
 /**
  * 4층위 계층 구조로 노드 자동 배치
@@ -433,10 +434,60 @@ function getBasicLayoutedElements(
     }
   });
 
+  // 겨침 해결 후처리: 동일 레이어 내 노드간 겨침 방지
+  const resolvedNodes = resolveAllNodeOverlaps(layoutedNodes);
+
   return {
-    nodes: layoutedNodes,
+    nodes: resolvedNodes,
     edges
   };
+}
+
+/**
+ * 노드 겨침 해결 함수
+ * 동일 레이어 내에서 겨치는 노드를 X축으로 밀어냄
+ */
+function resolveAllNodeOverlaps(nodes: Node[]): Node[] {
+  // 레이어별 그룹화
+  const nodesByLayer = new Map<string, Node[]>();
+  nodes.forEach(node => {
+    const layer = node.type || 'behavior';
+    if (!nodesByLayer.has(layer)) {
+      nodesByLayer.set(layer, []);
+    }
+    nodesByLayer.get(layer)!.push(node);
+  });
+
+  const resolvedNodes: Node[] = [];
+
+  nodesByLayer.forEach((layerNodes) => {
+    if (layerNodes.length <= 1) {
+      resolvedNodes.push(...layerNodes);
+      return;
+    }
+
+    // X 좌표로 정렬
+    const sorted = [...layerNodes].sort((a, b) => a.position.x - b.position.x);
+    
+    // 순차적으로 겨침 해결
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1];
+      const curr = sorted[i];
+      const prevRight = prev.position.x + getNodeWidth(prev);
+      const minX = prevRight + NODE_MIN_PADDING;
+      
+      if (curr.position.x < minX) {
+        sorted[i] = {
+          ...curr,
+          position: { ...curr.position, x: minX }
+        };
+      }
+    }
+    
+    resolvedNodes.push(...sorted);
+  });
+
+  return resolvedNodes;
 }
 
 export function getLayoutedElements(

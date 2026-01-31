@@ -2782,7 +2782,80 @@ ${chatHistorySection}
         };
       });
 
-      const nextNodes = applyNodeChanges(clampedChanges, nodesRef.current);
+      // 노드 겹침 방지: 드래그 완료 시 다른 노드와 겹치면 위치 조정
+      const NODE_PADDING = 20; // 노드 간 최소 간격
+      
+      const getNodeWidth = (node: Node): number => {
+        if (typeof node.measured?.width === 'number') return node.measured.width;
+        if (typeof node.width === 'number') return node.width;
+        return 200;
+      };
+      
+      const resolveNodeOverlap = (nodes: Node[], changedNodeId: string): Node[] => {
+        const changedNode = nodes.find(n => n.id === changedNodeId);
+        if (!changedNode) return nodes;
+        
+        const changedNodeWidth = getNodeWidth(changedNode);
+        const changedNodeHeight = getNodeHeight(changedNode);
+        
+        // 같은 층위의 다른 노드들과 겹침 확인
+        const sameLayerNodes = nodes.filter(n => n.id !== changedNodeId && n.type === changedNode.type);
+        
+        let adjustedX = changedNode.position.x;
+        let adjustedY = changedNode.position.y;
+        let hasOverlap = true;
+        let iterations = 0;
+        const maxIterations = 10;
+        
+        while (hasOverlap && iterations < maxIterations) {
+          hasOverlap = false;
+          iterations++;
+          
+          for (const otherNode of sameLayerNodes) {
+            const otherWidth = getNodeWidth(otherNode);
+            const otherHeight = getNodeHeight(otherNode);
+            
+            // 겹침 감지 (패딩 포함)
+            const isOverlappingX = adjustedX < otherNode.position.x + otherWidth + NODE_PADDING &&
+                                   adjustedX + changedNodeWidth + NODE_PADDING > otherNode.position.x;
+            const isOverlappingY = adjustedY < otherNode.position.y + otherHeight + NODE_PADDING &&
+                                   adjustedY + changedNodeHeight + NODE_PADDING > otherNode.position.y;
+            
+            if (isOverlappingX && isOverlappingY) {
+              hasOverlap = true;
+              // X축으로 밀어내기 (더 가까운 방향으로)
+              const pushLeft = otherNode.position.x - changedNodeWidth - NODE_PADDING;
+              const pushRight = otherNode.position.x + otherWidth + NODE_PADDING;
+              const distLeft = Math.abs(adjustedX - pushLeft);
+              const distRight = Math.abs(adjustedX - pushRight);
+              
+              adjustedX = distLeft < distRight ? pushLeft : pushRight;
+              break;
+            }
+          }
+        }
+        
+        if (adjustedX !== changedNode.position.x || adjustedY !== changedNode.position.y) {
+          return nodes.map(n => n.id === changedNodeId ? {
+            ...n,
+            position: { x: adjustedX, y: adjustedY }
+          } : n);
+        }
+        
+        return nodes;
+      };
+
+      let nextNodes = applyNodeChanges(clampedChanges, nodesRef.current);
+      
+      // 드래그 종료 시 겹침 방지 적용
+      clampedChanges.forEach((change) => {
+        if (change.type === 'position' && !change.dragging && change.position) {
+          if (draggingNodeIdsRef.current.has(change.id)) {
+            nextNodes = resolveNodeOverlap(nextNodes, change.id);
+          }
+        }
+      });
+      
       setNodes(nextNodes);
       nodesRef.current = nextNodes;
 
