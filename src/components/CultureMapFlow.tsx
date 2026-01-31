@@ -2321,6 +2321,8 @@ ${chatHistorySection}
       targetId: string;
       relationType: 'direct' | 'indirect';
       isPositive: boolean;
+      sourceHandle?: string;
+      targetHandle?: string;
     };
 
     type ConnectionDeleteEvent = {
@@ -2416,7 +2418,7 @@ ${chatHistorySection}
 
     // 다른 사용자의 연결선 업데이트 수신
     const handleConnectionUpdated = (connection: ConnectionUpdateEvent) => {
-      console.log('🔗 [React Flow] Liveblocks 연결선 수신:', connection.id);
+      console.log('🔗 [React Flow] Liveblocks 연결선 수신:', connection.id, { sourceHandle: connection.sourceHandle, targetHandle: connection.targetHandle });
 
       setEdges((currentEdges) => {
         const existingIndex = currentEdges.findIndex((e) => e.id === connection.id);
@@ -2435,6 +2437,8 @@ ${chatHistorySection}
           id: connection.id,
           source: connection.sourceId,
           target: connection.targetId,
+          sourceHandle: connection.sourceHandle,  // 핸들 정보 적용
+          targetHandle: connection.targetHandle,  // 핸들 정보 적용
           type: 'animatedFlow',
           style: {
             ...edgeStyle,
