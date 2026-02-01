@@ -117,6 +117,10 @@ export interface StickyNoteData {
     frequency?: PerceptionIntensity;
     /** 생성자 구분: 'user' (사용자) | 'ai' (AI) - AI는 사용자 생성 항목을 임의로 수정 불가 */
     createdBy?: 'user' | 'ai';
+    /** 자동 정렬에서 위치 유지 여부 */
+    pinned?: boolean;
+    /** 자동 정렬에서 연결 핸들 유지 여부 */
+    pinnedHandles?: boolean;
 }
 
 export interface ConnectionData {

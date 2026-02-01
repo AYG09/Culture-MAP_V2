@@ -14,7 +14,11 @@ Last updated: 2026-01-27 (auto-6)
 - Use Sequential Thinking MCP for any non-trivial change.
 - Use Context7 before changing Liveblocks, @google/genai, or @xyflow/react usage.
 - Use Tavily to check 2025/2026 best practices and deprecations.
-- Create .agent/brain/implementation_plan.md before execution, and update task.md + walkthrough.md after.
+- Use Shrimp Task Manager for planning/execution with guards:
+  - list_tasks로 상태 확인 후 execute_task 1회만 호출
+  - in_progress 상태면 execute_task 재호출 금지
+  - 완료 후 verify_task 1회만 호출
+- Create .agent/brain documentation only when the user explicitly requests it.
 
 ## AI Tooling Standards (Gemini)
 - Use @google/genai only. Do NOT use @google/generative-ai.

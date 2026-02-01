@@ -11,7 +11,7 @@ VSCode + GitHub Copilot 환경에서 사용 가능한 **모든 MCP**를 체계�
 
 ---
 
-## 0단계: MCP 도구 스냅샷 & 선택 로직 (필수)
+## 0단계: MCP 도구 스냅샷 & 선택 로직 (최소화)
 
 **목표:** 현재 세션에서 실제 사용 가능한 MCP 도구 목록을 먼저 확보하고, 그 범위 안에서만 선택한다.
 
@@ -19,6 +19,7 @@ VSCode + GitHub Copilot 환경에서 사용 가능한 **모든 MCP**를 체계�
 ```
 mcp_com_mermaidch_list_tools
 ```
+- 세션당 1회만 수행 (동일 세션 재호출 금지)
 - 결과에 없는 MCP는 **현재 세션에서 사용 불가**로 간주
 - 문서에 있는 MCP라도 목록에 없으면 **기본 도구(read_file 등)**로 대체
 
@@ -28,7 +29,7 @@ mcp_com_mermaidch_list_tools
 | 공식 문서 검증 | Context7 | 프로젝트 내 문서/README + grep_search |
 | 최신 정보/트렌드 | Tavily | fetch_webpage + 내부 기록 |
 | 복잡한 설계/분석 | Sequential Thinking | 단계별 체크리스트 수기 작성 |
-| 태스크 계획/검증 | Shrimp Task Agent | task.md 수기 작성 + 체크리스트 |
+| 태스크 계획/검증 | Shrimp Task Agent | 체크리스트(예외/대체) |
 | 다이어그램 | Mermaid/Excalidraw | Markdown 텍스트 다이어그램 |
 | 브라우저 검증 | Next.js Devtools | Playwright/로컬 수동 테스트 |
 | 배포/DB 관리 | Vercel/Supabase | 배포 문서 + SQL 파일 수동 검토 |
@@ -48,7 +49,7 @@ mcp_com_mermaidch_list_tools
 - basic memory, firebase, supabase (현재 작업 범위에서 불필요)
 
 검증 기준:
-- Mermaid는 도구 목록 재조회 결과로 확인
+- Mermaid는 동일 세션 내 재조회 금지 (최초 1회 결과만 사용)
 - 나머지는 VSCode 도구 선택 상태 및 최근 호출 성공 이력으로 확인
 
 > 위 목록은 0-1 결과에 따라 갱신하며, 불일치 시 0-1 결과가 항상 우선이다.
@@ -71,7 +72,7 @@ mcp_com_mermaidch_list_tools
 
 ---
 
-## 📋 6단계 프로세스
+## 📋 7단계 프로세스
 
 ### 1단계: 요구사항 분석 및 정보 수집
 
@@ -95,7 +96,7 @@ mcp_com_mermaidch_list_tools
 
 **왜 90일?**: 주요 라이브러리 마이너 업데이트 주기 (React, Next.js, Motion 등)
 
-**참고**: Shrimp Task Agent, Sequential Thinking 등 다른 MCP는 Skills 상태와 무관하게 필요 시 사용
+**참고**: Sequential Thinking은 Skills 상태와 무관하게 필요 시 사용
 
 #### 1-2. Context7 - 공식 문서 조회 (조건부)
 ```
@@ -149,21 +150,21 @@ mcp_sequentialthi_sequentialthinking:
 
 ---
 
-### 2단계: 작업 계획 수립
+### 2단계: 작업 계획 수립 (Shrimp 사용 + 가드)
 
-#### 2-1. Shrimp Task Agent 활용
+#### 2-1. Shrimp 계획 수립
 ```
-1. mcp_mcp-shrimp-ta_plan_task: 태스크 계획 시작
-2. mcp_mcp-shrimp-ta_analyze_task: 기술적 분석
-3. mcp_mcp-shrimp-ta_reflect_task: 아키텍처 검증
-4. mcp_mcp-shrimp-ta_split_tasks: 태스크 분할
+1. plan_task → analyze_task → reflect_task → split_tasks
 ```
 
-**Shrimp 불가/불안정 시 대체**
-- [.agent/skills/task-orchestration-fallback/SKILL.md](.agent/skills/task-orchestration-fallback/SKILL.md) 절차로 전환
-- 계획/분해/검증을 문서 기반으로 수행 후 실행
+#### 2-1b. Shrimp 실행 가드 (반복 호출 방지)
+```
+- list_tasks로 상태 확인 후 execute_task 1회만 호출
+- task가 in_progress면 execute_task 재호출 금지
+- 완료 후 verify_task 1회만 호출
+```
 
-#### 2-2. 다이어그램 작성 (아키텍처 변경 시)
+#### 2-2. 다이어그램 작성 (필수)
 ```
 mcp_com_mermaidch_validate_and_render_mermaid_diagram:
 - Before/After 아키텍처 시각화
@@ -187,11 +188,10 @@ mcp_com_mermaidch_validate_and_render_mermaid_diagram:
 - [ ] Tailwind `field-sizing-content` 사용 (JS resize 대신)
 - [ ] 아이콘 버튼에 `title` 또는 `aria-label` 포함
 
-#### 3-2. 태스크별 실행
+#### 3-2. Shrimp 기반 실행
 ```
-mcp_mcp-shrimp-ta_execute_task: 
-- 태스크 ID로 실행 가이드 확인
-- 단계별 구현
+- execute_task는 1회만 호출
+- in_progress 상태에서는 실행 가이드 참고 후 코드 수정 진행
 ```
 
 #### 3-3. 실시간 검증
@@ -204,11 +204,10 @@ mcp_mcp-shrimp-ta_execute_task:
 
 ### 4단계: 검증 및 테스트
 
-#### 4-1. 태스크 검증
+#### 4-1. Shrimp 기반 검증
 ```
-mcp_mcp-shrimp-ta_verify_task:
-- 검증 기준 충족 확인
-- 점수 부여 및 완료 처리
+- verify_task 1회 호출
+- 보완이 필요한 경우에만 추가 수정
 ```
 
 #### 4-2. 브라우저 테스트 (UI 변경 시)
@@ -230,10 +229,8 @@ mcp_com_vercel_ve_search_vercel_documentation: 배포 이슈 해결
 
 #### 5-1. 변경사항 정리
 ```
-.agent/brain/ 폴더에 문서 생성:
-- implementation_plan.md: 구현 계획
-- task.md: 작업 체크리스트
-- walkthrough.md: 완료 보고서
+- 새 문서 생성은 사용자 요청 시에만 수행
+- 기본은 채팅 내 요약으로 대체
 ```
 
 #### 5-2. Git 커밋 및 푸시
@@ -321,6 +318,13 @@ applies_to: [적용 대상 - 기술 스택, 프레임워크]
 
 ---
 
+## 7단계: 완료 보고
+- 변경 사항 요약
+- 검증 결과 요약
+- 다음 액션 제안
+
+---
+
 ## 🔄 프로세스 플로우차트
 
 ```mermaid
@@ -349,14 +353,14 @@ flowchart TD
     E3 -->|No| D
     E3 -->|Yes| F
     
-    F[5단계: 문서화] --> F1[walkthrough.md]
-    F1 --> F2[Git commit/push]
+   F[5단계: 문서화] --> F1[walkthrough.md]
+   F1 --> F2[Git commit/push]
     
-    F2 --> G[6단계: Skills 검토]
-    G --> G1{범용 Skill 필요?}
-    G1 -->|Yes| G2[신규 Skill 생성]
-    G1 -->|No| H[완료]
-    G2 --> H
+   F2 --> G[6단계: Skills 검토]
+   G --> G1{범용 Skill 필요?}
+   G1 -->|Yes| G2[신규 Skill 생성]
+   G1 -->|No| H[7단계: 완료 보고]
+   G2 --> H
 ```
 
 ---

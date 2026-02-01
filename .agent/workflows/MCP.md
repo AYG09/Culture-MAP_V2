@@ -100,19 +100,19 @@ Sequential Thinking을 통해 문제 원인이나 해결책을 도출했다면, 
 
 ---
 
-## 2단계: 작업 계획 수립
+## 2단계: 작업 계획 수립 (Shrimp 사용 + 가드)
 
-### 2-1. implementation_plan.md 작성
-```
-아티팩트 경로: <appDataDir>/brain/<conversation-id>/implementation_plan.md
-```
-- 목표 설명
-- 사용자 검토 필요 항목 (있는 경우)
-- 컴포넌트별 변경 사항 (파일 단위)
+### 2-1. Shrimp 기반 계획
+- `plan_task` → `analyze_task` → `reflect_task` → `split_tasks`
 
-### 2-2. 📊 시각적 다이어그램 (아키텍처 변경 시 필수)
+### 2-1b. Shrimp 실행 가드 (반복 호출 방지)
+- `list_tasks`로 상태 확인 후 `execute_task` 1회만 호출
+- task가 `in_progress`면 `execute_task` 재호출 금지
+- 완료 후 `verify_task` 1회만 호출
 
-**Mermaid 다이어그램**으로 Before/After 시각화:
+### 2-2. 📊 시각적 다이어그램 (필수)
+
+**Mermaid 다이어그램**으로 계획 흐름/Before-After 시각화:
 
 ```mermaid
 %% Before 예시
@@ -173,21 +173,16 @@ graph TB
 - 롤백 테스트 (선택적)
 
 ### 2-5. 사용자 승인
-- `notify_user`로 implementation_plan.md 리뷰 요청
-- 승인 전까지 대기
+- 문서 리뷰 요청은 **사용자 요청 시에만** 수행
+- 기본은 채팅에서 확인
 
 ---
 
 ## 3단계: 작업 세분화
 
-### 3-1. task.md 작성
-```
-아티팩트 경로: <appDataDir>/brain/<conversation-id>/task.md
-```
-- `[ ]` 미완료 작업
-- `[/]` 진행 중 작업  
-- `[x]` 완료 작업
-- 하위 항목으로 세부 작업 분류
+### 3-1. Shrimp 태스크 분해
+- `split_tasks` 결과를 기준으로 순차 실행
+- 문서화는 사용자 요청 시에만 수행
 
 ### 3-2. 작업 우선순위 설정
 - 의존성 순서대로 배치
@@ -197,13 +192,11 @@ graph TB
 
 ## 4단계: 단계별 작업 수행
 
-### 4-1. task_boundary 활용
-- 각 주요 작업 단위마다 `task_boundary` 호출
-- Mode: PLANNING → EXECUTION → VERIFICATION
+### 4-1. Shrimp 실행 가이드 준수
+- `execute_task` 가이드에 따라 구현
 
 ### 4-2. 진행률 추적
-- task.md 실시간 업데이트
-- 완료된 항목 `[x]`로 마킹
+- `list_tasks`로 상태 확인
 
 ### 4-3. 중간 검증
 - 주요 마일스톤마다 테스트 실행
@@ -213,20 +206,29 @@ graph TB
 
 ## 5단계: 완료 및 문서화
 
-### 5-1. walkthrough.md 작성
-```
-아티팩트 경로: <appDataDir>/brain/<conversation-id>/walkthrough.md
-```
-- 완료된 변경 사항 요약
-- 테스트 결과
-- 스크린샷/녹화 (UI 변경 시)
+### 5-1. 변경사항 요약
+- 기본은 채팅 내 요약으로 대체
+- 새 문서 생성은 사용자 요청 시에만 수행
 
 ### 5-2. 최종 검증
 - 전체 빌드 테스트
 - 주요 기능 동작 확인
 
 ### 5-3. 사용자 알림
-- `notify_user`로 walkthrough.md 리뷰 요청
+- 문서 리뷰 요청은 사용자 요청 시에만 수행
+
+---
+
+## 6단계: Skills 검토 및 업데이트
+- 반복 패턴/실수 방지/Best Practice가 있으면 `.agent/skills/` 갱신
+- lastUpdated 필드 업데이트
+
+---
+
+## 7단계: 완료 보고
+- 변경 사항 요약
+- 검증 결과 요약
+- 다음 액션 제안
 
 ---
 

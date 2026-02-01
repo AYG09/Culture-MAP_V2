@@ -54,6 +54,7 @@ import type {
   FitViewPayload,
   FocusNodePayload,
   PanViewportPayload,
+  PinNodePayload,
   RestoreSnapshotPayload,
   SaveSnapshotPayload,
   SetLayerOpacityPayload,
@@ -61,8 +62,17 @@ import type {
   SetUiVisibilityPayload,
   SetViewportPayload,
   ToggleLayerBackgroundPayload,
+  UnpinNodePayload,
   UpdateNodePayload,
   ZoomViewportPayload,
+} from '../types/actions';
+import {
+  isAddNodePayload,
+  isAddNodesWithConnectionsPayload,
+  isCreateConnectionPayload,
+  isDeleteConnectionPayload,
+  isDeleteNodePayload,
+  isUpdateNodePayload,
 } from '../types/actions';
 import { INTENSITY_MAP } from '../types/culture';
 import type { StickyNoteData, ConnectionData as LBConnectionData, LayerSettings, SessionType } from '../types/liveblocks';
@@ -224,6 +234,7 @@ const CultureMapFlow = ({
   const nodesRef = useRef<Node[]>([]);
   const edgesRef = useRef<Edge[]>([]);
   const layoutSpacingRef = useRef<'compact' | 'normal' | 'wide'>('normal');
+  const preserveEdgesRef = useRef(false);
   const previousLayerStartsRef = useRef<number[] | null>(null);
   const isHydratingRef = useRef(false);
   const pendingHydrateRef = useRef<number | null>(null);
@@ -231,6 +242,7 @@ const CultureMapFlow = ({
   const isUserLayerHeightChangeRef = useRef(false);
   const draggingNodeIdsRef = useRef(new Set<string>());
   const resizingNodeIdsRef = useRef(new Set<string>());
+  const actionQueuePromiseRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -258,8 +270,6 @@ const CultureMapFlow = ({
     };
   }, []);
 
-  const pendingActionsRef = useRef<AiAction[]>([]);
-  const flushScheduledRef = useRef(false);
   const lastSyncWarningRef = useRef(0);
 
   const ensureLiveblocksConnected = useCallback((actionLabel: string) => {
@@ -674,6 +684,20 @@ ${chatHistorySection}
       };
     };
 
+    if (reactFlowInstance) {
+      try {
+        const beforeLayout = {
+          nodes: reactFlowInstance.getNodes(),
+          edges: reactFlowInstance.getEdges(),
+          viewport: reactFlowInstance.getViewport(),
+          timestamp: Date.now(),
+        };
+        localStorage.setItem('culture-map-snapshot:_before_layout', JSON.stringify(beforeLayout));
+      } catch (err) {
+        console.warn('⚠️ [React Flow] auto_layout 스냅샷 저장 실패:', err);
+      }
+    }
+
     const currentNodes = nodesRef.current;
     const currentEdges = edgesRef.current;
 
@@ -698,6 +722,13 @@ ${chatHistorySection}
       (edge) => nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target)
     );
 
+    const pinnedNodes = dedupedNodes.filter((node) => (node.data as { pinned?: boolean } | undefined)?.pinned === true);
+    const floatingNodes = dedupedNodes.filter((node) => (node.data as { pinned?: boolean } | undefined)?.pinned !== true);
+    const floatingNodeIdSet = new Set(floatingNodes.map((node) => node.id));
+    const floatingEdges = filteredEdges.filter(
+      (edge) => floatingNodeIdSet.has(edge.source) && floatingNodeIdSet.has(edge.target)
+    );
+
     const nodeTypeById = new Map(
       dedupedNodes.map((node) => [node.id, normalizeLayerType(node.type)])
     );
@@ -710,8 +741,11 @@ ${chatHistorySection}
     let layoutedNodes: Node[] = [];
     let layoutedEdges: Edge[] = [];
 
-    if (hasIntraLayerEdges) {
-      const result = getLayoutedElements(dedupedNodes, filteredEdges, {
+    if (!floatingNodes.length) {
+      layoutedNodes = [];
+      layoutedEdges = filteredEdges;
+    } else if (hasIntraLayerEdges) {
+      const result = getLayoutedElements(floatingNodes, floatingEdges, {
         layerHeights,
         spacingPreset: layoutSpacingRef.current,
       });
@@ -719,16 +753,16 @@ ${chatHistorySection}
       layoutedEdges = result.edges;
     } else {
       const result = await getElkLayoutedElements(
-        dedupedNodes,
-        filteredEdges,
+        floatingNodes,
+        floatingEdges,
         buildElkLayoutOptions(layoutSpacingRef.current)
       );
       layoutedNodes = result.nodes;
       layoutedEdges = result.edges;
     }
 
-    if (!layoutedNodes.length || layoutedNodes.length !== dedupedNodes.length) {
-      const fallback = getLayoutedElements(dedupedNodes, filteredEdges, {
+    if (floatingNodes.length && (!layoutedNodes.length || layoutedNodes.length !== floatingNodes.length)) {
+      const fallback = getLayoutedElements(floatingNodes, floatingEdges, {
         layerHeights,
         spacingPreset: layoutSpacingRef.current,
       });
@@ -736,14 +770,17 @@ ${chatHistorySection}
       layoutedEdges = fallback.edges;
     }
 
-    if (!layoutedNodes.length || layoutedNodes.length !== dedupedNodes.length) {
+    if (floatingNodes.length && (!layoutedNodes.length || layoutedNodes.length !== floatingNodes.length)) {
       console.warn('⚠️ [React Flow] auto_layout 중단: 레이아웃 결과가 비정상입니다.', {
-        before: dedupedNodes.length,
+        before: floatingNodes.length,
         after: layoutedNodes.length,
         raw: currentNodes.length,
       });
       return;
     }
+
+    const mergedNodes = pinnedNodes.length ? [...layoutedNodes, ...pinnedNodes] : layoutedNodes;
+    const mergedEdges = pinnedNodes.length ? filteredEdges : layoutedEdges;
 
     const layerIndexMap: Record<string, number> = {
       result: 0,
@@ -774,7 +811,7 @@ ${chatHistorySection}
       maxNodeHeight: number;
     }>();
 
-    layoutedNodes.forEach((node) => {
+    mergedNodes.forEach((node) => {
       const layerIndex = layerIndexMap[normalizeLayerType(node.type)] ?? 0;
       const nodeHeight = getNodeHeight(node);
       const current = layerStats.get(layerIndex) ?? {
@@ -817,7 +854,7 @@ ${chatHistorySection}
       cumulativeY += resolvedLayerHeights[index] ?? 0;
     });
 
-    const adjustedNodes = layoutedNodes.map((node) => {
+    const adjustedNodes = mergedNodes.map((node) => {
       const layerIndex = layerIndexMap[normalizeLayerType(node.type)] ?? 0;
       const bandStart = layerStartByIndex.get(layerIndex) ?? 0;
       const bandHeight = resolvedLayerHeights[layerIndex] ?? minHeight;
@@ -840,9 +877,35 @@ ${chatHistorySection}
     });
 
     setNodes(adjustedNodes);
-    
+
+    const originalEdgeMap = new Map(currentEdges.map((edge) => [edge.id, edge]));
+    const pinnedHandleNodeIds = new Set(
+      currentNodes
+        .filter((node) => (node.data as { pinnedHandles?: boolean } | undefined)?.pinnedHandles === true)
+        .map((node) => node.id)
+    );
+    const shouldPreserveEdges = preserveEdgesRef.current;
+
+    const edgesWithPreservedHandles = mergedEdges.map((edge) => {
+      const original = originalEdgeMap.get(edge.id);
+      const hasPinnedHandleNode = pinnedHandleNodeIds.has(edge.source) || pinnedHandleNodeIds.has(edge.target);
+      if (shouldPreserveEdges || hasPinnedHandleNode) {
+        if (original) {
+          return {
+            ...edge,
+            sourceHandle: original.sourceHandle,
+            targetHandle: original.targetHandle,
+            type: original.type,
+          };
+        }
+      }
+      return edge;
+    });
+
     // Edge에 최적 핸들 적용 (레이어 간: top/bottom, 동일 레이어: left/right)
-    const optimizedEdges = applyOptimalHandlesToEdges(adjustedNodes, layoutedEdges);
+    const optimizedEdges = shouldPreserveEdges
+      ? edgesWithPreservedHandles
+      : applyOptimalHandlesToEdges(adjustedNodes, edgesWithPreservedHandles);
     setEdges(optimizedEdges);
 
     // 일괄 트랜잭션으로 Liveblocks 업데이트 (observer 트리거 최소화)
@@ -930,6 +993,8 @@ ${chatHistorySection}
       'delete_node',
       'delete_connection',
       'create_connection',
+      'pin_node',
+      'unpin_node',
     ];
 
     if (requiresSync.includes(name) && !ensureLiveblocksConnected('AI 액션')) {
@@ -938,7 +1003,11 @@ ${chatHistorySection}
 
     switch (name) {
       case 'add_node': {
-        const payload = (args as unknown) as AddNodePayload;
+        if (!isAddNodePayload(args)) {
+          console.error('❌ [Action Bridge] Invalid add_node payload:', args);
+          break;
+        }
+        const payload = args as AddNodePayload;
         const newNodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
         const layerValue = payload.layer ?? 2;
         const layerIndex = layerValue - 1;
@@ -1019,7 +1088,11 @@ ${chatHistorySection}
       }
 
       case 'add_nodes_with_connections': {
-        const payload = (args as unknown) as AddNodesWithConnectionsPayload;
+        if (!isAddNodesWithConnectionsPayload(args)) {
+          console.error('❌ [Action Bridge] Invalid add_nodes_with_connections payload:', args);
+          break;
+        }
+        const payload = args as AddNodesWithConnectionsPayload;
         const nodeInputs = Array.isArray(payload.nodes) ? (payload.nodes as BatchNodeInput[]) : [];
         const connectionInputs = Array.isArray(payload.connections) ? (payload.connections as BatchConnectionInput[]) : [];
 
@@ -1199,7 +1272,11 @@ ${chatHistorySection}
       }
 
       case 'update_node': {
-        const payload = (args as unknown) as UpdateNodePayload & { layer?: number; type?: string; force?: boolean };
+        if (!isUpdateNodePayload(args)) {
+          console.error('❌ [Action Bridge] Invalid update_node payload:', args);
+          break;
+        }
+        const payload = args as UpdateNodePayload & { layer?: number; type?: string; force?: boolean };
         if (!payload.id) break;
         // 사용자 생성 노드 보호
         if (!checkUserCreatedProtection(payload.id, 'node', 'update')) break;
@@ -1257,9 +1334,71 @@ ${chatHistorySection}
         break;
       }
 
+      case 'pin_node': {
+        const payload = (args as unknown) as PinNodePayload;
+        if (!payload?.id) break;
+
+        liveblocksService.updateStickyNote({
+          id: payload.id,
+          pinned: true,
+          pinnedHandles: payload.pinHandles === true,
+        });
+
+        setNodes((nds) => {
+          const updated = nds.map((node) => {
+            if (node.id !== payload.id) return node;
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                pinned: true,
+                pinnedHandles: payload.pinHandles === true,
+              },
+            };
+          });
+          nodesRef.current = updated;
+          return updated;
+        });
+        console.log('📌 [Action Bridge] Node pinned:', payload.id);
+        break;
+      }
+
+      case 'unpin_node': {
+        const payload = (args as unknown) as UnpinNodePayload;
+        if (!payload?.id) break;
+
+        liveblocksService.updateStickyNote({
+          id: payload.id,
+          pinned: false,
+          pinnedHandles: false,
+        });
+
+        setNodes((nds) => {
+          const updated = nds.map((node) => {
+            if (node.id !== payload.id) return node;
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                pinned: false,
+                pinnedHandles: false,
+              },
+            };
+          });
+          nodesRef.current = updated;
+          return updated;
+        });
+        console.log('📌 [Action Bridge] Node unpinned:', payload.id);
+        break;
+      }
+
       case 'delete_node':
         {
-          const payload = (args as unknown) as DeleteNodePayload & { force?: boolean };
+          if (!isDeleteNodePayload(args)) {
+            console.error('❌ [Action Bridge] Invalid delete_node payload:', args);
+            break;
+          }
+          const payload = args as DeleteNodePayload & { force?: boolean };
           if (!payload.id) break;
           // 사용자 생성 노드 보호
           if (!checkUserCreatedProtection(payload.id, 'node', 'delete')) break;
@@ -1290,7 +1429,11 @@ ${chatHistorySection}
 
       case 'delete_connection':
         {
-          const payload = (args as unknown) as DeleteConnectionPayload & { force?: boolean };
+          if (!isDeleteConnectionPayload(args)) {
+            console.error('❌ [Action Bridge] Invalid delete_connection payload:', args);
+            break;
+          }
+          const payload = args as DeleteConnectionPayload & { force?: boolean };
           if (!payload.id) break;
           // 사용자 생성 연결선 보호
           if (!checkUserCreatedProtection(payload.id, 'edge', 'delete')) break;
@@ -1308,7 +1451,11 @@ ${chatHistorySection}
 
       case 'create_connection':
         {
-          const payload = (args as unknown) as CreateConnectionPayload & { source?: string; target?: string };
+          if (!isCreateConnectionPayload(args) && typeof (args as Record<string, unknown>)?.source !== 'string' && typeof (args as Record<string, unknown>)?.target !== 'string') {
+            console.error('❌ [Action Bridge] Invalid create_connection payload:', args);
+            break;
+          }
+          const payload = args as CreateConnectionPayload & { source?: string; target?: string };
           let sourceId = payload.sourceId || payload.source;
           let targetId = payload.targetId || payload.target;
           if (!sourceId || !targetId) break;
@@ -1632,6 +1779,8 @@ ${chatHistorySection}
               height: note.height,
               frequency: note.perceptionIntensity,
               basis: note.basis,
+              pinned: note.pinned,
+              pinnedHandles: note.pinnedHandles,
               timestamp: Date.now(),
               author: liveblocksService.getCurrentUserDisplayName(),
             }));
@@ -1641,6 +1790,8 @@ ${chatHistorySection}
               targetId: connection.targetId,
               relationType: connection.relationType,
               isPositive: connection.isPositive,
+              sourceHandle: connection.sourceHandle,
+              targetHandle: connection.targetHandle,
             }));
             liveblocksService.restoreMapData(lbNotes, lbConnections);
           }
@@ -1652,6 +1803,64 @@ ${chatHistorySection}
           void reactFlowInstance.setViewport({ x, y, zoom });
         } catch (err) {
           console.error('❌ 스냅샷 복원 실패:', err);
+        }
+        break;
+      }
+
+      case 'undo_layout': {
+        if (!reactFlowInstance) break;
+        const raw = localStorage.getItem('culture-map-snapshot:_before_layout');
+        if (!raw) break;
+        try {
+          const flow = JSON.parse(raw) as { nodes?: Node[]; edges?: Edge[]; viewport?: { x?: number; y?: number; zoom?: number } };
+          const nextNodes = Array.isArray(flow.nodes) ? flow.nodes : [];
+          const nextEdges = Array.isArray(flow.edges) ? flow.edges : [];
+          setNodes(nextNodes);
+          setEdges(nextEdges);
+          nodesRef.current = nextNodes;
+          edgesRef.current = nextEdges;
+
+          const { notes, connections } = convertFromFlowData(nextNodes, nextEdges);
+          onNotesChange(notes);
+          onConnectionsChange(connections);
+
+          if (liveblocksService.isConnected()) {
+            const lbNotes = notes.map((note) => ({
+              id: note.id,
+              content: note.content,
+              x: note.position.x,
+              y: note.position.y,
+              layer: note.layer,
+              sentiment: note.sentiment,
+              type: note.type,
+              width: note.width,
+              height: note.height,
+              frequency: note.perceptionIntensity,
+              basis: note.basis,
+              pinned: note.pinned,
+              pinnedHandles: note.pinnedHandles,
+              timestamp: Date.now(),
+              author: liveblocksService.getCurrentUserDisplayName(),
+            }));
+            const lbConnections = connections.map((connection) => ({
+              id: connection.id,
+              sourceId: connection.sourceId,
+              targetId: connection.targetId,
+              relationType: connection.relationType,
+              isPositive: connection.isPositive,
+              sourceHandle: connection.sourceHandle,
+              targetHandle: connection.targetHandle,
+            }));
+            liveblocksService.restoreMapData(lbNotes, lbConnections);
+          }
+
+          const viewport = flow.viewport ?? {};
+          const x = typeof viewport.x === 'number' ? viewport.x : 0;
+          const y = typeof viewport.y === 'number' ? viewport.y : 0;
+          const zoom = typeof viewport.zoom === 'number' ? viewport.zoom : 1;
+          void reactFlowInstance.setViewport({ x, y, zoom });
+        } catch (err) {
+          console.error('❌ 자동 정렬 원복 실패:', err);
         }
         break;
       }
@@ -1682,54 +1891,63 @@ ${chatHistorySection}
     styleVariables,
   ]);
 
-  const handleAiAction = useCallback((action: AiAction) => {
-    pendingActionsRef.current.push(action);
+  const handleAiAction = useCallback((action: AiAction | AiAction[]) => {
+    const actions = Array.isArray(action) ? action : [action];
 
-    if (flushScheduledRef.current) {
-      return;
-    }
+    actionQueuePromiseRef.current = actionQueuePromiseRef.current
+      .then(async () => {
+        let requestedLayout = false;
+        let layoutNeeded = false;
+        let suppressAutoLayout = false;
 
-    flushScheduledRef.current = true;
-
-    setTimeout(() => {
-      flushScheduledRef.current = false;
-      const actions = [...pendingActionsRef.current];
-      pendingActionsRef.current = [];
-
-      let requestedLayout = false;
-      let layoutNeeded = false;
-      let suppressAutoLayout = false;
-
-      actions.forEach((queuedAction) => {
-        const name = queuedAction?.name;
-        if (queuedAction?.__suppressAutoLayout) {
-          suppressAutoLayout = true;
-        }
-
-        if (name === 'auto_layout') {
-          requestedLayout = true;
-          const spacing = queuedAction?.args?.spacing;
-          if (spacing === 'compact' || spacing === 'normal' || spacing === 'wide') {
-            layoutSpacingRef.current = spacing;
+        for (const queuedAction of actions) {
+          const name = queuedAction?.name;
+          if (queuedAction?.__suppressAutoLayout) {
+            suppressAutoLayout = true;
           }
-          return;
+
+          if (name === 'auto_layout') {
+            requestedLayout = true;
+            const spacing = queuedAction?.args?.spacing;
+            if (spacing === 'compact' || spacing === 'normal' || spacing === 'wide') {
+              layoutSpacingRef.current = spacing;
+            }
+            const preserveEdges = queuedAction?.args?.preserveEdges;
+            if (typeof preserveEdges === 'boolean') {
+              preserveEdgesRef.current = preserveEdges;
+            }
+            continue;
+          }
+
+          if (
+            name === 'add_node'
+            || name === 'add_nodes_with_connections'
+            || name === 'update_node'
+            || name === 'delete_node'
+            || name === 'delete_connection'
+            || name === 'create_connection'
+          ) {
+            layoutNeeded = true;
+          }
+
+          try {
+            executeAiAction(queuedAction);
+          } catch (err) {
+            console.error('❌ AI 액션 실행 실패:', err);
+          }
         }
 
-        if (name === 'add_node' || name === 'add_nodes_with_connections' || name === 'update_node' || name === 'delete_node' || name === 'delete_connection' || name === 'create_connection') {
-          layoutNeeded = true;
+        if (!suppressAutoLayout && (requestedLayout || layoutNeeded)) {
+          await new Promise<void>((resolve) => {
+            requestAnimationFrame(() => {
+              void safeAutoLayout(false).finally(resolve);
+            });
+          });
         }
-
-        try {
-          executeAiAction(queuedAction);
-        } catch (err) {
-          console.error('❌ AI 액션 실행 실패:', err);
-        }
+      })
+      .catch((err) => {
+        console.error('❌ [Action Bridge] AI 액션 체인 실패:', err);
       });
-
-      if (!suppressAutoLayout && (requestedLayout || layoutNeeded)) {
-        requestAnimationFrame(() => safeAutoLayout(false));
-      }
-    }, 0);
   }, [executeAiAction, safeAutoLayout]);
 
   useEffect(() => {

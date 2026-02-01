@@ -125,10 +125,26 @@ export interface DeleteNodePayload {
 }
 
 /**
+ * 노드 고정 액션 페이로드
+ */
+export interface PinNodePayload {
+    id: string;
+    pinHandles?: boolean;
+}
+
+/**
+ * 노드 고정 해제 액션 페이로드
+ */
+export interface UnpinNodePayload {
+    id: string;
+}
+
+/**
  * 자동 레이아웃 액션 페이로드
  */
 export interface AutoLayoutPayload {
     spacing?: 'compact' | 'normal' | 'wide';
+    preserveEdges?: boolean;
 }
 
 /**
@@ -240,6 +256,11 @@ export interface RestoreSnapshotPayload {
 }
 
 /**
+ * 자동 정렬 원복 액션 페이로드
+ */
+export interface UndoLayoutPayload {}
+
+/**
  * 학술 검색 액션 페이로드
  */
 export interface SearchAcademicTheoryPayload {
@@ -250,6 +271,8 @@ export type MapActionPayload =
     | AddNodePayload
     | UpdateNodePayload
     | DeleteNodePayload
+    | PinNodePayload
+    | UnpinNodePayload
     | AddNodesWithConnectionsPayload
     | CreateConnectionPayload
     | DeleteConnectionPayload
@@ -266,6 +289,7 @@ export type MapActionPayload =
     | SetStyleVariablesPayload
     | SaveSnapshotPayload
     | RestoreSnapshotPayload
+    | UndoLayoutPayload
     | SearchAcademicTheoryPayload;
 
 export interface ToolDeclaration {
@@ -359,6 +383,31 @@ export const MAP_TOOL_DECLARATIONS = [
         }
     },
     {
+        name: 'pin_node',
+        description: 'Call when user wants to pin a node so its position stays during auto_layout. Trigger words: 고정, 핀, 잠금. Examples: "이 노드 고정해줘", "위치 잠가줘"',
+        parametersJsonSchema: {
+            type: 'object',
+            properties: {
+                id: { type: 'string', description: 'ID of the node to pin' },
+                pinHandles: { type: 'boolean', description: 'Also keep connection handles fixed' }
+            },
+            required: ['id'],
+            propertyOrdering: ['id', 'pinHandles']
+        }
+    },
+    {
+        name: 'unpin_node',
+        description: 'Call when user wants to unpin a node. Trigger words: 고정 해제, 핀 해제, 잠금 해제. Examples: "고정 풀어줘"',
+        parametersJsonSchema: {
+            type: 'object',
+            properties: {
+                id: { type: 'string', description: 'ID of the node to unpin' }
+            },
+            required: ['id'],
+            propertyOrdering: ['id']
+        }
+    },
+    {
         name: 'delete_node',
         description: 'MUST call ONLY when user explicitly requests deleting a specific node ID. Do NOT infer deletion based on missing connections. Trigger words: 삭제, 지워, 제거, 없애. Examples: "노드 삭제해줘", "포스트잇 지워"',
         parametersJsonSchema: {
@@ -404,9 +453,10 @@ export const MAP_TOOL_DECLARATIONS = [
         parametersJsonSchema: {
             type: 'object',
             properties: {
-                spacing: { type: 'string', enum: ['compact', 'normal', 'wide'], description: 'Node spacing preset (compact=좁게, normal=보통, wide=넓게)' }
+                spacing: { type: 'string', enum: ['compact', 'normal', 'wide'], description: 'Node spacing preset (compact=좁게, normal=보통, wide=넓게)' },
+                preserveEdges: { type: 'boolean', description: 'Keep existing edge handles and types unchanged (default: false)' }
             },
-            propertyOrdering: ['spacing']
+            propertyOrdering: ['spacing', 'preserveEdges']
         }
     },
     {
@@ -571,6 +621,15 @@ export const MAP_TOOL_DECLARATIONS = [
         }
     },
     {
+        name: 'undo_layout',
+        description: 'Call when user wants to undo the last auto layout. Trigger words: 되돌려, 원복, 취소, 이전으로, undo. Examples: "정렬 취소해줘", "이전 상태로 되돌려"',
+        parametersJsonSchema: {
+            type: 'object',
+            properties: {},
+            propertyOrdering: []
+        }
+    },
+    {
         name: 'load_academic_knowledge',
         description: `Call this tool ONLY when deep academic/theoretical knowledge is truly needed.
         
@@ -598,3 +657,58 @@ This loads relevant PDF documents which costs tokens, so use sparingly.`,
             propertyOrdering: ['topic']
         }
     }];
+
+// ============================================
+// TYPE GUARDS
+// ============================================
+
+export function isAddNodePayload(args: unknown): args is AddNodePayload {
+    if (typeof args !== 'object' || args === null) return false;
+    const obj = args as Record<string, unknown>;
+    return (
+        typeof obj.label === 'string'
+        && typeof obj.type === 'string'
+        && typeof obj.layer === 'number'
+        && [1, 2, 3, 4].includes(obj.layer)
+    );
+}
+
+export function isAddNodesWithConnectionsPayload(args: unknown): args is AddNodesWithConnectionsPayload {
+    if (typeof args !== 'object' || args === null) return false;
+    const obj = args as Record<string, unknown>;
+    if (!Array.isArray(obj.nodes)) return false;
+    return obj.nodes.every((node) => {
+        if (typeof node !== 'object' || node === null) return false;
+        const data = node as Record<string, unknown>;
+        return typeof data.label === 'string' && typeof data.layer === 'number';
+    });
+}
+
+export function isUpdateNodePayload(args: unknown): args is UpdateNodePayload {
+    if (typeof args !== 'object' || args === null) return false;
+    const obj = args as Record<string, unknown>;
+    return typeof obj.id === 'string' && obj.id.length > 0;
+}
+
+export function isDeleteNodePayload(args: unknown): args is DeleteNodePayload {
+    if (typeof args !== 'object' || args === null) return false;
+    const obj = args as Record<string, unknown>;
+    return typeof obj.id === 'string' && obj.id.length > 0;
+}
+
+export function isCreateConnectionPayload(args: unknown): args is CreateConnectionPayload {
+    if (typeof args !== 'object' || args === null) return false;
+    const obj = args as Record<string, unknown>;
+    return (
+        typeof obj.sourceId === 'string'
+        && typeof obj.targetId === 'string'
+        && obj.sourceId.length > 0
+        && obj.targetId.length > 0
+    );
+}
+
+export function isDeleteConnectionPayload(args: unknown): args is DeleteConnectionPayload {
+    if (typeof args !== 'object' || args === null) return false;
+    const obj = args as Record<string, unknown>;
+    return typeof obj.id === 'string' && obj.id.length > 0;
+}

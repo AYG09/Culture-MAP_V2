@@ -145,15 +145,18 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
 10. 코드 예시는 사용자가 명시적으로 코드 요청 시에만 제공하며, 도구 호출과는 분리
 11. 사용자가 "현재 위치 유지", "정렬하지 말고"라고 요청하면 auto_layout을 호출하지 말고 기존 좌표를 유지
 12. 간격을 좁히거나 넓히라는 요청이 있으면 auto_layout 호출 시 spacing(compact/normal/wide)을 사용
+13. 연결선/핸들 위치를 유지해 달라는 요청이 있으면 auto_layout의 preserveEdges=true를 사용
 13. 줌/팬/전체 보기 요청은 set_viewport, pan_viewport, zoom_viewport, fit_view를 사용
 14. 특정 노드로 이동 요청은 focus_node를 사용
 15. 레이어 투명도/배경 표시 요청은 set_layer_opacity, toggle_layer_background를 사용
 16. UI 표시/숨김 요청(컨트롤, 미니맵, 레이어 패널, 배경, 내보내기)은 set_ui_visibility를 사용
 17. 노드/엣지 스타일(색상, 폰트, 테두리, 그림자) 변경 요청은 set_style_variables를 사용
-18. 백업/복원 요청은 save_snapshot, restore_snapshot을 사용
-19. set_layer_opacity 사용 시 opacity는 CSS 표준 (1=완전불투명, 0=완전투명). "투명도 50%" 요청 시 opacity=0.5, "불투명도 50%" 요청 시에도 opacity=0.5를 사용. layer 파라미터는 반드시 숫자(1,2,3,4)로 전달
-20. 사용자가 "설명해", "왜?", "근거"처럼 **설명/근거 요청**을 하면 도구 호출 없이 텍스트로 먼저 설명한다.
-21. 컨텍스트에 "워크샵 모드"가 표시된 경우 **빈도/강도(intensity/frequency) 표기를 사용하지 않는다**.
+18. 노드 위치 고정 요청은 pin_node, 해제 요청은 unpin_node를 사용
+19. 백업/복원 요청은 save_snapshot, restore_snapshot을 사용
+20. 자동 정렬 되돌리기 요청(되돌려, 원복, 취소)은 undo_layout을 사용
+21. set_layer_opacity 사용 시 opacity는 CSS 표준 (1=완전불투명, 0=완전투명). "투명도 50%" 요청 시 opacity=0.5, "불투명도 50%" 요청 시에도 opacity=0.5를 사용. layer 파라미터는 반드시 숫자(1,2,3,4)로 전달
+22. 사용자가 "설명해", "왜?", "근거"처럼 **설명/근거 요청**을 하면 도구 호출 없이 텍스트로 먼저 설명한다.
+23. 컨텍스트에 "워크샵 모드"가 표시된 경우 **빈도/강도(intensity/frequency) 표기를 사용하지 않는다**.
 
 ## 🔒 사용자/AI 노드·연결선 소유권 규칙
 

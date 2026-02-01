@@ -181,6 +181,10 @@ export interface NoteData {
   connections?: string[];
   /** 생성자 구분: 'user' (사용자) | 'ai' (AI) - 사용자가 편집하면 즉시 'user'로 변경 */
   createdBy?: 'user' | 'ai';
+  /** 자동 정렬에서 위치 유지 여부 */
+  pinned?: boolean;
+  /** 자동 정렬에서 연결 핸들 유지 여부 */
+  pinnedHandles?: boolean;
 }
 
 /**

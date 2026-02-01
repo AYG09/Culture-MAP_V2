@@ -109,6 +109,8 @@ export const convertNoteToFlowNode = (
     onEditEnd: options?.onEditEnd ? handleEditEnd : undefined,
     isLocked: isLockedByOther,
     lockedBy: lockLabel,
+    pinned: note.pinned === true,
+    pinnedHandles: note.pinnedHandles === true,
   };
 
   switch (note.type) {
@@ -214,6 +216,8 @@ export const convertFlowNodeToNote = (node: Node): NoteData => {
     basis: basisString,
     width: 200,
     height: 120,
+    pinned: (data as { pinned?: boolean }).pinned === true,
+    pinnedHandles: (data as { pinnedHandles?: boolean }).pinnedHandles === true,
   };
 };
 

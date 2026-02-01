@@ -138,11 +138,12 @@ When user says `/mcp`, `mcp로`, or `MCP 프로세스` → **MUST follow [.agent
 | Step | Action | MCP Tools |
 |------|--------|-----------|
 | 1 | 정보 수집 | Context7 → Tavily → Sequential Thinking → **🔍 결론 검증** |
-| 2 | 계획 수립 | Shrimp `plan_task` → `analyze_task` → `split_tasks` |
-| 3 | 실행 | `execute_task`, 코드 수정, 빌드 확인 |
-| 4 | 검증 | `verify_task`, 브라우저 테스트 |
-| 5 | 문서화 | `.agent/brain/` 문서, Git commit/push |
+| 2 | 계획 수립 | Shrimp `plan_task` → `analyze_task` → `split_tasks` + Mermaid 시각화 |
+| 3 | 실행 | `list_tasks` 확인 → `execute_task` 1회 호출 → 코드 수정/빌드 |
+| 4 | 검증 | `verify_task` 1회 호출 + 브라우저 테스트 |
+| 5 | 문서화 | 사용자 요청 시 `.agent/brain/` 문서 + Git commit/push |
 | 6 | Skills 검토 | 반복 패턴 → 신규 Skill 생성 |
+| 7 | 완료 보고 | 변경/검증 요약 + 다음 액션 |
 
 **필수**: Context7 공식 문서 먼저 → Tavily 최신 정보 보조  
 **⚠️ 결론 검증**: Sequential Thinking 결론은 반드시 Context7/Tavily로 재검증 후 구현
