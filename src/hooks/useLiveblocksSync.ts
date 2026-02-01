@@ -283,6 +283,14 @@ export const useLiveblocksSync = ({
                 lockedBy: activeLock?.displayName ?? activeLock?.userId,
             };
 
+            const pinnedFromNote = (note as { pinned?: boolean } | undefined)?.pinned;
+            const isPinned = pinnedFromNote === true
+              || (existingData as { pinned?: boolean } | undefined)?.pinned === true;
+
+            if (typeof pinnedFromNote === 'boolean') {
+              updatedData.pinned = pinnedFromNote;
+            }
+
             const hasValidX = Number.isFinite(note.x);
             const hasValidY = Number.isFinite(note.y);
             const nextX = hasValidX ? note.x : existingNode?.position.x ?? 0;
@@ -294,7 +302,7 @@ export const useLiveblocksSync = ({
                 position: { x: nextX, y: nextY },
                 data: updatedData,
                 selected: existingNode?.selected ?? false,
-                draggable: true,
+              draggable: !isPinned && !isLockedByOther,
             };
 
             if (existingIndex >= 0) {

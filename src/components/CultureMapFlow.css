@@ -524,12 +524,21 @@
 
 /* 컨텍스트 메뉴 (우클릭) */
 .react-flow-context-menu {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  padding: 8px;
-  min-width: 220px;
-  animation: contextMenuFadeIn 0.15s ease-out;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.68));
+  border-radius: 12px;
+  box-shadow: 0 22px 48px rgba(15, 23, 42, 0.3);
+  padding: 10px;
+  min-width: clamp(220px, 26vw, 320px);
+  max-width: min(92vw, 360px);
+  max-height: min(70vh, 640px);
+  overflow-y: auto;
+  font-size: clamp(13px, 1.15vw, 15px);
+  animation: contextMenuFadeIn 0.18s ease-out;
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-bottom-color: rgba(148, 163, 184, 0.4);
+  border-right-color: rgba(148, 163, 184, 0.35);
+  color: var(--text-primary, #1f2937);
 }
 
 @keyframes contextMenuFadeIn {
@@ -544,28 +553,137 @@
 }
 
 .context-menu-title {
-  padding: 8px 16px;
-  font-size: 13px;
+  padding: 8px 12px;
+  font-size: clamp(12px, 1.05vw, 14px);
   font-weight: 700;
   color: #1f2937;
   border-bottom: 1px solid #e5e7eb;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+}
+
+.context-menu-section-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 10px;
+  font-weight: 700;
+  color: #1f2937;
+  cursor: pointer;
+  margin-bottom: 6px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.context-menu-section-toggle:hover {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+.context-menu-section-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.context-menu-chevron {
+  transition: transform 0.18s ease;
+  width: 16px;
+  height: 16px;
+  color: #475569;
+}
+
+.context-menu-chevron.open {
+  transform: rotate(180deg);
+}
+
+.context-menu-section-body {
+  display: grid;
+  gap: 6px;
+  padding: 4px 2px 8px;
+}
+
+.context-menu-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.context-menu-grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.context-menu-grid-3 button,
+.context-menu-grid-2 button {
+  justify-content: center;
+  text-align: center;
 }
 
 .react-flow-context-menu button {
   width: 100%;
-  padding: 10px 16px;
+  padding: 9px 12px;
   background: none;
   border: none;
   text-align: left;
   cursor: pointer;
-  border-radius: 6px;
-  font-size: 14px;
+  border-radius: 8px;
+  font-size: inherit;
   color: #374151;
   transition: all 0.15s;
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.context-menu-icon {
+  width: 16px;
+  height: 16px;
+  color: #475569;
+  flex: 0 0 auto;
+}
+
+.context-menu-icon.icon-positive {
+  color: #2563eb;
+}
+
+.context-menu-icon.icon-neutral {
+  color: #6b7280;
+}
+
+.context-menu-icon.icon-negative {
+  color: #ef4444;
+}
+
+.context-menu-icon.icon-high {
+  color: #ef4444;
+}
+
+.context-menu-icon.icon-medium {
+  color: #f59e0b;
+}
+
+.context-menu-icon.icon-low {
+  color: #10b981;
+}
+
+.context-menu-icon.icon-muted {
+  color: #94a3b8;
+}
+
+.context-menu-icon.icon-result {
+  color: #ef4444;
+}
+
+.context-menu-icon.icon-behavior {
+  color: #f59e0b;
+}
+
+.context-menu-icon.icon-tangible {
+  color: #3b82f6;
+}
+
+.context-menu-icon.icon-intangible {
+  color: #8b5cf6;
 }
 
 .react-flow-context-menu button:hover {
@@ -574,9 +692,18 @@
 }
 
 .react-flow-context-menu hr {
-  margin: 8px 0;
+  margin: 8px 4px;
   border: none;
   border-top: 1px solid #e5e7eb;
+}
+
+.react-flow-context-menu::-webkit-scrollbar {
+  width: 8px;
+}
+
+.react-flow-context-menu::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.6);
+  border-radius: 999px;
 }
 
 /* 레이어 라벨 툴팁 */

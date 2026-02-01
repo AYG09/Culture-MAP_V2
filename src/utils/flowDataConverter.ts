@@ -149,6 +149,7 @@ export const convertNoteToFlowNode = (
     position: { x: note.position.x, y: note.position.y },
     data: nodeData as unknown as Record<string, unknown>,
     selected: false,
+    draggable: note.pinned !== true && !isLockedByOther,
   };
 };
 

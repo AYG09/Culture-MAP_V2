@@ -4,6 +4,7 @@ import { ViewportPortal } from '@xyflow/react';
 type LayerDefinition = {
   name: string;
   color: string;
+  gradient?: string;
   index: number;
   description: string;
   examples: string;
@@ -51,7 +52,9 @@ const LayerBackground = memo(({
             }
 
             const getLayerColor = (opacity: number) => layer.color.replace('OPACITY', String(opacity));
-            const bgColor = getLayerColor(layerOpacities[layer.index]);
+            const bgFill = layer.gradient
+              ? layer.gradient.replace(/OPACITY/g, String(layerOpacities[layer.index]))
+              : getLayerColor(layerOpacities[layer.index]);
 
             return (
               <div
@@ -63,7 +66,7 @@ const LayerBackground = memo(({
                   left: 0,
                   width: '100%',
                   height: `${layerHeights[layer.index]}px`,
-                  backgroundColor: bgColor,
+                  background: bgFill,
                   borderBottom: layer.index < 3 ? `2px dashed ${getLayerColor(0.3)}` : 'none',
                 }}
               />

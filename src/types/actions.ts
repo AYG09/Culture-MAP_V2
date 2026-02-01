@@ -13,6 +13,7 @@ export type ActionType =
     | 'CREATE_CONNECTION'
     | 'DELETE_CONNECTION'
     | 'AUTO_LAYOUT'
+    | 'REROUTE_EDGES'
     | 'ADJUST_LAYER_HEIGHT'
     | 'SEARCH_ACADEMIC_THEORY';
 
@@ -144,8 +145,12 @@ export interface UnpinNodePayload {
  */
 export interface AutoLayoutPayload {
     spacing?: 'compact' | 'normal' | 'wide';
-    preserveEdges?: boolean;
 }
+
+/**
+ * 연결선 재정렬 액션 페이로드
+ */
+export interface RerouteEdgesPayload {}
 
 /**
  * 레이어 높이 조절 액션 페이로드
@@ -279,6 +284,7 @@ export type MapActionPayload =
     | CreateConnectionPayload
     | DeleteConnectionPayload
     | AutoLayoutPayload
+    | RerouteEdgesPayload
     | AdjustLayerHeightPayload
     | SetViewportPayload
     | PanViewportPayload
@@ -369,7 +375,7 @@ export const MAP_TOOL_DECLARATIONS = [
     },
     {
         name: 'update_node',
-        description: 'MUST call when user wants to modify, edit, change, or update existing sticky notes. Trigger words: 수정, 변경, 고쳐, 바꿔, 업데이트. Examples: "노드 내용 수정해줘", "제목 변경"',
+        description: 'MUST call when user wants to modify, edit, change, or update existing sticky notes. Includes sentiment/감성 변경 and intensity(빈도/강도, consulting mode only). Trigger words: 수정, 변경, 고쳐, 바꿔, 업데이트, 감성, 긍정, 부정, 중립, 빈도, 강도. Examples: "노드 내용 수정해줘", "감성 긍정으로 바꿔"',
         parametersJsonSchema: {
             type: 'object',
             properties: {
@@ -451,14 +457,22 @@ export const MAP_TOOL_DECLARATIONS = [
     },
     {
         name: 'auto_layout',
-        description: 'Call when user wants to organize, arrange, or tidy up the map layout. Trigger words: 정렬, 정리, 배치. Examples: "맵 정렬해줘", "레이아웃 정리". spacing은 간격 조정(좁게/보통/넓게)에 사용.',
+        description: 'Call when user wants to organize, arrange, or tidy up the map layout. Trigger words: 정렬, 정리, 배치. Examples: "맵 정렬해줘", "레이아웃 정리". (노드 위치만 정렬하며 연결선 재정렬은 별도 도구 사용)',
         parametersJsonSchema: {
             type: 'object',
             properties: {
-                spacing: { type: 'string', enum: ['compact', 'normal', 'wide'], description: 'Node spacing preset (compact=좁게, normal=보통, wide=넓게)' },
-                preserveEdges: { type: 'boolean', description: 'Keep existing edge handles and types unchanged (default: false)' }
+                spacing: { type: 'string', enum: ['compact', 'normal', 'wide'], description: 'Node spacing preset (compact=좁게, normal=보통, wide=넓게)' }
             },
-            propertyOrdering: ['spacing', 'preserveEdges']
+            propertyOrdering: ['spacing']
+        }
+    },
+    {
+        name: 'reroute_edges',
+        description: 'Call ONLY when user explicitly mentions connections/lines to re-route or re-align edge handles. Trigger words: 연결선, 선 다시, 연결선 정렬. Examples: "연결선 다시 조정해", "연결선도 다시 정렬해"',
+        parametersJsonSchema: {
+            type: 'object',
+            properties: {},
+            propertyOrdering: []
         }
     },
     {

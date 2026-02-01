@@ -1,38 +1,111 @@
 .help-modal {
-  max-width: 720px;
+  max-width: 980px;
+  width: min(92vw, 980px);
+}
+
+.help-modal-header {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.help-modal-eyebrow {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #6b7280);
+  margin: 0 0 6px 0;
 }
 
 .help-modal-close {
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1;
 }
 
-.help-modal-body h3 {
-  font-size: 1.2rem;
-  color: #007bff;
-  margin-top: 1.5rem;
-  margin-bottom: 0.75rem;
-  border-left: 4px solid #007bff;
-  padding-left: 0.5rem;
+.help-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
-.help-modal-body ul {
-  list-style-type: none;
-  padding-left: 0.5rem;
+.help-modal-section-title {
+  font-size: 1.1rem;
+  color: #2563eb;
+  margin: 0 0 12px 0;
+}
+
+.help-modal-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.help-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.help-modal-two-col {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.help-card {
+  background: var(--bg-secondary, #f8fafc);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+}
+
+.help-card h4 {
+  margin: 0 0 8px 0;
+  font-size: 0.98rem;
+  color: var(--text-primary, #1f2937);
+}
+
+.help-card p {
+  margin: 0 0 10px 0;
+  color: var(--text-secondary, #4b5563);
+}
+
+.help-list {
+  list-style: none;
+  padding: 0;
   margin: 0;
+  display: grid;
+  gap: 6px;
+  color: var(--text-secondary, #4b5563);
+  line-height: 1.5;
 }
 
-.help-modal-body li {
-  margin-bottom: 0.75rem;
-  line-height: 1.6;
-  color: var(--text-secondary, #555);
+.help-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
 }
 
-.help-modal-body code {
-  background-color: var(--bg-secondary, #e9ecef);
-  padding: 0.2em 0.4em;
-  margin: 0;
-  font-size: 85%;
-  border-radius: 3px;
-  color: var(--text-primary, inherit);
+.help-pill-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.help-pill {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--text-secondary, #374151);
+  font-size: 0.82rem;
+}
+
+.help-tip {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.08);
+  color: #065f46;
+  font-size: 0.9rem;
 }

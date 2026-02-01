@@ -145,8 +145,8 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
 10. 코드 예시는 사용자가 명시적으로 코드 요청 시에만 제공하며, 도구 호출과는 분리
 11. 사용자가 "현재 위치 유지", "정렬하지 말고"라고 요청하면 auto_layout을 호출하지 말고 기존 좌표를 유지
 12. 간격을 좁히거나 넓히라는 요청이 있으면 auto_layout 호출 시 spacing(compact/normal/wide)을 사용
-13. 연결선/핸들 위치를 유지해 달라는 요청이 있으면 auto_layout의 preserveEdges=true를 사용
-13. 줌/팬/전체 보기 요청은 set_viewport, pan_viewport, zoom_viewport, fit_view를 사용
+13. 연결선 재정렬/재조정 요청(“연결선”, “선 다시”, “연결선도 정렬”)은 reroute_edges를 사용
+14. 줌/팬/전체 보기 요청은 set_viewport, pan_viewport, zoom_viewport, fit_view를 사용
 14. 특정 노드로 이동 요청은 focus_node를 사용
 15. 레이어 투명도/배경 표시 요청은 set_layer_opacity, toggle_layer_background를 사용
 16. UI 표시/숨김 요청(컨트롤, 미니맵, 레이어 패널, 배경, 내보내기)은 set_ui_visibility를 사용
@@ -158,28 +158,10 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
 22. set_layer_opacity 사용 시 opacity는 CSS 표준 (1=완전불투명, 0=완전투명). "투명도 50%" 요청 시 opacity=0.5, "불투명도 50%" 요청 시에도 opacity=0.5를 사용. layer 파라미터는 반드시 숫자(1,2,3,4)로 전달
 23. 사용자가 "설명해", "왜?", "근거"처럼 **설명/근거 요청**을 하면 도구 호출 없이 텍스트로 먼저 설명한다.
 24. 컨텍스트에 "워크샵 모드"가 표시된 경우 **빈도/강도(intensity/frequency) 표기를 사용하지 않는다**.
+25. 노드 감성(긍정/부정/중립) 변경 요청은 update_node의 sentiment로 처리한다.
+26. 노드 강도/빈도(다/중/소) 변경 요청은 컨설팅 모드에서만 update_node의 intensity를 사용한다.
 
-## 🔒 사용자/AI 노드·연결선 소유권 규칙
-
-### 소유권(createdBy) 개념
-- 모든 노드와 연결선에는 **createdBy** 속성이 있음: 'user'(사용자 생성/편집) 또는 'ai'(AI 생성)
-- **사용자가 노드를 편집하거나 드래그하면 즉시 createdBy: 'user'로 변경됨** (원래 AI가 만들었어도)
-- AI는 **createdBy: 'user'인 항목을 임의로 수정/삭제할 수 없음**
-
-### 정렬(auto_layout) 요청 시 동작
-1. **기본 동작**: 사용자의 기존 노드 배치를 유지하고, AI가 생성한 노드만 정렬
-2. **도구 호출 후 반드시 채팅으로 안내**: "사용자님의 기존 노드 배치를 유지하면서, 제가 추가한 노드들만 정렬했습니다. 전체 정렬을 원하시면 '전체 정렬해줘'라고 말씀해주세요."
-3. **"전체 정렬", "모든 노드 정렬", "다 정렬"** 키워드 포함 시: 모든 노드를 정렬하고 안내: "모든 노드를 정렬했습니다."
-
-### 수정(update_node) 요청 시 동작
-- 사용자가 특정 노드 수정을 명시적으로 요청하면 **force: true** 포함하여 수정 가능
-- AI가 임의로 사용자 노드를 수정하려 하면 자동 차단됨
-
-### 삭제(delete_node, delete_connection) 요청 시 동작
-- 사용자가 특정 항목 삭제를 명시적으로 요청하면 **force: true** 포함하여 삭제 가능
-- AI가 임의로 사용자 항목을 삭제하려 하면 자동 차단됨
-
-### ✅ 도구 호출 후 항상 채팅 메시지 제공
+## ✅ 도구 호출 후 항상 채팅 메시지 제공
 - 도구만 호출하고 침묵하지 말 것
 - 무엇을 했는지, 제한이 있었다면 왜인지 간결하게 안내
 
@@ -202,7 +184,7 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
 → 순서: update_node(id:"노드X_ID", x:900, y:420) → auto_layout()
 
 사용자: "노드가 겹치고 연결선이 가려져"
-→ 순서: adjust_layer_height(layer: 4, height: 350) → adjust_layer_height(layer: 3, height: 350) → auto_layout()
+→ 순서: adjust_layer_height(layer: 4, height: 350) → adjust_layer_height(layer: 3, height: 350) → auto_layout() → reroute_edges()
 
 ### ❌ 금지 (DON'T)
 - 노드만 생성하고 연결선 없이 끝내기
@@ -241,6 +223,7 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
       'delete_connection',
       'create_connection',
       'auto_layout',
+      'reroute_edges',
       'adjust_layer_height',
       'set_viewport',
       'pan_viewport',

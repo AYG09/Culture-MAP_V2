@@ -29,8 +29,30 @@ import {
   TangibleLeverNode,
   IntangibleLeverNode,
 } from './flow-nodes';
+import {
+  Activity,
+  ArrowDown,
+  ArrowUp,
+  BarChart3,
+  Box,
+  ChevronDown,
+  Cloud,
+  Frown,
+  LayoutGrid,
+  Layers,
+  Link2,
+  Minus,
+  PlusSquare,
+  Route,
+  SlidersHorizontal,
+  Smile,
+  Target,
+  Trash2,
+  X,
+} from 'lucide-react';
 import AnimatedFlowEdge from './edges/AnimatedFlowEdge';
 import MobileGestureGuide from './MobileGestureGuide';
+import HelpModal from './HelpModal';
 import AIChatSidebar from './AIChatSidebar'; // 좌측 사이드메뉴 (AI 챗봇)
 import { useIsMobile } from '../hooks/useResponsive'; // 반응형 훅 추가
 import LayerBackground from './LayerBackground';
@@ -204,7 +226,6 @@ const CultureMapFlow = ({
   const nodesRef = useRef<Node[]>([]);
   const edgesRef = useRef<Edge[]>([]);
   const layoutSpacingRef = useRef<'compact' | 'normal' | 'wide'>('normal');
-  const preserveEdgesRef = useRef(false);
   const previousLayerStartsRef = useRef<number[] | null>(null);
   const isHydratingRef = useRef(false);
   const isUserLayerHeightChangeRef = useRef(false);
@@ -514,6 +535,7 @@ ${chatHistorySection}
 
   // 모바일 포스트잇 생성 모달 상태
   const [showMobileAddMenu, setShowMobileAddMenu] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   const flowWrapperRef = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
@@ -522,58 +544,61 @@ ${chatHistorySection}
   const [collaborationLocks, setCollaborationLocks] = useState<Record<string, CollaborationLock>>({});
   const collaborationLocksRef = useRef<Record<string, CollaborationLock>>({});
 
+  const getCurrentUserId = useCallback(() => liveblocksService.getCurrentUserId() ?? 'local-user', []);
+
+  const applyEdgeBundling = useCallback((edges: Edge[]): Edge[] => {
+    const byTarget = new Map<string, Edge[]>();
+    const bySource = new Map<string, Edge[]>();
+
+    edges.forEach((edge) => {
+      if (!byTarget.has(edge.target)) {
+        byTarget.set(edge.target, []);
+      }
+      byTarget.get(edge.target)!.push(edge);
+
+      if (!bySource.has(edge.source)) {
+        bySource.set(edge.source, []);
+      }
+      bySource.get(edge.source)!.push(edge);
+    });
+
+    const bundleMap = new Map<string, { bundleSize: number; bundleIndex: number }>();
+
+    byTarget.forEach((group) => {
+      if (group.length <= 1) return;
+      const sorted = [...group].sort((a, b) => a.id.localeCompare(b.id));
+      sorted.forEach((edge, index) => {
+        bundleMap.set(edge.id, { bundleSize: sorted.length, bundleIndex: index });
+      });
+    });
+
+    bySource.forEach((group) => {
+      if (group.length <= 1) return;
+      const sorted = [...group].sort((a, b) => a.id.localeCompare(b.id));
+      sorted.forEach((edge, index) => {
+        if (bundleMap.has(edge.id)) return;
+        bundleMap.set(edge.id, { bundleSize: sorted.length, bundleIndex: index });
+      });
+    });
+
+    return edges.map((edge) => {
+      const bundle = bundleMap.get(edge.id);
+      if (!bundle) {
+        return edge;
+      }
+      const data = (edge.data as Record<string, unknown> | undefined) ?? {};
+      return {
+        ...edge,
+        data: {
+          ...data,
+          bundleSize: bundle.bundleSize,
+          bundleIndex: bundle.bundleIndex,
+        },
+      };
+    });
+  }, []);
+
   const safeAutoLayout = useCallback(async (showAlert = false) => {
-    const applyEdgeBundling = (edges: Edge[]): Edge[] => {
-      const byTarget = new Map<string, Edge[]>();
-      const bySource = new Map<string, Edge[]>();
-
-      edges.forEach((edge) => {
-        if (!byTarget.has(edge.target)) {
-          byTarget.set(edge.target, []);
-        }
-        byTarget.get(edge.target)!.push(edge);
-
-        if (!bySource.has(edge.source)) {
-          bySource.set(edge.source, []);
-        }
-        bySource.get(edge.source)!.push(edge);
-      });
-
-      const bundleMap = new Map<string, { bundleSize: number; bundleIndex: number }>();
-
-      byTarget.forEach((group) => {
-        if (group.length <= 1) return;
-        const sorted = [...group].sort((a, b) => a.id.localeCompare(b.id));
-        sorted.forEach((edge, index) => {
-          bundleMap.set(edge.id, { bundleSize: sorted.length, bundleIndex: index });
-        });
-      });
-
-      bySource.forEach((group) => {
-        if (group.length <= 1) return;
-        const sorted = [...group].sort((a, b) => a.id.localeCompare(b.id));
-        sorted.forEach((edge, index) => {
-          if (bundleMap.has(edge.id)) return;
-          bundleMap.set(edge.id, { bundleSize: sorted.length, bundleIndex: index });
-        });
-      });
-
-      return edges.map((edge) => {
-        const bundle = bundleMap.get(edge.id);
-        if (!bundle) {
-          return edge;
-        }
-        const data = (edge.data as Record<string, unknown> | undefined) ?? {};
-        return {
-          ...edge,
-          data: {
-            ...data,
-            bundleSize: bundle.bundleSize,
-            bundleIndex: bundle.bundleIndex,
-          },
-        };
-      });
-    };
     const normalizeLayerType = (value?: string) => {
       if (
         value === 'result'
@@ -774,6 +799,10 @@ ${chatHistorySection}
     });
 
     const adjustedNodes = mergedNodes.map((node) => {
+      const isPinned = (node.data as { pinned?: boolean } | undefined)?.pinned === true;
+      if (isPinned) {
+        return node;
+      }
       const layerIndex = layerIndexMap[normalizeLayerType(node.type)] ?? 0;
       const bandStart = layerStartByIndex.get(layerIndex) ?? 0;
       const bandHeight = resolvedLayerHeights[layerIndex] ?? minHeight;
@@ -795,7 +824,25 @@ ${chatHistorySection}
       };
     });
 
-    setNodes(adjustedNodes);
+    const currentUserId = getCurrentUserId();
+    const resolvedNodes = adjustedNodes.map((node) => {
+      const nodeData = (node.data as { pinned?: boolean } | undefined) ?? {};
+      const isPinned = nodeData.pinned === true;
+      const lock = collaborationLocksRef.current[node.id];
+      const isLockedByOther = Boolean(
+        lock && lock.itemType === 'note' && lock.userId !== currentUserId
+      );
+      const nextDraggable = !isPinned && !isLockedByOther;
+      if (node.draggable === nextDraggable) {
+        return node;
+      }
+      return {
+        ...node,
+        draggable: nextDraggable,
+      };
+    });
+
+    setNodes(resolvedNodes);
 
     const originalEdgeMap = new Map(currentEdges.map((edge) => [edge.id, edge]));
     const pinnedHandleNodeIds = new Set(
@@ -803,12 +850,10 @@ ${chatHistorySection}
         .filter((node) => (node.data as { pinnedHandles?: boolean } | undefined)?.pinnedHandles === true)
         .map((node) => node.id)
     );
-    const shouldPreserveEdges = preserveEdgesRef.current;
-
     const edgesWithPreservedHandles = mergedEdges.map((edge) => {
       const original = originalEdgeMap.get(edge.id);
       const hasPinnedHandleNode = pinnedHandleNodeIds.has(edge.source) || pinnedHandleNodeIds.has(edge.target);
-      if (shouldPreserveEdges || hasPinnedHandleNode) {
+      if (hasPinnedHandleNode) {
         if (original) {
           return {
             ...edge,
@@ -821,18 +866,11 @@ ${chatHistorySection}
       return edge;
     });
 
-    // Edge에 최적 핸들 적용 (레이어 간: top/bottom, 동일 레이어: left/right)
-    const optimizedEdges = shouldPreserveEdges
-      ? edgesWithPreservedHandles
-      : applyOptimalHandlesToEdges(adjustedNodes, edgesWithPreservedHandles, {
-          force: true,
-          pinnedNodeIds: pinnedHandleNodeIds,
-        });
-    const bundledEdges = applyEdgeBundling(optimizedEdges);
-    setEdges(bundledEdges);
-    edgesRef.current = bundledEdges;
+    const finalEdges = edgesWithPreservedHandles;
+    setEdges(finalEdges);
+    edgesRef.current = finalEdges;
 
-    const { connections: updatedConnections } = convertFromFlowData(adjustedNodes, bundledEdges);
+    const { connections: updatedConnections } = convertFromFlowData(resolvedNodes, finalEdges);
     onConnectionsChange(updatedConnections);
 
     if (liveblocksService.isConnected()) {
@@ -842,7 +880,7 @@ ${chatHistorySection}
     }
 
     // 일괄 트랜잭션으로 Liveblocks 업데이트 (observer 트리거 최소화)
-    const batchUpdates = adjustedNodes.map((node) => {
+    const batchUpdates = resolvedNodes.map((node) => {
       const currentData = node.data as { content?: string; sentiment?: string };
       return {
         id: node.id,
@@ -858,7 +896,44 @@ ${chatHistorySection}
     if (showAlert) {
       alert('컬처맵이 데이브 그레이 모델 구조에 맞춰 정렬되었습니다.');
     }
-  }, [setEdges, setNodes]);
+  }, [applyEdgeBundling, getCurrentUserId, onConnectionsChange, setEdges, setNodes]);
+
+  const rerouteEdges = useCallback(() => {
+    const currentNodes = nodesRef.current;
+    const currentEdges = edgesRef.current;
+    if (!currentNodes.length || !currentEdges.length) {
+      return;
+    }
+
+    const nodeIdSet = new Set(currentNodes.map((node) => node.id));
+    const filteredEdges = currentEdges.filter(
+      (edge) => nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target)
+    );
+
+    const pinnedHandleNodeIds = new Set(
+      currentNodes
+        .filter((node) => (node.data as { pinnedHandles?: boolean } | undefined)?.pinnedHandles === true)
+        .map((node) => node.id)
+    );
+
+    const optimizedEdges = applyOptimalHandlesToEdges(currentNodes, filteredEdges, {
+      force: true,
+      pinnedNodeIds: pinnedHandleNodeIds,
+    });
+    const bundledEdges = applyEdgeBundling(optimizedEdges);
+
+    setEdges(bundledEdges);
+    edgesRef.current = bundledEdges;
+
+    const { connections: updatedConnections } = convertFromFlowData(currentNodes, bundledEdges);
+    onConnectionsChange(updatedConnections);
+
+    if (liveblocksService.isConnected()) {
+      updatedConnections.forEach((connection) => {
+        liveblocksService.updateConnection(connection as LBConnectionData);
+      });
+    }
+  }, [applyEdgeBundling, onConnectionsChange, setEdges]);
 
   const applyStyleVariables = useCallback((variables: typeof styleVariables) => ({
     '--node-bg': variables.nodeBackground,
@@ -879,7 +954,6 @@ ${chatHistorySection}
     collaborationLocksRef.current = collaborationLocks;
   }, [collaborationLocks]);
 
-  const getCurrentUserId = useCallback(() => liveblocksService.getCurrentUserId() ?? 'local-user', []);
 
   const handleStartNodeEditing = useCallback(
     (nodeId: string) => {
@@ -999,6 +1073,21 @@ ${chatHistorySection}
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const contextMenuAdjustedRef = useRef(false);
+  const [contextMenuSections, setContextMenuSections] = useState({
+    pane: { create: false, layout: false },
+    node: { attributes: false, frequency: false, type: false, actions: false },
+    edge: { settings: false, actions: false },
+  });
+
+  const toggleContextSection = useCallback((menuType: 'pane' | 'node' | 'edge', key: string) => {
+    setContextMenuSections((prev) => ({
+      ...prev,
+      [menuType]: {
+        ...(prev as Record<string, Record<string, boolean>>)[menuType],
+        [key]: !(prev as Record<string, Record<string, boolean>>)[menuType]?.[key],
+      },
+    }));
+  }, []);
 
   // 컨텍스트 메뉴 외부 클릭 시 닫기
   useEffect(() => {
@@ -1028,6 +1117,16 @@ ${chatHistorySection}
       return;
     }
 
+    setContextMenuSections((prev) => {
+      if (contextMenu.type === 'pane') {
+        return { ...prev, pane: { create: false, layout: false } };
+      }
+      if (contextMenu.type === 'edge') {
+        return { ...prev, edge: { settings: false, actions: false } };
+      }
+      return { ...prev, node: { attributes: false, frequency: false, type: false, actions: false } };
+    });
+
     if (contextMenuAdjustedRef.current) {
       return;
     }
@@ -1039,10 +1138,12 @@ ${chatHistorySection}
 
     const rect = menuEl.getBoundingClientRect();
     const margin = 12;
+    const centerX = (window.innerWidth - rect.width) / 2;
+    const centerY = (window.innerHeight - rect.height) / 2;
     const maxX = Math.max(margin, window.innerWidth - rect.width - margin);
     const maxY = Math.max(margin, window.innerHeight - rect.height - margin);
-    const desiredX = Math.min(Math.max(contextMenu.x, margin), maxX);
-    const desiredY = Math.min(Math.max(contextMenu.y, margin), maxY);
+    const desiredX = Math.min(Math.max(centerX, margin), maxX);
+    const desiredY = Math.min(Math.max(centerY, margin), maxY);
 
     const deltaX = desiredX - rect.left;
     const deltaY = desiredY - rect.top;
@@ -1051,8 +1152,8 @@ ${chatHistorySection}
       const viewport = reactFlowInstance.getViewport();
       void reactFlowInstance.setViewport(
         {
-          x: viewport.x + deltaX,
-          y: viewport.y + deltaY,
+          x: viewport.x + (desiredX - contextMenu.x),
+          y: viewport.y + (desiredY - contextMenu.y),
           zoom: viewport.zoom,
         },
         { duration: 0 }
@@ -1090,18 +1191,14 @@ ${chatHistorySection}
             data: {
               ...currentData,
               content: newContent,
-              // 사용자가 편집하면 즉시 사용자 소유로 변경
-              createdBy: 'user',
             },
           };
         })
       );
 
-      // Liveblocks에도 createdBy: 'user' 전달
       liveblocksService.updateStickyNote({
         id: nodeId,
         content: newContent,
-        createdBy: 'user',
       } as StickyNoteData);
 
       onNodeUpdate(nodeId, newContent);
@@ -1111,11 +1208,18 @@ ${chatHistorySection}
 
   const handleTogglePin = useCallback(
     (nodeId: string, nextPinned: boolean) => {
+      const currentUserId = getCurrentUserId();
+      const activeLock = collaborationLocksRef.current[nodeId];
+      const isLockedByOther = Boolean(
+        activeLock && activeLock.itemType === 'note' && activeLock.userId !== currentUserId
+      );
+
       setNodes((currentNodes) => {
         const updated = currentNodes.map((node) =>
           node.id === nodeId
             ? {
                 ...node,
+                draggable: !nextPinned && !isLockedByOther,
                 data: {
                   ...node.data,
                   pinned: nextPinned,
@@ -1134,7 +1238,7 @@ ${chatHistorySection}
       const updatedData = convertFromFlowData(nodesRef.current, edgesRef.current);
       onNotesChange(updatedData.notes);
     },
-    [onNotesChange, setNodes]
+    [getCurrentUserId, onNotesChange, setNodes]
   );
 
   useEffect(() => {
@@ -1190,12 +1294,12 @@ ${chatHistorySection}
     layerOpacities,
     reactFlowInstance,
     safeAutoLayout,
+    rerouteEdges,
     handleNodeContentUpdate,
     handleStartNodeEditing,
     handleStopNodeEditing,
     ensureLiveblocksConnected,
     layoutSpacingRef,
-    preserveEdgesRef,
     isUserLayerHeightChangeRef,
     styleVariables,
     handleTogglePin
@@ -1225,28 +1329,32 @@ ${chatHistorySection}
     () => [
       {
         name: '결과',
-        color: 'rgba(255, 107, 107, OPACITY)',
+        color: 'rgba(202, 228, 255, OPACITY)',
+        gradient: 'linear-gradient(180deg, rgba(226, 240, 255, OPACITY) 0%, rgba(185, 218, 255, OPACITY) 100%)',
         index: 0,
         description: '성과와 KPI, 산출물 등 가시적 결과',
         examples: '프로젝트 성공률, 고객 만족도, 매출 지표',
       },
       {
         name: '행동',
-        color: 'rgba(78, 205, 196, OPACITY)',
+        color: 'rgba(146, 193, 255, OPACITY)',
+        gradient: 'linear-gradient(180deg, rgba(170, 210, 255, OPACITY) 0%, rgba(126, 178, 255, OPACITY) 100%)',
         index: 1,
         description: '구성원이 실제로 보이는 행동 패턴',
         examples: '협업 방식, 보고 습관, 의사결정 참여',
       },
       {
         name: '유형 레버',
-        color: 'rgba(149, 225, 211, OPACITY)',
+        color: 'rgba(78, 132, 215, OPACITY)',
+        gradient: 'linear-gradient(180deg, rgba(96, 150, 230, OPACITY) 0%, rgba(60, 112, 200, OPACITY) 100%)',
         index: 2,
         description: '조직의 유형적 기능과 제도/시스템',
         examples: '구조, 권한, 프로세스, 제도, 도구',
       },
       {
         name: '무형 레버',
-        color: 'rgba(255, 230, 109, OPACITY)',
+        color: 'rgba(24, 74, 160, OPACITY)',
+        gradient: 'linear-gradient(180deg, rgba(14, 50, 120, OPACITY) 0%, rgba(38, 92, 185, OPACITY) 100%)',
         index: 3,
         description: '기본 가정, 가치관, 신념',
         examples: '조직이 당연하게 여기는 원칙과 문화',
@@ -1340,6 +1448,10 @@ ${chatHistorySection}
       });
 
       const adjustedNodes = nodesRef.current.map((node) => {
+        const isPinned = (node.data as { pinned?: boolean } | undefined)?.pinned === true;
+        if (isPinned) {
+          return node;
+        }
         const layerIndex = layerIndexMap[node.type || 'result'] ?? 0;
         const oldStart = oldStarts.get(layerIndex) ?? 0;
         const newStart = newStarts.get(layerIndex) ?? 0;
@@ -1509,16 +1621,20 @@ ${chatHistorySection}
         const currentData = node.data as Record<string, unknown>;
         const existingIsLocked = (currentData as { isLocked?: boolean }).isLocked ?? false;
         const existingLockedBy = (currentData as { lockedBy?: string }).lockedBy;
+        const isPinned = (currentData as { pinned?: boolean }).pinned === true;
+        const nextDraggable = !isPinned && !isLockedByOther;
 
         if (
           existingIsLocked === Boolean(isLockedByOther) &&
-          existingLockedBy === lockLabel
+          existingLockedBy === lockLabel &&
+          node.draggable === nextDraggable
         ) {
           return node;
         }
 
         return {
           ...node,
+          draggable: nextDraggable,
           data: {
             ...currentData,
             isLocked: Boolean(isLockedByOther),
@@ -1663,7 +1779,20 @@ ${chatHistorySection}
         return;
       }
 
-      changes.forEach((change) => {
+      const currentUserId = getCurrentUserId();
+      const filteredChanges = changes.filter((change) => {
+        if (change.type !== 'position' || !change.position) return true;
+        const targetNode = nodesRef.current.find((node) => node.id === change.id);
+        if (!targetNode) return true;
+        const isPinned = (targetNode.data as { pinned?: boolean } | undefined)?.pinned === true;
+        const lock = collaborationLocksRef.current[change.id];
+        const isLockedByOther = Boolean(
+          lock && lock.itemType === 'note' && lock.userId !== currentUserId
+        );
+        return !(isPinned || isLockedByOther);
+      });
+
+      filteredChanges.forEach((change) => {
         if (change.type === 'position' && change.dragging) {
           draggingNodeIdsRef.current.add(change.id);
         }
@@ -1692,7 +1821,7 @@ ${chatHistorySection}
         return 120;
       };
 
-      const draftNodes = applyNodeChanges(changes, nodesRef.current);
+      const draftNodes = applyNodeChanges(filteredChanges, nodesRef.current);
       const maxBottomByLayer = [0, 0, 0, 0];
       draftNodes.forEach((node) => {
         const layerIndex = layerIndexMap[node.type || 'result'] ?? 0;
@@ -1755,7 +1884,7 @@ ${chatHistorySection}
         cumulativeY += effectiveLayerHeights[index] ?? 0;
       });
 
-      const clampedChanges = changes.map((change) => {
+      const clampedChanges = filteredChanges.map((change) => {
         if (change.type !== 'position' || !change.position) return change;
         const node = draftNodes.find((n) => n.id === change.id) || nodesRef.current.find((n) => n.id === change.id);
         if (!node) return change;
@@ -1843,6 +1972,10 @@ ${chatHistorySection}
 
       if (shouldUpdateHeights) {
         nextNodes = nextNodes.map((node) => {
+          const isPinned = (node.data as { pinned?: boolean } | undefined)?.pinned === true;
+          if (isPinned) {
+            return node;
+          }
           const layerIndex = layerIndexMap[node.type || 'result'] ?? 0;
           const oldStart = oldLayerStartByIndex.get(layerIndex) ?? 0;
           const newStart = layerStartByIndex.get(layerIndex) ?? 0;
@@ -1913,7 +2046,6 @@ ${chatHistorySection}
               ? ((node.data as { frequency?: PerceptionIntensity | null }).frequency ?? undefined)
               : undefined;
 
-            // 사용자가 드래그하면 즉시 사용자 소유로 변경
             liveblocksService.updateStickyNote({
               id: node.id,
               content: (node.data as { content?: string }).content || '',
@@ -1924,18 +2056,8 @@ ${chatHistorySection}
               type: node.type || 'sticky_note',
               width: (node.width as number) || 200,
               height: (node.height as number) || 120,
-              createdBy: 'user',
               ...(isConsultingMode && nodeFrequency ? { frequency: nodeFrequency } : {}),
             });
-
-            // 로컬 노드 data에도 createdBy: 'user' 설정
-            setNodes((prevNodes) =>
-              prevNodes.map((n) =>
-                n.id === node.id
-                  ? { ...n, data: { ...n.data, createdBy: 'user' } }
-                  : n
-              )
-            );
 
             console.log('📤 [React Flow] Firebase 노드 동기화:', {
               id: node.id,
@@ -2104,7 +2226,6 @@ ${chatHistorySection}
         data: {
           relationType: 'direct',
           isPositive,
-          createdBy: 'user',
         },
       };
 
@@ -2117,7 +2238,6 @@ ${chatHistorySection}
         targetId: params.target!,
         relationType: 'direct',
         isPositive: isPositive,
-        createdBy: 'user',
         sourceHandle: resolvedSourceHandle ?? undefined,
         targetHandle: resolvedTargetHandle ?? undefined,
       });
@@ -2240,6 +2360,10 @@ ${chatHistorySection}
   // ============================================================================
   const handlePaneContextMenu = useCallback(
     (event: React.MouseEvent | MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('.react-flow__node') || target?.closest('.react-flow__edge')) {
+        return;
+      }
       console.log('🎯 handlePaneContextMenu called', { x: event.clientX, y: event.clientY });
       event.preventDefault();
       event.stopPropagation();
@@ -2278,6 +2402,7 @@ ${chatHistorySection}
 
   const handleNodeContextMenu = useCallback((event: React.MouseEvent | MouseEvent, node: Node) => {
     event.preventDefault();
+    event.stopPropagation();
     setContextMenu({
       x: event.clientX,
       y: event.clientY,
@@ -2315,7 +2440,6 @@ ${chatHistorySection}
         layer: layerMap[nodeType],
         content: '새 노트',
         sentiment: 'neutral',
-        createdBy: 'user',
         onUpdate: handleNodeContentUpdate,
         onEditStart: handleStartNodeEditing,
         onEditEnd: handleStopNodeEditing,
@@ -2343,7 +2467,6 @@ ${chatHistorySection}
       type: nodeType,
       width: 200,
       height: 120,
-      createdBy: 'user',
     });
 
     console.log('📱 [Mobile] 새 노드 생성:', newNodeId, nodeType);
@@ -2391,7 +2514,6 @@ ${chatHistorySection}
           data: {
             content: '새 노트',
             sentiment: 'neutral',
-            createdBy: 'user',
             onUpdate: handleNodeContentUpdate,
             onEditStart: handleStartNodeEditing,
             onEditEnd: handleStopNodeEditing,
@@ -2426,7 +2548,6 @@ ${chatHistorySection}
           type: nodeType,
           width: 200,
           height: 120,
-          createdBy: 'user',
         });
 
         console.log('📌 [React Flow] 새 노드 생성:', newNodeId, nodeType);
@@ -2801,28 +2922,7 @@ ${chatHistorySection}
           <button
             className="glass-circle-button"
             type="button"
-            onClick={() => {
-              const helpText = isMobile
-                ? '🗺️ 모바일 사용법\n\n' +
-                '➕ 포스트잇 생성: 우측 하단 + 버튼\n' +
-                '✏️ 포스트잇 편집: 더블탭\n' +
-                '🎯 포스트잇 이동: 드래그\n' +
-                '🔗 연결선 생성: 핸들 드래그\n' +
-                '🌐 캔버스 이동: 빈 공간 드래그\n' +
-                '🤏 확대/축소: 두 손가락 핀치\n' +
-                '☰ 메뉴: 좌측 상단 햄버거 버튼'
-                : '🗺️ 데스크톱 사용법\n\n' +
-                '📌 포스트잇 생성: 빈 캔버스 우클릭 → 레이어 선택\n' +
-                '✏️ 포스트잇 편집: 더블클릭\n' +
-                '🔗 연결선 생성: 핸들 드래그\n' +
-                '🎨 속성 변경: 포스트잇/연결선 우클릭 메뉴\n' +
-                '🌐 캔버스 이동: 중간/우클릭 드래그\n' +
-                '🔍 확대/축소: 마우스 휠\n' +
-                '🧾 내보내기: 상단 PNG/JSON/Excel\n' +
-                '🤖 AI 생성: 좌측 패널 "AI 일괄 생성" 버튼';
-
-              alert(helpText);
-            }}
+            onClick={() => setShowHelpModal(true)}
           >
             ?
           </button>
@@ -3068,6 +3168,7 @@ ${chatHistorySection}
 
               {/* 모바일 제스처 가이드 */}
               <MobileGestureGuide />
+              {showHelpModal && <HelpModal onClose={() => setShowHelpModal(false)} />}
 
               <ReactFlow
                 nodes={nodes}
@@ -3286,109 +3387,240 @@ ${chatHistorySection}
         >
           {contextMenu.type === 'pane' && (
             <>
-              <div className="context-menu-title">📌 새 노트 생성</div>
               <button
-                onClick={() => {
-                  handleContextMenuAction('create_result');
-                }}
+                className="context-menu-section-toggle"
+                onClick={() => toggleContextSection('pane', 'create')}
+                type="button"
               >
-                🔴 결과
+                <span className="context-menu-section-label">
+                  <PlusSquare className="context-menu-icon" />
+                  새 노트 생성
+                </span>
+                <ChevronDown className={`context-menu-chevron ${contextMenuSections.pane.create ? 'open' : ''}`} />
               </button>
-              <button
-                onClick={() => {
-                  handleContextMenuAction('create_behavior');
-                }}
-              >
-                🟡 행동
-              </button>
-              <button
-                onClick={() => {
-                  handleContextMenuAction('create_tangible_lever');
-                }}
-              >
-                🔵 유형
-              </button>
-              <button
-                onClick={() => {
-                  handleContextMenuAction('create_intangible_lever');
-                }}
-              >
-                🟣 무형
-              </button>
+              {contextMenuSections.pane.create && (
+                <div className="context-menu-section-body">
+                  <button onClick={() => handleContextMenuAction('create_result')}>
+                    <Target className="context-menu-icon icon-result" />
+                    결과
+                  </button>
+                  <button onClick={() => handleContextMenuAction('create_behavior')}>
+                    <Activity className="context-menu-icon icon-behavior" />
+                    행동
+                  </button>
+                  <button onClick={() => handleContextMenuAction('create_tangible_lever')}>
+                    <Box className="context-menu-icon icon-tangible" />
+                    유형
+                  </button>
+                  <button onClick={() => handleContextMenuAction('create_intangible_lever')}>
+                    <Cloud className="context-menu-icon icon-intangible" />
+                    무형
+                  </button>
+                </div>
+              )}
               <div className="context-menu-divider" />
               <button
-                onClick={() => {
-                  handleAutoLayout();
-                  closeContextMenu();
-                }}
+                className="context-menu-section-toggle"
+                onClick={() => toggleContextSection('pane', 'layout')}
+                type="button"
               >
-                🔄 자동 정렬
+                <span className="context-menu-section-label">
+                  <LayoutGrid className="context-menu-icon" />
+                  정렬
+                </span>
+                <ChevronDown className={`context-menu-chevron ${contextMenuSections.pane.layout ? 'open' : ''}`} />
               </button>
+              {contextMenuSections.pane.layout && (
+                <div className="context-menu-section-body">
+                  <button
+                    onClick={() => {
+                      handleAutoLayout();
+                      closeContextMenu();
+                    }}
+                  >
+                    <LayoutGrid className="context-menu-icon" />
+                    노드 정렬
+                  </button>
+                  <button
+                    onClick={() => {
+                      rerouteEdges();
+                      closeContextMenu();
+                    }}
+                  >
+                    <Route className="context-menu-icon" />
+                    연결선 정렬
+                  </button>
+                </div>
+              )}
             </>
           )}
           {contextMenu.type === 'node' && (
             <>
-              <div className="context-menu-title">🎨 속성 변경</div>
-              <button onClick={() => handleContextMenuAction('positive')}>
-                ✅ 긍정으로 변경
+              <button
+                className="context-menu-section-toggle"
+                onClick={() => toggleContextSection('node', 'attributes')}
+                type="button"
+              >
+                <span className="context-menu-section-label">
+                  <SlidersHorizontal className="context-menu-icon" />
+                  속성 변경
+                </span>
+                <ChevronDown className={`context-menu-chevron ${contextMenuSections.node.attributes ? 'open' : ''}`} />
               </button>
-              <button onClick={() => handleContextMenuAction('neutral')}>
-                ➖ 중립으로 변경
-              </button>
-              <button onClick={() => handleContextMenuAction('negative')}>
-                ❌ 부정으로 변경
-              </button>
+              {contextMenuSections.node.attributes && (
+                <div className="context-menu-section-body context-menu-grid-3">
+                  <button onClick={() => handleContextMenuAction('positive')}>
+                    <Smile className="context-menu-icon icon-positive" />
+                    긍정
+                  </button>
+                  <button onClick={() => handleContextMenuAction('neutral')}>
+                    <Minus className="context-menu-icon icon-neutral" />
+                    중립
+                  </button>
+                  <button onClick={() => handleContextMenuAction('negative')}>
+                    <Frown className="context-menu-icon icon-negative" />
+                    부정
+                  </button>
+                </div>
+              )}
 
-              {/* 컨설팅 모드일 때만 빈도 설정 표시 */}
               {isConsultingMode && (
                 <>
-                  <hr />
-                  <div className="context-menu-title">📊 빈도 설정</div>
-                  <button onClick={() => handleContextMenuAction('frequency_high')}>
-                    🔴 빈도多
+                  <div className="context-menu-divider" />
+                  <button
+                    className="context-menu-section-toggle"
+                    onClick={() => toggleContextSection('node', 'frequency')}
+                    type="button"
+                  >
+                    <span className="context-menu-section-label">
+                      <BarChart3 className="context-menu-icon" />
+                      빈도 설정
+                    </span>
+                    <ChevronDown className={`context-menu-chevron ${contextMenuSections.node.frequency ? 'open' : ''}`} />
                   </button>
-                  <button onClick={() => handleContextMenuAction('frequency_medium')}>
-                    🟡 빈도中
-                  </button>
-                  <button onClick={() => handleContextMenuAction('frequency_low')}>
-                    🟢 빈도少
-                  </button>
-                  <button onClick={() => handleContextMenuAction('frequency_remove')}>
-                    ⚪ 빈도 제거
-                  </button>
+                  {contextMenuSections.node.frequency && (
+                    <div className="context-menu-section-body">
+                      <button onClick={() => handleContextMenuAction('frequency_high')}>
+                        <ArrowUp className="context-menu-icon icon-high" />
+                        빈도多
+                      </button>
+                      <button onClick={() => handleContextMenuAction('frequency_medium')}>
+                        <Minus className="context-menu-icon icon-medium" />
+                        빈도中
+                      </button>
+                      <button onClick={() => handleContextMenuAction('frequency_low')}>
+                        <ArrowDown className="context-menu-icon icon-low" />
+                        빈도少
+                      </button>
+                      <button onClick={() => handleContextMenuAction('frequency_remove')}>
+                        <X className="context-menu-icon icon-muted" />
+                        빈도 제거
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
 
-              <hr />
-              <div className="context-menu-title">🧭 유형 변경</div>
-              <button onClick={() => handleContextMenuAction('set_type_result')}>
-                🔴 결과
+              <div className="context-menu-divider" />
+              <button
+                className="context-menu-section-toggle"
+                onClick={() => toggleContextSection('node', 'type')}
+                type="button"
+              >
+                <span className="context-menu-section-label">
+                  <Layers className="context-menu-icon" />
+                  유형 변경
+                </span>
+                <ChevronDown className={`context-menu-chevron ${contextMenuSections.node.type ? 'open' : ''}`} />
               </button>
-              <button onClick={() => handleContextMenuAction('set_type_behavior')}>
-                🟡 행동
-              </button>
-              <button onClick={() => handleContextMenuAction('set_type_tangible_lever')}>
-                🔵 유형
-              </button>
-              <button onClick={() => handleContextMenuAction('set_type_intangible_lever')}>
-                🟣 무형
-              </button>
+              {contextMenuSections.node.type && (
+                <div className="context-menu-section-body context-menu-grid-2">
+                  <button onClick={() => handleContextMenuAction('set_type_result')}>
+                    <Target className="context-menu-icon icon-result" />
+                    결과
+                  </button>
+                  <button onClick={() => handleContextMenuAction('set_type_behavior')}>
+                    <Activity className="context-menu-icon icon-behavior" />
+                    행동
+                  </button>
+                  <button onClick={() => handleContextMenuAction('set_type_tangible_lever')}>
+                    <Box className="context-menu-icon icon-tangible" />
+                    유형
+                  </button>
+                  <button onClick={() => handleContextMenuAction('set_type_intangible_lever')}>
+                    <Cloud className="context-menu-icon icon-intangible" />
+                    무형
+                  </button>
+                </div>
+              )}
 
-              <hr />
-              <button onClick={() => handleContextMenuAction('delete')}>🗑️ 삭제</button>
+              <div className="context-menu-divider" />
+              <button
+                className="context-menu-section-toggle"
+                onClick={() => toggleContextSection('node', 'actions')}
+                type="button"
+              >
+                <span className="context-menu-section-label">
+                  <Trash2 className="context-menu-icon" />
+                  관리
+                </span>
+                <ChevronDown className={`context-menu-chevron ${contextMenuSections.node.actions ? 'open' : ''}`} />
+              </button>
+              {contextMenuSections.node.actions && (
+                <div className="context-menu-section-body">
+                  <button onClick={() => handleContextMenuAction('delete')}>
+                    <Trash2 className="context-menu-icon" />
+                    삭제
+                  </button>
+                </div>
+              )}
             </>
           )}
           {contextMenu.type === 'edge' && (
             <>
-              <div className="context-menu-title">🔗 연결선 설정</div>
-              <button onClick={() => handleContextMenuAction('direct')}>
-                ━ 실선 (직접)
+              <button
+                className="context-menu-section-toggle"
+                onClick={() => toggleContextSection('edge', 'settings')}
+                type="button"
+              >
+                <span className="context-menu-section-label">
+                  <Link2 className="context-menu-icon" />
+                  연결선 설정
+                </span>
+                <ChevronDown className={`context-menu-chevron ${contextMenuSections.edge.settings ? 'open' : ''}`} />
               </button>
-              <button onClick={() => handleContextMenuAction('indirect')}>
-                ┄ 점선 (간접)
+              {contextMenuSections.edge.settings && (
+                <div className="context-menu-section-body">
+                  <button onClick={() => handleContextMenuAction('direct')}>
+                    <Link2 className="context-menu-icon" />
+                    실선 (직접)
+                  </button>
+                  <button onClick={() => handleContextMenuAction('indirect')}>
+                    <Route className="context-menu-icon" />
+                    점선 (간접)
+                  </button>
+                </div>
+              )}
+              <div className="context-menu-divider" />
+              <button
+                className="context-menu-section-toggle"
+                onClick={() => toggleContextSection('edge', 'actions')}
+                type="button"
+              >
+                <span className="context-menu-section-label">
+                  <Trash2 className="context-menu-icon" />
+                  관리
+                </span>
+                <ChevronDown className={`context-menu-chevron ${contextMenuSections.edge.actions ? 'open' : ''}`} />
               </button>
-              <hr />
-              <button onClick={() => handleContextMenuAction('delete')}>🗑️ 삭제</button>
+              {contextMenuSections.edge.actions && (
+                <div className="context-menu-section-body">
+                  <button onClick={() => handleContextMenuAction('delete')}>
+                    <Trash2 className="context-menu-icon" />
+                    삭제
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>

@@ -99,6 +99,7 @@ interface UseAiActionsProps {
   
   // Callbacks & Layout
   safeAutoLayout: (showAlert?: boolean) => Promise<void>;
+  rerouteEdges: () => void;
   ensureLiveblocksConnected: (actionLabel: string) => boolean;
   onNotesChange: (notes: any[]) => void; // Using any[] to avoid circular deps if possible, or strict types
   onConnectionsChange: (connections: any[]) => void;
@@ -112,7 +113,6 @@ interface UseAiActionsProps {
   
   // Refs for tracking layout state
   layoutSpacingRef: React.MutableRefObject<'compact' | 'normal' | 'wide'>;
-  preserveEdgesRef: React.MutableRefObject<boolean>;
   isUserLayerHeightChangeRef: React.MutableRefObject<boolean>;
 }
 
@@ -134,6 +134,7 @@ export const useAiActions = ({
   styleVariables,
   setStyleVariables,
   safeAutoLayout,
+  rerouteEdges,
   ensureLiveblocksConnected,
   onNotesChange,
   onConnectionsChange,
@@ -143,7 +144,6 @@ export const useAiActions = ({
   handleTogglePin,
   isConsultingMode,
   layoutSpacingRef,
-  preserveEdgesRef,
   isUserLayerHeightChangeRef,
 }: UseAiActionsProps) => {
 
@@ -153,31 +153,6 @@ export const useAiActions = ({
     console.log('🤖 [Action Bridge] AI 액션 실행:', action);
     const { name } = action;
     const args = (action.args ?? {}) as Record<string, unknown>;
-
-    const checkUserCreatedProtection = (
-      itemId: string,
-      itemType: 'node' | 'edge',
-      operation: 'update' | 'delete'
-    ): boolean => {
-      const force = args.force === true;
-      
-      if (itemType === 'node') {
-        const node = nodesRef.current.find(n => n.id === itemId);
-        const createdBy = (node?.data as { createdBy?: string })?.createdBy;
-        if (createdBy === 'user' && !force) {
-          console.warn(`⚠️ [Action Bridge] 사용자가 생성한 노드는 AI가 임의로 ${operation}할 수 없습니다: ${itemId}`);
-          return false;
-        }
-      } else {
-        const edge = edgesRef.current.find(e => e.id === itemId);
-        const createdBy = (edge?.data as { createdBy?: string })?.createdBy;
-        if (createdBy === 'user' && !force) {
-          console.warn(`⚠️ [Action Bridge] 사용자가 생성한 연결선은 AI가 임의로 ${operation}할 수 없습니다: ${itemId}`);
-          return false;
-        }
-      }
-      return true;
-    };
 
     const getNodeTypeFromLayer = (layerValue: number) => {
       const layerToType: Record<number, string> = {
@@ -254,7 +229,6 @@ export const useAiActions = ({
           layer: layerValue,
           sentiment,
           type: nodeType,
-          createdBy: 'ai',
           ...(isConsultingMode && frequency ? { frequency } : {}),
         });
 
@@ -268,7 +242,6 @@ export const useAiActions = ({
             author: liveblocksService.getCurrentUserDisplayName(),
             timestamp: Date.now(),
             sentiment,
-            createdBy: 'ai',
             ...(isConsultingMode && frequency ? { frequency } : {}),
             type: nodeType,
             layer: layerValue,
@@ -346,7 +319,6 @@ export const useAiActions = ({
             layer: layerValue,
             sentiment,
             type: nodeType,
-            createdBy: 'ai',
             ...(isConsultingMode && frequency ? { frequency } : {}),
           });
 
@@ -360,7 +332,6 @@ export const useAiActions = ({
               author: liveblocksService.getCurrentUserDisplayName(),
               timestamp: Date.now(),
               sentiment,
-              createdBy: 'ai',
               ...(isConsultingMode && frequency ? { frequency } : {}),
               type: nodeType,
               layer: layerValue,
@@ -410,11 +381,11 @@ export const useAiActions = ({
               strokeDasharray: relationType === 'indirect' ? '5 5' : undefined,
             },
             markerEnd: { type: 'arrowclosed', width: 20, height: 20, color: edgeColor },
-            data: { relationType, isPositive, createdBy: 'ai' },
+            data: { relationType, isPositive },
           });
 
           liveblocksService.updateConnection({
-            id: edgeId, sourceId, targetId, relationType, isPositive, createdBy: 'ai', sourceHandle, targetHandle,
+            id: edgeId, sourceId, targetId, relationType, isPositive, sourceHandle, targetHandle,
           });
         });
 
@@ -434,8 +405,6 @@ export const useAiActions = ({
         if (!isUpdateNodePayload(args)) break;
         const payload = args as UpdateNodePayload & { layer?: number; type?: string; force?: boolean };
         if (!payload.id) break;
-        if (!checkUserCreatedProtection(payload.id, 'node', 'update')) break;
-
         const sentiment = payload.sentiment === 'positive' ? 'positive' : (payload.sentiment === 'negative' ? 'negative' : 'neutral');
         const frequency = isConsultingMode
           ? (typeof payload.intensity === 'number' ? INTENSITY_MAP.TO_STRING(payload.intensity) : payload.intensity)
@@ -489,8 +458,6 @@ export const useAiActions = ({
         if (!isDeleteNodePayload(args)) break;
         const payload = args as DeleteNodePayload & { force?: boolean };
         if (!payload.id) break;
-        if (!checkUserCreatedProtection(payload.id, 'node', 'delete')) break;
-
         const edgesToDelete = edgesRef.current.filter(e => e.source === payload.id || e.target === payload.id);
         liveblocksService.deleteStickyNote(payload.id);
         edgesToDelete.forEach(e => liveblocksService.deleteConnection(e.id));
@@ -516,8 +483,6 @@ export const useAiActions = ({
         if (!isDeleteConnectionPayload(args)) break;
         const payload = args as DeleteConnectionPayload & { force?: boolean };
         if (!payload.id) break;
-        if (!checkUserCreatedProtection(payload.id, 'edge', 'delete')) break;
-
         liveblocksService.deleteConnection(payload.id);
         setEdges(eds => {
             const up = eds.filter(e => e.id !== payload.id);
@@ -572,7 +537,7 @@ export const useAiActions = ({
             id: edgeId, source: sourceId, target: targetId, sourceHandle, targetHandle, type: 'animatedFlow',
             style: { strokeWidth: styleVariables.edgeWidth, stroke: styleVariables.edgeColor, strokeDasharray: relationType === 'indirect' ? '5 5' : undefined },
             markerEnd: { type: 'arrowclosed', width: 20, height: 20, color: styleVariables.edgeColor },
-            data: { relationType, isPositive, createdBy: 'ai' },
+            data: { relationType, isPositive },
         };
 
         setEdges(eds => {
@@ -585,7 +550,7 @@ export const useAiActions = ({
         onConnectionsChange(connections);
 
         liveblocksService.updateConnection({
-            id: edgeId, sourceId, targetId, relationType, isPositive, createdBy: 'ai', sourceHandle, targetHandle
+          id: edgeId, sourceId, targetId, relationType, isPositive, sourceHandle, targetHandle
         });
         break;
       }
@@ -902,6 +867,9 @@ export const useAiActions = ({
       case 'auto_layout':
         break;
 
+      case 'reroute_edges':
+        break;
+
       default:
         console.warn('⚠️ 알 수 없는 AI 액션:', name);
     }
@@ -936,6 +904,7 @@ export const useAiActions = ({
     actionQueuePromiseRef.current = actionQueuePromiseRef.current
       .then(async () => {
         let requestedLayout = false;
+        let requestedEdgeReroute = false;
         let layoutNeeded = false;
         let suppressAutoLayout = false;
 
@@ -945,15 +914,16 @@ export const useAiActions = ({
             suppressAutoLayout = true;
           }
 
+          if (name === 'reroute_edges') {
+            requestedEdgeReroute = true;
+            continue;
+          }
+
           if (name === 'auto_layout') {
             requestedLayout = true;
             const spacing = queuedAction?.args?.spacing;
             if (spacing === 'compact' || spacing === 'normal' || spacing === 'wide') {
               layoutSpacingRef.current = spacing as any;
-            }
-            const preserveEdges = queuedAction?.args?.preserveEdges;
-            if (typeof preserveEdges === 'boolean') {
-              preserveEdgesRef.current = preserveEdges;
             }
             continue;
           }
@@ -980,11 +950,15 @@ export const useAiActions = ({
             });
           });
         }
+
+        if (requestedEdgeReroute) {
+          rerouteEdges();
+        }
       })
       .catch((err) => {
         console.error('❌ [Action Bridge] AI 액션 체인 실패:', err);
       });
-  }, [executeAiAction, safeAutoLayout]);
+  }, [executeAiAction, rerouteEdges, safeAutoLayout]);
 
   return { executeAiAction, handleAiAction };
 };
