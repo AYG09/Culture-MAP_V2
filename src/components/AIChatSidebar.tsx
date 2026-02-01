@@ -408,17 +408,18 @@ ${layerHeightContext}
                 }
             }
 
-            const actionVerbs = ['추가', '생성', '만들', '연결', '정리', '정렬', '배치', '레이아웃', '삭제', '지워', '제거', '수정', '변경', '옮겨', '이동', '높이', '요약', '축약', '줄여', '간략', '다듬', '정제', '편집', '바꿔'];
+            const actionVerbs = ['추가', '생성', '만들', '연결', '정리', '정렬', '배치', '레이아웃', '삭제', '지워', '제거', '수정', '변경', '옮겨', '이동', '높이', '요약', '축약', '줄여', '간략', '다듬', '정제', '편집', '바꿔', '되돌', '돌려', '복원', '원복', '취소'];
             const actionNouns = ['노드', '포스트잇', '연결', '선', '화살표', '엣지', '레이아웃', '정렬', '배치', '맵', '레이어', '내용', '문장', '텍스트'];
-            const explicitActionPattern = /(추가해|추가해줘|생성해|생성해줘|만들어|만들어줘|연결해|연결해줘|삭제해|지워줘|제거해|수정해|변경해|옮겨줘|이동해|정렬해|배치해|레이아웃해|높여|줄여)/;
+            const explicitActionPattern = /(추가해|추가해줘|생성해|생성해줘|만들어|만들어줘|연결해|연결해줘|삭제해|지워줘|제거해|수정해|변경해|옮겨줘|이동해|정렬해|배치해|레이아웃해|높여|줄여|되돌려|되돌려줘|돌려|돌려줘|복원해|복원해줘|원복해|원복해줘|취소해|취소해줘|undo)/;
             const explanationKeywords = ['설명', '왜', '근거', '의미', '정의', '차이', '무슨', '뭐야', '무엇', '말해', '알려', '이유', '해석'];
             const hasVerb = actionVerbs.some(keyword => currentText.includes(keyword));
             const hasNoun = actionNouns.some(keyword => currentText.includes(keyword));
             const layoutOnlyRequest = /정렬|정리|배치|레이아웃|높이/.test(currentText);
+            const undoOnlyRequest = /(되돌|돌려|복원|원복|취소|undo)/i.test(currentText);
             const mapEditIntentDetected = (hasVerb && hasNoun) || layoutOnlyRequest;
             const explanationRequest = explanationKeywords.some(keyword => currentText.includes(keyword));
             const explicitActionDetected = explicitActionPattern.test(currentText);
-            const explicitMapEditRequest = !isPrivateChat && (explicitActionDetected || layoutOnlyRequest) && !explanationRequest;
+            const explicitMapEditRequest = !isPrivateChat && (explicitActionDetected || layoutOnlyRequest || undoOnlyRequest) && !explanationRequest;
             const preservePositionsRequested = /(위치.*유지|현재.*위치|정렬.*하지|정렬하지|레이아웃.*하지|자동\s*정렬.*(하지|말))/i.test(currentText);
             const forceFunctionCall = explicitMapEditRequest;
 

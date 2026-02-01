@@ -47,6 +47,77 @@
 
 ---
 
+# Walkthrough: 자동정렬 전 스냅샷 점검
+
+## 완료 일시
+2026-02-01
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. AI auto_layout 요청 시 사전 스냅샷 저장 로직 존재 여부 확인
+2. auto_layout 실행 경로에서 스냅샷 저장이 선행되는지 확인
+
+---
+
+## ✅ 해결 조치
+
+1. `safeAutoLayout` 시작부에 pre-layout 스냅샷 저장 로직 확인
+2. AI 액션 처리에서 `auto_layout` 요청 시 `safeAutoLayout` 실행 경로 확인
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| 없음 | 점검만 수행 (코드 변경 없음) |
+
+---
+
+## 🧪 검증
+
+1. `safeAutoLayout` 진입 시 localStorage에 `culture-map-snapshot:_before_layout` 저장
+2. AI auto_layout 요청 시 `useAiActions`에서 `safeAutoLayout` 호출
+
+---
+
+# Walkthrough: undo_layout 우선 사용 가이드 조정
+
+## 완료 일시
+2026-02-01
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. “이전 상태로 돌려/원복/취소” 요청 시 `undo_layout`을 우선 사용하도록 지침 강화
+2. `restore_snapshot`은 **스냅샷/백업 명시 요청**에만 사용하도록 구분
+
+---
+
+## ✅ 해결 조치
+
+1. AI 시스템 지침에 undo/restore 분기 기준 추가
+2. 도구 설명에서 restore/undo 목적을 분리해 혼동 최소화
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/services/AIService.ts` | undo_layout/restore_snapshot 사용 기준 명확화 |
+| `src/types/actions.ts` | 도구 설명 문구 정리 |
+
+---
+
+## 🧪 검증
+
+1. “이전 상태로 돌려” → `undo_layout` 선택
+2. “저장한 스냅샷 복원” → `restore_snapshot` 선택
+
+---
+
 # Walkthrough: auto_layout 비정상 종료 및 레이어 이탈 보정
 
 ## 완료 일시

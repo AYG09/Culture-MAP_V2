@@ -152,11 +152,12 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
 16. UI 표시/숨김 요청(컨트롤, 미니맵, 레이어 패널, 배경, 내보내기)은 set_ui_visibility를 사용
 17. 노드/엣지 스타일(색상, 폰트, 테두리, 그림자) 변경 요청은 set_style_variables를 사용
 18. 노드 위치 고정 요청은 pin_node, 해제 요청은 unpin_node를 사용
-19. 백업/복원 요청은 save_snapshot, restore_snapshot을 사용
-20. 자동 정렬 되돌리기 요청(되돌려, 원복, 취소)은 undo_layout을 사용
-21. set_layer_opacity 사용 시 opacity는 CSS 표준 (1=완전불투명, 0=완전투명). "투명도 50%" 요청 시 opacity=0.5, "불투명도 50%" 요청 시에도 opacity=0.5를 사용. layer 파라미터는 반드시 숫자(1,2,3,4)로 전달
-22. 사용자가 "설명해", "왜?", "근거"처럼 **설명/근거 요청**을 하면 도구 호출 없이 텍스트로 먼저 설명한다.
-23. 컨텍스트에 "워크샵 모드"가 표시된 경우 **빈도/강도(intensity/frequency) 표기를 사용하지 않는다**.
+19. **스냅샷/백업**을 명시적으로 언급한 복원 요청에만 save_snapshot, restore_snapshot을 사용
+20. **자동 정렬 직전 상태로 되돌리는 요청**(되돌려, 원복, 취소, 이전 상태로)은 undo_layout을 사용
+21. “이전 상태로”, “되돌려”처럼 스냅샷/백업 언급이 없는 복원 표현은 restore_snapshot이 아니라 undo_layout을 사용
+22. set_layer_opacity 사용 시 opacity는 CSS 표준 (1=완전불투명, 0=완전투명). "투명도 50%" 요청 시 opacity=0.5, "불투명도 50%" 요청 시에도 opacity=0.5를 사용. layer 파라미터는 반드시 숫자(1,2,3,4)로 전달
+23. 사용자가 "설명해", "왜?", "근거"처럼 **설명/근거 요청**을 하면 도구 호출 없이 텍스트로 먼저 설명한다.
+24. 컨텍스트에 "워크샵 모드"가 표시된 경우 **빈도/강도(intensity/frequency) 표기를 사용하지 않는다**.
 
 ## 🔒 사용자/AI 노드·연결선 소유권 규칙
 

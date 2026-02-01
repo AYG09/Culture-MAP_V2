@@ -611,7 +611,7 @@ export const MAP_TOOL_DECLARATIONS = [
     },
     {
         name: 'restore_snapshot',
-        description: 'Call when user wants to restore the saved map state. Trigger words: 복원, 되돌리기, 스냅샷 불러오기. Examples: "최근 백업 복원"',
+        description: 'Call when user wants to restore an explicitly saved snapshot/backup. Trigger words: 스냅샷 복원, 백업 복원, 저장한 상태 불러오기. Examples: "저장한 스냅샷 복원"',
         parametersJsonSchema: {
             type: 'object',
             properties: {
@@ -622,7 +622,7 @@ export const MAP_TOOL_DECLARATIONS = [
     },
     {
         name: 'undo_layout',
-        description: 'Call when user wants to undo the last auto layout. Trigger words: 되돌려, 원복, 취소, 이전으로, undo. Examples: "정렬 취소해줘", "이전 상태로 되돌려"',
+        description: 'Call when user wants to undo the last auto layout (restore pre-layout state). Trigger words: 되돌려, 원복, 취소, 이전 상태로, undo. Examples: "정렬 취소해줘", "이전 상태로 되돌려"',
         parametersJsonSchema: {
             type: 'object',
             properties: {},
