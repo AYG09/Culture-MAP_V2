@@ -61,11 +61,18 @@ const HelpModal = ({ onClose }: HelpModalProps) => {
                   <li><strong>노드 삭제:</strong> 노드 우클릭 → 삭제</li>
                   <li><strong>연결선 삭제:</strong> 연결선 우클릭 → 삭제</li>
                   <li><strong>핀 고정:</strong> 노드 상단 핀 버튼</li>
+                  <li><strong>일괄 고정/해제:</strong> 드래그 선택 → 우클릭 → 선택 노드</li>
                 </ul>
               </div>
             </div>
             <div className="help-tip">
               💡 편집 중에는 노드가 이동되지 않습니다. 핀 고정 노드는 자동 정렬에서도 위치가 유지됩니다.
+            </div>
+            <div className="help-tip">
+              ↩️ 상단 “이전상태”는 참여자 구분 없이 마지막 변경을 1단계 되돌립니다.
+            </div>
+            <div className="help-tip">
+              💾 “컬쳐맵 저장/로드”는 세션 전역 공유입니다.
             </div>
           </section>
 
@@ -90,8 +97,17 @@ const HelpModal = ({ onClose }: HelpModalProps) => {
                 <h4>핀/레이어/뷰포트</h4>
                 <ul className="help-list">
                   <li>“이 노드 고정해줘”</li>
+                  <li>“선택 노드 전부 고정해줘”</li>
                   <li>“3층 레이어 높이 350으로”</li>
                   <li>“전체 보기로 맞춰줘”</li>
+                </ul>
+              </div>
+              <div className="help-card">
+                <h4>되돌리기/스냅샷</h4>
+                <ul className="help-list">
+                  <li>“이전 상태로 되돌려”</li>
+                  <li>“스냅샷 저장해줘”</li>
+                  <li>“스냅샷 복원해줘”</li>
                 </ul>
               </div>
               <div className="help-card">
@@ -112,6 +128,9 @@ const HelpModal = ({ onClose }: HelpModalProps) => {
               <span className="help-pill">자동 정렬(노드)</span>
               <span className="help-pill">연결선 재정렬</span>
               <span className="help-pill">핀 고정/해제</span>
+              <span className="help-pill">선택 노드 일괄 고정</span>
+              <span className="help-pill">이전상태(전역 Undo)</span>
+              <span className="help-pill">스냅샷 저장/로드(공유)</span>
               <span className="help-pill">레이어 높이 조절</span>
               <span className="help-pill">줌/팬/전체보기</span>
               <span className="help-pill">스타일/가시성 조절</span>
