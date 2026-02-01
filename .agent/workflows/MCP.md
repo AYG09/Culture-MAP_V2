@@ -110,9 +110,9 @@ Sequential Thinking을 통해 문제 원인이나 해결책을 도출했다면, 
 - task가 `in_progress`면 `execute_task` 재호출 금지
 - 완료 후 `verify_task` 1회만 호출
 
-### 2-2. 📊 시각적 다이어그램 (필수)
+### 2-2. 📊 시각적 다이어그램 (선택)
 
-**Mermaid 다이어그램**으로 계획 흐름/Before-After 시각화:
+요청이 있거나 복잡한 변경으로 시각화가 필요할 때만 Mermaid 다이어그램 사용:
 
 ```mermaid
 %% Before 예시

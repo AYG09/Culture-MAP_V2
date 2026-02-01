@@ -5,7 +5,6 @@ import {
   Background,
   Controls,
   MiniMap,
-  Panel,
   ViewportPortal,
   useNodesState,
   useEdgesState,
@@ -23,6 +22,7 @@ import {
   type ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { useLiveblocksSync } from '../hooks/useLiveblocksSync';
 import { useOthers, useUpdateMyPresence } from '@liveblocks/react/suspense';
 import {
   ResultNode,
@@ -34,6 +34,9 @@ import AnimatedFlowEdge from './edges/AnimatedFlowEdge';
 import MobileGestureGuide from './MobileGestureGuide';
 import AIChatSidebar from './AIChatSidebar'; // 좌측 사이드메뉴 (AI 챗봇)
 import { useIsMobile } from '../hooks/useResponsive'; // 반응형 훅 추가
+import LayerBackground from './LayerBackground';
+import LayerControlPanel from './LayerControlPanel';
+import { useAiActions } from '../hooks/useAiActions';
 
 // Lazy loaded components for code splitting
 const ExportMenu = lazy(() => import('./ExportMenu'));
@@ -41,41 +44,7 @@ const ReportEditor = lazy(() => import('./ReportEditor'));
 
 // 타입
 import type { NoteData, ConnectionData, PerceptionIntensity } from '../types/culture';
-import type {
-  AddNodePayload,
-  AddNodesWithConnectionsPayload,
-  AdjustLayerHeightPayload,
-  AiAction,
-  BatchConnectionInput,
-  BatchNodeInput,
-  CreateConnectionPayload,
-  DeleteConnectionPayload,
-  DeleteNodePayload,
-  FitViewPayload,
-  FocusNodePayload,
-  PanViewportPayload,
-  PinNodePayload,
-  RestoreSnapshotPayload,
-  SaveSnapshotPayload,
-  SetLayerOpacityPayload,
-  SetStyleVariablesPayload,
-  SetUiVisibilityPayload,
-  SetViewportPayload,
-  ToggleLayerBackgroundPayload,
-  UnpinNodePayload,
-  UpdateNodePayload,
-  ZoomViewportPayload,
-} from '../types/actions';
-import {
-  isAddNodePayload,
-  isAddNodesWithConnectionsPayload,
-  isCreateConnectionPayload,
-  isDeleteConnectionPayload,
-  isDeleteNodePayload,
-  isUpdateNodePayload,
-} from '../types/actions';
-import { INTENSITY_MAP } from '../types/culture';
-import type { StickyNoteData, ConnectionData as LBConnectionData, LayerSettings, SessionType } from '../types/liveblocks';
+import type { StickyNoteData, ConnectionData as LBConnectionData, SessionType } from '../types/liveblocks';
 
 // 유틸리티
 import { convertToFlowData, convertFromFlowData } from '../utils/flowDataConverter';
@@ -237,12 +206,10 @@ const CultureMapFlow = ({
   const preserveEdgesRef = useRef(false);
   const previousLayerStartsRef = useRef<number[] | null>(null);
   const isHydratingRef = useRef(false);
-  const pendingHydrateRef = useRef<number | null>(null);
-  const isAutoLayerHeightsRef = useRef(false);
   const isUserLayerHeightChangeRef = useRef(false);
   const draggingNodeIdsRef = useRef(new Set<string>());
   const resizingNodeIdsRef = useRef(new Set<string>());
-  const actionQueuePromiseRef = useRef<Promise<void>>(Promise.resolve());
+
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -252,23 +219,7 @@ const CultureMapFlow = ({
     edgesRef.current = edges;
   }, [edges]);
 
-  useEffect(() => {
-    const handleSessionTypeChange = (value: unknown) => {
-      if (value === 'workshop' || value === 'consulting') {
-        setSessionType(value);
-      }
-    };
-
-    const initialType = liveblocksService.getCurrentSession()?.type;
-    if (initialType) {
-      setSessionType(initialType);
-    }
-
-    liveblocksService.on('session-type-changed', handleSessionTypeChange);
-    return () => {
-      liveblocksService.off('session-type-changed', handleSessionTypeChange);
-    };
-  }, []);
+  /* useEffect for session type removed */
 
   const lastSyncWarningRef = useRef(0);
 
@@ -285,50 +236,6 @@ const CultureMapFlow = ({
 
     console.warn('⚠️ [React Flow] Liveblocks 미연결로 작업 중단:', actionLabel);
     return false;
-  }, []);
-
-  const areNumberArraysEqual = (left: number[], right: number[]) =>
-    left.length === right.length && left.every((value, index) => value === right[index]);
-
-  const applyLayerSettings = useCallback((settings: LayerSettings | null, reason: string) => {
-    if (!settings) return;
-
-    const hasBackgroundUpdate = typeof settings.showLayerBackground === 'boolean';
-    const heightsEqual = areNumberArraysEqual(settings.layerHeights, layerHeightsRef.current);
-    const opacitiesEqual = areNumberArraysEqual(settings.layerOpacities, layerOpacitiesRef.current);
-    const backgroundEqual = !hasBackgroundUpdate
-      || settings.showLayerBackground === showLayerBackgroundRef.current;
-
-    if (heightsEqual && opacitiesEqual && backgroundEqual) return;
-
-    applyingLayerSettingsRef.current = true;
-    isUserLayerHeightChangeRef.current = false;
-    
-    // ref를 즉시 업데이트하여 다음 호출 시 heightsEqual = true가 되도록 함
-    layerHeightsRef.current = settings.layerHeights;
-    layerOpacitiesRef.current = settings.layerOpacities;
-    if (hasBackgroundUpdate) {
-      showLayerBackgroundRef.current = settings.showLayerBackground as boolean;
-    }
-    
-    setLayerHeights(settings.layerHeights);
-    setLayerOpacities(settings.layerOpacities);
-
-    // showLayerBackground 동기화 수신 (optional 필드)
-    if (hasBackgroundUpdate) {
-      setShowLayerBackground(settings.showLayerBackground as boolean);
-    }
-
-    lastSyncedLayerSettingsRef.current = {
-      layerHeights: [...settings.layerHeights],
-      layerOpacities: [...settings.layerOpacities],
-    };
-
-    requestAnimationFrame(() => {
-      applyingLayerSettingsRef.current = false;
-    });
-
-    console.log('✅ [React Flow] 레이어 설정 복원:', { reason, settings });
   }, []);
 
   // AI 일괄 생성 입력 상태
@@ -488,45 +395,9 @@ ${chatHistorySection}
     }
   }, [isGeneratingReport, isConsultingMode]);
 
-  // 보고서 내용 Firebase 동기화 (컨설팅 모드에서만)
-  useEffect(() => {
-    if (!isConsultingMode) return;
+  // 보고서 내용 Firebase 동기화 (컨설팅 모드에서만) - useLiveblocksSync에서 처리됨
+  /* useEffect removed */
 
-    const unsubscribe = liveblocksService.onReportContent((content) => {
-      setReportContent(content);
-    });
-
-    return unsubscribe;
-  }, [isConsultingMode]);
-
-  // AI 인사이트 Liveblocks 동기화
-  useEffect(() => {
-    let unsubscribeInsights = () => { };
-
-    const syncInsights = () => {
-      if (!liveblocksService.isConnected()) {
-        return;
-      }
-
-      const currentInsights = liveblocksService.getInsights();
-      if (currentInsights.length > 0) {
-        aiService.setInsights(currentInsights);
-      }
-
-      unsubscribeInsights();
-      unsubscribeInsights = liveblocksService.onInsights((insights) => {
-        aiService.setInsights(insights);
-      });
-    };
-
-    syncInsights();
-    liveblocksService.on('sync-complete', syncInsights);
-
-    return () => {
-      liveblocksService.off('sync-complete', syncInsights);
-      unsubscribeInsights();
-    };
-  }, []);
 
   // 층위별 개별 높이 조절 상태 (레거시 모드와 동일)
   const [layerHeights, setLayerHeights] = useState<number[]>([220, 220, 220, 220]); // [결과, 행동, 유형, 무형]
@@ -535,10 +406,6 @@ ${chatHistorySection}
   const layerHeightsRef = useRef(layerHeights);
   const layerOpacitiesRef = useRef(layerOpacities);
   const showLayerBackgroundRef = useRef(showLayerBackground);
-  const lastSyncedLayerSettingsRef = useRef<{
-    layerHeights: number[];
-    layerOpacities: number[];
-  } | null>(null);
 
   useEffect(() => {
     layerHeightsRef.current = layerHeights;
@@ -567,7 +434,7 @@ ${chatHistorySection}
     edgeWidth: 2,
   });
 
-  const applyingLayerSettingsRef = useRef(false);
+  
 
   // 선택된 층위 (높이 조절용, null = 선택 없음)
   const [selectedLayerIndex, setSelectedLayerIndex] = useState<number | null>(0);
@@ -939,1016 +806,8 @@ ${chatHistorySection}
     '--edge-width': `${variables.edgeWidth}px`,
   }), []);
 
-  // AI 액션 실행 핸들러 (배치 처리)
-  const executeAiAction = useCallback((action: AiAction) => {
-    console.log('🤖 [Action Bridge] AI 액션 실행:', action);
-    const { name } = action;
-    const args = (action.args ?? {}) as Record<string, unknown>;
-
-    /**
-     * 사용자 생성 항목 보호 체크
-     * - createdBy === 'user'인 항목은 force 플래그 없이는 수정/삭제 불가
-     */
-    const checkUserCreatedProtection = (
-      itemId: string,
-      itemType: 'node' | 'edge',
-      operation: 'update' | 'delete'
-    ): boolean => {
-      const force = args.force === true;
-      
-      if (itemType === 'node') {
-        const node = nodesRef.current.find(n => n.id === itemId);
-        const createdBy = (node?.data as { createdBy?: string })?.createdBy;
-        if (createdBy === 'user' && !force) {
-          console.warn(`⚠️ [Action Bridge] 사용자가 생성한 노드는 AI가 임의로 ${operation}할 수 없습니다: ${itemId}`);
-          console.info('💡 사용자가 명시적으로 요청하면 force: true 플래그로 수정 가능합니다.');
-          return false;
-        }
-      } else {
-        const edge = edgesRef.current.find(e => e.id === itemId);
-        const createdBy = (edge?.data as { createdBy?: string })?.createdBy;
-        if (createdBy === 'user' && !force) {
-          console.warn(`⚠️ [Action Bridge] 사용자가 생성한 연결선은 AI가 임의로 ${operation}할 수 없습니다: ${itemId}`);
-          console.info('💡 사용자가 명시적으로 요청하면 force: true 플래그로 수정 가능합니다.');
-          return false;
-        }
-      }
-      return true;
-    };
-
-    const getNodeTypeFromLayer = (layerValue: number) => {
-      const layerToType: Record<number, string> = {
-        1: 'result',
-        2: 'behavior',
-        3: 'tangible_lever',
-        4: 'intangible_lever',
-      };
-      return layerToType[Math.max(1, Math.min(4, layerValue))] || 'result';
-    };
-
-    const requiresSync = [
-      'add_node',
-      'add_nodes_with_connections',
-      'update_node',
-      'delete_node',
-      'delete_connection',
-      'create_connection',
-      'pin_node',
-      'unpin_node',
-    ];
-
-    if (requiresSync.includes(name) && !ensureLiveblocksConnected('AI 액션')) {
-      return;
-    }
-
-    switch (name) {
-      case 'add_node': {
-        if (!isAddNodePayload(args)) {
-          console.error('❌ [Action Bridge] Invalid add_node payload:', args);
-          break;
-        }
-        const payload = args as AddNodePayload;
-        const newNodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-        const layerValue = payload.layer ?? 2;
-        const layerIndex = layerValue - 1;
-
-        let currentY = 0;
-        for (let i = 0; i < layerIndex; i++) {
-          currentY += layerHeights[i];
-        }
-        const defaultY = currentY + (layerHeights[layerIndex] / 2);
-
-        const existingNodesInLayer = nodesRef.current.filter(n => n.data?.layer === layerValue).length;
-        const baseX = 150 + (existingNodesInLayer * 220);
-        const x = typeof payload.x === 'number' ? payload.x : baseX;
-        const y = typeof payload.y === 'number' ? payload.y : defaultY + (Math.random() * 20 - 10);
-
-        const typeMap: Record<string, string> = {
-          '결과': 'result',
-          '행동': 'behavior',
-          '유형_레버': 'tangible_lever',
-          '무형_레버': 'intangible_lever',
-          'result': 'result',
-          'behavior': 'behavior',
-          'tangible_lever': 'tangible_lever',
-          'intangible_lever': 'intangible_lever',
-        };
-        const nodeType = typeMap[payload.type] || getNodeTypeFromLayer(layerValue);
-
-        const content = payload.content || payload.label || '새 노드';
-        const sentiment = payload.sentiment === 'positive' ? 'positive' : (payload.sentiment === 'negative' ? 'negative' : 'neutral');
-        const frequency = isConsultingMode
-          ? (typeof payload.intensity === 'number'
-            ? INTENSITY_MAP.TO_STRING(payload.intensity)
-            : (payload.intensity ?? 'medium'))
-          : undefined;
-
-        liveblocksService.updateStickyNote({
-          id: newNodeId,
-          content,
-          x,
-          y,
-          layer: layerValue,
-          sentiment,
-          type: nodeType,
-          createdBy: 'ai',
-          ...(isConsultingMode && frequency ? { frequency } : {}),
-        });
-
-        const newNode: Node = {
-          id: newNodeId,
-          type: nodeType,
-          position: { x, y },
-          data: {
-            id: newNodeId,
-            content,
-            author: liveblocksService.getCurrentUserDisplayName(),
-            timestamp: Date.now(),
-            sentiment,
-            createdBy: 'ai',
-            ...(isConsultingMode && frequency ? { frequency } : {}),
-            type: nodeType,
-            layer: layerValue,
-            onUpdate: handleNodeContentUpdate,
-            onEditStart: handleStartNodeEditing,
-            onEditEnd: handleStopNodeEditing,
-            isLocked: false,
-            lockedBy: undefined,
-          },
-          draggable: true,
-        };
-
-        setNodes((nds) => {
-          const updated = nds.concat(newNode);
-          nodesRef.current = updated;
-          return updated;
-        });
-        console.log('✅ [Action Bridge] New node added to UI:', newNodeId, 'type:', nodeType, 'layer:', layerValue);
-        break;
-      }
-
-      case 'add_nodes_with_connections': {
-        if (!isAddNodesWithConnectionsPayload(args)) {
-          console.error('❌ [Action Bridge] Invalid add_nodes_with_connections payload:', args);
-          break;
-        }
-        const payload = args as AddNodesWithConnectionsPayload;
-        const nodeInputs = Array.isArray(payload.nodes) ? (payload.nodes as BatchNodeInput[]) : [];
-        const connectionInputs = Array.isArray(payload.connections) ? (payload.connections as BatchConnectionInput[]) : [];
-
-        if (!nodeInputs.length) break;
-
-        const typeMap: Record<string, string> = {
-          '결과': 'result',
-          '행동': 'behavior',
-          '유형_레버': 'tangible_lever',
-          '무형_레버': 'intangible_lever',
-          'result': 'result',
-          'behavior': 'behavior',
-          'tangible_lever': 'tangible_lever',
-          'intangible_lever': 'intangible_lever',
-        };
-
-        const layerCounts = new Map<number, number>();
-        nodesRef.current.forEach((node) => {
-          const layerValue = typeof node.data?.layer === 'number' ? node.data.layer : undefined;
-          if (layerValue) {
-            layerCounts.set(layerValue, (layerCounts.get(layerValue) ?? 0) + 1);
-          }
-        });
-
-        const idMap: Record<string, string> = {};
-        const newNodes: Node[] = [];
-        const batchTimestamp = Date.now();
-
-        nodeInputs.forEach((input, index) => {
-          const layerValue = typeof input.layer === 'number' ? input.layer : 2;
-          const layerIndex = Math.max(1, Math.min(4, layerValue)) - 1;
-          const currentCount = layerCounts.get(layerValue) ?? 0;
-          layerCounts.set(layerValue, currentCount + 1);
-
-          let currentY = 0;
-          for (let i = 0; i < layerIndex; i++) {
-            currentY += layerHeights[i];
-          }
-          const defaultY = currentY + (layerHeights[layerIndex] / 2);
-          const baseX = 150 + (currentCount * 220);
-
-          const x = typeof input.x === 'number' && Number.isFinite(input.x)
-            ? input.x
-            : baseX;
-          const y = typeof input.y === 'number' && Number.isFinite(input.y)
-            ? input.y
-            : defaultY + (Math.random() * 20 - 10);
-
-          const nodeType = typeMap[input.type] || getNodeTypeFromLayer(layerValue);
-          const content = input.content || input.label || '새 노드';
-          const sentiment = input.sentiment === 'positive' ? 'positive' : (input.sentiment === 'negative' ? 'negative' : 'neutral');
-          const frequency = isConsultingMode
-            ? (typeof input.intensity === 'number'
-              ? INTENSITY_MAP.TO_STRING(input.intensity)
-              : input.intensity)
-            : undefined;
-
-          const newNodeId = `node-${batchTimestamp}-${index}-${Math.random().toString(36).substr(2, 4)}`;
-          if (input.tempId) {
-            idMap[input.tempId] = newNodeId;
-          }
-
-          liveblocksService.updateStickyNote({
-            id: newNodeId,
-            content,
-            x,
-            y,
-            layer: layerValue,
-            sentiment,
-            type: nodeType,
-            createdBy: 'ai',
-            ...(isConsultingMode && frequency ? { frequency } : {}),
-          });
-
-          newNodes.push({
-            id: newNodeId,
-            type: nodeType,
-            position: { x, y },
-            data: {
-              id: newNodeId,
-              content,
-              author: liveblocksService.getCurrentUserDisplayName(),
-              timestamp: Date.now(),
-              sentiment,
-              createdBy: 'ai',
-              ...(isConsultingMode && frequency ? { frequency } : {}),
-              type: nodeType,
-              layer: layerValue,
-              onUpdate: handleNodeContentUpdate,
-              onEditStart: handleStartNodeEditing,
-              onEditEnd: handleStopNodeEditing,
-              isLocked: false,
-              lockedBy: undefined,
-            },
-            draggable: true,
-          });
-        });
-
-        const updatedNodes = [...nodesRef.current, ...newNodes];
-        setNodes(() => {
-          nodesRef.current = updatedNodes;
-          return updatedNodes;
-        });
-
-        const newEdges: Edge[] = [];
-        connectionInputs.forEach((connection, index) => {
-          const sourceId = idMap[connection.sourceId] || connection.sourceId;
-          const targetId = idMap[connection.targetId] || connection.targetId;
-          if (!sourceId || !targetId) {
-            return;
-          }
-
-          const relationType = connection.relationType === 'indirect' ? 'indirect' : 'direct';
-          const isPositive = connection.isPositive !== false;
-          const edgeColor = isPositive ? '#10b981' : '#ef4444';
-          const edgeId = `edge-${sourceId}-${targetId}-${batchTimestamp}-${index}`;
-
-          // 연결선 핸들 계산 (새로 생성된 노드 포함)
-          const sourceNode = updatedNodes.find(n => n.id === sourceId);
-          const targetNode = updatedNodes.find(n => n.id === targetId);
-          let sourceHandle: string | undefined;
-          let targetHandle: string | undefined;
-          if (sourceNode && targetNode) {
-            const handles = getOptimalHandles(sourceNode, targetNode);
-            sourceHandle = handles.sourceHandle;
-            targetHandle = handles.targetHandle;
-          }
-
-          newEdges.push({
-            id: edgeId,
-            source: sourceId,
-            target: targetId,
-            sourceHandle,
-            targetHandle,
-            type: 'animatedFlow',
-            style: {
-              strokeWidth: 2,
-              stroke: edgeColor,
-              strokeDasharray: relationType === 'indirect' ? '5 5' : undefined,
-            },
-            markerEnd: {
-              type: 'arrowclosed',
-              width: 20,
-              height: 20,
-              color: edgeColor,
-            },
-            data: {
-              relationType,
-              isPositive,
-              createdBy: 'ai',
-            },
-          });
-
-          liveblocksService.updateConnection({
-            id: edgeId,
-            sourceId,
-            targetId,
-            relationType,
-            isPositive,
-            createdBy: 'ai',
-            sourceHandle,
-            targetHandle,
-          });
-        });
-
-        const updatedEdges = [...edgesRef.current, ...newEdges];
-        setEdges(() => {
-          edgesRef.current = updatedEdges;
-          return updatedEdges;
-        });
-
-        const { connections: updatedConnections } = convertFromFlowData(updatedNodes, updatedEdges);
-        onConnectionsChange(updatedConnections);
-
-        console.log('✅ [Action Bridge] Batch nodes/connections added:', newNodes.length, newEdges.length);
-        break;
-      }
-
-      case 'update_node': {
-        if (!isUpdateNodePayload(args)) {
-          console.error('❌ [Action Bridge] Invalid update_node payload:', args);
-          break;
-        }
-        const payload = args as UpdateNodePayload & { layer?: number; type?: string; force?: boolean };
-        if (!payload.id) break;
-        // 사용자 생성 노드 보호
-        if (!checkUserCreatedProtection(payload.id, 'node', 'update')) break;
-        const sentiment = payload.sentiment === 'positive' ? 'positive' : (payload.sentiment === 'negative' ? 'negative' : 'neutral');
-        const frequency = isConsultingMode
-          ? (typeof payload.intensity === 'number'
-            ? INTENSITY_MAP.TO_STRING(payload.intensity)
-            : payload.intensity)
-          : undefined;
-        const content = payload.content || payload.label;
-        const hasX = typeof payload.x === 'number' && Number.isFinite(payload.x);
-        const hasY = typeof payload.y === 'number' && Number.isFinite(payload.y);
-        const layerValue = typeof payload.layer === 'number' ? payload.layer : undefined;
-        const typeValue = typeof payload.type === 'string' ? payload.type : undefined;
-
-        liveblocksService.updateStickyNote({
-          id: payload.id,
-          content,
-          sentiment,
-          ...(isConsultingMode && frequency ? { frequency } : {}),
-          ...(hasX ? { x: payload.x } : {}),
-          ...(hasY ? { y: payload.y } : {}),
-          ...(layerValue ? { layer: layerValue } : {}),
-          ...(typeValue ? { type: typeValue } : {}),
-        });
-
-        setNodes((nds) => {
-          const updated = nds.map((node) => {
-            if (node.id === payload.id) {
-              const nextPosition = hasX || hasY
-                ? {
-                  x: hasX ? payload.x! : node.position.x,
-                  y: hasY ? payload.y! : node.position.y,
-                }
-                : node.position;
-              return {
-                ...node,
-                position: nextPosition,
-                data: {
-                  ...node.data,
-                  ...(content ? { content } : {}),
-                  ...(sentiment ? { sentiment } : {}),
-                  ...(isConsultingMode && frequency ? { frequency } : {}),
-                  ...(typeValue ? { type: typeValue } : {}),
-                  ...(layerValue ? { layer: layerValue } : {}),
-                },
-              };
-            }
-            return node;
-          });
-          nodesRef.current = updated;
-          return updated;
-        });
-        console.log('✅ [Action Bridge] Node updated in UI:', payload.id);
-        break;
-      }
-
-      case 'pin_node': {
-        const payload = (args as unknown) as PinNodePayload;
-        if (!payload?.id) break;
-
-        liveblocksService.updateStickyNote({
-          id: payload.id,
-          pinned: true,
-          pinnedHandles: payload.pinHandles === true,
-        });
-
-        setNodes((nds) => {
-          const updated = nds.map((node) => {
-            if (node.id !== payload.id) return node;
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                pinned: true,
-                pinnedHandles: payload.pinHandles === true,
-              },
-            };
-          });
-          nodesRef.current = updated;
-          return updated;
-        });
-        console.log('📌 [Action Bridge] Node pinned:', payload.id);
-        break;
-      }
-
-      case 'unpin_node': {
-        const payload = (args as unknown) as UnpinNodePayload;
-        if (!payload?.id) break;
-
-        liveblocksService.updateStickyNote({
-          id: payload.id,
-          pinned: false,
-          pinnedHandles: false,
-        });
-
-        setNodes((nds) => {
-          const updated = nds.map((node) => {
-            if (node.id !== payload.id) return node;
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                pinned: false,
-                pinnedHandles: false,
-              },
-            };
-          });
-          nodesRef.current = updated;
-          return updated;
-        });
-        console.log('📌 [Action Bridge] Node unpinned:', payload.id);
-        break;
-      }
-
-      case 'delete_node':
-        {
-          if (!isDeleteNodePayload(args)) {
-            console.error('❌ [Action Bridge] Invalid delete_node payload:', args);
-            break;
-          }
-          const payload = args as DeleteNodePayload & { force?: boolean };
-          if (!payload.id) break;
-          // 사용자 생성 노드 보호
-          if (!checkUserCreatedProtection(payload.id, 'node', 'delete')) break;
-          const edgesToDelete = edgesRef.current.filter(
-            (edge) => edge.source === payload.id || edge.target === payload.id
-          );
-          liveblocksService.deleteStickyNote(payload.id);
-          edgesToDelete.forEach((edge) => liveblocksService.deleteConnection(edge.id));
-          setNodes((nds) => {
-            const updated = nds.filter((node) => node.id !== payload.id);
-            nodesRef.current = updated;
-            return updated;
-          });
-          setEdges((eds) => {
-            const updated = eds.filter((edge) => edge.source !== payload.id && edge.target !== payload.id);
-            edgesRef.current = updated;
-            return updated;
-          });
-          const { notes: updatedNotes, connections: updatedConnections } = convertFromFlowData(
-            nodesRef.current,
-            edgesRef.current
-          );
-          onNotesChange(updatedNotes);
-          onConnectionsChange(updatedConnections);
-          console.log('✅ [Action Bridge] Node deleted from UI:', payload.id);
-        }
-        break;
-
-      case 'delete_connection':
-        {
-          if (!isDeleteConnectionPayload(args)) {
-            console.error('❌ [Action Bridge] Invalid delete_connection payload:', args);
-            break;
-          }
-          const payload = args as DeleteConnectionPayload & { force?: boolean };
-          if (!payload.id) break;
-          // 사용자 생성 연결선 보호
-          if (!checkUserCreatedProtection(payload.id, 'edge', 'delete')) break;
-          liveblocksService.deleteConnection(payload.id);
-          setEdges((eds) => {
-            const updated = eds.filter((edge) => edge.id !== payload.id);
-            edgesRef.current = updated;
-            return updated;
-          });
-          const { connections: updatedConnections } = convertFromFlowData(nodesRef.current, edgesRef.current);
-          onConnectionsChange(updatedConnections);
-          console.log('✅ [Action Bridge] Connection deleted from UI:', payload.id);
-        }
-        break;
-
-      case 'create_connection':
-        {
-          if (!isCreateConnectionPayload(args) && typeof (args as Record<string, unknown>)?.source !== 'string' && typeof (args as Record<string, unknown>)?.target !== 'string') {
-            console.error('❌ [Action Bridge] Invalid create_connection payload:', args);
-            break;
-          }
-          const payload = args as CreateConnectionPayload & { source?: string; target?: string };
-          let sourceId = payload.sourceId || payload.source;
-          let targetId = payload.targetId || payload.target;
-          if (!sourceId || !targetId) break;
-
-          // AI가 노드 ID 대신 content/label을 전달한 경우 폴백 검색
-          const findNodeByContentOrId = (idOrContent: string): string | undefined => {
-            // 먼저 정확한 ID로 검색
-            const exactMatch = nodesRef.current.find(n => n.id === idOrContent);
-            if (exactMatch) return exactMatch.id;
-
-            // ID로 못 찾으면 content/label로 검색 (AI가 텍스트를 전달한 경우)
-            const normalizedSearch = idOrContent.replace(/^"|"$/g, '').trim().toLowerCase();
-            const contentMatch = nodesRef.current.find(n => {
-              const nodeContent = String((n.data as { content?: string })?.content || '').toLowerCase();
-              const nodeLabel = String((n.data as { label?: string })?.label || '').toLowerCase();
-              return nodeContent.includes(normalizedSearch) || 
-                     normalizedSearch.includes(nodeContent) ||
-                     nodeLabel.includes(normalizedSearch) ||
-                     normalizedSearch.includes(nodeLabel) ||
-                     nodeContent === normalizedSearch ||
-                     nodeLabel === normalizedSearch;
-            });
-            return contentMatch?.id;
-          };
-
-          const resolvedSourceId = findNodeByContentOrId(sourceId);
-          const resolvedTargetId = findNodeByContentOrId(targetId);
-
-          if (!resolvedSourceId || !resolvedTargetId) {
-            console.warn('⚠️ [Action Bridge] create_connection: 노드를 찾을 수 없음', {
-              sourceId,
-              targetId,
-              resolvedSourceId,
-              resolvedTargetId,
-              availableNodes: nodesRef.current.map(n => ({ id: n.id, content: (n.data as { content?: string })?.content?.substring(0, 30) }))
-            });
-            break;
-          }
-
-          // 실제 노드 ID로 교체
-          sourceId = resolvedSourceId;
-          targetId = resolvedTargetId;
-
-          const relationType = payload.relationType === 'indirect' ? 'indirect' : 'direct';
-          const isPositive = payload.isPositive !== false;
-
-          // 노드 조회 후 최적 핸들 결정
-          const sourceNode = nodesRef.current.find(n => n.id === sourceId);
-          const targetNode = nodesRef.current.find(n => n.id === targetId);
-          
-          let sourceHandle: string | undefined;
-          let targetHandle: string | undefined;
-          
-          if (sourceNode && targetNode) {
-            const handles = getOptimalHandles(sourceNode, targetNode);
-            sourceHandle = handles.sourceHandle;
-            targetHandle = handles.targetHandle;
-          }
-
-          const edgeId = `edge-${sourceId}-${targetId}`;
-          const newEdge: Edge = {
-            id: edgeId,
-            source: sourceId,
-            target: targetId,
-            sourceHandle,
-            targetHandle,
-            type: 'animatedFlow',
-            style: {
-              strokeWidth: styleVariables.edgeWidth,
-              stroke: styleVariables.edgeColor,
-              strokeDasharray: relationType === 'indirect' ? '5 5' : undefined,
-            },
-            markerEnd: {
-              type: 'arrowclosed',
-              width: 20,
-              height: 20,
-              color: styleVariables.edgeColor,
-            },
-            data: {
-              relationType,
-              isPositive,
-              createdBy: 'ai',
-            },
-          };
-
-          setEdges((eds) => {
-            const updated = addEdge(newEdge, eds);
-            edgesRef.current = updated;
-            return updated;
-          });
-
-          const { connections: updatedConnections } = convertFromFlowData(nodesRef.current, [...edgesRef.current, newEdge]);
-          onConnectionsChange(updatedConnections);
-
-          liveblocksService.updateConnection({
-            id: edgeId,
-            sourceId,
-            targetId,
-            relationType,
-            isPositive,
-            createdBy: 'ai',
-            sourceHandle,
-            targetHandle,
-          });
-        }
-        break;
-
-      case 'adjust_layer_height': {
-        const payload = (args as unknown) as AdjustLayerHeightPayload;
-        if (payload.layer && payload.height) {
-          const layerIndex = payload.layer - 1;
-          const newHeights = [...layerHeights];
-          newHeights[layerIndex] = Math.min(LAYER_MAX_HEIGHT, Math.max(100, payload.height));
-          isUserLayerHeightChangeRef.current = true;
-          setLayerHeights(newHeights);
-
-          // Liveblocks 직접 동기화 (useEffect 제거로 인한 직접 호출)
-          if (liveblocksService.isConnected()) {
-            liveblocksService.updateLayerSettings({ layerHeights: newHeights, layerOpacities });
-          }
-
-          setTimeout(() => safeAutoLayout(false), 100);
-        }
-        break;
-      }
-
-      case 'set_viewport': {
-        const payload = (args as unknown) as SetViewportPayload;
-        if (!reactFlowInstance) break;
-        const duration = typeof payload.duration === 'number' ? payload.duration : 0;
-        const viewport = reactFlowInstance.getViewport();
-        const x = typeof payload.x === 'number' ? payload.x : viewport.x;
-        const y = typeof payload.y === 'number' ? payload.y : viewport.y;
-        const zoom = typeof payload.zoom === 'number' ? payload.zoom : viewport.zoom;
-        void reactFlowInstance.setViewport({ x, y, zoom }, duration > 0 ? { duration } : undefined);
-        break;
-      }
-
-      case 'pan_viewport': {
-        const payload = (args as unknown) as PanViewportPayload;
-        if (!reactFlowInstance) break;
-        if (typeof payload.dx !== 'number' || typeof payload.dy !== 'number') break;
-        const duration = typeof payload.duration === 'number' ? payload.duration : 0;
-        const viewport = reactFlowInstance.getViewport();
-        void reactFlowInstance.setViewport(
-          { x: viewport.x + payload.dx, y: viewport.y + payload.dy, zoom: viewport.zoom },
-          duration > 0 ? { duration } : undefined
-        );
-        break;
-      }
-
-      case 'zoom_viewport': {
-        const payload = (args as unknown) as ZoomViewportPayload;
-        if (!reactFlowInstance) break;
-        const duration = typeof payload.duration === 'number' ? payload.duration : 0;
-        const viewport = reactFlowInstance.getViewport();
-        const nextZoom = typeof payload.zoom === 'number'
-          ? payload.zoom
-          : typeof payload.delta === 'number'
-            ? viewport.zoom + payload.delta
-            : viewport.zoom;
-        void reactFlowInstance.setViewport({ x: viewport.x, y: viewport.y, zoom: nextZoom }, duration > 0 ? { duration } : undefined);
-        break;
-      }
-
-      case 'fit_view': {
-        const payload = (args as unknown) as FitViewPayload;
-        if (!reactFlowInstance) break;
-        const duration = typeof payload.duration === 'number' ? payload.duration : 0;
-        const padding = typeof payload.padding === 'number' ? payload.padding : 0.1;
-        void reactFlowInstance.fitView(duration > 0 ? { duration, padding } : { padding });
-        break;
-      }
-
-      case 'focus_node': {
-        const payload = (args as unknown) as FocusNodePayload;
-        if (!reactFlowInstance || !payload.id) break;
-        const target = nodesRef.current.find((node) => node.id === payload.id);
-        if (!target) break;
-        const duration = typeof payload.duration === 'number' ? payload.duration : 0;
-        const zoom = typeof payload.zoom === 'number' ? payload.zoom : reactFlowInstance.getViewport().zoom;
-        const nodeWidth = typeof target.measured?.width === 'number' ? target.measured.width : 250;
-        const nodeHeight = typeof target.measured?.height === 'number' ? target.measured.height : 120;
-        const centerX = target.position.x + nodeWidth / 2;
-        const centerY = target.position.y + nodeHeight / 2;
-        const viewport = reactFlowInstance.getViewport();
-        const x = viewport.x + (viewport.zoom - zoom) * centerX;
-        const y = viewport.y + (viewport.zoom - zoom) * centerY;
-        void reactFlowInstance.setViewport({ x, y, zoom }, duration > 0 ? { duration } : undefined);
-        break;
-      }
-
-      case 'set_layer_opacity': {
-        const payload = (args as unknown) as SetLayerOpacityPayload;
-        // Fallback: AI may send layer as string like "Layer 2" instead of number 2
-        const layerRaw = (payload as { layer?: unknown }).layer;
-        let layerNum = typeof layerRaw === 'number' ? layerRaw : 0;
-        if (typeof layerRaw === 'string') {
-          const match = layerRaw.match(/\d+/);
-          layerNum = match ? parseInt(match[0], 10) : 0;
-        }
-        if (!layerNum || typeof payload.opacity !== 'number') break;
-        const index = Math.max(1, Math.min(4, layerNum)) - 1;
-        const next = [...layerOpacities];
-        next[index] = Math.max(0, Math.min(1, payload.opacity));
-        setLayerOpacities(next);
-        break;
-      }
-
-      case 'toggle_layer_background': {
-        const payload = (args as unknown) as ToggleLayerBackgroundPayload;
-        if (typeof payload.visible !== 'boolean') break;
-        setShowLayerBackground(payload.visible);
-        // Liveblocks 동기화 추가
-        if (liveblocksService.isConnected()) {
-          liveblocksService.updateLayerSettings({
-            layerHeights,
-            layerOpacities,
-            showLayerBackground: payload.visible,
-          });
-        }
-        break;
-      }
-
-      case 'set_ui_visibility': {
-        const payload = (args as unknown) as SetUiVisibilityPayload;
-        if (typeof payload.controls === 'boolean') setShowControls(payload.controls);
-        if (typeof payload.minimap === 'boolean') setShowMiniMap(payload.minimap);
-        if (typeof payload.layerPanel === 'boolean') setShowLayerControlPanel(payload.layerPanel);
-        if (typeof payload.layerBackground === 'boolean') setShowLayerBackground(payload.layerBackground);
-        if (typeof payload.exportMenu === 'boolean') setShowExportMenu(payload.exportMenu);
-        break;
-      }
-
-      case 'set_style_variables': {
-        const payload = (args as unknown) as SetStyleVariablesPayload;
-        setStyleVariables((prev) => {
-          const nextEdgeColor = payload.edgeColor ?? prev.edgeColor;
-          const nextEdgeWidth = typeof payload.edgeWidth === 'number' ? payload.edgeWidth : prev.edgeWidth;
-          if (payload.edgeColor || typeof payload.edgeWidth === 'number') {
-            setEdges((eds) => {
-              const updated = eds.map((edge) => {
-                const markerEnd = edge.markerEnd;
-                const nextMarkerEnd: Edge['markerEnd'] = markerEnd && typeof markerEnd === 'object'
-                  ? { ...markerEnd, color: nextEdgeColor }
-                  : markerEnd ?? { type: 'arrowclosed' as const, width: 20, height: 20, color: nextEdgeColor };
-                return {
-                  ...edge,
-                  style: {
-                    ...(edge.style ?? {}),
-                    stroke: nextEdgeColor,
-                    strokeWidth: nextEdgeWidth,
-                  },
-                  markerEnd: nextMarkerEnd,
-                };
-              });
-              edgesRef.current = updated;
-              return updated;
-            });
-          }
-
-          return {
-            ...prev,
-            nodeBackground: payload.nodeBackground ?? prev.nodeBackground,
-            nodeBorderColor: payload.nodeBorderColor ?? prev.nodeBorderColor,
-            nodeTextColor: payload.nodeTextColor ?? prev.nodeTextColor,
-            nodeBorderRadius: typeof payload.nodeBorderRadius === 'number' ? payload.nodeBorderRadius : prev.nodeBorderRadius,
-            nodeShadow: payload.nodeShadow ?? prev.nodeShadow,
-            nodeFontFamily: payload.nodeFontFamily ?? prev.nodeFontFamily,
-            nodeFontSize: typeof payload.nodeFontSize === 'number' ? payload.nodeFontSize : prev.nodeFontSize,
-            edgeColor: nextEdgeColor,
-            edgeWidth: nextEdgeWidth,
-          };
-        });
-        break;
-      }
-
-      case 'save_snapshot': {
-        const payload = (args as unknown) as SaveSnapshotPayload;
-        if (!reactFlowInstance) break;
-        const snapshotName = payload.name?.trim() || 'default';
-        const flow = {
-          nodes: reactFlowInstance.getNodes(),
-          edges: reactFlowInstance.getEdges(),
-          viewport: reactFlowInstance.getViewport(),
-        };
-        localStorage.setItem(`culture-map-snapshot:${snapshotName}`, JSON.stringify(flow));
-        break;
-      }
-
-      case 'restore_snapshot': {
-        const payload = (args as unknown) as RestoreSnapshotPayload;
-        if (!reactFlowInstance) break;
-        const snapshotName = payload.name?.trim() || 'default';
-        const raw = localStorage.getItem(`culture-map-snapshot:${snapshotName}`);
-        if (!raw) break;
-        try {
-          const flow = JSON.parse(raw) as { nodes?: Node[]; edges?: Edge[]; viewport?: { x?: number; y?: number; zoom?: number } };
-          const nextNodes = Array.isArray(flow.nodes) ? flow.nodes : [];
-          const nextEdges = Array.isArray(flow.edges) ? flow.edges : [];
-          setNodes(nextNodes);
-          setEdges(nextEdges);
-          nodesRef.current = nextNodes;
-          edgesRef.current = nextEdges;
-
-          const { notes, connections } = convertFromFlowData(nextNodes, nextEdges);
-          onNotesChange(notes);
-          onConnectionsChange(connections);
-
-          if (liveblocksService.isConnected()) {
-            // 단일 트랜잭션으로 복원 (원자성 보장)
-            const lbNotes = notes.map((note) => ({
-              id: note.id,
-              content: note.content,
-              x: note.position.x,
-              y: note.position.y,
-              layer: note.layer,
-              sentiment: note.sentiment,
-              type: note.type,
-              width: note.width,
-              height: note.height,
-              frequency: note.perceptionIntensity,
-              basis: note.basis,
-              pinned: note.pinned,
-              pinnedHandles: note.pinnedHandles,
-              timestamp: Date.now(),
-              author: liveblocksService.getCurrentUserDisplayName(),
-            }));
-            const lbConnections = connections.map((connection) => ({
-              id: connection.id,
-              sourceId: connection.sourceId,
-              targetId: connection.targetId,
-              relationType: connection.relationType,
-              isPositive: connection.isPositive,
-              sourceHandle: connection.sourceHandle,
-              targetHandle: connection.targetHandle,
-            }));
-            liveblocksService.restoreMapData(lbNotes, lbConnections);
-          }
-
-          const viewport = flow.viewport ?? {};
-          const x = typeof viewport.x === 'number' ? viewport.x : 0;
-          const y = typeof viewport.y === 'number' ? viewport.y : 0;
-          const zoom = typeof viewport.zoom === 'number' ? viewport.zoom : 1;
-          void reactFlowInstance.setViewport({ x, y, zoom });
-        } catch (err) {
-          console.error('❌ 스냅샷 복원 실패:', err);
-        }
-        break;
-      }
-
-      case 'undo_layout': {
-        if (!reactFlowInstance) break;
-        const raw = localStorage.getItem('culture-map-snapshot:_before_layout');
-        if (!raw) break;
-        try {
-          const flow = JSON.parse(raw) as { nodes?: Node[]; edges?: Edge[]; viewport?: { x?: number; y?: number; zoom?: number } };
-          const nextNodes = Array.isArray(flow.nodes) ? flow.nodes : [];
-          const nextEdges = Array.isArray(flow.edges) ? flow.edges : [];
-          setNodes(nextNodes);
-          setEdges(nextEdges);
-          nodesRef.current = nextNodes;
-          edgesRef.current = nextEdges;
-
-          const { notes, connections } = convertFromFlowData(nextNodes, nextEdges);
-          onNotesChange(notes);
-          onConnectionsChange(connections);
-
-          if (liveblocksService.isConnected()) {
-            const lbNotes = notes.map((note) => ({
-              id: note.id,
-              content: note.content,
-              x: note.position.x,
-              y: note.position.y,
-              layer: note.layer,
-              sentiment: note.sentiment,
-              type: note.type,
-              width: note.width,
-              height: note.height,
-              frequency: note.perceptionIntensity,
-              basis: note.basis,
-              pinned: note.pinned,
-              pinnedHandles: note.pinnedHandles,
-              timestamp: Date.now(),
-              author: liveblocksService.getCurrentUserDisplayName(),
-            }));
-            const lbConnections = connections.map((connection) => ({
-              id: connection.id,
-              sourceId: connection.sourceId,
-              targetId: connection.targetId,
-              relationType: connection.relationType,
-              isPositive: connection.isPositive,
-              sourceHandle: connection.sourceHandle,
-              targetHandle: connection.targetHandle,
-            }));
-            liveblocksService.restoreMapData(lbNotes, lbConnections);
-          }
-
-          const viewport = flow.viewport ?? {};
-          const x = typeof viewport.x === 'number' ? viewport.x : 0;
-          const y = typeof viewport.y === 'number' ? viewport.y : 0;
-          const zoom = typeof viewport.zoom === 'number' ? viewport.zoom : 1;
-          void reactFlowInstance.setViewport({ x, y, zoom });
-        } catch (err) {
-          console.error('❌ 자동 정렬 원복 실패:', err);
-        }
-        break;
-      }
-
-      case 'auto_layout':
-        break;
-
-      default:
-        console.warn('⚠️ 알 수 없는 AI 액션:', name);
-    }
-  }, [
-    ensureLiveblocksConnected,
-    layerHeights,
-    layerOpacities,
-    onConnectionsChange,
-    onNotesChange,
-    reactFlowInstance,
-    safeAutoLayout,
-    setEdges,
-    setLayerOpacities,
-    setNodes,
-    setShowControls,
-    setShowExportMenu,
-    setShowLayerBackground,
-    setShowLayerControlPanel,
-    setShowMiniMap,
-    setStyleVariables,
-    styleVariables,
-  ]);
-
-  const handleAiAction = useCallback((action: AiAction | AiAction[]) => {
-    const actions = Array.isArray(action) ? action : [action];
-
-    actionQueuePromiseRef.current = actionQueuePromiseRef.current
-      .then(async () => {
-        let requestedLayout = false;
-        let layoutNeeded = false;
-        let suppressAutoLayout = false;
-
-        for (const queuedAction of actions) {
-          const name = queuedAction?.name;
-          if (queuedAction?.__suppressAutoLayout) {
-            suppressAutoLayout = true;
-          }
-
-          if (name === 'auto_layout') {
-            requestedLayout = true;
-            const spacing = queuedAction?.args?.spacing;
-            if (spacing === 'compact' || spacing === 'normal' || spacing === 'wide') {
-              layoutSpacingRef.current = spacing;
-            }
-            const preserveEdges = queuedAction?.args?.preserveEdges;
-            if (typeof preserveEdges === 'boolean') {
-              preserveEdgesRef.current = preserveEdges;
-            }
-            continue;
-          }
-
-          if (
-            name === 'add_node'
-            || name === 'add_nodes_with_connections'
-            || name === 'update_node'
-            || name === 'delete_node'
-            || name === 'delete_connection'
-            || name === 'create_connection'
-          ) {
-            layoutNeeded = true;
-          }
-
-          try {
-            executeAiAction(queuedAction);
-          } catch (err) {
-            console.error('❌ AI 액션 실행 실패:', err);
-          }
-        }
-
-        if (!suppressAutoLayout && (requestedLayout || layoutNeeded)) {
-          await new Promise<void>((resolve) => {
-            requestAnimationFrame(() => {
-              void safeAutoLayout(false).finally(resolve);
-            });
-          });
-        }
-      })
-      .catch((err) => {
-        console.error('❌ [Action Bridge] AI 액션 체인 실패:', err);
-      });
-  }, [executeAiAction, safeAutoLayout]);
+  // [REFACTORED] AI Action Logic moved to useAiActions hook (called below)
+  // See src/hooks/useAiActions.ts
 
   useEffect(() => {
     collaborationLocksRef.current = collaborationLocks;
@@ -2184,6 +1043,37 @@ ${chatHistorySection}
     [ensureLiveblocksConnected, onNodeUpdate, setNodes]
   );
 
+  // [REFACTORED] Use AI Logic Hook
+  const { handleAiAction } = useAiActions({
+    setNodes,
+    setEdges,
+    setLayerHeights,
+    setLayerOpacities,
+    setShowLayerBackground,
+    setShowControls,
+    setShowMiniMap,
+    setShowLayerControlPanel,
+    setShowExportMenu,
+    setStyleVariables,
+    onNotesChange,
+    onConnectionsChange,
+    isConsultingMode: isConsultingMode ?? false,
+    nodesRef,
+    edgesRef,
+    layerHeights,
+    layerOpacities,
+    reactFlowInstance,
+    safeAutoLayout,
+    handleNodeContentUpdate,
+    handleStartNodeEditing,
+    handleStopNodeEditing,
+    ensureLiveblocksConnected,
+    layoutSpacingRef,
+    preserveEdgesRef,
+    isUserLayerHeightChangeRef,
+    styleVariables
+  });
+
   const aiContext = useMemo(() => convertFromFlowData(nodes, edges), [nodes, edges]);
 
   const layerDefinitions = useMemo(
@@ -2218,6 +1108,47 @@ ${chatHistorySection}
       },
     ],
     []
+  );
+
+  const handleLayerLabelClick = useCallback(
+    (layerIndex: number) => {
+      if (selectedLayerIndex === layerIndex) {
+        setSelectedLayerIndex(null);
+        setShowLayerControlPanel(false);
+      } else {
+        setSelectedLayerIndex(layerIndex);
+        setShowLayerControlPanel(true);
+      }
+    },
+    [selectedLayerIndex]
+  );
+
+  const handleLayerHeightChange = useCallback(
+    (value: number) => {
+      if (selectedLayerIndex === null) return;
+      const nextValue = Math.min(LAYER_MAX_HEIGHT, Math.max(100, value));
+      const newHeights = [...layerHeights];
+      newHeights[selectedLayerIndex] = nextValue;
+      isUserLayerHeightChangeRef.current = true;
+      setLayerHeights(newHeights);
+      if (liveblocksService.isConnected()) {
+        liveblocksService.updateLayerSettings({ layerHeights: newHeights, layerOpacities });
+      }
+    },
+    [layerHeights, layerOpacities, selectedLayerIndex]
+  );
+
+  const handleLayerOpacityChange = useCallback(
+    (value: number) => {
+      if (selectedLayerIndex === null) return;
+      const newOpacities = [...layerOpacities];
+      newOpacities[selectedLayerIndex] = value;
+      setLayerOpacities(newOpacities);
+      if (liveblocksService.isConnected()) {
+        liveblocksService.updateLayerSettings({ layerHeights, layerOpacities: newOpacities });
+      }
+    },
+    [layerHeights, layerOpacities, selectedLayerIndex]
   );
 
   const hydrateFromLiveblocks = useCallback(
@@ -2293,532 +1224,26 @@ ${chatHistorySection}
     ]
   );
 
-  const scheduleHydrate = useCallback(
-    (reason: string) => {
-      if (pendingHydrateRef.current !== null) return;
-
-      pendingHydrateRef.current = requestAnimationFrame(() => {
-        pendingHydrateRef.current = null;
-        hydrateFromLiveblocks(reason);
-      });
-    },
-    [hydrateFromLiveblocks]
-  );
-
-  useEffect(() => {
-    type EventHandler = (...args: unknown[]) => void;
-
-    const handleSyncComplete: EventHandler = () => {
-      // Yjs 소스 레벨에서 중복 노드 정리 (1회성)
-      const cleaned = liveblocksService.cleanupDuplicateNodes();
-      if (cleaned > 0) {
-        console.log(`🧹 [React Flow] sync-complete: ${cleaned}개 중복 노드 정리 완료`);
-      }
-      hydrateFromLiveblocks('sync-complete');
-    };
-
-    liveblocksService.on('sync-complete', handleSyncComplete);
-
-    let retryCount = 0;
-    const maxRetries = 10;
-    let intervalId: number | undefined;
-
-    const tryInitialHydrate = (reason: string) => {
-      if (!liveblocksService.isConnected()) {
-        return false;
-      }
-      hydrateFromLiveblocks(reason);
-      return true;
-    };
-
-    if (!tryInitialHydrate('initial')) {
-      intervalId = window.setInterval(() => {
-        retryCount += 1;
-        if (tryInitialHydrate('polling') || retryCount >= maxRetries) {
-          if (intervalId) {
-            window.clearInterval(intervalId);
-          }
-        }
-      }, 500);
-    }
-
-    return () => {
-      liveblocksService.off('sync-complete', handleSyncComplete);
-      if (intervalId) {
-        window.clearInterval(intervalId);
-      }
-    };
-  }, [hydrateFromLiveblocks]);
-
-  useEffect(() => {
-    const handleLayerSettingsChanged = (...args: unknown[]) => {
-      const settings = args[0] as LayerSettings | undefined;
-      if (settings) {
-        applyLayerSettings(settings, 'layer-settings-changed');
-      }
-    };
-
-    const handleSyncComplete = () => {
-      const settings = liveblocksService.getLayerSettings();
-      if (settings) {
-        applyLayerSettings(settings, 'sync-complete');
-      }
-    };
-
-    liveblocksService.on('layer-settings-changed', handleLayerSettingsChanged);
-    liveblocksService.on('sync-complete', handleSyncComplete);
-
-    if (liveblocksService.isConnected()) {
-      const settings = liveblocksService.getLayerSettings();
-      if (settings) {
-        applyLayerSettings(settings, 'initial');
-      }
-    }
-
-    return () => {
-      liveblocksService.off('layer-settings-changed', handleLayerSettingsChanged);
-      liveblocksService.off('sync-complete', handleSyncComplete);
-    };
-  }, [applyLayerSettings]);
-
-  // layerHeights/layerOpacities 변경 시 Liveblocks 동기화는 직접 호출로 대체
-  // (LayerSettingsPanel 등에서 onChange 시 liveblocksService.updateLayerSettings 직접 호출)
-  // 무한 루프 방지를 위해 useEffect 기반 양방향 동기화 제거함
-
-  useEffect(() => {
-    if (isHydratingRef.current || applyingLayerSettingsRef.current) {
-      return;
-    }
-    if (!nodes.length) return;
-
-    const layerIndexMap: Record<string, number> = {
-      result: 0,
-      behavior: 1,
-      tangible_lever: 2,
-      intangible_lever: 3,
-    };
-
-    const displayLayerOrder: Array<keyof typeof layerIndexMap> = [
-      'result',
-      'behavior',
-      'tangible_lever',
-      'intangible_lever',
-    ];
-
-    const getNodeHeight = (node: Node) => {
-      if (typeof node.measured?.height === 'number') return node.measured.height;
-      if (typeof node.height === 'number') return node.height;
-      return 120;
-    };
-
-    const maxBottomByLayer = [0, 0, 0, 0];
-    nodes.forEach((node) => {
-      const layerIndex = layerIndexMap[node.type || 'result'] ?? 0;
-      const nodeHeight = getNodeHeight(node);
-      const bottom = node.position.y + nodeHeight;
-      if (bottom > maxBottomByLayer[layerIndex]) {
-        maxBottomByLayer[layerIndex] = bottom;
-      }
-    });
-
-    const layerPaddingY = 20;
-    const minHeight = 100;
-    const maxHeight = 800;
-    const nextHeights: number[] = [];
-    let cumulativeY = 0;
-
-    displayLayerOrder.forEach((layerKey) => {
-      const index = layerIndexMap[layerKey];
-      const maxBottom = maxBottomByLayer[index];
-      const currentHeight = layerHeights[index] ?? minHeight;
-      const required = maxBottom
-        ? Math.max(minHeight, maxBottom - cumulativeY + layerPaddingY)
-        : Math.max(minHeight, currentHeight);
-
-      const clamped = Math.min(maxHeight, required);
-      nextHeights[index] = clamped;
-      cumulativeY += clamped;
-    });
-
-    const shouldUpdate = nextHeights.some((height, index) => height !== layerHeights[index]);
-    if (shouldUpdate) {
-      isUserLayerHeightChangeRef.current = false;
-      isAutoLayerHeightsRef.current = true;
-      setLayerHeights(nextHeights);
-    }
-  }, [nodes, layerHeights]);
-
-  useEffect(() => {
-    if (isHydratingRef.current || applyingLayerSettingsRef.current) {
-      previousLayerStartsRef.current = null;
-      return;
-    }
-
-    const layerIndexMap: Record<string, number> = {
-      result: 0,
-      behavior: 1,
-      tangible_lever: 2,
-      intangible_lever: 3,
-    };
-
-    const displayLayerOrder: Array<keyof typeof layerIndexMap> = [
-      'result',
-      'behavior',
-      'tangible_lever',
-      'intangible_lever',
-    ];
-
-    const nextStarts: number[] = [];
-    let cumulativeY = 0;
-    displayLayerOrder.forEach((layerKey) => {
-      const index = layerIndexMap[layerKey];
-      nextStarts[index] = cumulativeY;
-      cumulativeY += layerHeights[index] ?? 0;
-    });
-
-    const previousStarts = previousLayerStartsRef.current ?? nextStarts;
-    previousLayerStartsRef.current = nextStarts;
-
-    if (isAutoLayerHeightsRef.current) {
-      isAutoLayerHeightsRef.current = false;
-      return;
-    }
-
-    const deltas = nextStarts.map((start, index) => start - (previousStarts[index] ?? start));
-    const hasShift = deltas.some((delta) => delta !== 0);
-    if (!hasShift) return;
-
-    let shifted = false;
-    const shiftedNodes = nodes.map((node) => {
-      const layerIndex = layerIndexMap[node.type || 'result'] ?? 0;
-      const delta = deltas[layerIndex] ?? 0;
-      if (!delta) return node;
-      shifted = true;
-      return {
-        ...node,
-        position: {
-          ...node.position,
-          y: node.position.y + delta,
-        },
-      };
-    });
-
-    if (!shifted) return;
-
-    setNodes(shiftedNodes);
-
-    const shouldSyncShift = isUserLayerHeightChangeRef.current;
-    isUserLayerHeightChangeRef.current = false;
-
-    if (shouldSyncShift && liveblocksService.isConnected()) {
-      const batchUpdates = shiftedNodes.map((node) => ({
-        id: node.id,
-        x: node.position.x,
-        y: node.position.y,
-      }));
-      liveblocksService.batchUpdateNodePositions(batchUpdates);
-    }
-
-    const updatedData = convertFromFlowData(shiftedNodes, edgesRef.current);
-    onNotesChange(updatedData.notes);
-  }, [layerHeights, nodes, onNotesChange, setNodes]);
-
-  // ============================================================================
-  // Liveblocks 실시간 리스너 등록
-  // ============================================================================
-  useEffect(() => {
-    console.log('✅ [React Flow] Liveblocks 리스너 등록 시작');
-
-    // 타입 정의
-    type StickyNoteUpdateEvent = {
-      id: string;
-      author?: string;
-      content?: string;
-      text?: string;
-      x: number;
-      y: number;
-      layer: number;
-      layerIndex?: number;
-      sentiment: string;
-      width?: number;
-      height?: number;
-    };
-
-    type StickyNoteDeleteEvent = {
-      noteId: string;
-    };
-
-    type ConnectionUpdateEvent = {
-      id: string;
-      sourceId: string;
-      targetId: string;
-      relationType: 'direct' | 'indirect';
-      isPositive: boolean;
-      sourceHandle?: string;
-      targetHandle?: string;
-    };
-
-    type ConnectionDeleteEvent = {
-      connectionId: string;
-    };
-
-    // 다른 사용자의 노드 업데이트 수신
-    const handleStickyNoteUpdated = (note: StickyNoteUpdateEvent) => {
-      console.log('📥 [React Flow] Liveblocks 노드 수신:', note.id);
-
-      // 자신의 로컬 트랜잭션에서 발생한 이벤트는 LiveblocksService에서 이미 필터링됨
-      // (setupDataListeners의 transaction.local 체크로 notes-changed만 원격에서 emit)
-
-      setNodes((currentNodes) => {
-        const existingIndex = currentNodes.findIndex((n) => n.id === note.id);
-        const existingNode = existingIndex >= 0 ? currentNodes[existingIndex] : undefined;
-        const existingData = (existingNode?.data as Record<string, unknown>) ?? {};
-
-        // 노드 타입 결정 (층위에서 역계산)
-        const typeMap: { [key: number]: string } = {
-          1: 'result',
-          2: 'behavior',
-          3: 'tangible_lever',
-          4: 'intangible_lever',
-        };
-
-        const nodeType = typeMap[note.layer] || 'result';
-
-        const activeLock = collaborationLocksRef.current[note.id];
-        const currentUserId = getCurrentUserId();
-        const isLockedByOther = Boolean(
-          activeLock &&
-          activeLock.itemType === 'note' &&
-          activeLock.userId !== currentUserId
-        );
-
-        const previousContent = (existingData as { content?: string }).content ?? '';
-        const previousSentiment = (existingData as { sentiment?: string }).sentiment ?? 'neutral';
-
-        const updatedData: Record<string, unknown> = {
-          ...existingData,
-          content: note.content ?? previousContent,
-          sentiment: note.sentiment ?? previousSentiment,
-          onUpdate: handleNodeContentUpdate,
-          onEditStart: handleStartNodeEditing,
-          onEditEnd: handleStopNodeEditing,
-          isLocked: isLockedByOther,
-          lockedBy: activeLock?.displayName ?? activeLock?.userId,
-        };
-
-        const hasValidX = Number.isFinite(note.x);
-        const hasValidY = Number.isFinite(note.y);
-        const nextX = hasValidX ? note.x : existingNode?.position.x ?? 0;
-        const nextY = hasValidY ? note.y : existingNode?.position.y ?? 0;
-
-        const updatedNode: Node = {
-          id: note.id,
-          type: nodeType,
-          position: { x: nextX, y: nextY },
-          data: updatedData,
-          selected: existingNode?.selected ?? false,
-          draggable: true,
-        };
-
-        if (existingIndex >= 0) {
-          // 기존 노드 업데이트
-          const updatedNodes = currentNodes.map((n, idx) => (idx === existingIndex ? updatedNode : n));
-          nodesRef.current = updatedNodes;
-          return updatedNodes;
-        }
-
-        // 새 노드 추가
-        const updatedNodes = [...currentNodes, updatedNode];
-        nodesRef.current = updatedNodes;
-        return updatedNodes;
-      });
-    };
-
-    // 다른 사용자의 노드 삭제 수신
-    const handleStickyNoteDeleted = (data: StickyNoteDeleteEvent) => {
-      console.log('🗑️ [React Flow] Liveblocks 노드 삭제 수신:', data.noteId);
-      setNodes((currentNodes) => {
-        const updatedNodes = currentNodes.filter((n) => n.id !== data.noteId);
-        nodesRef.current = updatedNodes;
-        return updatedNodes;
-      });
-      setEdges((currentEdges) => {
-        const updatedEdges = currentEdges.filter((e) => e.source !== data.noteId && e.target !== data.noteId);
-        edgesRef.current = updatedEdges;
-        return updatedEdges;
-      });
-    };
-
-    // 다른 사용자의 연결선 업데이트 수신
-    const handleConnectionUpdated = (connection: ConnectionUpdateEvent) => {
-      console.log('🔗 [React Flow] Liveblocks 연결선 수신:', connection.id, { sourceHandle: connection.sourceHandle, targetHandle: connection.targetHandle });
-
-      setEdges((currentEdges) => {
-        const existingIndex = currentEdges.findIndex((e) => e.id === connection.id);
-
-        const relationType = connection.relationType === 'indirect' ? 'indirect' : 'direct';
-
-        // 연결선 스타일 결정
-        const edgeStyle =
-          relationType === 'direct'
-            ? { strokeWidth: 2 }
-            : { strokeWidth: 2, strokeDasharray: '5 5' };
-
-        const edgeColor = connection.isPositive ? '#10b981' : '#ef4444';
-
-        const updatedEdge: Edge = {
-          id: connection.id,
-          source: connection.sourceId,
-          target: connection.targetId,
-          sourceHandle: connection.sourceHandle,  // 핸들 정보 적용
-          targetHandle: connection.targetHandle,  // 핸들 정보 적용
-          type: 'animatedFlow',
-          style: {
-            ...edgeStyle,
-            stroke: edgeColor,
-          },
-          markerEnd: {
-            type: 'arrowclosed',
-            width: 20,
-            height: 20,
-            color: edgeColor,
-          },
-          data: {
-            relationType,
-            isPositive: connection.isPositive,
-          },
-        };
-
-        if (existingIndex >= 0) {
-          // 기존 연결선 업데이트
-          const updatedEdges = currentEdges.map((e, idx) => (idx === existingIndex ? updatedEdge : e));
-          edgesRef.current = updatedEdges;
-          return updatedEdges;
-        } else {
-          // 새 연결선 추가
-          const updatedEdges = [...currentEdges, updatedEdge];
-          edgesRef.current = updatedEdges;
-          return updatedEdges;
-        }
-      });
-    };
-
-    // 다른 사용자의 연결선 삭제 수신
-    const handleConnectionDeleted = (data: ConnectionDeleteEvent) => {
-      console.log('🗑️ [React Flow] Liveblocks 연결선 삭제 수신:', data.connectionId);
-      setEdges((currentEdges) => {
-        const updatedEdges = currentEdges.filter((e) => e.id !== data.connectionId);
-        edgesRef.current = updatedEdges;
-        return updatedEdges;
-      });
-    };
-
-    // Liveblocks 이벤트 리스너 등록
-    type EventHandler = (...args: unknown[]) => void;
-    const handleNotesChanged: EventHandler = () => {
-      scheduleHydrate('notes-changed');
-    };
-    const handleConnectionsChanged: EventHandler = () => {
-      scheduleHydrate('connections-changed');
-    };
-
-    liveblocksService.on('sticky-note-updated', handleStickyNoteUpdated as EventHandler);
-    liveblocksService.on('sticky-note-deleted', handleStickyNoteDeleted as EventHandler);
-    liveblocksService.on('connection-updated', handleConnectionUpdated as EventHandler);
-    liveblocksService.on('connection-deleted', handleConnectionDeleted as EventHandler);
-    liveblocksService.on('notes-changed', handleNotesChanged);
-    liveblocksService.on('connections-changed', handleConnectionsChanged);
-
-    console.log('✅ [React Flow] Liveblocks 리스너 등록 완료');
-
-    // Cleanup: 컴포넌트 언마운트 시 리스너 제거
-    return () => {
-      if (pendingHydrateRef.current !== null) {
-        cancelAnimationFrame(pendingHydrateRef.current);
-        pendingHydrateRef.current = null;
-      }
-      liveblocksService.off('sticky-note-updated', handleStickyNoteUpdated as EventHandler);
-      liveblocksService.off('sticky-note-deleted', handleStickyNoteDeleted as EventHandler);
-      liveblocksService.off('connection-updated', handleConnectionUpdated as EventHandler);
-      liveblocksService.off('connection-deleted', handleConnectionDeleted as EventHandler);
-      liveblocksService.off('notes-changed', handleNotesChanged);
-      liveblocksService.off('connections-changed', handleConnectionsChanged);
-      console.log('🔌 [React Flow] Liveblocks 리스너 제거 완료');
-    };
-  }, [
-    getCurrentUserId,
+  useLiveblocksSync({
+    nodesRef,
+    edgesRef,
+    setNodes,
+    setEdges,
+    hydrateFromLiveblocks,
     handleNodeContentUpdate,
     handleStartNodeEditing,
     handleStopNodeEditing,
-    scheduleHydrate,
-    setNodes,
-    setEdges,
-  ]);
+    setLayerHeights,
+    setLayerOpacities,
+    setShowLayerBackground,
+    collaborationLocksRef,
+    setCollaborationLocks,
+    setReportContent,
+    setSessionType,
+    isConsultingMode: isConsultingMode ?? false
+  });
 
-  useEffect(() => {
-    type EditingEventPayload = {
-      itemId: string;
-      itemType: 'note' | 'connection';
-      userId: string;
-      displayName?: string;
-    };
-
-    const handleEditingStarted = (payload: unknown) => {
-      const data = payload as EditingEventPayload | undefined;
-      if (!data?.itemId) {
-        return;
-      }
-
-      setCollaborationLocks(prev => {
-        const prevLock = prev[data.itemId];
-        if (
-          prevLock &&
-          prevLock.userId === data.userId &&
-          prevLock.itemType === data.itemType
-        ) {
-          return prev;
-        }
-
-        return {
-          ...prev,
-          [data.itemId]: {
-            itemId: data.itemId,
-            itemType: data.itemType,
-            userId: data.userId,
-            displayName: data.displayName,
-          },
-        };
-      });
-    };
-
-    const handleEditingStopped = (payload: unknown) => {
-      const data = payload as EditingEventPayload | undefined;
-      if (!data?.itemId) {
-        return;
-      }
-
-      setCollaborationLocks(prev => {
-        const prevLock = prev[data.itemId];
-        if (!prevLock || prevLock.userId !== data.userId) {
-          return prev;
-        }
-
-        const updated = { ...prev };
-        delete updated[data.itemId];
-        return updated;
-      });
-    };
-
-    type EventHandler = (...args: unknown[]) => void;
-
-    liveblocksService.on('editing-started', handleEditingStarted as EventHandler);
-    liveblocksService.on('editing-stopped', handleEditingStopped as EventHandler);
-
-    return () => {
-      liveblocksService.off('editing-started', handleEditingStarted as EventHandler);
-      liveblocksService.off('editing-stopped', handleEditingStopped as EventHandler);
-    };
-  }, []);
+  /* Removed old useEffect logic handled by useLiveblocksSync */
 
   useEffect(() => {
     const currentUserId = getCurrentUserId();
@@ -2980,7 +1405,7 @@ ${chatHistorySection}
   // ============================================================================
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      if (isHydratingRef.current || applyingLayerSettingsRef.current) {
+      if (isHydratingRef.current) {
         const nextNodes = applyNodeChanges(changes, nodesRef.current);
         setNodes(nextNodes);
         nodesRef.current = nextNodes;
@@ -3029,7 +1454,7 @@ ${chatHistorySection}
 
       const layerPaddingY = 20;
       const minHeight = 100;
-      const maxHeight = 800;
+      const maxHeight = LAYER_MAX_HEIGHT;
       const nextHeights: number[] = [];
       let cumulativeForHeights = 0;
 
@@ -4415,366 +2840,30 @@ ${chatHistorySection}
                 </ViewportPortal>
 
                 {/* 층위 배경 레이어 (ViewportPortal 사용 - transform 적용됨) */}
-                {showLayerBackground && (
-                  <>
-                    <ViewportPortal>
-                      <div
-                        data-layer-background-root="true"
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '10000px', // 충분히 큰 크기
-                          height: '10000px',
-                          pointerEvents: 'none',
-                          zIndex: -1, // 포스트잇 뒤로
-                        }}
-                      >
-                        {/* 배경층들 - 개별 높이 적용 */}
-                        {layerDefinitions.map((layer, displayIndex, layers) => {
-                          // 각 층위의 Y 좌표 계산 (표시 순서 기준 누적)
-                          let y = 0;
-                          for (let i = 0; i < displayIndex; i++) {
-                            const previousLayer = layers[i];
-                            y += layerHeights[previousLayer.index] ?? 0;
-                          }
+                <LayerBackground
+                  showLayerBackground={showLayerBackground}
+                  layerDefinitions={layerDefinitions}
+                  layerHeights={layerHeights}
+                  layerOpacities={layerOpacities}
+                  selectedLayerIndex={selectedLayerIndex}
+                  onLayerLabelClick={handleLayerLabelClick}
+                />
 
-                          const getLayerColor = (opacity: number) => layer.color.replace('OPACITY', String(opacity));
-                          const bgColor = getLayerColor(layerOpacities[layer.index]);
-
-                          return (
-                            <div
-                              data-layer-capture="segment"
-                              key={layer.name}
-                              style={{
-                                position: 'absolute',
-                                transform: `translate(0px, ${y}px)`, // ViewportPortal에서는 transform 사용
-                                left: 0,
-                                width: '100%',
-                                height: `${layerHeights[layer.index]}px`,
-                                backgroundColor: bgColor,
-                                borderBottom: layer.index < 3 ? `2px dashed ${getLayerColor(0.3)}` : 'none',
-                              }}
-                            />
-                          );
-                        })}
-                      </div>
-                    </ViewportPortal>
-                    <ViewportPortal>
-                      <div
-                        data-layer-label-root="true"
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '10000px',
-                          height: '10000px',
-                          pointerEvents: 'none',
-                          zIndex: 6,
-                        }}
-                      >
-                        {layerDefinitions.map((layer, displayIndex, layers) => {
-                          let y = 0;
-                          for (let i = 0; i < displayIndex; i++) {
-                            const previousLayer = layers[i];
-                            y += layerHeights[previousLayer.index] ?? 0;
-                          }
-
-                          const getLayerColor = (opacity: number) => layer.color.replace('OPACITY', String(opacity));
-
-                          return (
-                            <div
-                              key={`${layer.name}-label`}
-                              style={{
-                                position: 'absolute',
-                                transform: `translate(0px, ${y}px)`,
-                                left: 0,
-                                width: '100%',
-                                height: `${layerHeights[layer.index]}px`,
-                                pointerEvents: 'none',
-                              }}
-                            >
-                              <div
-                                data-layer-capture="label"
-                                onClick={() => {
-                                  if (selectedLayerIndex === layer.index) {
-                                    setSelectedLayerIndex(null);
-                                    setShowLayerControlPanel(false);
-                                  } else {
-                                    setSelectedLayerIndex(layer.index);
-                                    setShowLayerControlPanel(true);
-                                  }
-                                }}
-                                style={{
-                                  position: 'absolute',
-                                  top: '10px',
-                                  left: '32px',
-                                  padding: '6px 16px',
-                                  backgroundColor: selectedLayerIndex === layer.index ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.9)',
-                                  border: `2px solid ${selectedLayerIndex === layer.index ? getLayerColor(0.8) : getLayerColor(0.5)}`,
-                                  borderRadius: '12px',
-                                  fontSize: '12px',
-                                  fontWeight: 'bold',
-                                  color: layer.color.replace('0.05', '0.8'),
-                                  boxShadow: selectedLayerIndex === layer.index ? '0 4px 12px rgba(0, 0, 0, 0.2)' : '0 2px 6px rgba(0, 0, 0, 0.12)',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.2s ease',
-                                  pointerEvents: 'auto',
-                                  zIndex: 7,
-                                }}
-                                className="nopan nodrag layer-label"
-                                title={selectedLayerIndex === layer.index ? "다시 클릭하여 선택 해제 및 패널 닫기" : "클릭하여 이 층위 선택 및 높이 조절"}
-                              >
-                                {selectedLayerIndex === layer.index ? '📌 ' : ''}{layer.name}
-                                <div className="layer-tooltip" role="tooltip">
-                                  <div className="layer-tooltip-title">{layer.name}</div>
-                                  <div className="layer-tooltip-body">{layer.description}</div>
-                                  <div className="layer-tooltip-examples">예시: {layer.examples}</div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </ViewportPortal>
-                  </>
-                )}
-
-                {/* 층위 관리 패널 토글 버튼 */}
-                {!showLayerControlPanel && (
-                  <Panel position="top-center" style={{
-                    backgroundColor: 'transparent',
-                    padding: 0,
-                    boxShadow: 'none',
-                    border: 'none',
-                  }}>
-                    <button
-                      onClick={() => setShowLayerControlPanel(true)}
-                      style={{
-                        padding: '8px 16px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                        color: '#666',
-                        border: '1px solid rgba(0, 0, 0, 0.1)',
-                        borderRadius: '8px',
-                        fontSize: '13px',
-                        fontWeight: '500',
-                        cursor: 'pointer',
-                        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
-                        transition: 'all 0.2s ease',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 1)';
-                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
-                        e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.1)';
-                      }}
-                      title="층위 관리 패널 열기"
-                    >
-                      📐 층위 관리
-                    </button>
-                  </Panel>
-                )}
-
-                {/* 상단 층위 관리 컨트롤 Panel - 반응형 */}
-                {showLayerControlPanel && (
-                  <Panel
-                    position="top-center"
-                    className="layer-control-panel"
-                    style={{
-                      display: 'flex',
-                      flexDirection: isMobile ? 'column' : 'row',
-                      gap: isMobile ? '8px' : '16px',
-                      alignItems: isMobile ? 'stretch' : 'center',
-                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                      padding: isMobile ? '10px' : '12px 20px',
-                      borderRadius: '12px',
-                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-                      border: '1px solid rgba(0, 0, 0, 0.05)',
-                      maxWidth: isMobile ? '90vw' : 'auto',
-                      maxHeight: isMobile ? '80vh' : 'auto',
-                      overflowY: isMobile ? 'auto' : 'visible',
-                    }}
-                  >
-                    {/* 닫기 버튼 */}
-                    <button
-                      onClick={() => setShowLayerControlPanel(false)}
-                      style={{
-                        padding: '4px 8px',
-                        backgroundColor: 'transparent',
-                        color: '#999',
-                        border: 'none',
-                        borderRadius: '4px',
-                        fontSize: '16px',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        lineHeight: 1,
-                        alignSelf: isMobile ? 'flex-end' : 'center',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#f5f5f5';
-                        e.currentTarget.style.color = '#666';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                        e.currentTarget.style.color = '#999';
-                      }}
-                      title="층위 관리 패널 닫기"
-                    >
-                      ✕
-                    </button>
-
-                    {/* 구분선 (데스크톱만) */}
-                    {!isMobile && <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />}
-
-                    {/* 층위 배경 표시 토글 */}
-                    <button
-                      onClick={() => setShowLayerBackground(!showLayerBackground)}
-                      style={{
-                        padding: isMobile ? '10px 14px' : '6px 12px',
-                        backgroundColor: showLayerBackground ? '#4CAF50' : '#f5f5f5',
-                        color: showLayerBackground ? 'white' : '#666',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: isMobile ? '13px' : '12px',
-                        fontWeight: '500',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        whiteSpace: 'nowrap',
-                        width: isMobile ? '100%' : 'auto',
-                      }}
-                      title="층위 배경 표시/숨김"
-                    >
-                      {showLayerBackground ? '🎨 층위 표시' : '🚫 층위 숨김'}
-                    </button>
-
-                    {/* 구분선 (데스크톱만) */}
-                    {!isMobile && <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />}
-
-                    {/* 층위 선택 드롭다운 */}
-                    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: '8px', width: isMobile ? '100%' : 'auto' }}>
-                      <label htmlFor="layer-select" style={{ fontSize: '12px', fontWeight: '500', color: '#666', whiteSpace: 'nowrap' }}>
-                        조절할 층위:
-                      </label>
-                      <select
-                        id="layer-select"
-                        value={selectedLayerIndex ?? 0}
-                        onChange={(e) => setSelectedLayerIndex(Number(e.target.value))}
-                        style={{
-                          padding: isMobile ? '10px 12px' : '6px 10px',
-                          borderRadius: '6px',
-                          border: '1px solid #ddd',
-                          fontSize: isMobile ? '13px' : '12px',
-                          fontWeight: '500',
-                          cursor: 'pointer',
-                          backgroundColor: 'white',
-                          width: isMobile ? '100%' : 'auto',
-                        }}
-                      >
-                        <option value={0}>📊 결과</option>
-                        <option value={1}>🎬 행동</option>
-                        <option value={2}>🔧 유형 레버</option>
-                        <option value={3}>💡 무형 레버</option>
-                      </select>
-                    </div>
-
-                    {/* 구분선 (데스크톱만) */}
-                    {!isMobile && <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />}
-
-                    {/* 선택된 층위 높이 조절 */}
-                    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: '10px', width: isMobile ? '100%' : 'auto', minWidth: isMobile ? 'auto' : '220px' }}>
-                      <label htmlFor="layer-height-input" style={{ fontSize: '12px', fontWeight: '500', color: '#666', whiteSpace: 'nowrap' }}>
-                        높이:
-                      </label>
-                      <input
-                        type="range"
-                        id="layer-height-input"
-                        min="100"
-                        max="800"
-                        step="20"
-                        value={layerHeights[selectedLayerIndex ?? 0]}
-                        onChange={(e) => {
-                          if (selectedLayerIndex === null) return;
-                          const newHeights = [...layerHeights];
-                          newHeights[selectedLayerIndex] = Number(e.target.value);
-                          isUserLayerHeightChangeRef.current = true;
-                          setLayerHeights(newHeights);
-                          // Liveblocks 직접 동기화 (useEffect 제거로 인한 직접 호출)
-                          if (liveblocksService.isConnected()) {
-                            liveblocksService.updateLayerSettings({ layerHeights: newHeights, layerOpacities });
-                          }
-                        }}
-                        style={{ flex: 1, minWidth: isMobile ? 'auto' : '100px', width: isMobile ? '100%' : 'auto' }}
-                      />
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <input
-                          type="number"
-                          min="100"
-                          max="1000"
-                          step="20"
-                          value={layerHeights[selectedLayerIndex ?? 0]}
-                          onChange={(e) => {
-                            if (selectedLayerIndex === null) return;
-                            const value = Math.min(LAYER_MAX_HEIGHT, Math.max(100, Number(e.target.value)));
-                            const newHeights = [...layerHeights];
-                            newHeights[selectedLayerIndex] = value;
-                            isUserLayerHeightChangeRef.current = true;
-                            setLayerHeights(newHeights);
-                            // Liveblocks 직접 동기화 (useEffect 제거로 인한 직접 호출)
-                            if (liveblocksService.isConnected()) {
-                              liveblocksService.updateLayerSettings({ layerHeights: newHeights, layerOpacities });
-                            }
-                          }}
-                          style={{
-                            width: '60px',
-                            padding: isMobile ? '8px' : '4px 8px',
-                            borderRadius: '4px',
-                            border: '1px solid #ddd',
-                            fontSize: '12px',
-                            textAlign: 'right',
-                          }}
-                        />
-                        <span style={{ fontSize: '11px', color: '#999' }}>px</span>
-                      </div>
-                    </div>
-
-                    {/* 구분선 (데스크톱만) */}
-                    {!isMobile && <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />}
-
-                    {/* 전체 투명도 슬라이더 */}
-                    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: '10px', width: isMobile ? '100%' : 'auto', minWidth: isMobile ? 'auto' : '180px' }}>
-                      <label htmlFor="global-opacity" style={{ fontSize: '12px', fontWeight: '500', color: '#666', whiteSpace: 'nowrap' }}>
-                        투명도:
-                      </label>
-                      <input
-                        type="range"
-                        id="global-opacity"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={layerOpacities[selectedLayerIndex ?? 0]}
-                        onChange={(e) => {
-                          if (selectedLayerIndex === null) return;
-                          const newOpacities = [...layerOpacities];
-                          newOpacities[selectedLayerIndex] = Number(e.target.value);
-                          setLayerOpacities(newOpacities);
-                          // Liveblocks 직접 동기화 (useEffect 제거로 인한 직접 호출)
-                          if (liveblocksService.isConnected()) {
-                            liveblocksService.updateLayerSettings({ layerHeights, layerOpacities: newOpacities });
-                          }
-                        }}
-                        style={{ flex: 1, minWidth: isMobile ? 'auto' : '80px', width: isMobile ? '100%' : 'auto' }}
-                      />
-                      <span style={{ fontSize: '11px', color: '#999', minWidth: '35px', textAlign: 'right' }}>
-                        {Math.round(layerOpacities[selectedLayerIndex ?? 0] * 100)}%
-                      </span>
-                    </div>
-                  </Panel>
-                )}
+                <LayerControlPanel
+                  isMobile={isMobile}
+                  showLayerControlPanel={showLayerControlPanel}
+                  showLayerBackground={showLayerBackground}
+                  selectedLayerIndex={selectedLayerIndex}
+                  layerHeights={layerHeights}
+                  layerOpacities={layerOpacities}
+                  layerMaxHeight={LAYER_MAX_HEIGHT}
+                  onOpenPanel={() => setShowLayerControlPanel(true)}
+                  onClosePanel={() => setShowLayerControlPanel(false)}
+                  onToggleLayerBackground={() => setShowLayerBackground(!showLayerBackground)}
+                  onSelectLayerIndex={(index) => setSelectedLayerIndex(index)}
+                  onChangeLayerHeight={handleLayerHeightChange}
+                  onChangeLayerOpacity={handleLayerOpacityChange}
+                />
 
                 {/* Controls의 top 제거 - 기본 위치(top: 10px) 사용 */}
                 {showControls && <Controls style={{ left: 16, bottom: 'auto' }} />}

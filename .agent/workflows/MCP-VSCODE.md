@@ -13,15 +13,15 @@ VSCode + GitHub Copilot 환경에서 사용 가능한 **모든 MCP**를 체계�
 
 ## 0단계: MCP 도구 스냅샷 & 선택 로직 (최소화)
 
-**목표:** 현재 세션에서 실제 사용 가능한 MCP 도구 목록을 먼저 확보하고, 그 범위 안에서만 선택한다.
+**목표:** MCP 도구는 필요할 때만 선택적으로 사용한다. 자동 조회는 금지.
 
-### 0-1. 사용 가능 도구 조회
+### 0-1. 사용 가능 도구 조회 (조건부)
 ```
-mcp_com_mermaidch_list_tools
+특정 MCP가 정말 필요한 경우에만 도구 목록을 확인한다.
+자동 호출/자동 조회 금지.
 ```
-- 세션당 1회만 수행 (동일 세션 재호출 금지)
-- 결과에 없는 MCP는 **현재 세션에서 사용 불가**로 간주
-- 문서에 있는 MCP라도 목록에 없으면 **기본 도구(read_file 등)**로 대체
+- 기본은 VSCode 기본 도구(read_file 등) 우선 사용
+- 목록 확인이 필요한 경우에만 1회 수행
 
 ### 0-2. 선택 로직 (우선순위 매트릭스)
 | 작업 유형 | 우선 MCP | 대체 도구(없을 때) |
@@ -34,25 +34,9 @@ mcp_com_mermaidch_list_tools
 | 브라우저 검증 | Next.js Devtools | Playwright/로컬 수동 테스트 |
 | 배포/DB 관리 | Vercel/Supabase | 배포 문서 + SQL 파일 수동 검토 |
 
-### 0-3. 현재 세션에서 확인된 MCP (자동 갱신)
-- Mermaid: validate_and_render_mermaid_diagram, get_diagram_title, get_diagram_summary
-- Context7: resolve-library-id, query-docs
-- Tavily: tavily-search, tavily-extract
-- Sequential Thinking: sequentialthinking
-- Shrimp Task Agent: plan_task, analyze_task, reflect_task, split_tasks, execute_task, verify_task
-- Chrome DevTools MCP: 브라우저 검증 자동화 (사용자 선택 시)
-- Next Devtools MCP: 브라우저 검증 자동화 (사용자 선택 시)
-- Excalidraw / Penpot: 다이어그램 및 디자인 도구 (선택적)
-- Vercel MCP: 배포 관리 (필요 시)
-
-제외한 MCP:
-- basic memory, firebase, supabase (현재 작업 범위에서 불필요)
-
-검증 기준:
-- Mermaid는 동일 세션 내 재조회 금지 (최초 1회 결과만 사용)
-- 나머지는 VSCode 도구 선택 상태 및 최근 호출 성공 이력으로 확인
-
-> 위 목록은 0-1 결과에 따라 갱신하며, 불일치 시 0-1 결과가 항상 우선이다.
+### 0-3. 현재 세션에서 확인된 MCP (선택적 기록)
+- 필요 시에만 현재 세션의 사용 가능 MCP를 기록한다.
+- 자동 갱신/자동 기록 금지.
 
 ---
 
@@ -164,9 +148,9 @@ mcp_sequentialthi_sequentialthinking:
 - 완료 후 verify_task 1회만 호출
 ```
 
-#### 2-2. 다이어그램 작성 (필수)
+#### 2-2. 다이어그램 작성 (선택)
 ```
-mcp_com_mermaidch_validate_and_render_mermaid_diagram:
+요청이 있거나 복잡한 변경으로 시각화가 필요할 때만 Mermaid 사용
 - Before/After 아키텍처 시각화
 - 데이터 흐름도, 컴포넌트 구조도
 ```

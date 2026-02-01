@@ -422,8 +422,9 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
 
         // @google/genai v2.0 SDK: sendMessageStream는 { message: string | PartUnion[] } 형식 필요
         // 단일 텍스트만 있으면 문자열로, 파일 포함 시 parts 배열로 전달
-        if (parts.length === 1 && parts[0].text) {
-          streamResult = await session!.sendMessageStream({ message: parts[0].text });
+        const firstPart = parts[0];
+        if (parts.length === 1 && 'text' in firstPart && firstPart.text) {
+          streamResult = await session!.sendMessageStream({ message: firstPart.text });
         } else {
           streamResult = await session!.sendMessageStream({ message: parts });
         }
@@ -528,7 +529,8 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
     for (const internalCall of internalActions) {
       // [신규] AI가 동적으로 PDF 로드 요청
       if (internalCall.name === 'load_academic_knowledge') {
-        const topic = internalCall.args?.topic || '';
+        const topicRaw = internalCall.args?.topic;
+        const topic = typeof topicRaw === 'string' ? topicRaw : '';
         console.log('📚 [AIService] AI requested academic knowledge:', topic);
         const availableFiles = this.academicFiles.map(file => file.displayName || file.name).filter(Boolean);
         console.log('📚 [AIService] Academic files available:', availableFiles.join(', '));
@@ -561,7 +563,8 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
         }
         
         // PDF 선택 (AI가 제공한 topic 기반)
-        const selectedFiles = await this.selectAcademicFilesForTopic(topic);
+        const topicStr = typeof topic === 'string' ? topic : '';
+        const selectedFiles = await this.selectAcademicFilesForTopic(topicStr);
         const limitedFiles = this.limitAcademicAttachments(selectedFiles);
         const selectedNames = limitedFiles.map(file => file.displayName).filter(Boolean);
 
@@ -572,7 +575,7 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
           try {
             const parts: Array<{ text?: string } | ReturnType<typeof createPartFromUri>> = [
               {
-                text: `[시스템] "${topic}" 관련 학술 자료를 로드했습니다. 전체를 통독하기보다 주제와 관련된 섹션/챕터를 우선 탐색해 핵심 근거만 요약해 주세요. 가능하면 장/절 제목을 함께 제시하고, 불확실한 내용은 추정하지 마세요.`
+                text: `[시스템] "${topicStr}" 관련 학술 자료를 로드했습니다. 전체를 통독하기보다 주제와 관련된 섹션/챕터를 우선 탐색해 핵심 근거만 요약해 주세요. 가능하면 장/절 제목을 함께 제시하고, 불확실한 내용은 추정하지 마세요.`
               }
             ];
 
@@ -597,10 +600,10 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
 
             if (this.isTokenLimitError(err)) {
               console.warn('⚠️ [AIService] Token limit exceeded, retrying without attachments');
-              const knowledgeResult = searchKnowledge(topic);
+              const knowledgeResult = searchKnowledge(topicStr);
               try {
                 const followUp = await session!.sendMessage({
-                  message: `[시스템] 업로드된 학술 자료 첨부 없이 "${topic}"에 대해 일반 지식으로 답변하세요. 자료 미포함 여부는 보조 설명으로만 언급하세요. 관련 학술 지식(요약/키워드): ${knowledgeResult}`
+                  message: `[시스템] 업로드된 학술 자료 첨부 없이 "${topicStr}"에 대해 일반 지식으로 답변하세요. 자료 미포함 여부는 보조 설명으로만 언급하세요. 관련 학술 지식(요약/키워드): ${knowledgeResult}`
                 });
                 const followUpParts = extractPartsFromResponse(followUp);
                 for (const part of followUpParts) {
@@ -620,11 +623,11 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
         } else {
           // 매칭된 PDF가 없으면 하드코딩된 지식 + 일반 지식 응답 유도
           console.log('📚 [AIService] No suitable academic file matched, using static knowledge and general answer');
-          const knowledgeResult = searchKnowledge(topic);
+          const knowledgeResult = searchKnowledge(topicStr);
 
           try {
             const followUp = await session!.sendMessage({
-              message: `[시스템] 업로드된 학술 자료에서 "${topic}"에 대한 직접 근거가 없다면 일반 지식으로 답변하세요. 자료 미포함 여부는 보조 설명으로만 언급하세요. 관련 학술 지식(요약/키워드): ${knowledgeResult}`
+              message: `[시스템] 업로드된 학술 자료에서 "${topicStr}"에 대한 직접 근거가 없다면 일반 지식으로 답변하세요. 자료 미포함 여부는 보조 설명으로만 언급하세요. 관련 학술 지식(요약/키워드): ${knowledgeResult}`
             });
             const followUpParts = extractPartsFromResponse(followUp);
             for (const part of followUpParts) {
@@ -641,7 +644,9 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
       // [레거시] 기존 search_academic_theory 호환
       else if (internalCall.name === 'search_academic_theory') {
         console.log('🔍 [AIService] Auto-handling internal tool: search_academic_theory');
-        const knowledgeResult = searchKnowledge(internalCall.args?.topic || '');
+        const topicArg = internalCall.args?.topic;
+        const topicStr = typeof topicArg === 'string' ? topicArg : '';
+        const knowledgeResult = searchKnowledge(topicStr);
 
         // 검색 결과를 AI에게 다시 전달하여 후속 응답 생성
         try {
@@ -720,11 +725,12 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
     };
 
     const runSendMessage = async (messageParts: MessagePart[]): Promise<SendMessageResult> => {
-      if (messageParts.length === 1 && messageParts[0].text) {
-        return this.chatSession!.sendMessage({ message: messageParts[0].text });
-      }
-      return this.chatSession!.sendMessage({ message: messageParts });
-    };
+        const firstPart = messageParts[0];
+        if (messageParts.length === 1 && 'text' in firstPart && firstPart.text) {
+          return this.chatSession!.sendMessage({ message: firstPart.text });
+        }
+        return this.chatSession!.sendMessage({ message: messageParts });
+      };
 
     const coerceParts = (value: unknown): StreamPart[] =>
       Array.isArray(value)
@@ -889,7 +895,7 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
   /**
    * 문화 분석 수행 (단발성)
    */
-  public async analyzeCulture(prompt: string, schema?: object): Promise<string> {
+  public async analyzeCulture(prompt: string, schema?: Record<string, unknown>): Promise<string> {
     if (!this.currentConfig) throw new Error('AI API 설정을 먼저 완료해주세요.');
 
     return this.callGemini(prompt, schema);

@@ -138,7 +138,7 @@ When user says `/mcp`, `mcp로`, or `MCP 프로세스` → **MUST follow [.agent
 | Step | Action | MCP Tools |
 |------|--------|-----------|
 | 1 | 정보 수집 | Context7 → Tavily → Sequential Thinking → **🔍 결론 검증** |
-| 2 | 계획 수립 | Shrimp `plan_task` → `analyze_task` → `split_tasks` + Mermaid 시각화 |
+| 2 | 계획 수립 | Shrimp `plan_task` → `analyze_task` → `split_tasks` (시각화는 요청/필요 시) |
 | 3 | 실행 | `list_tasks` 확인 → `execute_task` 1회 호출 → 코드 수정/빌드 |
 | 4 | 검증 | `verify_task` 1회 호출 + 브라우저 테스트 |
 | 5 | 문서화 | 사용자 요청 시 `.agent/brain/` 문서 + Git commit/push |

@@ -1,3 +1,52 @@
+# Walkthrough: Liveblocks 동기화/AI 액션 훅 분리 및 레이어 UI 모듈화
+
+## 완료 일시
+2026-02-01
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. CultureMapFlow의 Liveblocks/AI 액션 로직 분리로 유지보수성 개선
+2. 레이어 배경/컨트롤 패널 UI를 컴포넌트로 모듈화
+3. Gemini 메시지 처리 안정성 강화(텍스트 파트/토픽 타입 안전)
+
+---
+
+## ✅ 해결 조치
+
+1. `useLiveblocksSync` 훅으로 세션 타입, 레이어 설정, 인사이트/리포트 동기화 분리
+2. `useAiActions` 훅으로 AI 액션 실행 및 Liveblocks 업데이트 통합
+3. `LayerBackground`, `LayerControlPanel` 컴포넌트 추가로 레이어 UI 분리
+4. AIService에서 메시지 파트/토픽 타입 검사 강화
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/components/CultureMapFlow.tsx` | Liveblocks/AI 액션 로직 분리 및 레이어 UI 모듈화 적용 |
+| `src/components/LayerBackground.tsx` | 레이어 배경/라벨 렌더링 컴포넌트 추가 |
+| `src/components/LayerControlPanel.tsx` | 레이어 컨트롤 패널 컴포넌트 추가 |
+| `src/hooks/useLiveblocksSync.ts` | Liveblocks 동기화 훅 추가 |
+| `src/hooks/useAiActions.ts` | AI 액션 처리 훅 추가 |
+| `src/services/AIService.ts` | 메시지 파트/토픽 타입 안전성 강화 |
+| `.agent/workflows/MCP-VSCODE.md` | 워크플로우 문구/흐름 정리 |
+| `.agent/workflows/MCP.md` | 문구 정리 |
+| `.github/copilot-instructions.md` | 안내 문구 소폭 정리 |
+| `.agent/brain/implementation_plan.md` | 계획 업데이트 |
+| `.agent/brain/task.md` | 체크리스트 업데이트 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. 레이어 배경/라벨 표시 및 패널 열기/닫기 동작 확인 필요(사용자 환경)
+2. Liveblocks 동기화(세션 타입, 리포트, 인사이트) 정상 동작 확인 필요(사용자 환경)
+
+---
+
 # Walkthrough: auto_layout 비정상 종료 및 레이어 이탈 보정
 
 ## 완료 일시
