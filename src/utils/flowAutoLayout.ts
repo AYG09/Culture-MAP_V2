@@ -707,9 +707,15 @@ export function getOptimalHandles(
  */
 export function applyOptimalHandlesToEdges(
   nodes: Node[],
-  edges: Edge[]
+  edges: Edge[],
+  options?: {
+    force?: boolean;
+    pinnedNodeIds?: Set<string>;
+  }
 ): Edge[] {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const force = options?.force === true;
+  const pinnedNodeIds = options?.pinnedNodeIds;
   
   return edges.map((edge) => {
     const sourceNode = nodeById.get(edge.source);
@@ -719,8 +725,17 @@ export function applyOptimalHandlesToEdges(
       return edge;
     }
     
-    // 이미 sourceHandle/targetHandle이 있으면 유지
-    if (edge.sourceHandle && edge.targetHandle) {
+    const hasPinnedHandleNode = pinnedNodeIds
+      ? pinnedNodeIds.has(edge.source) || pinnedNodeIds.has(edge.target)
+      : false;
+
+    // 핸들 고정 노드는 항상 유지
+    if (hasPinnedHandleNode) {
+      return edge;
+    }
+
+    // 이미 sourceHandle/targetHandle이 있으면 유지 (force=false)
+    if (!force && edge.sourceHandle && edge.targetHandle) {
       return edge;
     }
     

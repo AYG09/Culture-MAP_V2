@@ -772,7 +772,10 @@ ${chatHistorySection}
     // Edge에 최적 핸들 적용 (레이어 간: top/bottom, 동일 레이어: left/right)
     const optimizedEdges = shouldPreserveEdges
       ? edgesWithPreservedHandles
-      : applyOptimalHandlesToEdges(adjustedNodes, edgesWithPreservedHandles);
+      : applyOptimalHandlesToEdges(adjustedNodes, edgesWithPreservedHandles, {
+          force: true,
+          pinnedNodeIds: pinnedHandleNodeIds,
+        });
     setEdges(optimizedEdges);
 
     // 일괄 트랜잭션으로 Liveblocks 업데이트 (observer 트리거 최소화)
