@@ -55,7 +55,10 @@ class LiveblocksService {
 
     public initialize(publicKey: string): void {
         if (this.client) return;
-        this.client = createClient({ publicApiKey: publicKey });
+        this.client = createClient({
+            publicApiKey: publicKey,
+            largeMessageStrategy: 'split',
+        });
         console.log('🔗 Liveblocks 클라이언트 초기화 완료');
     }
 
@@ -140,7 +143,6 @@ class LiveblocksService {
         const handleProviderSync = async (isSynced: boolean) => {
             if (!isSynced || this.hasClearedIndexeddbCache) return;
             this.hasClearedIndexeddbCache = true;
-            await this.resetIndexeddbCacheAfterSync(code);
             this.syncSessionMetadata();
             
             // 세션 연결 후 중복 노드/연결선 자동 정리
@@ -1005,17 +1007,6 @@ class LiveblocksService {
         this.listeners[event].forEach((cb) => cb(data));
     }
 
-    private findNodeIndex(id: string): number {
-        if (!this.yDoc) return -1;
-        const nodes = this.yDoc.getArray<StickyNoteData>('nodes').toArray();
-        // 마지막 항목의 인덱스 반환 (중복 시 최신 항목 업데이트)
-        let lastIndex = -1;
-        nodes.forEach((n, i) => {
-            if (n.id === id) lastIndex = i;
-        });
-        return lastIndex;
-    }
-
     private findConnectionIndex(id: string): number {
         if (!this.yDoc) return -1;
         const connections = this.yDoc.getArray<LBConnectionData>('connections').toArray();
@@ -1054,16 +1045,6 @@ class LiveblocksService {
     private generateUserColor(): string {
         const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'];
         return colors[Math.floor(Math.random() * colors.length)];
-    }
-
-    private async resetIndexeddbCacheAfterSync(code: string): Promise<void> {
-        if (!this.indexeddbProvider) return;
-        try {
-            await this.indexeddbProvider.clearData();
-            console.log(`🧹 [Liveblocks] IndexedDB cache cleared after sync: ${code}`);
-        } catch (error) {
-            console.warn('⚠️ [Liveblocks] IndexedDB cache clear failed:', error);
-        }
     }
 
     private setupDataListeners(): void {

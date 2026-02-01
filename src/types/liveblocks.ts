@@ -85,6 +85,7 @@ export interface SharedRagChunk {
 export interface SessionPresence {
     userId: string;
     cursor: { x: number; y: number } | null;
+    cursorClient?: { x: number; y: number } | null;
     selection: string[];
     userName: string;
     userColor: string;

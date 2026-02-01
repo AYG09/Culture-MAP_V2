@@ -64,6 +64,8 @@ const mapLiveblocksNoteToAppNote = (note: StickyNoteData): AppNote => {
     layer,
     perceptionIntensity: note.frequency,
     basis: note.basis, // 이미 string 타입
+    pinned: note.pinned === true,
+    pinnedHandles: note.pinnedHandles === true,
   };
 };
 

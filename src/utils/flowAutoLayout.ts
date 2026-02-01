@@ -109,7 +109,9 @@ const DEFAULT_ELK_OPTIONS: ElkLayoutOptions = {
   'elk.layered.spacing.nodeNodeBetweenLayers': '110',
   'elk.spacing.nodeNode': '80',
   'elk.layered.spacing.edgeNodeBetweenLayers': '60',
-  'elk.edgeRouting': 'ORTHOGONAL'
+  'elk.layered.spacing.edgeEdgeBetweenLayers': '16',
+  'elk.edgeRouting': 'ORTHOGONAL',
+  'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP'
 };
 
 export function buildElkLayoutOptions(
@@ -120,7 +122,8 @@ export function buildElkLayoutOptions(
       ...DEFAULT_ELK_OPTIONS,
       'elk.layered.spacing.nodeNodeBetweenLayers': '90',
       'elk.spacing.nodeNode': '60',
-      'elk.layered.spacing.edgeNodeBetweenLayers': '50'
+      'elk.layered.spacing.edgeNodeBetweenLayers': '50',
+      'elk.layered.spacing.edgeEdgeBetweenLayers': '12'
     };
   }
 
@@ -129,7 +132,8 @@ export function buildElkLayoutOptions(
       ...DEFAULT_ELK_OPTIONS,
       'elk.layered.spacing.nodeNodeBetweenLayers': '140',
       'elk.spacing.nodeNode': '110',
-      'elk.layered.spacing.edgeNodeBetweenLayers': '80'
+      'elk.layered.spacing.edgeNodeBetweenLayers': '80',
+      'elk.layered.spacing.edgeEdgeBetweenLayers': '24'
     };
   }
 
@@ -250,7 +254,8 @@ function getBasicLayoutedElements(
     const minGap = Math.max(60, Math.round(effectiveHorizontalSpacing * 0.4));
 
     const scoredNodes = layerNodes.map((node, nodeIndex) => {
-      const neighborX: number[] = [];
+      const targetXValues: number[] = [];
+      const sourceXValues: number[] = [];
 
       if (previousLayerKey) {
         const sources = edgeSourcesByTarget.get(node.id) || [];
@@ -258,7 +263,7 @@ function getBasicLayoutedElements(
           if (!previousLayerIdSet.has(sourceId)) return;
           const positionX = layoutPositionById.get(sourceId)?.x ?? getNodeX(nodeById.get(sourceId));
           if (typeof positionX === 'number') {
-            neighborX.push(positionX);
+            sourceXValues.push(positionX);
           }
         });
       }
@@ -269,13 +274,14 @@ function getBasicLayoutedElements(
           if (!nextLayerIdSet.has(targetId)) return;
           const positionX = layoutPositionById.get(targetId)?.x ?? getNodeX(nodeById.get(targetId));
           if (typeof positionX === 'number') {
-            neighborX.push(positionX);
+            targetXValues.push(positionX);
           }
         });
       }
 
-      const averageX = neighborX.length > 0
-        ? neighborX.reduce((sum, value) => sum + value, 0) / neighborX.length
+      const preferredXValues = targetXValues.length > 0 ? targetXValues : sourceXValues;
+      const averageX = preferredXValues.length > 0
+        ? preferredXValues.reduce((sum, value) => sum + value, 0) / preferredXValues.length
         : getNodeX(node) ?? (nodeIndex * effectiveHorizontalSpacing + 120);
 
       return {
@@ -665,13 +671,6 @@ function getHandlePosition(node: Node, handle: 'top' | 'bottom' | 'left' | 'righ
     case 'left': return { x: node.position.x, y: centerY };
     case 'right': return { x: node.position.x + width, y: centerY };
   }
-}
-
-/**
- * 두 점 사이의 유클리드 거리 계산
- */
-function calculateDistance(p1: { x: number; y: number }, p2: { x: number; y: number }): number {
-  return Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
 }
 
 /**

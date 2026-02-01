@@ -47,6 +47,7 @@ export function LiveblocksRoomProvider({
   const initialPresence = useMemo(
     () => ({
       cursor: null,
+      cursorClient: null,
       userName: userName || '익명',
       userColor: userColor || '#888888',
       userId: userId || '',

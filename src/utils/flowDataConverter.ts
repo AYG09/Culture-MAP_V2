@@ -57,6 +57,7 @@ interface ConversionOptions {
   activeLock?: ActiveLock;
   onEditStart?: (id: string) => boolean | void;
   onEditEnd?: (id: string) => void;
+  onTogglePin?: (id: string, nextPinned: boolean) => void;
   includeFrequency?: boolean;
 }
 
@@ -111,6 +112,7 @@ export const convertNoteToFlowNode = (
     lockedBy: lockLabel,
     pinned: note.pinned === true,
     pinnedHandles: note.pinnedHandles === true,
+    onTogglePin: options?.onTogglePin,
   };
 
   switch (note.type) {
@@ -292,6 +294,7 @@ export const convertToFlowData = (
     activeLocks?: Record<string, ActiveLock>;
     onNodeEditStart?: (id: string) => boolean | void;
     onNodeEditEnd?: (id: string) => void;
+    onTogglePin?: (id: string, nextPinned: boolean) => void;
     currentUserId?: string | null;
     includeFrequency?: boolean;
   }
@@ -302,6 +305,7 @@ export const convertToFlowData = (
       activeLock: options?.activeLocks?.[note.id],
       onEditStart: options?.onNodeEditStart,
       onEditEnd: options?.onNodeEditEnd,
+      onTogglePin: options?.onTogglePin,
       includeFrequency: options?.includeFrequency,
     })
   );

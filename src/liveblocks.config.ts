@@ -8,6 +8,7 @@ declare global {
     // 각 사용자의 Presence (커서, 선택 등)
     Presence: {
       cursor: { x: number; y: number } | null;
+      cursorClient?: { x: number; y: number } | null;
       userName?: string;
       userColor?: string;
       userId?: string;

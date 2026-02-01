@@ -246,6 +246,7 @@ export interface SetStyleVariablesPayload {
  */
 export interface SaveSnapshotPayload {
     name?: string;
+    snapshot_id?: string;
 }
 
 /**
@@ -253,6 +254,7 @@ export interface SaveSnapshotPayload {
  */
 export interface RestoreSnapshotPayload {
     name?: string;
+    snapshot_id?: string;
 }
 
 /**
@@ -604,9 +606,10 @@ export const MAP_TOOL_DECLARATIONS = [
         parametersJsonSchema: {
             type: 'object',
             properties: {
-                name: { type: 'string', description: 'Snapshot name (optional)' }
+                name: { type: 'string', description: 'Snapshot name (optional)' },
+                snapshot_id: { type: 'string', description: 'Snapshot id (optional, alias of name)' }
             },
-            propertyOrdering: ['name']
+            propertyOrdering: ['name', 'snapshot_id']
         }
     },
     {
@@ -615,9 +618,10 @@ export const MAP_TOOL_DECLARATIONS = [
         parametersJsonSchema: {
             type: 'object',
             properties: {
-                name: { type: 'string', description: 'Snapshot name (optional)' }
+                name: { type: 'string', description: 'Snapshot name (optional)' },
+                snapshot_id: { type: 'string', description: 'Snapshot id (optional, alias of name)' }
             },
-            propertyOrdering: ['name']
+            propertyOrdering: ['name', 'snapshot_id']
         }
     },
     {

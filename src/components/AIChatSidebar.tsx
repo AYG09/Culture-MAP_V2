@@ -547,20 +547,51 @@ ${layerHeightContext}
                         finalActions = Array.isArray(chunk.actions) ? chunk.actions : [];
                         console.log('🎯 [AIChatSidebar] Actions received:', finalActions.length, 'items');
 
-                        // 설정에 따라 자동 실행 또는 수동 확인
-                        const autoExecute = aiService.getConfig()?.autoExecuteFunctionCalls ?? false;
-                        if (!explicitMapEditRequest && finalActions.length > 0) {
-                            console.warn('🛑 [AIChatSidebar] No explicit map-edit intent detected. Actions require confirmation.');
-                        }
-                        const shouldIgnoreActions = explanationRequest && !explicitMapEditRequest;
-                        const actionsWithFlags = !isPrivateChat && !shouldIgnoreActions
-                            ? finalActions.map(action => ({
+                        const normalizeActionName = (name?: string) => (name ?? '').trim().toLowerCase();
+                        const isSnapshotSaveOnly =
+                            finalActions.length > 0 &&
+                            finalActions.every(action => normalizeActionName(action.name) === 'save_snapshot');
+
+                        const resolveSnapshotName = (action: AiAction) => {
+                            const rawName = typeof action.args?.name === 'string'
+                                ? action.args?.name
+                                : typeof action.args?.snapshot_id === 'string'
+                                    ? action.args?.snapshot_id
+                                    : undefined;
+                            const trimmed = rawName?.trim();
+                            return trimmed && trimmed.length > 0 ? trimmed : 'default';
+                        };
+
+                        if (isSnapshotSaveOnly) {
+                            const snapshotActions = finalActions.map(action => ({
                                 ...action,
                                 __suppressAutoLayout: preservePositionsRequested
-                            }))
-                            : [];
+                            }));
+                            snapshotActions.forEach(action => onActionExecute(action));
+                            const snapshotLabel = resolveSnapshotName(snapshotActions[0]);
+                            const responseText = `스냅샷 ID ${snapshotLabel} 저장되었습니다.`;
+                            if (aiMsgId && !aiMsgId.startsWith('local-')) {
+                                liveblocksService.updateAiResponse(aiMsgId, responseText, []);
+                            } else if (aiMsgId) {
+                                setMessages(prev => prev.map(m =>
+                                    m.id === aiMsgId ? { ...m, content: responseText, suggestedActions: [] } : m
+                                ));
+                            }
+                        } else {
+                            // 설정에 따라 자동 실행 또는 수동 확인
+                            const autoExecute = aiService.getConfig()?.autoExecuteFunctionCalls ?? false;
+                            if (!explicitMapEditRequest && finalActions.length > 0) {
+                                console.warn('🛑 [AIChatSidebar] No explicit map-edit intent detected. Actions require confirmation.');
+                            }
+                            const shouldIgnoreActions = explanationRequest && !explicitMapEditRequest;
+                            const actionsWithFlags = !isPrivateChat && !shouldIgnoreActions
+                                ? finalActions.map(action => ({
+                                    ...action,
+                                    __suppressAutoLayout: preservePositionsRequested
+                                }))
+                                : [];
 
-                        if (autoExecute && actionsWithFlags.length > 0 && explicitMapEditRequest) {
+                            if (autoExecute && actionsWithFlags.length > 0 && explicitMapEditRequest) {
                             // 자동 실행 모드: 즉시 onActionExecute 호출
                             console.log('⚡ [AIChatSidebar] Auto-executing actions...');
                             actionsWithFlags.forEach(action => onActionExecute(action));
@@ -568,15 +599,16 @@ ${layerHeightContext}
                             if (aiMsgId && !aiMsgId.startsWith('local-')) {
                                 liveblocksService.updateAiResponse(aiMsgId);
                             }
-                        } else {
-                            // 수동 실행 모드: 메시지에 actions 저장하여 버튼 표시
-                            console.log('🛡️ [AIChatSidebar] Manual mode - storing actions for user confirmation');
-                            if (aiMsgId && !aiMsgId.startsWith('local-')) {
-                                liveblocksService.updateAiResponse(aiMsgId, undefined, actionsWithFlags);
                             } else {
-                                setMessages(prev => prev.map(m =>
-                                    m.id === aiMsgId ? { ...m, suggestedActions: actionsWithFlags } : m
-                                ));
+                                // 수동 실행 모드: 메시지에 actions 저장하여 버튼 표시
+                                console.log('🛡️ [AIChatSidebar] Manual mode - storing actions for user confirmation');
+                                if (aiMsgId && !aiMsgId.startsWith('local-')) {
+                                    liveblocksService.updateAiResponse(aiMsgId, undefined, actionsWithFlags);
+                                } else {
+                                    setMessages(prev => prev.map(m =>
+                                        m.id === aiMsgId ? { ...m, suggestedActions: actionsWithFlags } : m
+                                    ));
+                                }
                             }
                         }
                     }

@@ -1,5 +1,6 @@
 // src/components/flow-nodes/ResultNode.tsx
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { Pin, PinOff } from 'lucide-react';
 import { Handle, Position, NodeResizer, type NodeProps } from '@xyflow/react';
 import type { PerceptionIntensity } from '../../types/culture';
 import { FREQUENCY_LABELS } from '../../types/culture';
@@ -18,6 +19,8 @@ export interface ResultNodeData {
   onEditEnd?: (id: string) => void;
   isLocked?: boolean;
   lockedBy?: string;
+  pinned?: boolean;
+  onTogglePin?: (id: string, nextPinned: boolean) => void;
 }
 
 const ResultNode = ({ id, data, selected }: NodeProps & { data: ResultNodeData }) => {
@@ -74,6 +77,12 @@ const ResultNode = ({ id, data, selected }: NodeProps & { data: ResultNodeData }
     }
   }, [data.content]);
 
+  const handleTogglePin = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    const nextPinned = !(data.pinned === true);
+    data.onTogglePin?.(id, nextPinned);
+  }, [data, id]);
+
   const sentimentColors = {
     positive: '#3b82f6', // 파랑
     negative: '#ef4444', // 빨강
@@ -119,6 +128,15 @@ const ResultNode = ({ id, data, selected }: NodeProps & { data: ResultNodeData }
       />
       <div className="node-header">
         <span className="layer-badge">결과</span>
+        <button
+          type="button"
+          className={`node-pin-button ${data.pinned ? 'active' : ''}`}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={handleTogglePin}
+          title={data.pinned ? '고정 해제' : '노드 고정'}
+        >
+          {data.pinned ? <Pin size={12} strokeWidth={2.4} /> : <PinOff size={12} strokeWidth={2.4} />}
+        </button>
         <span 
           className="sentiment-badge" 
           style={{ 
@@ -173,56 +191,56 @@ const ResultNode = ({ id, data, selected }: NodeProps & { data: ResultNodeData }
         id="top"
         type="target"
         position={Position.Top}
-        className="custom-handle"
+        className="custom-handle handle-target"
         isConnectable={true}
       />
       <Handle
         id="bottom"
         type="target"
         position={Position.Bottom}
-        className="custom-handle"
+        className="custom-handle handle-target"
         isConnectable={true}
       />
       <Handle
         id="left"
         type="target"
         position={Position.Left}
-        className="custom-handle handle-side"
+        className="custom-handle handle-side handle-target"
         isConnectable={true}
       />
       <Handle
         id="right"
         type="target"
         position={Position.Right}
-        className="custom-handle handle-side"
+        className="custom-handle handle-side handle-target"
         isConnectable={true}
       />
       <Handle
         id="top"
         type="source"
         position={Position.Top}
-        className="custom-handle"
+        className="custom-handle handle-source"
         isConnectable={true}
       />
       <Handle
         id="bottom"
         type="source"
         position={Position.Bottom}
-        className="custom-handle"
+        className="custom-handle handle-source"
         isConnectable={true}
       />
       <Handle
         id="left"
         type="source"
         position={Position.Left}
-        className="custom-handle handle-side"
+        className="custom-handle handle-side handle-source"
         isConnectable={true}
       />
       <Handle
         id="right"
         type="source"
         position={Position.Right}
-        className="custom-handle handle-side"
+        className="custom-handle handle-side handle-source"
         isConnectable={true}
       />
 

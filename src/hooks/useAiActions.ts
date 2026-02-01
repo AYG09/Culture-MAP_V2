@@ -35,8 +35,36 @@ import {
   isUpdateNodePayload,
 } from '../types/actions';
 import { INTENSITY_MAP } from '../types/culture';
-import { convertFromFlowData } from '../utils/flowDataConverter';
+import { convertFromFlowData, convertToFlowData } from '../utils/flowDataConverter';
 import { getOptimalHandles, LAYER_MAX_HEIGHT } from '../utils/flowAutoLayout';
+
+const SNAPSHOT_INDEX_KEY = 'culture-map-snapshots:index';
+type SnapshotIndexEntry = { id: string; savedAt: string };
+
+const loadSnapshotIndex = (): SnapshotIndexEntry[] => {
+  try {
+    const raw = localStorage.getItem(SNAPSHOT_INDEX_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((entry: unknown) => {
+      if (!entry || typeof entry !== 'object') return false;
+      const typed = entry as { id?: unknown; savedAt?: unknown };
+      return typeof typed.id === 'string' && typeof typed.savedAt === 'string';
+    }) as SnapshotIndexEntry[];
+  } catch (err) {
+    console.warn('⚠️ snapshot index load failed', err);
+    return [];
+  }
+};
+
+const saveSnapshotIndex = (entries: SnapshotIndexEntry[]) => {
+  try {
+    localStorage.setItem(SNAPSHOT_INDEX_KEY, JSON.stringify(entries));
+  } catch (err) {
+    console.warn('⚠️ snapshot index save failed', err);
+  }
+};
 
 // Hook Configuration Interface
 interface UseAiActionsProps {
@@ -77,6 +105,7 @@ interface UseAiActionsProps {
   handleNodeContentUpdate: (id: string, content: string) => void;
   handleStartNodeEditing: (id: string) => boolean;
   handleStopNodeEditing: (id: string) => void;
+  handleTogglePin: (id: string, nextPinned: boolean) => void;
   
   // Mode
   isConsultingMode: boolean;
@@ -111,6 +140,7 @@ export const useAiActions = ({
   handleNodeContentUpdate,
   handleStartNodeEditing,
   handleStopNodeEditing,
+  handleTogglePin,
   isConsultingMode,
   layoutSpacingRef,
   preserveEdgesRef,
@@ -245,6 +275,8 @@ export const useAiActions = ({
             onUpdate: handleNodeContentUpdate,
             onEditStart: handleStartNodeEditing,
             onEditEnd: handleStopNodeEditing,
+            onTogglePin: handleTogglePin,
+            pinned: false,
             isLocked: false,
             lockedBy: undefined,
           },
@@ -335,6 +367,8 @@ export const useAiActions = ({
               onUpdate: handleNodeContentUpdate,
               onEditStart: handleStartNodeEditing,
               onEditEnd: handleStopNodeEditing,
+              onTogglePin: handleTogglePin,
+              pinned: false,
             },
             draggable: true,
           });
@@ -730,37 +764,84 @@ export const useAiActions = ({
 
       case 'save_snapshot': {
         const payload = (args as unknown) as SaveSnapshotPayload;
-        if (!reactFlowInstance) break;
-        const snapshotName = payload.name?.trim() || 'default';
+        const snapshotName = payload.name?.trim() || payload.snapshot_id?.trim() || 'default';
+        const viewport = reactFlowInstance?.getViewport?.();
+        const snapshotNodes = nodesRef.current.map((node) => ({
+          ...node,
+          data: { ...node.data },
+        }));
+        const snapshotEdges = edgesRef.current.map((edge) => ({
+          ...edge,
+          data: edge.data ? { ...edge.data } : edge.data,
+        }));
         const flow = {
-          nodes: reactFlowInstance.getNodes(),
-          edges: reactFlowInstance.getEdges(),
-          viewport: reactFlowInstance.getViewport(),
+          nodes: snapshotNodes,
+          edges: snapshotEdges,
+          viewport,
+          layerHeights,
+          layerOpacities,
+          savedAt: new Date().toISOString(),
         };
         localStorage.setItem(`culture-map-snapshot:${snapshotName}`, JSON.stringify(flow));
+        const savedAt = flow.savedAt as string;
+        const nextIndex = loadSnapshotIndex().filter(entry => entry.id !== snapshotName);
+        nextIndex.unshift({ id: snapshotName, savedAt });
+        saveSnapshotIndex(nextIndex);
         break;
       }
 
       case 'restore_snapshot': {
         const payload = (args as unknown) as RestoreSnapshotPayload;
-        if (!reactFlowInstance) break;
-        const snapshotName = payload.name?.trim() || 'default';
+        const snapshotName = payload.name?.trim() || payload.snapshot_id?.trim() || 'default';
         const raw = localStorage.getItem(`culture-map-snapshot:${snapshotName}`);
         if (!raw) break;
         try {
           const flow = JSON.parse(raw);
-          const nextNodes = Array.isArray(flow.nodes) ? flow.nodes : [];
-          const nextEdges = Array.isArray(flow.edges) ? flow.edges : [];
+          const rawNodes = Array.isArray(flow.nodes) ? (flow.nodes as Node[]) : [];
+          const rawEdges = Array.isArray(flow.edges) ? (flow.edges as Edge[]) : [];
+          const nextLayerHeights = Array.isArray(flow.layerHeights)
+            ? flow.layerHeights.filter((value: unknown) => typeof value === 'number')
+            : undefined;
+          const nextLayerOpacities = Array.isArray(flow.layerOpacities)
+            ? flow.layerOpacities.filter((value: unknown) => typeof value === 'number')
+            : undefined;
+
+          if (nextLayerHeights && nextLayerHeights.length) {
+            setLayerHeights(nextLayerHeights);
+          }
+
+          if (nextLayerOpacities && nextLayerOpacities.length) {
+            setLayerOpacities(nextLayerOpacities);
+          }
+
+          const { notes, connections } = convertFromFlowData(rawNodes, rawEdges);
+          const { nodes: nextNodes, edges: nextEdges } = convertToFlowData(
+            notes,
+            connections,
+            handleNodeContentUpdate,
+            {
+              onNodeEditStart: handleStartNodeEditing,
+              onNodeEditEnd: handleStopNodeEditing,
+              onTogglePin: handleTogglePin,
+              currentUserId: liveblocksService.getCurrentUserId() ?? undefined,
+              includeFrequency: isConsultingMode,
+            }
+          );
           setNodes(nextNodes);
           setEdges(nextEdges);
           nodesRef.current = nextNodes;
           edgesRef.current = nextEdges;
 
-          const { notes, connections } = convertFromFlowData(nextNodes, nextEdges);
           onNotesChange(notes);
           onConnectionsChange(connections);
 
           if (liveblocksService.isConnected()) {
+            if (nextLayerHeights || nextLayerOpacities) {
+              liveblocksService.updateLayerSettings({
+                layerHeights: nextLayerHeights ?? layerHeights,
+                layerOpacities: nextLayerOpacities ?? layerOpacities,
+              });
+            }
             const lbNotes = notes.map((note) => ({
               id: note.id, content: note.content, x: note.position.x, y: note.position.y,
               layer: note.layer, sentiment: note.sentiment, type: note.type,
@@ -775,7 +856,7 @@ export const useAiActions = ({
             }));
             liveblocksService.restoreMapData(lbNotes, lbConnections);
           }
-          if (flow.viewport) reactFlowInstance.setViewport(flow.viewport);
+          if (flow.viewport && reactFlowInstance) reactFlowInstance.setViewport(flow.viewport);
         } catch (err) { console.error('Snapshot restore failed', err); }
         break;
       }

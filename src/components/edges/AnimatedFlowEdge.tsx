@@ -11,6 +11,8 @@ import { BaseEdge, getBezierPath, type EdgeProps, type Edge } from '@xyflow/reac
 export interface AnimatedFlowEdgeData extends Record<string, unknown> {
   relationType?: 'direct' | 'indirect';
   isPositive?: boolean;
+  bundleIndex?: number;
+  bundleSize?: number;
 }
 
 export type AnimatedFlowEdge = Edge<AnimatedFlowEdgeData, 'animatedFlow'>;
@@ -27,12 +29,28 @@ function AnimatedFlowEdge({
   markerEnd,
   data,
 }: EdgeProps<AnimatedFlowEdge>) {
+  const bundleSize = typeof data?.bundleSize === 'number' ? data.bundleSize : 0;
+  const bundleIndex = typeof data?.bundleIndex === 'number' ? data.bundleIndex : 0;
+  const hasBundle = bundleSize > 1;
+  const centerOffset = hasBundle ? bundleIndex - (bundleSize - 1) / 2 : 0;
+  const bundleGap = 10;
+
+  const deltaX = targetX - sourceX;
+  const deltaY = targetY - sourceY;
+  const isHorizontalDominant = Math.abs(deltaX) >= Math.abs(deltaY);
+  const offset = centerOffset * bundleGap;
+
+  const adjustedSourceX = isHorizontalDominant ? sourceX : sourceX + offset;
+  const adjustedSourceY = isHorizontalDominant ? sourceY + offset : sourceY;
+  const adjustedTargetX = isHorizontalDominant ? targetX : targetX + offset;
+  const adjustedTargetY = isHorizontalDominant ? targetY + offset : targetY;
+
   const [edgePath] = getBezierPath({
-    sourceX,
-    sourceY,
+    sourceX: adjustedSourceX,
+    sourceY: adjustedSourceY,
     sourcePosition,
-    targetX,
-    targetY,
+    targetX: adjustedTargetX,
+    targetY: adjustedTargetY,
     targetPosition,
   });
 

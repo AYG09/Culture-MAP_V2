@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { toPng } from 'html-to-image';
 import { type ReactFlowInstance, getNodesBounds, getViewportForBounds } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
@@ -11,11 +11,25 @@ interface ExportMenuProps {
   nodes: Node[];
   // edges는 향후 JSON/Excel 내보내기에서 사용
   edges: Edge[];
+  onSaveSnapshot?: (snapshotName: string) => void;
+  onRestoreSnapshot?: (snapshotName: string) => void;
+  onUndoLayout?: () => void;
 }
 
-export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps) {
+type SnapshotIndexEntry = { id: string; savedAt: string };
+const SNAPSHOT_INDEX_KEY = 'culture-map-snapshots:index';
+
+export default function ExportMenu({
+  reactFlowInstance,
+  nodes,
+  onSaveSnapshot,
+  onRestoreSnapshot,
+  onUndoLayout,
+}: ExportMenuProps) {
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [isSnapshotPanelOpen, setIsSnapshotPanelOpen] = useState(false);
+  const [snapshotIndex, setSnapshotIndex] = useState<SnapshotIndexEntry[]>([]);
 
   /**
    * PNG 이미지로 내보내기
@@ -303,6 +317,53 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
     exportExcel();
   };
 
+  const handleSaveSnapshot = () => {
+    if (!onSaveSnapshot) return;
+    const input = window.prompt('컬쳐맵 ID를 입력하세요.', 'default');
+    if (input === null) return;
+    const snapshotName = input.trim() || 'default';
+    onSaveSnapshot(snapshotName);
+    refreshSnapshotIndex();
+  };
+
+  const handleRestoreSnapshot = useCallback((snapshotName: string) => {
+    if (!onRestoreSnapshot) return;
+    const trimmed = snapshotName.trim() || 'default';
+    onRestoreSnapshot(trimmed);
+  }, [onRestoreSnapshot]);
+
+  const handleUndoLayout = () => {
+    onUndoLayout?.();
+  };
+
+  const refreshSnapshotIndex = useCallback(() => {
+    try {
+      const raw = localStorage.getItem(SNAPSHOT_INDEX_KEY);
+      if (!raw) {
+        setSnapshotIndex([]);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        setSnapshotIndex([]);
+        return;
+      }
+      const normalized = parsed.filter((entry: unknown) => {
+        if (!entry || typeof entry !== 'object') return false;
+        const typed = entry as { id?: unknown; savedAt?: unknown };
+        return typeof typed.id === 'string' && typeof typed.savedAt === 'string';
+      }) as SnapshotIndexEntry[];
+      setSnapshotIndex(normalized);
+    } catch (err) {
+      console.warn('⚠️ snapshot index load failed', err);
+      setSnapshotIndex([]);
+    }
+  }, []);
+
+  const sortedSnapshots = useMemo(() => {
+    return [...snapshotIndex].sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+  }, [snapshotIndex]);
+
 
   return (
     <div className="export-menu">
@@ -332,6 +393,74 @@ export default function ExportMenu({ reactFlowInstance, nodes }: ExportMenuProps
       >
         {isExporting ? <span className="spinner"></span> : '📊'} <span>Excel</span>
       </button>
+
+      <button
+        className="glass-button export-button"
+        onClick={handleSaveSnapshot}
+        title="컬쳐맵을 저장합니다"
+      >
+        💾 <span>컬쳐맵 저장</span>
+      </button>
+
+      <button
+        className="glass-button export-button"
+        onClick={() => {
+          const nextOpen = !isSnapshotPanelOpen;
+          setIsSnapshotPanelOpen(nextOpen);
+          if (nextOpen) {
+            refreshSnapshotIndex();
+          }
+        }}
+        title="컬쳐맵을 복원합니다"
+        aria-expanded={isSnapshotPanelOpen}
+        aria-controls="snapshot-panel"
+      >
+        ↩️ <span>컬쳐맵 로드</span>
+      </button>
+
+      <button
+        className="glass-button export-button"
+        onClick={handleUndoLayout}
+        title="직전 상태로 되돌립니다"
+      >
+        ← <span>이전상태</span>
+      </button>
+
+      {isSnapshotPanelOpen && (
+        <div id="snapshot-panel" className="snapshot-panel" role="region" aria-label="컬쳐맵 목록">
+          <div className="snapshot-panel-header">
+            <span>저장된 컬쳐맵</span>
+            <button
+              type="button"
+              className="snapshot-refresh-btn"
+              onClick={refreshSnapshotIndex}
+            >
+              새로고침
+            </button>
+          </div>
+          {sortedSnapshots.length === 0 ? (
+            <div className="snapshot-empty">저장된 컬쳐맵이 없습니다.</div>
+          ) : (
+            <ul className="snapshot-list">
+              {sortedSnapshots.map((entry) => (
+                <li key={`${entry.id}-${entry.savedAt}`} className="snapshot-item">
+                  <div className="snapshot-meta">
+                    <span className="snapshot-id">{entry.id}</span>
+                    <span className="snapshot-date">{new Date(entry.savedAt).toLocaleString()}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="snapshot-restore-btn"
+                    onClick={() => handleRestoreSnapshot(entry.id)}
+                  >
+                    복원
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {exportError && (
         <div className="export-error" role="alert">

@@ -5,7 +5,6 @@ import {
   Background,
   Controls,
   MiniMap,
-  ViewportPortal,
   useNodesState,
   useEdgesState,
   addEdge,
@@ -162,6 +161,8 @@ const mapLiveblocksNoteToNoteData = (note: StickyNoteData): NoteData => {
     basis: note.basis,
     layer: toLayerValue(note.layer, noteType),
     createdBy: note.createdBy,
+    pinned: note.pinned === true,
+    pinnedHandles: note.pinnedHandles === true,
   };
 };
 
@@ -251,15 +252,14 @@ const CultureMapFlow = ({
   const [, setSelectedNodes] = useState<Node[]>([]);
   const [, setSelectedEdges] = useState<Edge[]>([]);
 
-  // 보고서 내용 변경 핸들러 (컨설팅 모드에서만 Firebase에 저장)
+  // 보고서 내용 변경 핸들러
   const handleReportChange = useCallback((content: string) => {
     setReportContent(content);
 
-    // 컨설팅 모드에서만 Firebase에 저장
-    if (isConsultingMode) {
+    if (liveblocksService.isConnected()) {
       liveblocksService.updateReportContent(content);
     }
-  }, [isConsultingMode]);
+  }, []);
 
   // AI 보고서 생성 핸들러
   const handleGenerateReport = useCallback(async () => {
@@ -382,8 +382,8 @@ ${chatHistorySection}
       setReportContent(htmlContent);
       setActiveTab('report');
 
-      // 컨설팅 모드에서는 Firebase에도 저장
-      if (isConsultingMode) {
+      // Firebase에도 저장
+      if (liveblocksService.isConnected()) {
         liveblocksService.updateReportContent(htmlContent);
       }
 
@@ -393,7 +393,7 @@ ${chatHistorySection}
     } finally {
       setIsGeneratingReport(false);
     }
-  }, [isGeneratingReport, isConsultingMode]);
+  }, [isGeneratingReport]);
 
   // 보고서 내용 Firebase 동기화 (컨설팅 모드에서만) - useLiveblocksSync에서 처리됨
   /* useEffect removed */
@@ -517,11 +517,63 @@ ${chatHistorySection}
 
   const flowWrapperRef = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
+  const [viewport, setViewport] = useState<{ x: number; y: number; zoom: number }>({ x: 0, y: 0, zoom: 1 });
 
   const [collaborationLocks, setCollaborationLocks] = useState<Record<string, CollaborationLock>>({});
   const collaborationLocksRef = useRef<Record<string, CollaborationLock>>({});
 
   const safeAutoLayout = useCallback(async (showAlert = false) => {
+    const applyEdgeBundling = (edges: Edge[]): Edge[] => {
+      const byTarget = new Map<string, Edge[]>();
+      const bySource = new Map<string, Edge[]>();
+
+      edges.forEach((edge) => {
+        if (!byTarget.has(edge.target)) {
+          byTarget.set(edge.target, []);
+        }
+        byTarget.get(edge.target)!.push(edge);
+
+        if (!bySource.has(edge.source)) {
+          bySource.set(edge.source, []);
+        }
+        bySource.get(edge.source)!.push(edge);
+      });
+
+      const bundleMap = new Map<string, { bundleSize: number; bundleIndex: number }>();
+
+      byTarget.forEach((group) => {
+        if (group.length <= 1) return;
+        const sorted = [...group].sort((a, b) => a.id.localeCompare(b.id));
+        sorted.forEach((edge, index) => {
+          bundleMap.set(edge.id, { bundleSize: sorted.length, bundleIndex: index });
+        });
+      });
+
+      bySource.forEach((group) => {
+        if (group.length <= 1) return;
+        const sorted = [...group].sort((a, b) => a.id.localeCompare(b.id));
+        sorted.forEach((edge, index) => {
+          if (bundleMap.has(edge.id)) return;
+          bundleMap.set(edge.id, { bundleSize: sorted.length, bundleIndex: index });
+        });
+      });
+
+      return edges.map((edge) => {
+        const bundle = bundleMap.get(edge.id);
+        if (!bundle) {
+          return edge;
+        }
+        const data = (edge.data as Record<string, unknown> | undefined) ?? {};
+        return {
+          ...edge,
+          data: {
+            ...data,
+            bundleSize: bundle.bundleSize,
+            bundleIndex: bundle.bundleIndex,
+          },
+        };
+      });
+    };
     const normalizeLayerType = (value?: string) => {
       if (
         value === 'result'
@@ -669,7 +721,7 @@ ${chatHistorySection}
       return 120;
     };
 
-    const layerPaddingY = 40;
+    const layerPaddingY = 20;
     const minHeight = 120 + layerPaddingY * 2;
     const maxHeight = LAYER_MAX_HEIGHT;
     const layerStats = new Map<number, {
@@ -776,7 +828,18 @@ ${chatHistorySection}
           force: true,
           pinnedNodeIds: pinnedHandleNodeIds,
         });
-    setEdges(optimizedEdges);
+    const bundledEdges = applyEdgeBundling(optimizedEdges);
+    setEdges(bundledEdges);
+    edgesRef.current = bundledEdges;
+
+    const { connections: updatedConnections } = convertFromFlowData(adjustedNodes, bundledEdges);
+    onConnectionsChange(updatedConnections);
+
+    if (liveblocksService.isConnected()) {
+      updatedConnections.forEach((connection) => {
+        liveblocksService.updateConnection(connection as LBConnectionData);
+      });
+    }
 
     // 일괄 트랜잭션으로 Liveblocks 업데이트 (observer 트리거 최소화)
     const batchUpdates = adjustedNodes.map((node) => {
@@ -1046,6 +1109,66 @@ ${chatHistorySection}
     [ensureLiveblocksConnected, onNodeUpdate, setNodes]
   );
 
+  const handleTogglePin = useCallback(
+    (nodeId: string, nextPinned: boolean) => {
+      setNodes((currentNodes) => {
+        const updated = currentNodes.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  pinned: nextPinned,
+                },
+              }
+            : node
+        );
+        nodesRef.current = updated;
+        return updated;
+      });
+
+      if (liveblocksService.isConnected()) {
+        liveblocksService.updateStickyNote({ id: nodeId, pinned: nextPinned });
+      }
+
+      const updatedData = convertFromFlowData(nodesRef.current, edgesRef.current);
+      onNotesChange(updatedData.notes);
+    },
+    [onNotesChange, setNodes]
+  );
+
+  useEffect(() => {
+    setNodes((currentNodes) => {
+      let changed = false;
+      const updated = currentNodes.map((node) => {
+        const data = node.data as Record<string, unknown>;
+        const hasToggle = typeof (data as { onTogglePin?: unknown }).onTogglePin === 'function';
+        const hasPinned = typeof (data as { pinned?: unknown }).pinned === 'boolean';
+
+        if (hasToggle && hasPinned) {
+          return node;
+        }
+
+        changed = true;
+        return {
+          ...node,
+          data: {
+            ...data,
+            onTogglePin: handleTogglePin,
+            pinned: hasPinned ? (data as { pinned?: boolean }).pinned : false,
+          },
+        };
+      });
+
+      if (!changed) {
+        return currentNodes;
+      }
+
+      nodesRef.current = updated;
+      return updated;
+    });
+  }, [handleTogglePin, setNodes]);
+
   // [REFACTORED] Use AI Logic Hook
   const { handleAiAction } = useAiActions({
     setNodes,
@@ -1074,8 +1197,27 @@ ${chatHistorySection}
     layoutSpacingRef,
     preserveEdgesRef,
     isUserLayerHeightChangeRef,
-    styleVariables
+    styleVariables,
+    handleTogglePin
   });
+
+  const handleSaveSnapshot = useCallback(
+    (snapshotName: string) => {
+      handleAiAction({ name: 'save_snapshot', args: { name: snapshotName } });
+    },
+    [handleAiAction]
+  );
+
+  const handleRestoreSnapshot = useCallback(
+    (snapshotName: string) => {
+      handleAiAction({ name: 'restore_snapshot', args: { name: snapshotName } });
+    },
+    [handleAiAction]
+  );
+
+  const handleUndoLayout = useCallback(() => {
+    handleAiAction({ name: 'undo_layout', args: {} });
+  }, [handleAiAction]);
 
   const aiContext = useMemo(() => convertFromFlowData(nodes, edges), [nodes, edges]);
 
@@ -1129,16 +1271,120 @@ ${chatHistorySection}
   const handleLayerHeightChange = useCallback(
     (value: number) => {
       if (selectedLayerIndex === null) return;
-      const nextValue = Math.min(LAYER_MAX_HEIGHT, Math.max(100, value));
-      const newHeights = [...layerHeights];
-      newHeights[selectedLayerIndex] = nextValue;
+      const layerIndexMap: Record<string, number> = {
+        result: 0,
+        behavior: 1,
+        tangible_lever: 2,
+        intangible_lever: 3,
+      };
+      const displayLayerOrder: Array<keyof typeof layerIndexMap> = [
+        'result',
+        'behavior',
+        'tangible_lever',
+        'intangible_lever',
+      ];
+
+      const getNodeHeight = (node: Node) => {
+        if (typeof node.measured?.height === 'number') return node.measured.height;
+        if (typeof node.height === 'number') return node.height;
+        return 120;
+      };
+
+      const layerPaddingY = 20;
+      const minHeight = 100;
+      const maxHeight = LAYER_MAX_HEIGHT;
+
+      const requested = Math.min(maxHeight, Math.max(minHeight, value));
+      const nextHeights = [...layerHeights];
+      nextHeights[selectedLayerIndex] = requested;
+
+      const maxBottomByLayer = [0, 0, 0, 0];
+      nodesRef.current.forEach((node) => {
+        const layerIndex = layerIndexMap[node.type || 'result'] ?? 0;
+        const nodeHeight = getNodeHeight(node);
+        const bottom = node.position.y + nodeHeight;
+        if (bottom > maxBottomByLayer[layerIndex]) {
+          maxBottomByLayer[layerIndex] = bottom;
+        }
+      });
+
+      const currentStarts = new Map<number, number>();
+      let currentCumulative = 0;
+      displayLayerOrder.forEach((layerKey) => {
+        const index = layerIndexMap[layerKey];
+        currentStarts.set(index, currentCumulative);
+        currentCumulative += layerHeights[index] ?? minHeight;
+      });
+
+      const constrainedHeights: number[] = [];
+      displayLayerOrder.forEach((layerKey) => {
+        const index = layerIndexMap[layerKey];
+        const maxBottom = maxBottomByLayer[index];
+        const requestedHeight = nextHeights[index] ?? minHeight;
+        const currentStart = currentStarts.get(index) ?? 0;
+        const requiredMin = maxBottom
+          ? Math.max(minHeight, maxBottom - currentStart + layerPaddingY)
+          : minHeight;
+        const clamped = Math.min(maxHeight, Math.max(requestedHeight, requiredMin));
+        constrainedHeights[index] = clamped;
+      });
+
+      const oldStarts = currentStarts;
+
+      const newStarts = new Map<number, number>();
+      let newCumulative = 0;
+      displayLayerOrder.forEach((layerKey) => {
+        const index = layerIndexMap[layerKey];
+        newStarts.set(index, newCumulative);
+        newCumulative += constrainedHeights[index] ?? minHeight;
+      });
+
+      const adjustedNodes = nodesRef.current.map((node) => {
+        const layerIndex = layerIndexMap[node.type || 'result'] ?? 0;
+        const oldStart = oldStarts.get(layerIndex) ?? 0;
+        const newStart = newStarts.get(layerIndex) ?? 0;
+        const nodeHeight = getNodeHeight(node);
+        const relativeY = node.position.y - oldStart;
+        const bandHeight = constrainedHeights[layerIndex] ?? minHeight;
+        const minY = newStart + layerPaddingY;
+        const maxY = newStart + Math.max(0, bandHeight - nodeHeight - layerPaddingY);
+        const nextY = Math.min(Math.max(minY, newStart + relativeY), maxY);
+        return {
+          ...node,
+          position: {
+            ...node.position,
+            y: nextY,
+          },
+        };
+      });
+
+      const didClamp = constrainedHeights[selectedLayerIndex] > requested;
       isUserLayerHeightChangeRef.current = true;
-      setLayerHeights(newHeights);
+      setLayerHeights(constrainedHeights);
+      setNodes(adjustedNodes);
+      nodesRef.current = adjustedNodes;
+
       if (liveblocksService.isConnected()) {
-        liveblocksService.updateLayerSettings({ layerHeights: newHeights, layerOpacities });
+        liveblocksService.updateLayerSettings({ layerHeights: constrainedHeights, layerOpacities });
+        const batchUpdates = adjustedNodes.map((node) => {
+          const currentData = node.data as { content?: string; sentiment?: string };
+          return {
+            id: node.id,
+            x: node.position.x,
+            y: node.position.y,
+            content: currentData.content,
+            layer: (node.type === 'result' ? 1 : node.type === 'behavior' ? 2 : node.type === 'tangible_lever' ? 3 : 4),
+            sentiment: currentData.sentiment || 'neutral',
+          };
+        });
+        liveblocksService.batchUpdateNodePositions(batchUpdates);
+      }
+
+      if (didClamp) {
+        alert('더 이상 줄이시려면 배치된 노드의 위치를 조정하셔야 합니다.');
       }
     },
-    [layerHeights, layerOpacities, selectedLayerIndex]
+    [layerHeights, layerOpacities, selectedLayerIndex, setNodes]
   );
 
   const handleLayerOpacityChange = useCallback(
@@ -1185,6 +1431,7 @@ ${chatHistorySection}
           activeLocks: collaborationLocksRef.current,
           onNodeEditStart: handleStartNodeEditing,
           onNodeEditEnd: handleStopNodeEditing,
+          onTogglePin: handleTogglePin,
           currentUserId: getCurrentUserId(),
           includeFrequency: isConsultingMode,
         }
@@ -1313,6 +1560,7 @@ ${chatHistorySection}
           activeLocks: collaborationLocks,
           onNodeEditStart: handleStartNodeEditing,
           onNodeEditEnd: handleStopNodeEditing,
+          onTogglePin: handleTogglePin,
           currentUserId: getCurrentUserId(),
           includeFrequency: isConsultingMode,
         }
@@ -1458,29 +1706,45 @@ ${chatHistorySection}
       const layerPaddingY = 20;
       const minHeight = 100;
       const maxHeight = LAYER_MAX_HEIGHT;
+      const currentLayerHeights = layerHeightsRef.current;
       const nextHeights: number[] = [];
-      let cumulativeForHeights = 0;
+      let hasExpansionAbove = false;
+
+      const oldLayerStartByIndex = new Map<number, number>();
+      let oldCumulativeY = 0;
+      displayLayerOrder.forEach((layerKey) => {
+        const index = layerIndexMap[layerKey];
+        oldLayerStartByIndex.set(index, oldCumulativeY);
+        oldCumulativeY += currentLayerHeights[index] ?? 0;
+      });
 
       displayLayerOrder.forEach((layerKey) => {
         const index = layerIndexMap[layerKey];
         const maxBottom = maxBottomByLayer[index];
-        const currentHeight = layerHeights[index] ?? minHeight;
+        const currentHeight = currentLayerHeights[index] ?? minHeight;
+        const currentStart = oldLayerStartByIndex.get(index) ?? 0;
         const required = maxBottom
-          ? Math.max(minHeight, maxBottom - cumulativeForHeights + layerPaddingY)
-          : Math.max(minHeight, currentHeight);
-        const clamped = Math.min(maxHeight, required);
+          ? Math.max(minHeight, maxBottom - currentStart + layerPaddingY)
+          : minHeight;
+        let nextHeight = required;
+        if (required < currentHeight && hasExpansionAbove) {
+          nextHeight = currentHeight;
+        }
+        const clamped = Math.min(maxHeight, Math.max(minHeight, nextHeight));
         nextHeights[index] = clamped;
-        cumulativeForHeights += clamped;
+        if (clamped > currentHeight) {
+          hasExpansionAbove = true;
+        }
       });
 
-      const hasDraggingChange = changes.some(
-        (change) => change.type === 'position' && change.dragging
+      const shouldUpdateHeights = nextHeights.some(
+        (height, index) => height !== (currentLayerHeights[index] ?? minHeight)
       );
-      const shouldExpand = nextHeights.some((height, index) => height > layerHeights[index]);
-      const effectiveLayerHeights = hasDraggingChange && shouldExpand ? nextHeights : layerHeights;
+      const effectiveLayerHeights = shouldUpdateHeights ? nextHeights : currentLayerHeights;
 
-      if (hasDraggingChange && shouldExpand) {
+      if (shouldUpdateHeights) {
         setLayerHeights(nextHeights);
+        layerHeightsRef.current = nextHeights;
       }
 
       const layerStartByIndex = new Map<number, number>();
@@ -1576,6 +1840,31 @@ ${chatHistorySection}
       };
 
       let nextNodes = applyNodeChanges(clampedChanges, nodesRef.current);
+
+      if (shouldUpdateHeights) {
+        nextNodes = nextNodes.map((node) => {
+          const layerIndex = layerIndexMap[node.type || 'result'] ?? 0;
+          const oldStart = oldLayerStartByIndex.get(layerIndex) ?? 0;
+          const newStart = layerStartByIndex.get(layerIndex) ?? 0;
+          const offsetY = newStart - oldStart;
+          if (offsetY === 0) {
+            return node;
+          }
+          const nodeHeight = getNodeHeight(node);
+          const bandHeight = effectiveLayerHeights[layerIndex] ?? 0;
+          const minY = newStart + layerPaddingY;
+          const maxY = newStart + Math.max(0, bandHeight - nodeHeight - layerPaddingY);
+          const shiftedY = node.position.y + offsetY;
+          const clampedY = Math.min(Math.max(minY, shiftedY), maxY);
+          return {
+            ...node,
+            position: {
+              ...node.position,
+              y: clampedY,
+            },
+          };
+        });
+      }
       
       // 드래그 종료 시 겹침 방지 적용
       clampedChanges.forEach((change) => {
@@ -1859,17 +2148,31 @@ ${chatHistorySection}
     setSelectedEdges(params.edges);
   }, []);
 
+  const handleViewportChange = useCallback(
+    (_event: unknown, nextViewport: { x: number; y: number; zoom: number }) => {
+      setViewport(nextViewport);
+    },
+    []
+  );
+
+  const handleReactFlowInit = useCallback((instance: ReactFlowInstance) => {
+    setReactFlowInstance(instance);
+    setViewport(instance.getViewport());
+  }, []);
+
   const lastPresenceUpdateRef = useRef(0);
   
   // Liveblocks useOthers 훅으로 다른 사용자 커서 가져오기
   // ⚠️ selector는 반드시 pure function이어야 함 - console.log 등 side effect 금지!
   const otherCursors = useOthers((others) =>
     others
-      .filter((other) => other.presence?.cursor != null)
+      .filter((other) => other.presence?.cursor != null || other.presence?.cursorClient != null)
       .map((other) => ({
         id: String(other.connectionId),
-        x: other.presence.cursor!.x,
-        y: other.presence.cursor!.y,
+        x: other.presence.cursor?.x,
+        y: other.presence.cursor?.y,
+        clientX: other.presence.cursorClient?.x,
+        clientY: other.presence.cursorClient?.y,
         userName: other.presence.userName,
         userColor: other.presence.userColor,
       }))
@@ -1883,33 +2186,37 @@ ${chatHistorySection}
     }
   }, [otherCursors]);
 
-  const handlePaneMouseMove = useCallback((event: React.MouseEvent) => {
-    if (!reactFlowInstance) return;
-
+  const updateCursorPresence = useCallback((clientX: number, clientY: number) => {
     const now = performance.now();
     if (now - lastPresenceUpdateRef.current < 50) return;
     lastPresenceUpdateRef.current = now;
 
-    const projector = reactFlowInstance as ReactFlowInstance & {
-      screenToFlowPosition?: (position: { x: number; y: number }) => {
-        x: number;
-        y: number;
-      };
-      project?: (position: { x: number; y: number }) => { x: number; y: number };
-    };
-
-    const cursor =
-      projector.screenToFlowPosition?.({ x: event.clientX, y: event.clientY }) ??
-      projector.project?.({ x: event.clientX, y: event.clientY }) ??
-      { x: event.clientX, y: event.clientY };
+    const cursor = reactFlowInstance
+      ? reactFlowInstance.screenToFlowPosition({ x: clientX, y: clientY })
+      : null;
 
     // Liveblocks React 훅으로 presence 업데이트
-    updateMyPresence({ cursor });
+    updateMyPresence({
+      cursor,
+      cursorClient: { x: clientX, y: clientY },
+    });
   }, [reactFlowInstance, updateMyPresence]);
+
+  const handlePaneMouseMove = useCallback((event: React.MouseEvent) => {
+    updateCursorPresence(event.clientX, event.clientY);
+  }, [updateCursorPresence]);
+
+  const handleWrapperMouseMove = useCallback((event: React.MouseEvent) => {
+    updateCursorPresence(event.clientX, event.clientY);
+  }, [updateCursorPresence]);
 
   const handlePaneMouseLeave = useCallback(() => {
     // Liveblocks React 훅으로 presence 업데이트
-    updateMyPresence({ cursor: null });
+    updateMyPresence({ cursor: null, cursorClient: null });
+  }, [updateMyPresence]);
+
+  const handleWrapperMouseLeave = useCallback(() => {
+    updateMyPresence({ cursor: null, cursorClient: null });
   }, [updateMyPresence]);
 
   // ============================================================================
@@ -2012,6 +2319,8 @@ ${chatHistorySection}
         onUpdate: handleNodeContentUpdate,
         onEditStart: handleStartNodeEditing,
         onEditEnd: handleStopNodeEditing,
+        onTogglePin: handleTogglePin,
+        pinned: false,
         isLocked: false,
         lockedBy: undefined,
       },
@@ -2086,6 +2395,8 @@ ${chatHistorySection}
             onUpdate: handleNodeContentUpdate,
             onEditStart: handleStartNodeEditing,
             onEditEnd: handleStopNodeEditing,
+            onTogglePin: handleTogglePin,
+            pinned: false,
             isLocked: false,
             lockedBy: undefined,
           },
@@ -2525,6 +2836,9 @@ ${chatHistorySection}
                 reactFlowInstance={reactFlowInstance}
                 nodes={nodes}
                 edges={edges}
+                onSaveSnapshot={handleSaveSnapshot}
+                onRestoreSnapshot={handleRestoreSnapshot}
+                onUndoLayout={handleUndoLayout}
               />
             </Suspense>
           )}
@@ -2720,6 +3034,8 @@ ${chatHistorySection}
               ref={flowWrapperRef}
               data-capture-root="true"
               style={{ position: 'relative', flex: '1 1 0', overflow: 'hidden' }}
+              onMouseMove={handleWrapperMouseMove}
+              onMouseLeave={handleWrapperMouseLeave}
             >
               {/* 모바일 햄버거 버튼 */}
               {isMobile && (
@@ -2763,6 +3079,7 @@ ${chatHistorySection}
                 onNodeClick={handleNodeClick}
                 onNodeDoubleClick={handleNodeDoubleClick}
                 onSelectionChange={handleSelectionChange}
+                onMove={handleViewportChange}
                 onPaneMouseMove={handlePaneMouseMove}
                 onPaneMouseLeave={handlePaneMouseLeave}
                 onPaneContextMenu={handlePaneContextMenu}
@@ -2792,55 +3109,9 @@ ${chatHistorySection}
                 nodesDraggable={true} // 노드 드래그는 항상 활성화
                 nodesConnectable={true}
                 elementsSelectable={true}
-                onInit={setReactFlowInstance}
+                onInit={handleReactFlowInit}
               >
                 <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-
-                {/* 다른 사용자 커서 - ViewportPortal 항상 마운트 (조건부 렌더링 제거) */}
-                <ViewportPortal>
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      pointerEvents: 'none',
-                      zIndex: 5,
-                    }}
-                  >
-                    {otherCursors.map((cursor) => (
-                      <div
-                        key={cursor.id}
-                        style={{
-                          position: 'absolute',
-                          transform: `translate(${cursor.x}px, ${cursor.y}px)`,
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: '50%',
-                            backgroundColor: cursor.userColor || '#8b5cf6',
-                            boxShadow: '0 0 6px rgba(0, 0, 0, 0.35)',
-                          }}
-                        />
-                        <div
-                          style={{
-                            marginTop: 4,
-                            padding: '2px 6px',
-                            borderRadius: 6,
-                            backgroundColor: 'rgba(0,0,0,0.65)',
-                            color: '#fff',
-                            fontSize: 10,
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {cursor.userName ?? '참여자'}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ViewportPortal>
 
                 {/* 층위 배경 레이어 (ViewportPortal 사용 - transform 적용됨) */}
                 <LayerBackground
@@ -2890,6 +3161,77 @@ ${chatHistorySection}
                   />
                 )}
               </ReactFlow>
+
+              {/* 다른 사용자 커서 - ViewportPortal 대신 상단 오버레이 */}
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  pointerEvents: 'none',
+                  zIndex: 1000,
+                }}
+              >
+                {otherCursors.map((cursor) => {
+                  const bounds = flowWrapperRef.current?.getBoundingClientRect();
+                  const flowX = cursor.x;
+                  const flowY = cursor.y;
+                  const clientX = cursor.clientX;
+                  const clientY = cursor.clientY;
+                  const hasFlowCoords = typeof flowX === 'number' && typeof flowY === 'number';
+                  const hasClientCoords = typeof clientX === 'number' && typeof clientY === 'number';
+                  const screenPosition = hasFlowCoords
+                    ? reactFlowInstance?.flowToScreenPosition({
+                        x: flowX,
+                        y: flowY,
+                      })
+                    : undefined;
+                  const screenX = screenPosition
+                    ? screenPosition.x - (bounds?.left ?? 0)
+                    : hasClientCoords
+                      ? (clientX ?? 0) - (bounds?.left ?? 0)
+                      : (flowX ?? 0) * viewport.zoom + viewport.x;
+                  const screenY = screenPosition
+                    ? screenPosition.y - (bounds?.top ?? 0)
+                    : hasClientCoords
+                      ? (clientY ?? 0) - (bounds?.top ?? 0)
+                      : (flowY ?? 0) * viewport.zoom + viewport.y;
+
+                  return (
+                    <div
+                      key={cursor.id}
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        transform: `translate(${screenX}px, ${screenY}px)`,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          backgroundColor: cursor.userColor || '#8b5cf6',
+                          boxShadow: '0 0 6px rgba(0, 0, 0, 0.35)',
+                        }}
+                      />
+                      <div
+                        style={{
+                          marginTop: 4,
+                          padding: '2px 6px',
+                          borderRadius: 6,
+                          backgroundColor: 'rgba(0,0,0,0.65)',
+                          color: '#fff',
+                          fontSize: 10,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {cursor.userName ?? '참여자'}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div> {/* 메인 React Flow 영역 닫기 */}
           </>
         )} {/* 컬쳐맵 탭 닫기 */}

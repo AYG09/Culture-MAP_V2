@@ -97,10 +97,8 @@ export const useLiveblocksSync = ({
     };
   }, [setSessionType]);
 
-  // 2. Report Content Sync (Consulting Mode Only)
+  // 2. Report Content Sync
   useEffect(() => {
-    if (!isConsultingMode) return;
-    
     // Initial check is handled by component usually, but listener is key here
     const unsubscribe = liveblocksService.onReportContent((content) => {
       setReportContent(content);
@@ -109,7 +107,7 @@ export const useLiveblocksSync = ({
     return () => {
       unsubscribe();
     };
-  }, [isConsultingMode, setReportContent]);
+  }, [setReportContent]);
 
   // 2.5. AI Insights Sync
   useEffect(() => {
