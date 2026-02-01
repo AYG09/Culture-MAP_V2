@@ -683,28 +683,23 @@ export function getOptimalHandles(
   sourceNode: Node,
   targetNode: Node
 ): { sourceHandle: string; targetHandle: string } {
-  const handles: Array<'top' | 'bottom' | 'left' | 'right'> = ['top', 'bottom', 'left', 'right'];
-  
-  let minDistance = Infinity;
-  let bestSource: string = 'bottom';
-  let bestTarget: string = 'top';
-  
-  // 모든 16개 핸들 조합 중 가장 가까운 것 선택
-  for (const sourceHandle of handles) {
-    for (const targetHandle of handles) {
-      const sourcePos = getHandlePosition(sourceNode, sourceHandle);
-      const targetPos = getHandlePosition(targetNode, targetHandle);
-      const dist = calculateDistance(sourcePos, targetPos);
-      
-      if (dist < minDistance) {
-        minDistance = dist;
-        bestSource = sourceHandle;
-        bestTarget = targetHandle;
-      }
-    }
+  const sourceCenter = getHandlePosition(sourceNode, 'bottom');
+  const targetCenter = getHandlePosition(targetNode, 'top');
+
+  const deltaX = targetCenter.x - sourceCenter.x;
+  const deltaY = targetCenter.y - sourceCenter.y;
+
+  const isVerticalDominant = Math.abs(deltaY) >= Math.abs(deltaX);
+
+  if (isVerticalDominant) {
+    const sourceHandle = deltaY >= 0 ? 'bottom' : 'top';
+    const targetHandle = deltaY >= 0 ? 'top' : 'bottom';
+    return { sourceHandle, targetHandle };
   }
-  
-  return { sourceHandle: bestSource, targetHandle: bestTarget };
+
+  const sourceHandle = deltaX >= 0 ? 'right' : 'left';
+  const targetHandle = deltaX >= 0 ? 'left' : 'right';
+  return { sourceHandle, targetHandle };
 }
 
 /**
