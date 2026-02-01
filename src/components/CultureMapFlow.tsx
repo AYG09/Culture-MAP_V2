@@ -1,5 +1,5 @@
 // src/components/CultureMapFlow.tsx - 완전히 재작성된 버전
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   ReactFlow,
   Background,
@@ -42,6 +42,8 @@ import {
   Layers,
   Link2,
   Minus,
+  Pin,
+  PinOff,
   PlusSquare,
   Route,
   SlidersHorizontal,
@@ -270,8 +272,10 @@ const CultureMapFlow = ({
   const [isGeneratingReport, setIsGeneratingReport] = useState(false); // AI 보고서 생성 중
 
   // 선택된 노드/엣지 상태 (추후 활용 가능)
-  const [, setSelectedNodes] = useState<Node[]>([]);
+  const [selectedNodes, setSelectedNodes] = useState<Node[]>([]);
   const [, setSelectedEdges] = useState<Edge[]>([]);
+  const selectedNodeIds = useMemo(() => selectedNodes.map((node) => node.id), [selectedNodes]);
+  const hasSelectedNodes = selectedNodeIds.length > 0;
 
   // 보고서 내용 변경 핸들러
   const handleReportChange = useCallback((content: string) => {
@@ -1073,8 +1077,9 @@ ${chatHistorySection}
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const contextMenuAdjustedRef = useRef(false);
+  const [contextMenuClampTick, setContextMenuClampTick] = useState(0);
   const [contextMenuSections, setContextMenuSections] = useState({
-    pane: { create: false, layout: false },
+    pane: { create: false, layout: false, selection: false },
     node: { attributes: false, frequency: false, type: false, actions: false },
     edge: { settings: false, actions: false },
   });
@@ -1087,6 +1092,8 @@ ${chatHistorySection}
         [key]: !(prev as Record<string, Record<string, boolean>>)[menuType]?.[key],
       },
     }));
+    contextMenuAdjustedRef.current = false;
+    setContextMenuClampTick((prev) => prev + 1);
   }, []);
 
   // 컨텍스트 메뉴 외부 클릭 시 닫기
@@ -1119,13 +1126,20 @@ ${chatHistorySection}
 
     setContextMenuSections((prev) => {
       if (contextMenu.type === 'pane') {
-        return { ...prev, pane: { create: false, layout: false } };
+        return { ...prev, pane: { create: false, layout: false, selection: false } };
       }
       if (contextMenu.type === 'edge') {
         return { ...prev, edge: { settings: false, actions: false } };
       }
       return { ...prev, node: { attributes: false, frequency: false, type: false, actions: false } };
     });
+  }, [contextMenu]);
+
+  useLayoutEffect(() => {
+    if (!contextMenu) {
+      contextMenuAdjustedRef.current = false;
+      return;
+    }
 
     if (contextMenuAdjustedRef.current) {
       return;
@@ -1138,29 +1152,12 @@ ${chatHistorySection}
 
     const rect = menuEl.getBoundingClientRect();
     const margin = 12;
-    const centerX = (window.innerWidth - rect.width) / 2;
-    const centerY = (window.innerHeight - rect.height) / 2;
-    const maxX = Math.max(margin, window.innerWidth - rect.width - margin);
-    const maxY = Math.max(margin, window.innerHeight - rect.height - margin);
-    const desiredX = Math.min(Math.max(centerX, margin), maxX);
-    const desiredY = Math.min(Math.max(centerY, margin), maxY);
+    const maxX = window.innerWidth - rect.width - margin;
+    const maxY = window.innerHeight - rect.height - margin;
+    const desiredX = Math.round(Math.min(Math.max(contextMenu.x, margin), Math.max(margin, maxX)));
+    const desiredY = Math.round(Math.min(Math.max(contextMenu.y, margin), Math.max(margin, maxY)));
 
-    const deltaX = desiredX - rect.left;
-    const deltaY = desiredY - rect.top;
-
-    if ((deltaX !== 0 || deltaY !== 0) && reactFlowInstance) {
-      const viewport = reactFlowInstance.getViewport();
-      void reactFlowInstance.setViewport(
-        {
-          x: viewport.x + (desiredX - contextMenu.x),
-          y: viewport.y + (desiredY - contextMenu.y),
-          zoom: viewport.zoom,
-        },
-        { duration: 0 }
-      );
-    }
-
-    if (deltaX !== 0 || deltaY !== 0) {
+    if (contextMenu.x !== desiredX || contextMenu.y !== desiredY) {
       setContextMenu((prev) => {
         if (!prev) return prev;
         if (prev.x === desiredX && prev.y === desiredY) return prev;
@@ -1169,7 +1166,7 @@ ${chatHistorySection}
     }
 
     contextMenuAdjustedRef.current = true;
-  }, [contextMenu, reactFlowInstance]);
+  }, [contextMenu, contextMenuClampTick]);
 
   const handleNodeContentUpdate = useCallback(
     (nodeId: string, newContent: string) => {
@@ -1237,6 +1234,62 @@ ${chatHistorySection}
 
       const updatedData = convertFromFlowData(nodesRef.current, edgesRef.current);
       onNotesChange(updatedData.notes);
+    },
+    [getCurrentUserId, onNotesChange, setNodes]
+  );
+
+  const handleBulkPin = useCallback(
+    (targetIds: string[], nextPinned: boolean) => {
+      if (!targetIds.length) {
+        return;
+      }
+
+      const currentUserId = getCurrentUserId();
+      const targetIdSet = new Set(targetIds);
+      const previousNodes = nodesRef.current;
+
+      const updatedNodes = previousNodes.map((node) => {
+        if (!targetIdSet.has(node.id)) {
+          return node;
+        }
+
+        const activeLock = collaborationLocksRef.current[node.id];
+        const isLockedByOther = Boolean(
+          activeLock && activeLock.itemType === 'note' && activeLock.userId !== currentUserId
+        );
+
+        if (isLockedByOther) {
+          return node;
+        }
+
+        const currentPinned = (node.data as { pinned?: boolean } | undefined)?.pinned === true;
+        if (currentPinned === nextPinned) {
+          return node;
+        }
+
+        return {
+          ...node,
+          draggable: !nextPinned && !isLockedByOther,
+          data: {
+            ...node.data,
+            pinned: nextPinned,
+          },
+        };
+      });
+
+      const changedNodes = updatedNodes.filter((node, index) => node !== previousNodes[index]);
+
+      nodesRef.current = updatedNodes;
+      setNodes(updatedNodes);
+
+      const { notes } = convertFromFlowData(updatedNodes, edgesRef.current);
+      onNotesChange(notes);
+
+      if (liveblocksService.isConnected() && changedNodes.length > 0) {
+        changedNodes.forEach((node) => {
+          liveblocksService.updateStickyNote({ id: node.id, pinned: nextPinned });
+        });
+      }
     },
     [getCurrentUserId, onNotesChange, setNodes]
   );
@@ -2400,6 +2453,23 @@ ${chatHistorySection}
     [reactFlowInstance]
   );
 
+  const handleWrapperContextMenu = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('.react-flow__node') || target?.closest('.react-flow__edge')) {
+        return;
+      }
+
+      if (target?.closest('.react-flow__pane') || target?.closest('.react-flow')) {
+        handlePaneContextMenu(event);
+        return;
+      }
+
+      event.preventDefault();
+    },
+    [handlePaneContextMenu]
+  );
+
   const handleNodeContextMenu = useCallback((event: React.MouseEvent | MouseEvent, node: Node) => {
     event.preventDefault();
     event.stopPropagation();
@@ -2492,6 +2562,15 @@ ${chatHistorySection}
   const handleContextMenuAction = useCallback(
     (action: string) => {
       if (!contextMenu) return;
+
+      if (contextMenu.type === 'pane' && (action === 'pin_selected' || action === 'unpin_selected')) {
+        if (!hasSelectedNodes) {
+          return;
+        }
+        handleBulkPin(selectedNodeIds, action === 'pin_selected');
+        closeContextMenu();
+        return;
+      }
 
       // 빈 캔버스 우클릭 → 노드 생성
       if (contextMenu.type === 'pane' && action.startsWith('create_')) {
@@ -2868,12 +2947,15 @@ ${chatHistorySection}
       setEdges,
       closeContextMenu,
       ensureLiveblocksConnected,
+      handleBulkPin,
       handleNodeContentUpdate,
       handleStartNodeEditing,
       handleStopNodeEditing,
       onConnectionsChange,
       onNotesChange,
       isConsultingMode,
+      hasSelectedNodes,
+      selectedNodeIds,
     ]
   );
 
@@ -3136,6 +3218,7 @@ ${chatHistorySection}
               style={{ position: 'relative', flex: '1 1 0', overflow: 'hidden' }}
               onMouseMove={handleWrapperMouseMove}
               onMouseLeave={handleWrapperMouseLeave}
+              onContextMenu={handleWrapperContextMenu}
             >
               {/* 모바일 햄버거 버튼 */}
               {isMobile && (
@@ -3417,6 +3500,36 @@ ${chatHistorySection}
                     무형
                   </button>
                 </div>
+              )}
+              {hasSelectedNodes && (
+                <>
+                  <div className="context-menu-divider" />
+                  <button
+                    className="context-menu-section-toggle"
+                    onClick={() => toggleContextSection('pane', 'selection')}
+                    type="button"
+                  >
+                    <span className="context-menu-section-label">
+                      <Pin className="context-menu-icon" />
+                      선택 노드 ({selectedNodes.length})
+                    </span>
+                    <ChevronDown
+                      className={`context-menu-chevron ${contextMenuSections.pane.selection ? 'open' : ''}`}
+                    />
+                  </button>
+                  {contextMenuSections.pane.selection && (
+                    <div className="context-menu-section-body">
+                      <button onClick={() => handleContextMenuAction('pin_selected')}>
+                        <Pin className="context-menu-icon" />
+                        전체 고정
+                      </button>
+                      <button onClick={() => handleContextMenuAction('unpin_selected')}>
+                        <PinOff className="context-menu-icon" />
+                        전체 고정해제
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
               <div className="context-menu-divider" />
               <button

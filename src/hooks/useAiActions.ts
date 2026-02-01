@@ -747,18 +747,25 @@ export const useAiActions = ({
           layerOpacities,
           savedAt: new Date().toISOString(),
         };
-        localStorage.setItem(`culture-map-snapshot:${snapshotName}`, JSON.stringify(flow));
-        const savedAt = flow.savedAt as string;
-        const nextIndex = loadSnapshotIndex().filter(entry => entry.id !== snapshotName);
-        nextIndex.unshift({ id: snapshotName, savedAt });
-        saveSnapshotIndex(nextIndex);
+        if (liveblocksService.isConnected()) {
+          liveblocksService.saveSnapshotShared(snapshotName, flow);
+        } else {
+          localStorage.setItem(`culture-map-snapshot:${snapshotName}`, JSON.stringify(flow));
+          const savedAt = flow.savedAt as string;
+          const nextIndex = loadSnapshotIndex().filter(entry => entry.id !== snapshotName);
+          nextIndex.unshift({ id: snapshotName, savedAt });
+          saveSnapshotIndex(nextIndex);
+        }
         break;
       }
 
       case 'restore_snapshot': {
         const payload = (args as unknown) as RestoreSnapshotPayload;
         const snapshotName = payload.name?.trim() || payload.snapshot_id?.trim() || 'default';
-        const raw = localStorage.getItem(`culture-map-snapshot:${snapshotName}`);
+        const sharedSnapshot = liveblocksService.isConnected()
+          ? liveblocksService.getSnapshotShared(snapshotName)
+          : null;
+        const raw = sharedSnapshot ? JSON.stringify(sharedSnapshot) : localStorage.getItem(`culture-map-snapshot:${snapshotName}`);
         if (!raw) break;
         try {
           const flow = JSON.parse(raw);
@@ -828,6 +835,8 @@ export const useAiActions = ({
 
       case 'undo_layout': {
         if (!reactFlowInstance) break;
+        const didUndo = liveblocksService.undoLastAction();
+        if (didUndo) break;
         const raw = localStorage.getItem('culture-map-snapshot:_before_layout');
         if (!raw) break;
         try {
@@ -844,7 +853,6 @@ export const useAiActions = ({
           onConnectionsChange(connections);
 
           if (liveblocksService.isConnected()) {
-             // (Identical to restore_snapshot liveblocks logic - redundant but safe)
              const lbNotes = notes.map((note) => ({
                 id: note.id, content: note.content, x: note.position.x, y: note.position.y,
                 layer: note.layer, sentiment: note.sentiment, type: note.type,

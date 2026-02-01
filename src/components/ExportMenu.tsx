@@ -5,6 +5,7 @@ import type { Node, Edge } from '@xyflow/react';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
 import './ExportMenu.css';
+import liveblocksService from '../services/LiveblocksService';
 
 interface ExportMenuProps {
   reactFlowInstance: ReactFlowInstance | null;
@@ -338,6 +339,11 @@ export default function ExportMenu({
 
   const refreshSnapshotIndex = useCallback(() => {
     try {
+      if (liveblocksService.isConnected()) {
+        setSnapshotIndex(liveblocksService.getSnapshotIndexShared());
+        return;
+      }
+
       const raw = localStorage.getItem(SNAPSHOT_INDEX_KEY);
       if (!raw) {
         setSnapshotIndex([]);

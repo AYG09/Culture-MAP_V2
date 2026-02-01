@@ -21,6 +21,17 @@ import type {
 } from '../types/liveblocks';
 import type { AiAction } from '../types/actions';
 
+type SnapshotFlow = {
+    nodes: unknown[];
+    edges: unknown[];
+    viewport?: { x: number; y: number; zoom: number } | null;
+    layerHeights?: number[];
+    layerOpacities?: number[];
+    savedAt: string;
+};
+
+type SnapshotEntry = { id: string; savedAt: string; flow: SnapshotFlow };
+
 type EventCallback = (...args: unknown[]) => void;
 
 interface EventListeners {
@@ -35,6 +46,9 @@ class LiveblocksService {
     private indexeddbProvider: IndexeddbPersistence | null = null;
     private currentSession: MultiUserSession | null = null;
     private leaveRoom: (() => void) | null = null;
+    private isApplyingHistory = false;
+    private lastHistoryTimestamp = 0;
+    private readonly maxHistoryLength = 50;
     private userId: string;
     private displayName: string;
     private userColor: string;
@@ -82,6 +96,138 @@ class LiveblocksService {
         return this.currentSession;
     }
 
+    private getSnapshotMap() {
+        if (!this.yDoc) return null;
+        return this.yDoc.getMap<SnapshotEntry>('snapshots');
+    }
+
+    public saveSnapshotShared(id: string, flow: SnapshotFlow): void {
+        if (!this.yDoc) return;
+        const snapshotId = id.trim() || 'default';
+        const snapshotMap = this.getSnapshotMap();
+        if (!snapshotMap) return;
+        const entry: SnapshotEntry = { id: snapshotId, savedAt: flow.savedAt, flow };
+        snapshotMap.set(snapshotId, entry);
+    }
+
+    public getSnapshotShared(id: string): SnapshotFlow | null {
+        if (!this.yDoc) return null;
+        const snapshotMap = this.getSnapshotMap();
+        if (!snapshotMap) return null;
+        const entry = snapshotMap.get(id);
+        return entry?.flow ?? null;
+    }
+
+    public getSnapshotIndexShared(): Array<{ id: string; savedAt: string }> {
+        if (!this.yDoc) return [];
+        const snapshotMap = this.getSnapshotMap();
+        if (!snapshotMap) return [];
+        const entries: Array<{ id: string; savedAt: string }> = [];
+        snapshotMap.forEach((value) => {
+            if (value?.id && value?.savedAt) {
+                entries.push({ id: value.id, savedAt: value.savedAt });
+            }
+        });
+        return entries.sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+    }
+
+    private cloneForHistory<T>(value: T): T {
+        return JSON.parse(JSON.stringify(value)) as T;
+    }
+
+    private getHistoryArray() {
+        if (!this.yDoc) return null;
+        return this.yDoc.getArray<{
+            id: string;
+            at: number;
+            reason: string;
+            notes: StickyNoteData[];
+            connections: LBConnectionData[];
+            layerSettings?: LayerSettings | null;
+        }>('mapHistory');
+    }
+
+    private pushHistorySnapshot(reason: string): void {
+        if (!this.yDoc || this.isApplyingHistory) return;
+
+        const now = Date.now();
+        if (now - this.lastHistoryTimestamp < 120) {
+            return;
+        }
+        this.lastHistoryTimestamp = now;
+
+        const history = this.getHistoryArray();
+        if (!history) return;
+
+        const notes = this.cloneForHistory(this.getStickyNotes());
+        const connections = this.cloneForHistory(this.getConnections());
+        const layerSettings = this.getLayerSettings();
+
+        const entry = {
+            id: `history-${now}-${Math.random().toString(36).slice(2, 8)}`,
+            at: now,
+            reason,
+            notes,
+            connections,
+            layerSettings,
+        };
+
+        this.yDoc.transact(() => {
+            history.push([entry]);
+            if (history.length > this.maxHistoryLength) {
+                history.delete(0, history.length - this.maxHistoryLength);
+            }
+        });
+    }
+
+    public canUndo(): boolean {
+        const history = this.getHistoryArray();
+        return Boolean(history && history.length > 0);
+    }
+
+    public undoLastAction(): boolean {
+        if (!this.yDoc) return false;
+        const history = this.getHistoryArray();
+        if (!history || history.length === 0) return false;
+
+        const lastEntry = history.get(history.length - 1);
+        if (!lastEntry) return false;
+
+        const nodesArray = this.yDoc.getArray<StickyNoteData>('nodes');
+        const connectionsArray = this.yDoc.getArray<LBConnectionData>('connections');
+        const layerSettingsMap = this.yDoc.getMap<unknown>('layerSettings');
+
+        this.isApplyingHistory = true;
+        this.yDoc.transact(() => {
+            history.delete(history.length - 1, 1);
+
+            if (nodesArray.length > 0) {
+                nodesArray.delete(0, nodesArray.length);
+            }
+            if (connectionsArray.length > 0) {
+                connectionsArray.delete(0, connectionsArray.length);
+            }
+            if (lastEntry.notes.length > 0) {
+                nodesArray.push(lastEntry.notes);
+            }
+            if (lastEntry.connections.length > 0) {
+                connectionsArray.push(lastEntry.connections);
+            }
+
+            if (lastEntry.layerSettings) {
+                Object.entries(lastEntry.layerSettings).forEach(([key, value]) => {
+                    layerSettingsMap.set(key, value as unknown);
+                });
+            }
+        });
+        this.isApplyingHistory = false;
+        return true;
+    }
+
+    public redoLastAction(): boolean {
+        return false;
+    }
+
     public async createSession(sessionName?: string, sessionType: SessionType = 'workshop', customCode?: string, organization?: string): Promise<string> {
         const normalizedCode = customCode ? this.normalizeSessionCode(customCode) : null;
         if (normalizedCode && !this.isValidSessionCode(normalizedCode)) {
@@ -115,6 +261,7 @@ class LiveblocksService {
         this.provider = new LiveblocksYjsProvider(room, this.yDoc);
         this.indexeddbProvider = new IndexeddbPersistence(roomId, this.yDoc);
         this.hasClearedIndexeddbCache = false;
+
 
         this.currentSession = { code, isHost, connectedUsers: 1, name: sessionName, type: sessionType };
 
@@ -556,6 +703,7 @@ class LiveblocksService {
             console.warn('⚠️ [Liveblocks] updateStickyNote: yDoc이 없음');
             return;
         }
+        this.pushHistorySnapshot('updateStickyNote');
         const nodes = this.yDoc.getArray<StickyNoteData>('nodes');
         
         // 같은 ID의 모든 인덱스 수집 (중복 방지)
@@ -597,6 +745,7 @@ class LiveblocksService {
      */
     public batchUpdateNodePositions(updates: Array<{ id: string; x: number; y: number; content?: string; layer?: number; sentiment?: string }>): void {
         if (!this.yDoc || updates.length === 0) return;
+        this.pushHistorySnapshot('batchUpdateNodePositions');
         const nodes = this.yDoc.getArray<StickyNoteData>('nodes');
         
         // 각 ID별로 모든 인덱스와 최신 데이터 수집 (중복 처리)
@@ -654,6 +803,7 @@ class LiveblocksService {
 
     public deleteStickyNote(noteId: string): void {
         if (!this.yDoc) return;
+        this.pushHistorySnapshot('deleteStickyNote');
         const nodes = this.yDoc.getArray<StickyNoteData>('nodes');
         
         // 같은 ID의 모든 인덱스 수집 (중복 포함)
@@ -677,6 +827,7 @@ class LiveblocksService {
 
     public updateConnection(connection: LBConnectionData): void {
         if (!this.yDoc) return;
+        this.pushHistorySnapshot('updateConnection');
         const connections = this.yDoc.getArray<LBConnectionData>('connections');
         const relationType = connection.relationType === 'indirect' ? 'indirect' : 'direct';
         const normalized: LBConnectionData = {
@@ -725,6 +876,7 @@ class LiveblocksService {
      */
     public clearMapData(): void {
         if (!this.yDoc) return;
+        this.pushHistorySnapshot('clearMapData');
         const nodes = this.yDoc.getArray<StickyNoteData>('nodes');
         const connections = this.yDoc.getArray<LBConnectionData>('connections');
         this.yDoc.transact(() => {
@@ -744,6 +896,7 @@ class LiveblocksService {
      */
     public restoreMapData(notes: StickyNoteData[], connections: LBConnectionData[]): void {
         if (!this.yDoc) return;
+        this.pushHistorySnapshot('restoreMapData');
         const nodesArray = this.yDoc.getArray<StickyNoteData>('nodes');
         const connectionsArray = this.yDoc.getArray<LBConnectionData>('connections');
         this.yDoc.transact(() => {
@@ -767,6 +920,7 @@ class LiveblocksService {
 
     public deleteConnection(connectionId: string): void {
         if (!this.yDoc) return;
+        this.pushHistorySnapshot('deleteConnection');
         const connections = this.yDoc.getArray<LBConnectionData>('connections');
         const index = this.findConnectionIndex(connectionId);
         if (index >= 0) connections.delete(index, 1);
@@ -1271,6 +1425,8 @@ class LiveblocksService {
             console.warn('⚠️ [Liveblocks] updateLayerSettings: yDoc이 없음');
             return;
         }
+
+        this.pushHistorySnapshot('updateLayerSettings');
 
         // 로컬 업데이트 플래그 설정
         this.pendingLocalUpdates.add('__layerSettings__');

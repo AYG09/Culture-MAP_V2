@@ -1,5 +1,123 @@
 # Walkthrough: Liveblocks 동기화/AI 액션 훅 분리 및 레이어 UI 모듈화
 
+# Walkthrough: 선택 영역 일괄 고정/해제 + 컨텍스트 메뉴 클램프
+
+## 완료 일시
+2026-02-01
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 선택 영역 노드를 우클릭 메뉴에서 일괄 고정/고정해제
+2. 메뉴가 화면 밖으로 나가지 않도록 위치만 클램프하고 뷰포트 이동 제거
+
+---
+
+## ✅ 해결 조치
+
+1. 선택 노드 목록을 유지하고 "선택 노드" 섹션에 전체 고정/해제 액션 추가
+2. 컨텍스트 메뉴 위치를 화면 안으로 clamp하여 가장자리 잘림 방지
+3. 메뉴 섹션 토글 시 재클램프 처리
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/components/CultureMapFlow.tsx` | 선택 노드 일괄 고정/해제, 메뉴 위치 클램프 개선 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. 선택 영역 우클릭에서 전체 고정/해제 동작 확인 필요(사용자 환경)
+2. 화면 가장자리 우클릭 시 메뉴 잘림 없이 표시 확인 필요(사용자 환경)
+
+---
+
+# Walkthrough: 직전 작업 Undo (공유 히스토리)
+
+## 완료 일시
+2026-02-01
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. “이전상태” 버튼이 참여자 구분 없이 직전 작업을 되돌리도록 공유 히스토리 도입
+2. 히스토리 없을 때는 기존 auto_layout 스냅샷 복원 유지
+
+---
+
+## ✅ 해결 조치
+
+1. LiveblocksService에 공유 히스토리 스택 저장
+2. undo_layout 액션에서 마지막 스냅샷 복원 후 fallback 유지
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/services/LiveblocksService.ts` | 공유 히스토리 스택 및 undo 구현 |
+| `src/hooks/useAiActions.ts` | undo_layout에서 UndoManager 우선 실행 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. 노드 이동/추가/삭제 후 “이전상태”로 직전 작업 복원 확인 필요(사용자 환경)
+2. undo 히스토리 없을 때 auto_layout 스냅샷 복원 동작 확인 필요(사용자 환경)
+
+---
+
+# Walkthrough: 스냅샷 전역 공유
+
+## 완료 일시
+2026-02-01
+
+## 변경 사항 요약
+
+### 🎯 목표
+1. 스냅샷 저장/로드를 전역 공유로 전환
+2. 비연결 시 로컬 스냅샷 유지
+
+---
+
+## ✅ 해결 조치
+
+1. LiveblocksService에 스냅샷 저장/목록/조회 API 추가
+2. save_snapshot/restore_snapshot 경로에서 공유 스냅샷 우선 사용
+3. ExportMenu 목록 새로고침에서 공유 스냅샷 우선 사용
+
+---
+
+## 📁 변경된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `src/services/LiveblocksService.ts` | 공유 스냅샷 API 추가 |
+| `src/hooks/useAiActions.ts` | 저장/로드 경로 전환 |
+| `src/components/ExportMenu.tsx` | 목록 새로고침 공유 우선 |
+| `.agent/brain/implementation_plan.md` | 계획 추가 |
+| `.agent/brain/task.md` | 체크리스트 추가 |
+| `.agent/brain/walkthrough.md` | 변경 사항 기록 |
+
+---
+
+## 🧪 검증
+
+1. 스냅샷 저장/로드 공유 여부 확인 필요(사용자 환경)
+
+---
+
 ## 완료 일시
 2026-02-01
 
