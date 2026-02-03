@@ -61,6 +61,21 @@ interface AIChatSidebarProps {
     passwordType?: PasswordType; // 모드 감지용
 }
 
+const isTokenLimitError = (message: string) => {
+    const normalized = message.toLowerCase();
+    return (
+        normalized.includes('resource_exhausted')
+        || normalized.includes('rate limit')
+        || normalized.includes('quota')
+        || normalized.includes('429')
+        || normalized.includes('rpd')
+        || normalized.includes('daily')
+        || normalized.includes('일일')
+        || normalized.includes('토큰')
+        || normalized.includes('limit')
+    );
+};
+
 const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     onActionExecute,
     notes: _notes,
@@ -634,14 +649,17 @@ ${layerHeightContext}
 
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : '알 수 없는 에러';
+            const userFriendlyMessage = isTokenLimitError(message)
+                ? '일일 토큰 제한량이 전부 찼습니다. 설정창을 통해 다른 AI 모델로 바꿔서 진행하세요.'
+                : `죄송합니다. 오류가 발생했습니다: ${message}`;
             console.error('Chat error:', error);
             if (!isPrivateChat && liveblocksService.isConnected()) {
-                liveblocksService.sendAiResponse(`죄송합니다. 오류가 발생했습니다: ${message}`);
+                liveblocksService.sendAiResponse(userFriendlyMessage);
             } else {
                 setMessages(prev => [...prev, {
                     id: `ai-error-${Date.now()}`,
                     role: 'assistant' as const,
-                    content: `죄송합니다. 오류가 발생했습니다: ${message}`,
+                    content: userFriendlyMessage,
                     userName: 'AI Assistant',
                     userColor: '#8b5cf6',
                     timestamp: Date.now(),

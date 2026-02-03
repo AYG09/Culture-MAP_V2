@@ -51,6 +51,25 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
         return unsubscribe;
     }, [isOpen, loadSharedRagDocs]);
 
+    const [availableModels, setAvailableModels] = useState<string[]>(() => aiService.getAvailableGeminiModels());
+
+    useEffect(() => {
+        let mounted = true;
+        aiService.getAvailableGeminiModelsAsync()
+            .then((models) => {
+                if (mounted && models.length > 0) {
+                    setAvailableModels(models);
+                }
+            })
+            .catch((error) => {
+                console.warn('⚠️ [AIConfigModal] 모델 목록 로드 실패:', error);
+            });
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
     if (!isOpen) return null;
 
     const handleSave = () => {
@@ -199,8 +218,6 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
         }
     };
 
-    const getModels = () => aiService.getAvailableGeminiModels();
-
     return (
         <div className="ai-config-modal-overlay">
             <div className="ai-config-modal">
@@ -252,7 +269,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                             value={modelName}
                             onChange={(e) => setModelName(e.target.value)}
                         >
-                            {getModels().map(m => (
+                            {availableModels.map(m => (
                                 <option key={m} value={m}>{m}</option>
                             ))}
                         </select>

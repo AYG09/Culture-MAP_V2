@@ -1604,17 +1604,50 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
   }
 
   public getAvailableGeminiModels(): string[] {
+    if (this.availableModelsCache?.length) {
+      return this.availableModelsCache;
+    }
+
     return [
-      'gemini-flash-latest',     // 최신 플래시 별칭 (preview로 전환됨)
-      'gemini-pro-latest',       // 최신 프로 별칭 (preview로 전환됨)
-      'gemini-2.5-flash',        // Function Calling 지원, 추론 강화
-      'gemini-2.5-flash-lite',   // Function Calling 지원, 저비용/고속
-      'gemini-2.5-pro',          // 고성능 추론
-      'gemini-3-flash',          // 최신 thinkingLevel 지원
-      'gemini-3-flash-preview',  // 최신 플래시 프리뷰
-      'gemini-3-pro',            // 최신 플래그십
-      'gemini-3-pro-preview',    // 최신 프로 프리뷰
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+      'gemini-2.5-pro',
+      'gemini-3-flash',
+      'gemini-3-flash-preview',
+      'gemini-3-pro',
+      'gemini-3-pro-preview',
     ];
+  }
+
+  public async getAvailableGeminiModelsAsync(): Promise<string[]> {
+    const fetched = await this.fetchAvailableModels();
+    if (fetched.length > 0) {
+      const filtered = this.filterOfficialGeminiModels(fetched);
+      this.availableModelsCache = filtered;
+      return filtered;
+    }
+
+    return this.getAvailableGeminiModels();
+  }
+
+  private filterOfficialGeminiModels(models: string[]): string[] {
+    const normalized = models
+      .map((model) => this.normalizeModelId(model))
+      .filter((name) => !!name);
+
+    const allowed = normalized.filter((name) => {
+      if (!/^gemini-(2\.5|3)/.test(name)) {
+        return false;
+      }
+
+      if (name.includes('flash-lite')) {
+        return true;
+      }
+
+      return name.includes('flash') || name.includes('pro');
+    });
+
+    return Array.from(new Set(allowed));
   }
 
   private normalizeModelId(modelName: string): string {
@@ -1623,10 +1656,8 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
 
   private resolveModelAlias(preferredModel: string, available: string[]): string | null {
     const aliasMap: Record<string, string> = {
-      'gemini-flash-latest': 'gemini-3-flash-preview',
-      'gemini-pro-latest': 'gemini-3-pro-preview',
-      'gemini-3-flash': 'gemini-3-flash-preview',
-      'gemini-3-pro': 'gemini-3-pro-preview',
+      'gemini-flash-latest': 'gemini-3-flash',
+      'gemini-pro-latest': 'gemini-3-pro',
     };
 
     const directAlias = aliasMap[preferredModel];
@@ -1634,16 +1665,6 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
       if (available.length === 0 || available.includes(directAlias)) {
         return directAlias;
       }
-    }
-
-    if (preferredModel.endsWith('-flash')) {
-      const preview = `${preferredModel}-preview`;
-      if (available.length === 0 || available.includes(preview)) return preview;
-    }
-
-    if (preferredModel.endsWith('-pro')) {
-      const preview = `${preferredModel}-preview`;
-      if (available.length === 0 || available.includes(preview)) return preview;
     }
 
     return null;
@@ -1686,8 +1707,9 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
         })
         .filter((name) => !!name);
 
-      this.availableModelsCache = Array.from(new Set(names));
-      return this.availableModelsCache;
+      const filtered = this.filterOfficialGeminiModels(names);
+      this.availableModelsCache = filtered;
+      return filtered;
     } catch (error) {
       console.warn('⚠️ [AIService] Failed to fetch available models:', error);
       return [];
