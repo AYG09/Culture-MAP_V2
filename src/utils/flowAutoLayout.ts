@@ -71,6 +71,8 @@ type LayoutOptions = {
   spacingPreset?: LayoutSpacingPreset;
   horizontalSpacing?: number;
   startX?: number;
+  pinnedNodes?: Node[];  // 고정된 노드 목록 (위치 anchor 계산용)
+  allEdges?: Edge[];     // 고정 노드 포함 전체 엣지 (연결 관계 파악용)
 };
 
 type ElkLayoutOptions = Record<string, string>;
@@ -191,6 +193,46 @@ function getBasicLayoutedElements(
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const layoutPositionById = new Map<string, { x: number; y: number }>();
 
+  // 고정 노드 정보 추출 (anchor 계산용)
+  const pinnedNodes = options?.pinnedNodes ?? [];
+  const allEdges = options?.allEdges ?? edges;
+  const pinnedNodeById = new Map(pinnedNodes.map((node) => [node.id, node]));
+
+  // 고정 노드의 위치를 layoutPositionById에 미리 등록 (anchor 계산에 사용)
+  pinnedNodes.forEach((node) => {
+    layoutPositionById.set(node.id, { x: node.position.x, y: node.position.y });
+  });
+
+  // 고정 노드와의 연결 관계 맵 구축 (떠다니는 노드 → 연결된 고정 노드들)
+  const pinnedConnectionsByFloatingId = new Map<string, string[]>();
+  allEdges.forEach((edge) => {
+    const sourceIsPinned = pinnedNodeById.has(edge.source);
+    const targetIsPinned = pinnedNodeById.has(edge.target);
+    const sourceIsFloating = nodeById.has(edge.source);
+    const targetIsFloating = nodeById.has(edge.target);
+
+    if (sourceIsPinned && targetIsFloating) {
+      const connections = pinnedConnectionsByFloatingId.get(edge.target) ?? [];
+      connections.push(edge.source);
+      pinnedConnectionsByFloatingId.set(edge.target, connections);
+    }
+    if (targetIsPinned && sourceIsFloating) {
+      const connections = pinnedConnectionsByFloatingId.get(edge.source) ?? [];
+      connections.push(edge.target);
+      pinnedConnectionsByFloatingId.set(edge.source, connections);
+    }
+  });
+
+  // 레이어별 고정 노드 점유 영역 계산 (겹침 방지용)
+  const pinnedRangesByLayer = new Map<string, Array<{ start: number; end: number }>>();
+  pinnedNodes.forEach((node) => {
+    const layer = resolveLayerKey(node.type);
+    const ranges = pinnedRangesByLayer.get(layer) ?? [];
+    const width = getNodeWidth(node);
+    ranges.push({ start: node.position.x, end: node.position.x + width });
+    pinnedRangesByLayer.set(layer, ranges);
+  });
+
   // 층위 순서 (위에서 아래로)
   const layerOrder = DISPLAY_LAYER_ORDER;
 
@@ -256,6 +298,7 @@ function getBasicLayoutedElements(
     const scoredNodes = layerNodes.map((node, nodeIndex) => {
       const targetXValues: number[] = [];
       const sourceXValues: number[] = [];
+      const pinnedXValues: number[] = [];  // 연결된 고정 노드들의 X 좌표
 
       if (previousLayerKey) {
         const sources = edgeSourcesByTarget.get(node.id) || [];
@@ -279,7 +322,23 @@ function getBasicLayoutedElements(
         });
       }
 
-      const preferredXValues = targetXValues.length > 0 ? targetXValues : sourceXValues;
+      // 연결된 고정 노드들의 X 좌표 수집 (핵심 수정)
+      const connectedPinnedIds = pinnedConnectionsByFloatingId.get(node.id) ?? [];
+      connectedPinnedIds.forEach((pinnedId) => {
+        const pinnedNode = pinnedNodeById.get(pinnedId);
+        if (pinnedNode) {
+          const pinnedCenterX = pinnedNode.position.x + getNodeWidth(pinnedNode) / 2;
+          pinnedXValues.push(pinnedCenterX);
+        }
+      });
+
+      // 우선순위: 고정 노드 연결 > 다른 레이어 연결 > 기존 위치
+      let preferredXValues = targetXValues.length > 0 ? targetXValues : sourceXValues;
+      if (pinnedXValues.length > 0) {
+        // 고정 노드 연결이 있으면 해당 X 값들을 preferredXValues에 병합 (가중치 2배)
+        preferredXValues = [...preferredXValues, ...pinnedXValues, ...pinnedXValues];
+      }
+
       const averageX = preferredXValues.length > 0
         ? preferredXValues.reduce((sum, value) => sum + value, 0) / preferredXValues.length
         : getNodeX(node) ?? (nodeIndex * effectiveHorizontalSpacing + 120);
@@ -289,6 +348,7 @@ function getBasicLayoutedElements(
         score: averageX,
         fallbackIndex: nodeIndex,
         anchorX: averageX,
+        hasPinnedConnection: pinnedXValues.length > 0,
       };
     });
 
@@ -373,11 +433,11 @@ function getBasicLayoutedElements(
 
     // 동일 레이어 내 선-후 관계에 따른 depth 계산
     const depthById = new Map<string, number>();
-    
+
     // 위상정렬 순서대로 depth 할당
     orderedNodes.forEach((node) => {
       let maxParentDepth = -1;
-      
+
       // 같은 레이어 내에서 이 노드를 가리키는 source 노드들 확인
       edges.forEach((edge) => {
         if (edge.target === node.id && sameLayerIds.has(edge.source)) {
@@ -385,7 +445,7 @@ function getBasicLayoutedElements(
           maxParentDepth = Math.max(maxParentDepth, parentDepth);
         }
       });
-      
+
       // 부모가 있으면 부모 depth + 1, 없으면 0
       depthById.set(node.id, maxParentDepth + 1);
     });
@@ -394,7 +454,7 @@ function getBasicLayoutedElements(
     const maxDepth = Math.max(0, ...Array.from(depthById.values()));
     const rowOffsetMultiplier = Math.min(2, 1 + maxDepth * 0.15 + Math.min(1, edgeDensity * 0.3));
     const rowOffset = Math.round(INTRA_LAYER_ROW_OFFSET * rowOffsetMultiplier);
-    
+
     // X 좌표 배치를 위한 depth별 그룹화
     const nodesByDepth = new Map<number, Node[]>();
     orderedNodes.forEach((node) => {
@@ -408,18 +468,34 @@ function getBasicLayoutedElements(
     // 각 depth별로 X 좌표 배치
     for (let depth = 0; depth <= maxDepth; depth++) {
       const depthNodes = nodesByDepth.get(depth) || [];
-      
+
       // 이 depth의 Y 오프셋
       const yOffset = depth * rowOffset;
-      
+
       // X 좌표 배치
       let cursorXForDepth = startX + depth * 50; // depth마다 약간씩 오른쪽으로 시작
-      
+
+      // 현재 레이어의 고정 노드 점유 영역
+      const pinnedRanges = pinnedRangesByLayer.get(layerKey) ?? [];
+
       depthNodes.forEach((node) => {
         const scored = scoredNodes.find((item) => item.node.id === node.id);
         const anchorX = scored?.anchorX ?? cursorXForDepth;
         const width = getNodeWidth(node);
-        const nextX = Math.max(anchorX, cursorXForDepth);
+        let nextX = Math.max(anchorX, cursorXForDepth);
+
+        // 고정 노드와 겹치는지 확인하고, 겹치면 오른쪽으로 밀어냄
+        let attempts = 0;
+        const maxAttempts = pinnedRanges.length + 1;
+        while (attempts < maxAttempts) {
+          const overlappingRange = pinnedRanges.find(
+            (range) => !(nextX + width + NODE_MIN_PADDING <= range.start || nextX >= range.end + NODE_MIN_PADDING)
+          );
+          if (!overlappingRange) break;
+          // 겹치는 고정 노드의 오른쪽으로 이동
+          nextX = overlappingRange.end + NODE_MIN_PADDING;
+          attempts++;
+        }
 
         const position = {
           x: nextX,
@@ -474,14 +550,14 @@ function resolveAllNodeOverlaps(nodes: Node[]): Node[] {
 
     // X 좌표로 정렬
     const sorted = [...layerNodes].sort((a, b) => a.position.x - b.position.x);
-    
+
     // 순차적으로 겨침 해결
     for (let i = 1; i < sorted.length; i++) {
       const prev = sorted[i - 1];
       const curr = sorted[i];
       const prevRight = prev.position.x + getNodeWidth(prev);
       const minX = prevRight + NODE_MIN_PADDING;
-      
+
       if (curr.position.x < minX) {
         sorted[i] = {
           ...curr,
@@ -489,7 +565,7 @@ function resolveAllNodeOverlaps(nodes: Node[]): Node[] {
         };
       }
     }
-    
+
     resolvedNodes.push(...sorted);
   });
 
@@ -582,7 +658,7 @@ export function relayoutLayer(
       // 같은 층위의 노드들을 수평으로 나열
       const layerNodes = nodes.filter((n) => n.type === layer);
       const nodeIndex = layerNodes.findIndex((n) => n.id === node.id);
-      
+
       return {
         ...node,
         position: {
@@ -605,7 +681,7 @@ export function centerLayout(
   viewportHeight = 800
 ): { nodes: Node[]; edges: Edge[] } {
   const layouted = getLayoutedElements(nodes, edges);
-  
+
   // 모든 노드의 경계 박스 계산
   const bounds = layouted.nodes.reduce(
     (acc, node) => ({
@@ -664,7 +740,7 @@ function getHandlePosition(node: Node, handle: 'top' | 'bottom' | 'left' | 'righ
   const height = getNodeHeight(node);
   const centerX = node.position.x + width / 2;
   const centerY = node.position.y + height / 2;
-  
+
   switch (handle) {
     case 'top': return { x: centerX, y: node.position.y };
     case 'bottom': return { x: centerX, y: node.position.y + height };
@@ -715,15 +791,15 @@ export function applyOptimalHandlesToEdges(
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const force = options?.force === true;
   const pinnedNodeIds = options?.pinnedNodeIds;
-  
+
   return edges.map((edge) => {
     const sourceNode = nodeById.get(edge.source);
     const targetNode = nodeById.get(edge.target);
-    
+
     if (!sourceNode || !targetNode) {
       return edge;
     }
-    
+
     const hasPinnedHandleNode = pinnedNodeIds
       ? pinnedNodeIds.has(edge.source) || pinnedNodeIds.has(edge.target)
       : false;
@@ -737,9 +813,9 @@ export function applyOptimalHandlesToEdges(
     if (!force && edge.sourceHandle && edge.targetHandle) {
       return edge;
     }
-    
+
     const { sourceHandle, targetHandle } = getOptimalHandles(sourceNode, targetNode);
-    
+
     return {
       ...edge,
       sourceHandle,

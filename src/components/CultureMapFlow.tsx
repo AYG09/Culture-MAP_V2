@@ -168,7 +168,7 @@ const toLayerValue = (layer?: number, noteType?: NoteData['type']): NoteData['la
 const mapLiveblocksNoteToNoteData = (note: StickyNoteData): NoteData => {
   const noteType = toNoteType(note.type);
   const sentiment = isSentiment(note.sentiment) ? note.sentiment : 'neutral';
-  
+
   // x, y가 undefined/NaN이면 기본값 설정 (노드 겨침 방지)
   const x = typeof note.x === 'number' && Number.isFinite(note.x) ? note.x : 100 + Math.random() * 200;
   const y = typeof note.y === 'number' && Number.isFinite(note.y) ? note.y : 100 + Math.random() * 100;
@@ -459,7 +459,7 @@ ${chatHistorySection}
     edgeWidth: 2,
   });
 
-  
+
 
   // 선택된 층위 (높이 조절용, null = 선택 없음)
   const [selectedLayerIndex, setSelectedLayerIndex] = useState<number | null>(0);
@@ -696,6 +696,8 @@ ${chatHistorySection}
       const result = getLayoutedElements(floatingNodes, floatingEdges, {
         layerHeights,
         spacingPreset: layoutSpacingRef.current,
+        pinnedNodes: pinnedNodes,
+        allEdges: filteredEdges,
       });
       layoutedNodes = result.nodes;
       layoutedEdges = result.edges;
@@ -713,6 +715,8 @@ ${chatHistorySection}
       const fallback = getLayoutedElements(floatingNodes, floatingEdges, {
         layerHeights,
         spacingPreset: layoutSpacingRef.current,
+        pinnedNodes: pinnedNodes,
+        allEdges: filteredEdges,
       });
       layoutedNodes = fallback.nodes;
       layoutedEdges = fallback.edges;
@@ -1215,13 +1219,13 @@ ${chatHistorySection}
         const updated = currentNodes.map((node) =>
           node.id === nodeId
             ? {
-                ...node,
-                draggable: !nextPinned && !isLockedByOther,
-                data: {
-                  ...node.data,
-                  pinned: nextPinned,
-                },
-              }
+              ...node,
+              draggable: !nextPinned && !isLockedByOther,
+              data: {
+                ...node.data,
+                pinned: nextPinned,
+              },
+            }
             : node
         );
         nodesRef.current = updated;
@@ -1960,43 +1964,43 @@ ${chatHistorySection}
 
       // 노드 겹침 방지: 드래그 완료 시 다른 노드와 겹치면 위치 조정
       const NODE_PADDING = 20; // 노드 간 최소 간격
-      
+
       const getNodeWidth = (node: Node): number => {
         if (typeof node.measured?.width === 'number') return node.measured.width;
         if (typeof node.width === 'number') return node.width;
         return 200;
       };
-      
+
       const resolveNodeOverlap = (nodes: Node[], changedNodeId: string): Node[] => {
         const changedNode = nodes.find(n => n.id === changedNodeId);
         if (!changedNode) return nodes;
-        
+
         const changedNodeWidth = getNodeWidth(changedNode);
         const changedNodeHeight = getNodeHeight(changedNode);
-        
+
         // 같은 층위의 다른 노드들과 겹침 확인
         const sameLayerNodes = nodes.filter(n => n.id !== changedNodeId && n.type === changedNode.type);
-        
+
         let adjustedX = changedNode.position.x;
         let adjustedY = changedNode.position.y;
         let hasOverlap = true;
         let iterations = 0;
         const maxIterations = 10;
-        
+
         while (hasOverlap && iterations < maxIterations) {
           hasOverlap = false;
           iterations++;
-          
+
           for (const otherNode of sameLayerNodes) {
             const otherWidth = getNodeWidth(otherNode);
             const otherHeight = getNodeHeight(otherNode);
-            
+
             // 겹침 감지 (패딩 포함)
             const isOverlappingX = adjustedX < otherNode.position.x + otherWidth + NODE_PADDING &&
-                                   adjustedX + changedNodeWidth + NODE_PADDING > otherNode.position.x;
+              adjustedX + changedNodeWidth + NODE_PADDING > otherNode.position.x;
             const isOverlappingY = adjustedY < otherNode.position.y + otherHeight + NODE_PADDING &&
-                                   adjustedY + changedNodeHeight + NODE_PADDING > otherNode.position.y;
-            
+              adjustedY + changedNodeHeight + NODE_PADDING > otherNode.position.y;
+
             if (isOverlappingX && isOverlappingY) {
               hasOverlap = true;
               // X축으로 밀어내기 (더 가까운 방향으로)
@@ -2004,20 +2008,20 @@ ${chatHistorySection}
               const pushRight = otherNode.position.x + otherWidth + NODE_PADDING;
               const distLeft = Math.abs(adjustedX - pushLeft);
               const distRight = Math.abs(adjustedX - pushRight);
-              
+
               adjustedX = distLeft < distRight ? pushLeft : pushRight;
               break;
             }
           }
         }
-        
+
         if (adjustedX !== changedNode.position.x || adjustedY !== changedNode.position.y) {
           return nodes.map(n => n.id === changedNodeId ? {
             ...n,
             position: { x: adjustedX, y: adjustedY }
           } : n);
         }
-        
+
         return nodes;
       };
 
@@ -2051,7 +2055,7 @@ ${chatHistorySection}
           };
         });
       }
-      
+
       // 드래그 종료 시 겹침 방지 적용
       clampedChanges.forEach((change) => {
         if (change.type === 'position' && !change.dragging && change.position) {
@@ -2060,7 +2064,7 @@ ${chatHistorySection}
           }
         }
       });
-      
+
       setNodes(nextNodes);
       nodesRef.current = nextNodes;
 
@@ -2334,7 +2338,7 @@ ${chatHistorySection}
   }, []);
 
   const lastPresenceUpdateRef = useRef(0);
-  
+
   // Liveblocks useOthers 훅으로 다른 사용자 커서 가져오기
   // ⚠️ selector는 반드시 pure function이어야 함 - console.log 등 side effect 금지!
   const otherCursors = useOthers((others) =>
@@ -2351,7 +2355,7 @@ ${chatHistorySection}
       }))
   );
   const updateMyPresence = useUpdateMyPresence();
-  
+
   // 디버깅용: selector 외부에서 로그 (useEffect 사용)
   useEffect(() => {
     if (otherCursors.length > 0) {
@@ -3365,9 +3369,9 @@ ${chatHistorySection}
                   const hasClientCoords = typeof clientX === 'number' && typeof clientY === 'number';
                   const screenPosition = hasFlowCoords
                     ? reactFlowInstance?.flowToScreenPosition({
-                        x: flowX,
-                        y: flowY,
-                      })
+                      x: flowX,
+                      y: flowY,
+                    })
                     : undefined;
                   const screenX = screenPosition
                     ? screenPosition.x - (bounds?.left ?? 0)
