@@ -341,7 +341,7 @@ function getBasicLayoutedElements(
 
       const averageX = preferredXValues.length > 0
         ? preferredXValues.reduce((sum, value) => sum + value, 0) / preferredXValues.length
-        : getNodeX(node) ?? (nodeIndex * effectiveHorizontalSpacing + 120);
+        : (getNodeX(node) ?? (nodeIndex * effectiveHorizontalSpacing + 120));
 
       return {
         node,
@@ -427,9 +427,16 @@ function getBasicLayoutedElements(
       orderedNodes.push(...remainingNodes);
     }
 
-    const anchorXs = scoredNodes.map((item) => item.anchorX);
-    const minAnchorX = anchorXs.length ? Math.min(...anchorXs) : 120;
-    const startX = options?.startX ?? Math.max(80, Math.floor(minAnchorX));
+    const anchorXs = scoredNodes
+      .map((item) => item.anchorX)
+      .filter((value) => Number.isFinite(value));
+    const sortedAnchors = [...anchorXs].sort((a, b) => a - b);
+    const medianAnchorX = sortedAnchors.length
+      ? sortedAnchors[Math.floor(sortedAnchors.length / 2)]
+      : 120;
+    const estimatedSpan = Math.max(0, layerNodes.length - 1) * minGap;
+    const derivedStartX = Math.round(medianAnchorX - estimatedSpan / 2);
+    const startX = options?.startX ?? Math.max(80, derivedStartX);
 
     // 동일 레이어 내 선-후 관계에 따른 depth 계산
     const depthById = new Map<string, number>();

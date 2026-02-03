@@ -676,6 +676,11 @@ ${chatHistorySection}
     const floatingEdges = filteredEdges.filter(
       (edge) => floatingNodeIdSet.has(edge.source) && floatingNodeIdSet.has(edge.target)
     );
+    const pinnedNodeIdSet = new Set(pinnedNodes.map((node) => node.id));
+    const hasPinnedConnections = filteredEdges.some((edge) =>
+      (pinnedNodeIdSet.has(edge.source) && floatingNodeIdSet.has(edge.target))
+      || (pinnedNodeIdSet.has(edge.target) && floatingNodeIdSet.has(edge.source))
+    );
 
     const nodeTypeById = new Map(
       dedupedNodes.map((node) => [node.id, normalizeLayerType(node.type)])
@@ -692,7 +697,7 @@ ${chatHistorySection}
     if (!floatingNodes.length) {
       layoutedNodes = [];
       layoutedEdges = filteredEdges;
-    } else if (hasIntraLayerEdges) {
+    } else if (hasIntraLayerEdges || hasPinnedConnections) {
       const result = getLayoutedElements(floatingNodes, floatingEdges, {
         layerHeights,
         spacingPreset: layoutSpacingRef.current,
@@ -1084,8 +1089,8 @@ ${chatHistorySection}
   const [contextMenuClampTick, setContextMenuClampTick] = useState(0);
   const [contextMenuSections, setContextMenuSections] = useState({
     pane: { create: false, layout: false, selection: false },
-    node: { attributes: false, frequency: false, type: false, actions: false },
-    edge: { settings: false, actions: false },
+    node: { attributes: false, frequency: false, type: false },
+    edge: { settings: false },
   });
 
   const toggleContextSection = useCallback((menuType: 'pane' | 'node' | 'edge', key: string) => {
@@ -1133,9 +1138,9 @@ ${chatHistorySection}
         return { ...prev, pane: { create: false, layout: false, selection: false } };
       }
       if (contextMenu.type === 'edge') {
-        return { ...prev, edge: { settings: false, actions: false } };
+        return { ...prev, edge: { settings: false } };
       }
-      return { ...prev, node: { attributes: false, frequency: false, type: false, actions: false } };
+      return { ...prev, node: { attributes: false, frequency: false, type: false } };
     });
   }, [contextMenu]);
 
@@ -2576,6 +2581,264 @@ ${chatHistorySection}
         return;
       }
 
+      if (contextMenu.type === 'pane' && action.startsWith('selection_')) {
+        if (!hasSelectedNodes) {
+          return;
+        }
+
+        const currentUserId = getCurrentUserId();
+        const targetIdSet = new Set(selectedNodeIds);
+        const canEditNode = (node: Node) => {
+          const activeLock = collaborationLocksRef.current[node.id];
+          return !(
+            activeLock &&
+            activeLock.itemType === 'note' &&
+            activeLock.userId !== currentUserId
+          );
+        };
+
+        if (
+          action === 'selection_positive'
+          || action === 'selection_negative'
+          || action === 'selection_neutral'
+        ) {
+          if (!ensureLiveblocksConnected('선택 노드 속성 변경')) {
+            return;
+          }
+
+          const sentiment = action.replace('selection_', '') as 'positive' | 'negative' | 'neutral';
+          const updatedIds = new Set<string>();
+
+          const updatedNodes = nodes.map((node) => {
+            if (!targetIdSet.has(node.id) || !canEditNode(node)) {
+              return node;
+            }
+            updatedIds.add(node.id);
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                sentiment,
+              },
+            };
+          });
+
+          const recalculatedEdges = edges.map((edge) => {
+            if (!updatedIds.has(edge.source) && !updatedIds.has(edge.target)) {
+              return edge;
+            }
+
+            const sourceNode = updatedNodes.find((n) => n.id === edge.source);
+            const targetNode = updatedNodes.find((n) => n.id === edge.target);
+
+            const sourceSentiment =
+              (sourceNode?.data as { sentiment?: string })?.sentiment || 'neutral';
+            const targetSentiment =
+              (targetNode?.data as { sentiment?: string })?.sentiment || 'neutral';
+
+            let edgeColor = '#10b981';
+            let isPositive = true;
+
+            if (sourceSentiment === 'positive' && targetSentiment === 'positive') {
+              edgeColor = '#10b981';
+              isPositive = true;
+            } else if (
+              (sourceSentiment === 'positive' && targetSentiment === 'negative')
+              || (sourceSentiment === 'negative' && targetSentiment === 'positive')
+            ) {
+              edgeColor = '#ef4444';
+              isPositive = false;
+            } else if (sourceSentiment === 'negative' && targetSentiment === 'negative') {
+              edgeColor = '#ef4444';
+              isPositive = false;
+            } else {
+              edgeColor = '#6b7280';
+              isPositive = true;
+            }
+
+            liveblocksService.updateConnection({
+              id: edge.id,
+              sourceId: edge.source,
+              targetId: edge.target,
+              relationType:
+                (edge.data as { relationType?: string })?.relationType === 'indirect'
+                  ? 'indirect'
+                  : 'direct',
+              isPositive,
+              sourceHandle: edge.sourceHandle ?? undefined,
+              targetHandle: edge.targetHandle ?? undefined,
+            });
+
+            return {
+              ...edge,
+              style: {
+                ...edge.style,
+                stroke: edgeColor,
+              },
+              markerEnd: {
+                type: 'arrowclosed' as const,
+                width: 20,
+                height: 20,
+                color: edgeColor,
+              },
+              data: { ...edge.data, isPositive },
+            };
+          });
+
+          setNodes(updatedNodes);
+          setEdges(recalculatedEdges);
+
+          const { notes: updatedNotes, connections: updatedConnections } = convertFromFlowData(
+            updatedNodes,
+            recalculatedEdges
+          );
+          onNotesChange(updatedNotes);
+          onConnectionsChange(updatedConnections);
+
+          const layerMap: { [key: string]: number } = {
+            result: 1,
+            behavior: 2,
+            tangible_lever: 3,
+            intangible_lever: 4,
+          };
+
+          updatedNodes.forEach((node) => {
+            if (!updatedIds.has(node.id)) {
+              return;
+            }
+            const updatedFrequency = isConsultingMode
+              ? ((node.data as { frequency?: PerceptionIntensity | null })?.frequency ?? undefined)
+              : undefined;
+            liveblocksService.updateStickyNote({
+              id: node.id,
+              content: (node.data as { content?: string }).content || '',
+              x: node.position.x,
+              y: node.position.y,
+              layer: layerMap[node.type || 'result'] || 1,
+              sentiment,
+              type: node.type || 'sticky_note',
+              width: (node.width as number) || 200,
+              height: (node.height as number) || 120,
+              ...(isConsultingMode && updatedFrequency ? { frequency: updatedFrequency } : {}),
+            });
+          });
+
+          closeContextMenu();
+          return;
+        }
+
+        if (action === 'selection_delete') {
+          if (!ensureLiveblocksConnected('선택 노드 삭제')) {
+            return;
+          }
+
+          const deletableIds = new Set<string>();
+          selectedNodeIds.forEach((id) => {
+            const node = nodes.find((item) => item.id === id);
+            if (node && canEditNode(node)) {
+              deletableIds.add(id);
+            }
+          });
+
+          if (!deletableIds.size) {
+            closeContextMenu();
+            return;
+          }
+
+          const edgesToDelete = edges.filter(
+            (edge) => deletableIds.has(edge.source) || deletableIds.has(edge.target)
+          );
+
+          const updatedNodes = nodes.filter((node) => !deletableIds.has(node.id));
+          const updatedEdges = edges.filter(
+            (edge) => !deletableIds.has(edge.source) && !deletableIds.has(edge.target)
+          );
+
+          setNodes(updatedNodes);
+          setEdges(updatedEdges);
+
+          const { notes: updatedNotes, connections: updatedConnections } = convertFromFlowData(
+            updatedNodes,
+            updatedEdges
+          );
+          onNotesChange(updatedNotes);
+          onConnectionsChange(updatedConnections);
+
+          deletableIds.forEach((id) => liveblocksService.deleteStickyNote(id));
+          edgesToDelete.forEach((edge) => liveblocksService.deleteConnection(edge.id));
+
+          closeContextMenu();
+          return;
+        }
+
+        if (action.startsWith('selection_set_type_')) {
+          if (!ensureLiveblocksConnected('선택 노드 유형 변경')) {
+            return;
+          }
+
+          const typeMap: Record<string, { nodeType: string; layer: number }> = {
+            selection_set_type_result: { nodeType: 'result', layer: 1 },
+            selection_set_type_behavior: { nodeType: 'behavior', layer: 2 },
+            selection_set_type_tangible_lever: { nodeType: 'tangible_lever', layer: 3 },
+            selection_set_type_intangible_lever: { nodeType: 'intangible_lever', layer: 4 },
+          };
+
+          const target = typeMap[action];
+          if (!target) {
+            return;
+          }
+
+          const updatedIds = new Set<string>();
+          const updatedNodes = nodes.map((node) => {
+            if (!targetIdSet.has(node.id) || !canEditNode(node)) {
+              return node;
+            }
+            updatedIds.add(node.id);
+            return {
+              ...node,
+              type: target.nodeType,
+              data: {
+                ...node.data,
+                layer: target.layer,
+              },
+            };
+          });
+
+          setNodes(updatedNodes);
+
+          const { notes: updatedNotes, connections: updatedConnections } = convertFromFlowData(
+            updatedNodes,
+            edges
+          );
+          onNotesChange(updatedNotes);
+          onConnectionsChange(updatedConnections);
+
+          updatedNodes.forEach((node) => {
+            if (!updatedIds.has(node.id)) {
+              return;
+            }
+            const updatedFrequency = isConsultingMode
+              ? ((node.data as { frequency?: PerceptionIntensity | null })?.frequency ?? undefined)
+              : undefined;
+            liveblocksService.updateStickyNote({
+              id: node.id,
+              content: (node.data as { content?: string }).content || '',
+              x: node.position.x,
+              y: node.position.y,
+              layer: target.layer,
+              sentiment: (node.data as { sentiment?: string }).sentiment || 'neutral',
+              type: target.nodeType,
+              width: (node.width as number) || 200,
+              height: (node.height as number) || 120,
+              ...(isConsultingMode && updatedFrequency ? { frequency: updatedFrequency } : {}),
+            });
+          });
+
+          closeContextMenu();
+          return;
+        }
+      }
+
       // 빈 캔버스 우클릭 → 노드 생성
       if (contextMenu.type === 'pane' && action.startsWith('create_')) {
         if (!ensureLiveblocksConnected('노드 생성')) {
@@ -3474,36 +3737,40 @@ ${chatHistorySection}
         >
           {contextMenu.type === 'pane' && (
             <>
-              <button
-                className="context-menu-section-toggle"
-                onClick={() => toggleContextSection('pane', 'create')}
-                type="button"
-              >
-                <span className="context-menu-section-label">
-                  <PlusSquare className="context-menu-icon" />
-                  새 노트 생성
-                </span>
-                <ChevronDown className={`context-menu-chevron ${contextMenuSections.pane.create ? 'open' : ''}`} />
-              </button>
-              {contextMenuSections.pane.create && (
-                <div className="context-menu-section-body">
-                  <button onClick={() => handleContextMenuAction('create_result')}>
-                    <Target className="context-menu-icon icon-result" />
-                    결과
+              {!hasSelectedNodes && (
+                <>
+                  <button
+                    className="context-menu-section-toggle"
+                    onClick={() => toggleContextSection('pane', 'create')}
+                    type="button"
+                  >
+                    <span className="context-menu-section-label">
+                      <PlusSquare className="context-menu-icon" />
+                      새 노트 생성
+                    </span>
+                    <ChevronDown className={`context-menu-chevron ${contextMenuSections.pane.create ? 'open' : ''}`} />
                   </button>
-                  <button onClick={() => handleContextMenuAction('create_behavior')}>
-                    <Activity className="context-menu-icon icon-behavior" />
-                    행동
-                  </button>
-                  <button onClick={() => handleContextMenuAction('create_tangible_lever')}>
-                    <Box className="context-menu-icon icon-tangible" />
-                    유형
-                  </button>
-                  <button onClick={() => handleContextMenuAction('create_intangible_lever')}>
-                    <Cloud className="context-menu-icon icon-intangible" />
-                    무형
-                  </button>
-                </div>
+                  {contextMenuSections.pane.create && (
+                    <div className="context-menu-section-body">
+                      <button onClick={() => handleContextMenuAction('create_result')}>
+                        <Target className="context-menu-icon icon-result" />
+                        결과
+                      </button>
+                      <button onClick={() => handleContextMenuAction('create_behavior')}>
+                        <Activity className="context-menu-icon icon-behavior" />
+                        행동
+                      </button>
+                      <button onClick={() => handleContextMenuAction('create_tangible_lever')}>
+                        <Box className="context-menu-icon icon-tangible" />
+                        유형
+                      </button>
+                      <button onClick={() => handleContextMenuAction('create_intangible_lever')}>
+                        <Cloud className="context-menu-icon icon-intangible" />
+                        무형
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
               {hasSelectedNodes && (
                 <>
@@ -3531,43 +3798,86 @@ ${chatHistorySection}
                         <PinOff className="context-menu-icon" />
                         전체 고정해제
                       </button>
+                      <div className="context-menu-divider" />
+                      <div className="context-menu-section-body context-menu-grid-3">
+                        <button onClick={() => handleContextMenuAction('selection_positive')}>
+                          <Smile className="context-menu-icon icon-positive" />
+                          긍정
+                        </button>
+                        <button onClick={() => handleContextMenuAction('selection_neutral')}>
+                          <Minus className="context-menu-icon icon-neutral" />
+                          중립
+                        </button>
+                        <button onClick={() => handleContextMenuAction('selection_negative')}>
+                          <Frown className="context-menu-icon icon-negative" />
+                          부정
+                        </button>
+                      </div>
+                      <div className="context-menu-divider" />
+                      <div className="context-menu-section-body context-menu-grid-2">
+                        <button onClick={() => handleContextMenuAction('selection_set_type_result')}>
+                          <Target className="context-menu-icon icon-result" />
+                          결과
+                        </button>
+                        <button onClick={() => handleContextMenuAction('selection_set_type_behavior')}>
+                          <Activity className="context-menu-icon icon-behavior" />
+                          행동
+                        </button>
+                        <button onClick={() => handleContextMenuAction('selection_set_type_tangible_lever')}>
+                          <Box className="context-menu-icon icon-tangible" />
+                          유형
+                        </button>
+                        <button onClick={() => handleContextMenuAction('selection_set_type_intangible_lever')}>
+                          <Cloud className="context-menu-icon icon-intangible" />
+                          무형
+                        </button>
+                      </div>
+                      <div className="context-menu-divider" />
+                      <button onClick={() => handleContextMenuAction('selection_delete')}>
+                        <Trash2 className="context-menu-icon" />
+                        선택 삭제
+                      </button>
                     </div>
                   )}
                 </>
               )}
-              <div className="context-menu-divider" />
-              <button
-                className="context-menu-section-toggle"
-                onClick={() => toggleContextSection('pane', 'layout')}
-                type="button"
-              >
-                <span className="context-menu-section-label">
-                  <LayoutGrid className="context-menu-icon" />
-                  정렬
-                </span>
-                <ChevronDown className={`context-menu-chevron ${contextMenuSections.pane.layout ? 'open' : ''}`} />
-              </button>
-              {contextMenuSections.pane.layout && (
-                <div className="context-menu-section-body">
+              {!hasSelectedNodes && (
+                <>
+                  <div className="context-menu-divider" />
                   <button
-                    onClick={() => {
-                      handleAutoLayout();
-                      closeContextMenu();
-                    }}
+                    className="context-menu-section-toggle"
+                    onClick={() => toggleContextSection('pane', 'layout')}
+                    type="button"
                   >
-                    <LayoutGrid className="context-menu-icon" />
-                    노드 정렬
+                    <span className="context-menu-section-label">
+                      <LayoutGrid className="context-menu-icon" />
+                      정렬
+                    </span>
+                    <ChevronDown className={`context-menu-chevron ${contextMenuSections.pane.layout ? 'open' : ''}`} />
                   </button>
-                  <button
-                    onClick={() => {
-                      rerouteEdges();
-                      closeContextMenu();
-                    }}
-                  >
-                    <Route className="context-menu-icon" />
-                    연결선 정렬
-                  </button>
-                </div>
+                  {contextMenuSections.pane.layout && (
+                    <div className="context-menu-section-body">
+                      <button
+                        onClick={() => {
+                          handleAutoLayout();
+                          closeContextMenu();
+                        }}
+                      >
+                        <LayoutGrid className="context-menu-icon" />
+                        노드 정렬
+                      </button>
+                      <button
+                        onClick={() => {
+                          rerouteEdges();
+                          closeContextMenu();
+                        }}
+                      >
+                        <Route className="context-menu-icon" />
+                        연결선 정렬
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
@@ -3672,25 +3982,12 @@ ${chatHistorySection}
               )}
 
               <div className="context-menu-divider" />
-              <button
-                className="context-menu-section-toggle"
-                onClick={() => toggleContextSection('node', 'actions')}
-                type="button"
-              >
-                <span className="context-menu-section-label">
+              <div className="context-menu-section-body">
+                <button onClick={() => handleContextMenuAction('delete')}>
                   <Trash2 className="context-menu-icon" />
-                  관리
-                </span>
-                <ChevronDown className={`context-menu-chevron ${contextMenuSections.node.actions ? 'open' : ''}`} />
-              </button>
-              {contextMenuSections.node.actions && (
-                <div className="context-menu-section-body">
-                  <button onClick={() => handleContextMenuAction('delete')}>
-                    <Trash2 className="context-menu-icon" />
-                    삭제
-                  </button>
-                </div>
-              )}
+                  삭제
+                </button>
+              </div>
             </>
           )}
           {contextMenu.type === 'edge' && (
@@ -3719,25 +4016,12 @@ ${chatHistorySection}
                 </div>
               )}
               <div className="context-menu-divider" />
-              <button
-                className="context-menu-section-toggle"
-                onClick={() => toggleContextSection('edge', 'actions')}
-                type="button"
-              >
-                <span className="context-menu-section-label">
+              <div className="context-menu-section-body">
+                <button onClick={() => handleContextMenuAction('delete')}>
                   <Trash2 className="context-menu-icon" />
-                  관리
-                </span>
-                <ChevronDown className={`context-menu-chevron ${contextMenuSections.edge.actions ? 'open' : ''}`} />
-              </button>
-              {contextMenuSections.edge.actions && (
-                <div className="context-menu-section-body">
-                  <button onClick={() => handleContextMenuAction('delete')}>
-                    <Trash2 className="context-menu-icon" />
-                    삭제
-                  </button>
-                </div>
-              )}
+                  삭제
+                </button>
+              </div>
             </>
           )}
         </div>
