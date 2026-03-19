@@ -320,6 +320,84 @@
     margin-bottom: 6px;
 }
 
+.message-evidence {
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: rgba(248, 250, 252, 0.9);
+}
+
+.message-evidence-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    margin-bottom: 6px;
+}
+
+.message-evidence-summary {
+    font-size: 12px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.message-evidence-note {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #475569;
+}
+
+.message-evidence-sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.message-evidence-source {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.32);
+    color: #334155;
+    font-size: 11px;
+    text-decoration: none;
+}
+
+.message-evidence-source:hover {
+    border-color: rgba(79, 70, 229, 0.3);
+    color: #312e81;
+}
+
+.evidence-academic .message-evidence-badge {
+    background: rgba(5, 150, 105, 0.14);
+    color: #047857;
+}
+
+.evidence-web .message-evidence-badge {
+    background: rgba(37, 99, 235, 0.12);
+    color: #1d4ed8;
+}
+
+.evidence-hybrid .message-evidence-badge {
+    background: rgba(124, 58, 237, 0.12);
+    color: #6d28d9;
+}
+
+.evidence-general .message-evidence-badge,
+.evidence-system .message-evidence-badge {
+    background: rgba(148, 163, 184, 0.16);
+    color: #475569;
+}
+
 .message-avatar-row.current-user {
     flex-direction: row-reverse;
     justify-content: flex-end;

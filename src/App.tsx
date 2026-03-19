@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
 
-import Gateway from './components/Gateway';
-import CultureMapFlow from './components/CultureMapFlow';
-import VideoSplash from './components/VideoSplash';
-import LiveblocksRoomProvider from './components/LiveblocksRoomProvider';
 import liveblocksService from './services/LiveblocksService';
 import aiService from './services/AIService';
+
+const Gateway = lazy(() => import('./components/Gateway'));
+const CultureMapFlow = lazy(() => import('./components/CultureMapFlow'));
+const VideoSplash = lazy(() => import('./components/VideoSplash'));
+const LiveblocksRoomProvider = lazy(() => import('./components/LiveblocksRoomProvider'));
 
 import type { ConnectionData, NoteData, NoteType } from './types/culture';
 import type { StickyNoteData, ConnectionData as LBConnectionData } from './types/liveblocks';
@@ -247,28 +248,34 @@ function App() {
   return (
     <>
       {/* VideoSplash 화면 */}
-      {showVideoSplash && <VideoSplash onComplete={handleSplashComplete} />}
+      {showVideoSplash && (
+        <Suspense fallback={<div className="app-loading-fallback">인트로 영상을 준비하는 중...</div>}>
+          <VideoSplash onComplete={handleSplashComplete} />
+        </Suspense>
+      )}
 
       {/* 메인 앱 */}
       {!showVideoSplash && (
-        <Gateway onAuthenticated={handleAuthenticated}>
-          <LiveblocksRoomProvider
-            sessionCode={currentSessionCode}
-            userName={liveblocksService.getCurrentUserDisplayName()}
-            userColor={liveblocksService.getCurrentUserColor()}
-            userId={liveblocksService.getCurrentUserId()}
-          >
-            <Router>
-              <div className="app-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <CultureMapFlow
-                  onNotesChange={handleNotesChange}
-                  onConnectionsChange={handleConnectionsChange}
-                  onNodeUpdate={handleNodeUpdate}
-                />
-              </div>
-            </Router>
-          </LiveblocksRoomProvider>
-        </Gateway>
+        <Suspense fallback={<div className="app-loading-fallback">협업 화면을 준비하는 중...</div>}>
+          <Gateway onAuthenticated={handleAuthenticated}>
+            <LiveblocksRoomProvider
+              sessionCode={currentSessionCode}
+              userName={liveblocksService.getCurrentUserDisplayName()}
+              userColor={liveblocksService.getCurrentUserColor()}
+              userId={liveblocksService.getCurrentUserId()}
+            >
+              <Router>
+                <div className="app-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <CultureMapFlow
+                    onNotesChange={handleNotesChange}
+                    onConnectionsChange={handleConnectionsChange}
+                    onNodeUpdate={handleNodeUpdate}
+                  />
+                </div>
+              </Router>
+            </LiveblocksRoomProvider>
+          </Gateway>
+        </Suspense>
       )}
     </>
   );

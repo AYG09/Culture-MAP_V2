@@ -1,6 +1,5 @@
 import type { Node, Edge } from '@xyflow/react';
 import { Position } from '@xyflow/react';
-import ELK from 'elkjs/lib/elk.bundled.js';
 
 /**
  * dagre를 사용한 4층위 시스템 자동 레이아웃
@@ -103,7 +102,18 @@ type ElkLayoutEngine = {
   layout: (graph: ElkGraph, options?: { layoutOptions?: ElkLayoutOptions }) => Promise<ElkGraph>;
 };
 
-const elk = new ELK() as unknown as ElkLayoutEngine;
+let elkEnginePromise: Promise<ElkLayoutEngine> | null = null;
+
+async function getElkEngine(): Promise<ElkLayoutEngine> {
+  if (!elkEnginePromise) {
+    elkEnginePromise = import('elkjs/lib/elk.bundled.js').then((module) => {
+      const ELKConstructor = module.default;
+      return new ELKConstructor() as unknown as ElkLayoutEngine;
+    });
+  }
+
+  return elkEnginePromise;
+}
 
 const DEFAULT_ELK_OPTIONS: ElkLayoutOptions = {
   'elk.algorithm': 'layered',
@@ -592,6 +602,8 @@ export async function getElkLayoutedElements(
   edges: Edge[],
   layoutOptions: ElkLayoutOptions = DEFAULT_ELK_OPTIONS
 ): Promise<{ nodes: Node[]; edges: Edge[] }> {
+  const elk = await getElkEngine();
+
   const elkNodes: ElkNode[] = nodes.map((node) => ({
     id: node.id,
     width: getNodeWidth(node),

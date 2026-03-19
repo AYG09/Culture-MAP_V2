@@ -13,6 +13,7 @@ import type {
     MultiUserSession,
     SessionType,
     ChatMessage,
+    MessageEvidence,
     AcademicFileMeta,
     SharedRagChunk,
     Insight,
@@ -483,7 +484,7 @@ class LiveblocksService {
         messages.push([newMessage]);
     }
 
-    public sendAiResponse(content: string, functionCalls?: AiAction[]): void {
+    public sendAiResponse(content: string, functionCalls?: AiAction[], evidence?: MessageEvidence): void {
         if (!this.yDoc) return;
         const messages = this.yDoc.getArray<ChatMessage>('chatMessages');
         const newMessage: ChatMessage = {
@@ -494,7 +495,8 @@ class LiveblocksService {
             userColor: '#8b5cf6',
             timestamp: Date.now(),
             scope: 'group',
-            suggestedActions: functionCalls
+            suggestedActions: functionCalls,
+            evidence
         };
         messages.push([newMessage]);
     }
@@ -502,7 +504,7 @@ class LiveblocksService {
     /**
      * AI의 초기 빈 메시지를 생성하고 ID를 반환합니다 (스트리밍 용)
      */
-    public startAiResponse(): string {
+    public startAiResponse(evidence?: MessageEvidence): string {
         if (!this.yDoc) return '';
         const messages = this.yDoc.getArray<ChatMessage>('chatMessages');
         const id = `ai-stream-${Date.now()}`;
@@ -513,7 +515,8 @@ class LiveblocksService {
             userName: 'AI Assistant',
             userColor: '#8b5cf6',
             timestamp: Date.now(),
-            scope: 'group'
+            scope: 'group',
+            evidence
         };
         messages.push([newMessage]);
         return id;
@@ -522,7 +525,7 @@ class LiveblocksService {
     /**
      * 특정 ID의 AI 메시지 내용을 업데이트합니다
      */
-    public updateAiResponse(id: string, content?: string, functionCalls?: AiAction[]): void {
+    public updateAiResponse(id: string, content?: string, functionCalls?: AiAction[], evidence?: MessageEvidence): void {
         if (!this.yDoc) return;
         const messages = this.yDoc.getArray<ChatMessage>('chatMessages');
         const index = messages.toArray().findIndex(m => m.id === id);
@@ -531,7 +534,8 @@ class LiveblocksService {
             const updated: ChatMessage = {
                 ...current,
                 content: content ?? current.content, // undefined면 기존 값 유지
-                suggestedActions: functionCalls ?? current.suggestedActions // undefined면 기존 값 유지
+                suggestedActions: functionCalls ?? current.suggestedActions, // undefined면 기존 값 유지
+                evidence: evidence ?? current.evidence
             };
             messages.delete(index);
             messages.insert(index, [updated]);

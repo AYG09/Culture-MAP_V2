@@ -13,11 +13,13 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
     const currentConfig = aiService.getConfig();
     const provider: AIProvider = 'gemini';
     const [apiKey, setApiKey] = useState(currentConfig?.apiKey || '');
+    const [tavilyApiKey, setTavilyApiKey] = useState(currentConfig?.tavilyApiKey || '');
     const [modelName, setModelName] = useState(currentConfig?.modelName || 'gemini-2.5-flash-lite');
     const [autoExecute, setAutoExecute] = useState(currentConfig?.autoExecuteFunctionCalls || false);
     const [sharedApiKeyMode, setSharedApiKeyMode] = useState(currentConfig?.sharedApiKeyMode || false);
     const [isSaved, setIsSaved] = useState(false);
     const [showKey, setShowKey] = useState(false);
+    const [showTavilyKey, setShowTavilyKey] = useState(false);
     const [consultingPassword, setConsultingPassword] = useState('');
     const [consultingError, setConsultingError] = useState('');
     const [consultingSuccess, setConsultingSuccess] = useState(false);
@@ -76,6 +78,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
         const newConfig: AIConfig = {
             provider,
             apiKey: apiKey.trim(),
+            tavilyApiKey: tavilyApiKey.trim() || undefined,
             modelName: modelName.trim(),
             autoExecuteFunctionCalls: autoExecute,
             sharedApiKeyMode
@@ -117,7 +120,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
             setIsUploadingToShared(true);
             for (const file of filesToUpload) {
                 // 먼저 Gemini에 업로드
-                const metadata = await aiService.uploadAcademicFile(file);
+                const metadata = await aiService.uploadAcademicFileWithOptions(file, { indexLocally: false });
                 // 공유 RAG로 인덱싱
                 const result = await aiService.indexAcademicPdfToShared(file, metadata);
                 if (result && result.chunkCount > 0) {
@@ -234,7 +237,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                 <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
                     <div className="info-box">
                         <Info size={16} />
-                        <p>입력하신 API 키는 브라우저의 로컬 저장소에만 보관되며, 서버로 전송되지 않습니다.</p>
+                        <p>입력한 키는 이 브라우저의 로컬 저장소에 저장됩니다. Tavily 키를 넣으면 웹 검색 요청 시 서버 릴레이를 통해 해당 키가 우선 사용됩니다.</p>
                     </div>
 
                     <div className="config-section">
@@ -259,6 +262,35 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                             <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">
                                 Google AI Studio에서 키 발급받기 ↗
                             </a>
+                        </p>
+                    </div>
+
+                    <div className="config-section">
+                        <label className="section-label">Tavily 웹 검색 키</label>
+                        <div className="input-with-action">
+                            <input
+                                type={showTavilyKey ? "text" : "password"}
+                                className="config-input"
+                                placeholder="선택 사항: Tavily API 키를 입력하세요"
+                                value={tavilyApiKey}
+                                onChange={(e) => setTavilyApiKey(e.target.value)}
+                            />
+                            <button
+                                className="config-toggle-visibility"
+                                onClick={() => setShowTavilyKey(!showTavilyKey)}
+                                title={showTavilyKey ? "숨기기" : "보기"}
+                                type="button"
+                            >
+                                {showTavilyKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                        </div>
+                        <p className="help-text">
+                            <a href="https://app.tavily.com/home" target="_blank" rel="noreferrer">
+                                Tavily에서 키 발급받기 ↗
+                            </a>
+                        </p>
+                        <p className="help-text ai-config-help-muted">
+                            입력하지 않으면 서버 환경 변수의 Tavily 키를 사용합니다.
                         </p>
                     </div>
 

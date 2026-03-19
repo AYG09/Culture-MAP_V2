@@ -1,3 +1,15 @@
+.app-loading-fallback,
+.session-manager-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  color: var(--text-secondary, #475569);
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.94));
+  font-size: 14px;
+  font-weight: 500;
+}
 :root {
   --font-sans: 'Noto Sans KR', Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   --font-mono:

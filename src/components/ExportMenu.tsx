@@ -3,7 +3,6 @@ import { toPng } from 'html-to-image';
 import { type ReactFlowInstance, getNodesBounds, getViewportForBounds } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
 import { saveAs } from 'file-saver';
-import * as XLSX from 'xlsx';
 import './ExportMenu.css';
 import liveblocksService from '../services/LiveblocksService';
 
@@ -225,7 +224,7 @@ export default function ExportMenu({
   /**
    * Excel 파일로 내보내기
    */
-  const exportExcel = () => {
+  const exportExcel = async () => {
     if (nodes.length === 0) {
       setExportError('내보낼 노드가 없습니다. 먼저 컬쳐맵을 생성해주세요.');
       return;
@@ -235,6 +234,8 @@ export default function ExportMenu({
     setExportError(null);
 
     try {
+      const XLSX = await import('xlsx');
+
       // 노드 타입을 한글로 변환
       const getLayerName = (type: string): string => {
         switch (type) {
@@ -314,8 +315,8 @@ export default function ExportMenu({
     exportJSON();
   };
 
-  const handleExportExcel = () => {
-    exportExcel();
+  const handleExportExcel = async () => {
+    await exportExcel();
   };
 
   const handleSaveSnapshot = () => {

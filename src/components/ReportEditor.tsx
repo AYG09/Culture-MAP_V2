@@ -2,9 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css'; // Quill Snow 테마 CSS
 import { saveAs } from 'file-saver';
-import ExcelJS from 'exceljs';
 import { Sparkles, Loader2 } from 'lucide-react';
-import { createDocxBlobFromHtml } from '../utils/htmlToDocx';
 import './ReportEditor.css';
 
 interface ReportEditorProps {
@@ -86,6 +84,7 @@ export default function ReportEditor({ initialContent, onSave, onGenerateReport,
     setIsExporting(true);
 
     try {
+      const { createDocxBlobFromHtml } = await import('../utils/htmlToDocx');
       const blob = await createDocxBlobFromHtml(content);
       saveAs(blob, `report-${Date.now()}.docx`);
 
@@ -111,6 +110,8 @@ export default function ReportEditor({ initialContent, onSave, onGenerateReport,
     setIsExporting(true);
 
     try {
+      const ExcelJS = (await import('exceljs')).default;
+
       // HTML을 파싱하여 텍스트 추출
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = content;

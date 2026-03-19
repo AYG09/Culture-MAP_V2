@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import App from '../App';
-import SessionManager from './SessionManager';
+import React, { Suspense, lazy, useState, useEffect, useCallback } from 'react';
 import liveblocksService from '../services/LiveblocksService';
+
+const App = lazy(() => import('../App'));
+const SessionManager = lazy(() => import('./SessionManager'));
 
 const MultiUserApp: React.FC = () => {
   const [sessionActive, setSessionActive] = useState(false);
@@ -106,10 +107,16 @@ const MultiUserApp: React.FC = () => {
       )}
 
       {/* 세션이 비활성화되면 모달로 세션 관리자 표시 */}
-      {!sessionActive && <SessionManager onSessionJoined={handleSessionJoined} />}
+      {!sessionActive && (
+        <Suspense fallback={<div className="session-manager-loading">세션 관리 화면을 불러오는 중...</div>}>
+          <SessionManager onSessionJoined={handleSessionJoined} />
+        </Suspense>
+      )}
 
       {/* 메인 애플리케이션 - 세션 정보를 props로 전달 */}
-      <App />
+      <Suspense fallback={<div className="session-manager-loading">앱을 준비하는 중...</div>}>
+        <App />
+      </Suspense>
     </>
   );
 };

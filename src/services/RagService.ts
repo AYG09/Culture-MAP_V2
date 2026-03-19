@@ -23,7 +23,7 @@ export interface RagQueryOptions {
   maxContextChars?: number;
 }
 
-interface RagQueryResult {
+export interface RagQueryResult {
   contextText: string;
   sources: Array<{ docId: string; docName: string; score: number; pageNumber?: number }>;
 }

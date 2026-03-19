@@ -9,8 +9,7 @@
 
 import { GoogleGenAI, createPartFromUri, FunctionCallingConfigMode, type ThinkingConfig, type ThinkingLevel } from '@google/genai';
 import { MAP_TOOL_DECLARATIONS, type AiFunctionCall, type ToolDeclaration } from '../types/actions';
-import { searchKnowledge } from '../data/academicKnowledge';
-import type { ChatMessage, Insight, InsightType } from '../types/liveblocks';
+import type { ChatMessage, EvidenceSource, Insight, InsightType, MessageEvidence } from '../types/liveblocks';
 import ragService from './RagService';
 import liveblocksService from './LiveblocksService';
 
@@ -19,6 +18,7 @@ export type AIProvider = 'gemini';
 export interface AIConfig {
   provider: AIProvider;
   apiKey: string;
+  tavilyApiKey?: string;
   modelName?: string;
   autoExecuteFunctionCalls?: boolean; // true면 function call 자동 실행, false면 사용자 확인 후 실행
   sharedApiKeyMode?: boolean; // 세션 공용 API 키 모드 (동시 호출 제한)
@@ -56,6 +56,7 @@ type StreamChunk = {
 };
 
 export type AIStreamChunk =
+  | { type: 'metadata'; evidence: MessageEvidence }
   | { type: 'text'; content: string; fullText: string }
   | { type: 'thought'; content: string }
   | { type: 'actions'; actions: AiFunctionCall[] };
@@ -63,6 +64,28 @@ export type AIStreamChunk =
 type SendMessageResult = {
   response?: unknown;
   parts?: StreamPart[];
+};
+
+type AcademicGroundingResult =
+  | { status: 'not-needed'; prompt: string; evidence: MessageEvidence }
+  | { status: 'grounded'; prompt: string; evidence: MessageEvidence }
+  | { status: 'fallback'; prompt: string; evidence: MessageEvidence }
+  | { status: 'web'; prompt: string; evidence: MessageEvidence }
+  | { status: 'hybrid'; prompt: string; evidence: MessageEvidence };
+
+type WebSearchHit = {
+  title: string;
+  url: string;
+  content: string;
+  source?: string;
+  publishedDate?: string;
+};
+
+type WebSearchBundle = {
+  status: 'ok' | 'empty' | 'unavailable';
+  contextText: string;
+  sources: EvidenceSource[];
+  errorMessage?: string;
 };
 
 type ChatSessionLike = {
@@ -79,118 +102,246 @@ class AIService {
   private currentConfig: AIConfig | null = null;
   private chatSession: ChatSessionLike | null = null;
   private chatHistory: ChatHistoryItem[] = [];
-  private currentThoughts: string[] = []; // 현재 세션의 사고 과정 저장
-  private academicFiles: FileMetadata[] = []; // 전문 서적 지식 파일 목록
-  private insights: Insight[] = []; // AI 동적 인사이트 캐싱
+  private currentThoughts: string[] = [];
+  private academicFiles: FileMetadata[] = [];
+  private insights: Insight[] = [];
   private modelTokenLimitCache: Record<string, { inputTokenLimit: number; outputTokenLimit: number; updatedAt: number }> = {};
   private availableModelsCache: string[] | null = null;
   private readonly academicKeywords = [
-    // 이론가/학자 이름
     '샤인', 'schein', '에드가', 'edgar', '로빈스', 'robbins', 'cummings', 'worley',
-    // 학술 개념
     '이론', '관점', '모델', '프레임워크', '원리', '원칙', '연구', '학술',
     '인공물', 'artifact', '가정', 'assumption', '가치', 'value',
     '조직문화', '조직행동', '리더십', '변화관리', 'od', '조직개발',
-    // 분석 요청
     '분석', '진단', '평가', '해석', '설명', '비교', '적용',
     '장점', '단점', '의미', '가치', '중요성', '시사점'
+  ];
+  private readonly academicGroundingKeywords = [
+    '학술', '학술적', '이론', '이론적', '근거', '출처', '문헌', '논문', '저서',
+    '연구', '인용', 'citation', 'evidence', 'reference',
+    '샤인', 'schein', '로빈스', 'robbins', 'cummings', 'worley'
+  ];
+  private readonly webSearchKeywords = [
+    '최신', '동향', '트렌드', '뉴스', '기사', '현황',
+    '사례', '벤치마크', '업데이트', '시장', '실무', '발표', '보도'
+  ];
+  private readonly webSearchFreshnessKeywords = [
+    '최근', '최신', '현재', '요즘', '이번', '올해', '방금', '근래', '방향'
+  ];
+  private readonly webSearchSubjectKeywords = [
+    '동향', '트렌드', '뉴스', '기사', '현황', '사례', '벤치마크', '시장', '실무',
+    '기업', '회사', '산업', '업계', '채용', '조직문화', '리더십', '변화관리'
+  ];
+  private readonly webSearchHardBlockKeywords = [
+    '버크만', '컬쳐맵', 'culture map', '노드', '연결선', '레이어', '스냅샷',
+    '이 맵', '현재 맵', '우리 맵', '업로드한 pdf', '업로드한 문서', '첨부한 파일',
+    '세션', '워크샵', '컨설팅 노트', '대화 내용', '이 보고서', 'pdf', '문헌'
   ];
 
   private getSystemInstruction(): string {
     return `
 # Culture-MAP V2 AI 컨설턴트
 
-## 프로그램 소개
-Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직문화 진단 및 시각화 프로그램입니다. 샤인(Edgar Schein)의 3계층 이론은 **해석과 설명을 보강하는 참고 프레임워크**로 활용됩니다.
+당신은 조직문화 분석과 Culture Map 편집을 돕는 AI입니다.
 
-### 핵심 기능
-- **4계층 문화 맵**: 결과(Outcomes) → 행동(Behaviors) → 유형 레버(Type Levers) → 무형 레버(Intangible Levers)
-- **노드 기반 시각화**: 각 레이어에 문화 요소를 노드로 추가하고 연결
-- **버크만 진단 통합**: 개인 성격 유형과 조직문화 연계 분석
-- **AI 컨설팅**: 학술 이론 기반 문화 진단 및 개선 전략 제안
+핵심 원칙:
+- 학술 근거가 제공되면 그 근거를 우선 사용합니다.
+- 최신 사례나 동향이 필요하면 웹 검색 근거를 보조적으로 사용할 수 있습니다.
+- 학술 근거가 없으면 일반 지식 기반으로 답변할 수 있지만, 그 한계를 분명히 밝힙니다.
+- 불확실한 내용은 단정하지 말고 추정이라고 표시합니다.
+- 사용자가 명시적으로 요청한 경우에만 맵 편집 도구를 호출합니다.
 
-### Dave Gray 모델 기반 구조 + 샤인 이론 매핑
-- **Dave Gray Culture Map 핵심 요소**: Outcomes(결과) · Behaviors(행동) · Enablers/Blockers(유형 레버) · Assumptions/Beliefs(무형 레버)
-- **샤인 이론 매핑(참고)**:
-  - Artifacts (인공물) → 결과/행동 레이어
-  - Espoused Values (표방 가치) → 유형 레버 레이어  
-  - Basic Assumptions (기본 가정) → 무형 레버 레이어
+맵 편집 규칙:
+- 노드와 연결은 Layer 4 → 3 → 2 → 1 방향의 인과 흐름을 우선합니다.
+- 여러 노드와 연결을 함께 만들 때는 add_nodes_with_connections를 우선합니다.
+- 정렬이 필요하면 auto_layout을 호출합니다.
+- 연결선이 어지럽다면 reroute_edges를 호출합니다.
+- 사용자가 설명이나 근거를 요청하면 먼저 텍스트로 설명합니다.
 
-## 당신의 역할
-1. **문화 진단 전문가**: Dave Gray 문화맵 모델을 중심으로, 샤인 이론·로빈스 조직행동론 등 학술 지식 기반 분석
-2. **맵 편집 도우미**: 사용자 요청 시 노드 추가/수정/삭제 (도구 사용)
-3. **전략 컨설턴트**: 문화 변화 전략 및 실행 계획 제안
+응답 규칙:
+- 도구 호출 후에는 무엇을 했는지 짧게 설명합니다.
+- 학술 근거 기반 답변이라면 사용한 출처를 간단히 정리합니다.
+- 웹 검색을 사용했다면 최신성 참고 자료임을 밝히고 URL 또는 매체명을 간단히 정리합니다.
+- 학술 근거가 없는 일반 답변이라면, 참고용 설명이며 정확한 검증을 위해 문헌 업로드가 필요하다고 안내합니다.
+`;
+  }
 
-## 수동 조작 안내 원칙
-- 사용자가 "직접 생성/편집 방법"을 묻는 경우 **마우스/키보드 기반 UI 절차**를 우선 안내한다.
-- “텍스트 명령만 가능” 같은 안내는 금지한다.
-- 기본 안내 항목: 빈 캔버스 우클릭 → 레이어 선택으로 노드 생성, 노드 더블클릭 편집, 노드/연결선 우클릭 메뉴, 핸들 드래그로 연결선 생성, 상단 PNG/JSON/Excel 내보내기.
+  private createEvidence(level: MessageEvidence['level'], summary: string, note?: string, sources?: EvidenceSource[]): MessageEvidence {
+    return {
+      level,
+      summary,
+      ...(note ? { note } : {}),
+      ...(sources && sources.length > 0 ? { sources } : {})
+    };
+  }
 
-## 커뮤니케이션 페르소나
-- **포지션**: 조직문화 컨설팅 파트너
-- **톤**: 전문적이되 친절하고 단정한 존댓말
-- **구조**: 핵심 요약 → 근거/진단 → 실행 제안(담당/우선순위 포함)
-- **원칙**: 불확실한 내용은 추정하지 말고 질문으로 확인
+  private buildAcademicEvidence(
+    sources: Array<{ docName: string; pageNumber?: number }>,
+    note?: string
+  ): MessageEvidence {
+    const evidenceSources = sources.slice(0, 5).map((source) => ({
+      kind: 'academic' as const,
+      title: source.docName,
+      detail: source.pageNumber ? `p.${source.pageNumber}` : undefined
+    }));
 
-## 도구 사용 규칙
-1. 노드 추가/수정 후 반드시 auto_layout 호출하여 정리
-2. 공간 부족/겹침/연결선 가림이 발생하면 adjust_layer_height 호출
-3. 사용자가 명시적으로 노드 생성을 요청할 때만 도구 사용
-4. 여러 노드와 연결을 동시에 만들 때는 add_nodes_with_connections로 단일 호출 수행
-5. 특정 좌표로 이동할 필요가 있으면 update_node에 x/y 포함
-6. delete_node는 **사용자가 명시적으로 삭제를 요청한 특정 노드 ID**에만 사용하며, 연결선 유무로 임의 삭제하지 말 것
-7. delete_connection은 **사용자가 명시적으로 삭제를 요청한 특정 연결선 ID**에만 사용하며, 노드 삭제의 부수 효과로 호출하지 말 것
-8. 도구 호출은 **코드 블록/print/default_api/tool_code**로 출력하지 말고 반드시 실제 function call로 실행
-9. 사용자가 "그렇게 해", "해줘", "진행해"처럼 직전 제안을 수락하면 즉시 해당 도구를 호출
-10. 코드 예시는 사용자가 명시적으로 코드 요청 시에만 제공하며, 도구 호출과는 분리
-11. 사용자가 "현재 위치 유지", "정렬하지 말고"라고 요청하면 auto_layout을 호출하지 말고 기존 좌표를 유지
-12. 간격을 좁히거나 넓히라는 요청이 있으면 auto_layout 호출 시 spacing(compact/normal/wide)을 사용
-13. 연결선 재정렬/재조정 요청(“연결선”, “선 다시”, “연결선도 정렬”)은 reroute_edges를 사용
-14. 줌/팬/전체 보기 요청은 set_viewport, pan_viewport, zoom_viewport, fit_view를 사용
-14. 특정 노드로 이동 요청은 focus_node를 사용
-15. 레이어 투명도/배경 표시 요청은 set_layer_opacity, toggle_layer_background를 사용
-16. UI 표시/숨김 요청(컨트롤, 미니맵, 레이어 패널, 배경, 내보내기)은 set_ui_visibility를 사용
-17. 노드/엣지 스타일(색상, 폰트, 테두리, 그림자) 변경 요청은 set_style_variables를 사용
-18. 노드 위치 고정 요청은 pin_node, 해제 요청은 unpin_node를 사용
-19. **스냅샷/백업**을 명시적으로 언급한 복원 요청에만 save_snapshot, restore_snapshot을 사용
-20. **자동 정렬 직전 상태로 되돌리는 요청**(되돌려, 원복, 취소, 이전 상태로)은 undo_layout을 사용
-21. “이전 상태로”, “되돌려”처럼 스냅샷/백업 언급이 없는 복원 표현은 restore_snapshot이 아니라 undo_layout을 사용
-22. set_layer_opacity 사용 시 opacity는 CSS 표준 (1=완전불투명, 0=완전투명). "투명도 50%" 요청 시 opacity=0.5, "불투명도 50%" 요청 시에도 opacity=0.5를 사용. layer 파라미터는 반드시 숫자(1,2,3,4)로 전달
-23. 사용자가 "설명해", "왜?", "근거"처럼 **설명/근거 요청**을 하면 도구 호출 없이 텍스트로 먼저 설명한다.
-24. 컨텍스트에 "워크샵 모드"가 표시된 경우 **빈도/강도(intensity/frequency) 표기를 사용하지 않는다**.
-25. 노드 감성(긍정/부정/중립) 변경 요청은 update_node의 sentiment로 처리한다.
-26. 노드 강도/빈도(다/중/소) 변경 요청은 컨설팅 모드에서만 update_node의 intensity를 사용한다.
+    return this.createEvidence('academic', '문헌 근거 기반 답변', note, evidenceSources);
+  }
 
-## ✅ 도구 호출 후 항상 채팅 메시지 제공
-- 도구만 호출하고 침묵하지 말 것
-- 무엇을 했는지, 제한이 있었다면 왜인지 간결하게 안내
+  private buildWebEvidence(sources: EvidenceSource[], note?: string): MessageEvidence {
+    return this.createEvidence('web', '웹 검색 기반 답변', note, sources.slice(0, 5));
+  }
 
-## 연결선(인과관계) 생성 규칙
-1. **노드 생성 후 연결 권장**: 새 노드 추가 후, 관련된 기존 노드와 create_connection 호출 권장
-2. **층위 간 인과 흐름**: 무형레버(Layer 4) → 유형레버(Layer 3) → 행동(Layer 2) → 결과(Layer 1) 방향
-3. **sourceId/targetId 순서**: sourceId = 원인 노드(상위 층위), targetId = 결과 노드(하위 층위)
-4. **다수 노드 생성 시**: 모든 노드 생성 완료 → 일괄 연결(create_connection) → auto_layout 순서
-5. **대량 생성 최적화**: 노드+연결 요청이 함께 오면 add_nodes_with_connections로 노드/연결을 한 번에 생성
-6. **relationType 의미**: direct=직접 인과관계(실선), indirect=간접 인과관계(점선)
+  private buildHybridEvidence(
+    academicSources: Array<{ docName: string; pageNumber?: number }>,
+    webSources: EvidenceSource[],
+    note?: string
+  ): MessageEvidence {
+    const combined = [
+      ...academicSources.slice(0, 3).map((source) => ({
+        kind: 'academic' as const,
+        title: source.docName,
+        detail: source.pageNumber ? `p.${source.pageNumber}` : undefined
+      })),
+      ...webSources.slice(0, 3)
+    ];
 
-### ✅ 예시 (DO)
-사용자: "리더십 문화 관련 노드 3개 만들어줘"
-→ 순서: add_node(Layer4 "리더십 가치관") → add_node(Layer3 "리더십 평가제도") → add_node(Layer2 "솔선수범 행동") → create_connection(source: Layer4노드ID, target: Layer3노드ID) → create_connection(source: Layer3노드ID, target: Layer2노드ID) → auto_layout()
+    return this.createEvidence('hybrid', '문헌 근거와 웹 검색을 함께 사용한 답변', note, combined);
+  }
 
-사용자: "A,B,C 노드 만들고 A-B, B-C 연결해줘"
-→ 순서: add_nodes_with_connections(nodes:[{tempId:"A", label:"A", layer:4, type:"무형_레버"}, {tempId:"B", label:"B", layer:3, type:"유형_레버"}, {tempId:"C", label:"C", layer:2, type:"행동"}], connections:[{sourceId:"A", targetId:"B"}, {sourceId:"B", targetId:"C"}]) → auto_layout()
+  private buildGeneralEvidence(note?: string): MessageEvidence {
+    return this.createEvidence('general', '일반 지식 기반 답변', note);
+  }
 
-사용자: "노드 X를 (900, 420)로 옮겨줘"
-→ 순서: update_node(id:"노드X_ID", x:900, y:420) → auto_layout()
+  private extractHostname(url: string): string | undefined {
+    try {
+      return new URL(url).hostname.replace(/^www\./, '');
+    } catch {
+      return undefined;
+    }
+  }
 
-사용자: "노드가 겹치고 연결선이 가려져"
-→ 순서: adjust_layer_height(layer: 4, height: 350) → adjust_layer_height(layer: 3, height: 350) → auto_layout() → reroute_edges()
+  private requiresWebSearch(prompt: string): boolean {
+    const lowerPrompt = prompt.toLowerCase();
 
-### ❌ 금지 (DON'T)
-- 노드만 생성하고 연결선 없이 끝내기
-- 연결 방향 반대로 하기 (하위→상위)
-- 연결선 없는 노드를 추정해서 삭제하기
-        `;
+    if (this.webSearchHardBlockKeywords.some((keyword) => lowerPrompt.includes(keyword))) {
+      return false;
+    }
+
+    let score = 0;
+
+    if (this.webSearchKeywords.some((keyword) => lowerPrompt.includes(keyword))) {
+      score += 2;
+    }
+
+    if (this.webSearchFreshnessKeywords.some((keyword) => lowerPrompt.includes(keyword))) {
+      score += 1;
+    }
+
+    if (this.webSearchSubjectKeywords.some((keyword) => lowerPrompt.includes(keyword))) {
+      score += 1;
+    }
+
+    if (/(2024|2025|2026|올해|작년|내년)/.test(lowerPrompt)) {
+      score += 1;
+    }
+
+    if (/(검색|찾아|조사|정리|비교).*(해줘|해봐|해 줄|해줘요)|링크|url|출처/.test(lowerPrompt)) {
+      score += 1;
+    }
+
+    if (/(우리 팀|우리조직|우리 조직|이 회사|우리 회사|이 맵|이 문서|첨부|업로드)/.test(lowerPrompt)) {
+      score -= 2;
+    }
+
+    if (score >= 2) {
+      return true;
+    }
+
+    return [
+      /(최근|최신|현재|요즘).*(동향|사례|현황|뉴스|이슈)/,
+      /(국내|해외).*(사례|동향|트렌드)/,
+      /(2024|2025|2026).*(사례|동향|전망|이슈)/,
+      /(실무|시장).*(사례|동향|변화)/,
+      /(뉴스|기사|시장).*(정리|요약|비교)/
+    ].some((pattern) => pattern.test(lowerPrompt));
+  }
+
+  private async searchWeb(query: string, maxResults: number = 5): Promise<WebSearchBundle | null> {
+    try {
+      const tavilyApiKey = this.currentConfig?.tavilyApiKey?.trim();
+      const response = await fetch('/api/web-search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(tavilyApiKey ? { 'x-tavily-api-key': tavilyApiKey } : {})
+        },
+        body: JSON.stringify({ query, maxResults })
+      });
+
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => null);
+        const errorMessage = typeof errorPayload?.error === 'string'
+          ? errorPayload.error
+          : `웹 검색 실패 (${response.status})`;
+        throw new Error(errorMessage);
+      }
+
+      const payload = await response.json() as { results?: WebSearchHit[] };
+      const results = Array.isArray(payload.results) ? payload.results : [];
+      if (results.length === 0) {
+        return {
+          status: 'empty',
+          contextText: '',
+          sources: []
+        };
+      }
+
+      const contextBlocks: string[] = [];
+      const sources: EvidenceSource[] = [];
+
+      results.slice(0, maxResults).forEach((result, index) => {
+        const host = this.extractHostname(result.url);
+        const detailParts = [result.source, host, result.publishedDate].filter(Boolean);
+        const detail = detailParts.join(' · ');
+
+        contextBlocks.push(
+          `[웹 출처 ${index + 1}] ${result.title}\n` +
+          `${detail ? `${detail}\n` : ''}` +
+          `${result.url}\n` +
+          `${result.content}`
+        );
+
+        sources.push({
+          kind: 'web',
+          title: result.title,
+          detail: detail || undefined,
+          url: result.url
+        });
+      });
+
+      return {
+        status: 'ok',
+        contextText: contextBlocks.join('\n\n'),
+        sources
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '웹 검색을 사용할 수 없습니다.';
+      console.warn('⚠️ [AIService] Web search unavailable:', error);
+      return {
+        status: 'unavailable',
+        contextText: '',
+        sources: [],
+        errorMessage: message
+      };
+    }
+  }
+
+  private appendWebSearchFailureNote(baseNote: string, webContext: WebSearchBundle | null): string {
+    if (!webContext || webContext.status !== 'unavailable') {
+      return baseNote;
+    }
+
+    return `${baseNote} 웹 검색을 시도했지만 현재 사용할 수 없어 외부 최신 자료는 반영하지 못했습니다.`;
   }
 
   private isRateLimitError(error: unknown): boolean {
@@ -213,7 +364,7 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
   ) {
     if (!this.geminiClient) throw new Error('Gemini API 설정을 먼저 완료해주세요.');
 
-    const modelName = this.currentConfig?.modelName || 'gemini-2.5-flash-lite';
+    const modelName = this.currentConfig?.modelName || 'gemini-3.1-flash-lite-preview';
     const thinkingConfig = this.getThinkingConfig(modelName);
     const mapEditTools = [
       'add_node',
@@ -310,7 +461,8 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
         this.setConfig({
           provider: 'gemini',
           apiKey: defaultApiKey,
-          modelName: 'gemini-2.5-flash-lite'  // Function Calling 완벽 지원, 저비용/고속
+          tavilyApiKey: undefined,
+          modelName: 'gemini-3.1-flash-lite-preview'  // Gemini 3.1 Flash-Lite: Function Calling 지원, 저비용/고속
         });
         console.log('📡 AI Service initialized from environment variables');
       }
@@ -345,7 +497,7 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
     this.chatHistory = Array.isArray(history) ? [...history] : [];
     this.chatSession = this.createChatSession(FunctionCallingConfigMode.AUTO, this.chatHistory);
 
-    console.log('🔧 [AIService] startChat: Model =', this.currentConfig?.modelName || 'gemini-2.5-flash-lite', 'Tools count =', MAP_TOOL_DECLARATIONS.length);
+    console.log('🔧 [AIService] startChat: Model =', this.currentConfig?.modelName || 'gemini-3.1-flash-lite-preview', 'Tools count =', MAP_TOOL_DECLARATIONS.length);
     console.log('🔧 [AIService] Tool names:', MAP_TOOL_DECLARATIONS.map((t) => t.name).join(', '));
 
     return this.chatSession;
@@ -368,11 +520,16 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
     prompt: string,
     fileUri?: string,
     mimeType?: string,
-    options?: { forceFunctionCall?: boolean; allowExternalTools?: boolean }
+    options?: { forceFunctionCall?: boolean; allowExternalTools?: boolean; groundingQuery?: string }
   ): AsyncGenerator<AIStreamChunk, void, void> {
     const forceFunctionCall = options?.forceFunctionCall ?? false;
     const allowExternalTools = options?.allowExternalTools ?? true;
     const internalTools = ['search_academic_theory', 'load_academic_knowledge'];
+
+    const academicGrounding = await this.prepareAcademicGrounding(options?.groundingQuery ?? prompt);
+    const promptToSend = academicGrounding.prompt;
+
+    yield { type: 'metadata', evidence: academicGrounding.evidence };
 
     let session = forceFunctionCall
       ? this.createChatSession(FunctionCallingConfigMode.ANY, this.chatHistory)
@@ -380,10 +537,11 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
           ? (this.chatSession || this.startChat())
           : this.createChatSession(FunctionCallingConfigMode.AUTO, this.chatHistory, internalTools));
 
-    const parts: MessagePart[] = [{ text: prompt }];
     if (prompt) {
       this.chatHistory.push({ role: 'user', parts: [{ text: prompt }] });
     }
+
+    const parts: MessagePart[] = [{ text: promptToSend }];
 
     // [토큰 최적화] PDF 자동 로드 제거 - AI가 load_academic_knowledge 도구로 필요시에만 로드
     // 이제 AI가 동적으로 판단하여 학술 지식이 필요할 때만 도구를 호출합니다.
@@ -526,6 +684,13 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
         });
 
         if (ragContext?.contextText) {
+          yield {
+            type: 'metadata',
+            evidence: this.buildAcademicEvidence(
+              ragContext.sources.map((source) => ({ docName: source.docName, pageNumber: source.pageNumber })),
+              'AI가 업로드된 문헌에서 직접 근거를 다시 찾아 답변했습니다.'
+            )
+          };
           try {
             const followUp = await session!.sendMessage({
               message: `[시스템] 다음은 문서 기반 RAG 검색 결과입니다. 이 근거를 우선 사용하여 답변하세요. 불확실한 내용은 추정하지 마세요.\n\n${ragContext.contextText}\n\n[질문]\n${topic}`
@@ -545,92 +710,47 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
 
           continue;
         }
-        
-        // PDF 선택 (AI가 제공한 topic 기반)
-        const topicStr = typeof topic === 'string' ? topic : '';
-        const selectedFiles = await this.selectAcademicFilesForTopic(topicStr);
-        const limitedFiles = this.limitAcademicAttachments(selectedFiles);
-        const selectedNames = limitedFiles.map(file => file.displayName).filter(Boolean);
 
-        if (limitedFiles.length > 0) {
-          console.log('📚 [AIService] Loading academic files:', selectedNames.join(', '));
-
-          // PDF를 포함하여 후속 응답 생성
-          try {
-            const parts: Array<{ text?: string } | ReturnType<typeof createPartFromUri>> = [
-              {
-                text: `[시스템] "${topicStr}" 관련 학술 자료를 로드했습니다. 전체를 통독하기보다 주제와 관련된 섹션/챕터를 우선 탐색해 핵심 근거만 요약해 주세요. 가능하면 장/절 제목을 함께 제시하고, 불확실한 내용은 추정하지 마세요.`
-              }
-            ];
-
-            limitedFiles.forEach(file => {
-              parts.push(createPartFromUri(file.uri, file.mimeType));
-            });
-
-            const followUp = await session!.sendMessage({
-              message: parts
-            });
-            const followUpParts = extractPartsFromResponse(followUp);
-            for (const part of followUpParts) {
-              if (part.text) {
-                fullText += '\n\n' + part.text;
-                yield { type: 'text', content: '\n\n' + part.text, fullText };
-              } else if (part.functionCall && !internalTools.includes(part.functionCall.name)) {
-                externalActions.push(part.functionCall);
-              }
-            }
-          } catch (err) {
-            console.error('❌ [AIService] Error loading academic PDF:', err);
-
-            if (this.isTokenLimitError(err)) {
-              console.warn('⚠️ [AIService] Token limit exceeded, retrying without attachments');
-              const knowledgeResult = searchKnowledge(topicStr);
-              try {
-                const followUp = await session!.sendMessage({
-                  message: `[시스템] 업로드된 학술 자료 첨부 없이 "${topicStr}"에 대해 일반 지식으로 답변하세요. 자료 미포함 여부는 보조 설명으로만 언급하세요. 관련 학술 지식(요약/키워드): ${knowledgeResult}`
-                });
-                const followUpParts = extractPartsFromResponse(followUp);
-                for (const part of followUpParts) {
-                  if (part.text) {
-                    fullText += '\n\n' + part.text;
-                    yield { type: 'text', content: '\n\n' + part.text, fullText };
-                  }
-                }
-              } catch (retryErr) {
-                console.error('❌ [AIService] Error after token-limit retry:', retryErr);
-                yield { type: 'text', content: '\n\n[학술 자료 로드 중 오류가 발생했습니다]', fullText: fullText + '\n\n[Error]' };
-              }
-            } else {
-              yield { type: 'text', content: '\n\n[학술 자료 로드 중 오류가 발생했습니다]', fullText: fullText + '\n\n[Error]' };
+        try {
+          const followUp = await session!.sendMessage({
+            message: `[시스템] 업로드된 학술 RAG 문서에서 "${topic}"에 대한 직접 근거를 찾지 못했습니다. 일반 지식으로 답변하되, 문헌 근거가 확인되지 않은 참고용 설명임을 명확히 밝히고 마지막에 "정확한 학술 검증을 위해 관련 문헌 업로드가 필요합니다"라고 안내하세요.`
+          });
+          const followUpParts = extractPartsFromResponse(followUp);
+          for (const part of followUpParts) {
+            if (part.text) {
+              fullText += '\n\n' + part.text;
+              yield { type: 'text', content: '\n\n' + part.text, fullText };
+            } else if (part.functionCall && !internalTools.includes(part.functionCall.name)) {
+              externalActions.push(part.functionCall);
             }
           }
-        } else {
-          // 매칭된 PDF가 없으면 하드코딩된 지식 + 일반 지식 응답 유도
-          console.log('📚 [AIService] No suitable academic file matched, using static knowledge and general answer');
-          const knowledgeResult = searchKnowledge(topicStr);
-
-          try {
-            const followUp = await session!.sendMessage({
-              message: `[시스템] 업로드된 학술 자료에서 "${topicStr}"에 대한 직접 근거가 없다면 일반 지식으로 답변하세요. 자료 미포함 여부는 보조 설명으로만 언급하세요. 관련 학술 지식(요약/키워드): ${knowledgeResult}`
-            });
-            const followUpParts = extractPartsFromResponse(followUp);
-            for (const part of followUpParts) {
-              if (part.text) {
-                fullText += '\n\n' + part.text;
-                yield { type: 'text', content: '\n\n' + part.text, fullText };
-              }
-            }
-          } catch (err) {
-            console.error('❌ [AIService] Error with fallback knowledge:', err);
-          }
+        } catch (err) {
+          console.error('❌ [AIService] Error processing no-evidence fallback:', err);
         }
+        continue;
       }
       // [레거시] 기존 search_academic_theory 호환
       else if (internalCall.name === 'search_academic_theory') {
         console.log('🔍 [AIService] Auto-handling internal tool: search_academic_theory');
         const topicArg = internalCall.args?.topic;
         const topicStr = typeof topicArg === 'string' ? topicArg : '';
-        const knowledgeResult = searchKnowledge(topicStr);
+        const ragContext = await ragService.retrieveContext(topicStr, {
+          topK: 6,
+          minScore: 0.2,
+          maxContextChars: 7000
+        });
+        if (ragContext?.contextText) {
+          yield {
+            type: 'metadata',
+            evidence: this.buildAcademicEvidence(
+              ragContext.sources.map((source) => ({ docName: source.docName, pageNumber: source.pageNumber })),
+              'AI가 업로드된 문헌에서 관련 이론 근거를 검색했습니다.'
+            )
+          };
+        }
+        const knowledgeResult = ragContext?.contextText?.trim()
+          ? ragContext.contextText
+          : '업로드된 학술 RAG 문서에서 관련 근거를 찾지 못했습니다. 일반 지식으로만 설명하되 문헌 근거가 확인되지 않은 참고용 설명임을 명시하고, 정확한 학술 검증을 위해 관련 문헌 업로드가 필요하다고 안내하세요.';
 
         // 검색 결과를 AI에게 다시 전달하여 후속 응답 생성
         try {
@@ -689,6 +809,13 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
     if (!this.chatSession) {
       this.startChat();
     }
+
+    const academicGrounding = await this.prepareAcademicGrounding(prompt);
+    if (prompt) {
+      this.chatHistory.push({ role: 'user', parts: [{ text: prompt }] });
+    }
+
+    const promptToSend = academicGrounding.prompt;
 
     // 등록된 학술 지식 파일 중 관련성 높은 파일만 동적으로 추가
     const selectedFiles = this.selectRelevantFiles(prompt, 1);
@@ -767,11 +894,7 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
       return { parsedText, parsedFunctionCalls, responseParts };
     };
 
-    if (prompt) {
-      this.chatHistory.push({ role: 'user', parts: [{ text: prompt }] });
-    }
-
-    const initialParts = buildParts(prompt, true);
+    const initialParts = buildParts(promptToSend, academicGrounding.status === 'not-needed');
     let result = await runSendMessage(initialParts);
 
     let response = await result.response;
@@ -783,7 +906,7 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
 
     if (!text?.trim() && (!functionCalls || functionCalls.length === 0)) {
       console.warn('⚠️ [AIService] Empty content detected, retrying without academic attachments');
-      const retryPrompt = `${prompt}\n\n[시스템] 이전 응답이 비어 있었습니다. 동일 요청에 대해 반드시 텍스트로 답변하세요. 최소 5문장 이상으로 작성하세요.`;
+      const retryPrompt = `${promptToSend}\n\n[시스템] 이전 응답이 비어 있었습니다. 동일 요청에 대해 반드시 텍스트로 답변하세요. 최소 5문장 이상으로 작성하세요.`;
       this.chatHistory.push({ role: 'user', parts: [{ text: retryPrompt }] });
 
       const retryParts = buildParts(retryPrompt, false);
@@ -806,7 +929,14 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
       if (academicSearch) {
         const topic = typeof academicSearch.args?.topic === 'string' ? academicSearch.args.topic : '';
         console.log('🔍 AI is searching academic knowledge:', topic);
-        const knowledgeResult = searchKnowledge(topic);
+        const ragContext = await ragService.retrieveContext(topic, {
+          topK: 6,
+          minScore: 0.2,
+          maxContextChars: 7000
+        });
+        const knowledgeResult = ragContext?.contextText?.trim()
+          ? ragContext.contextText
+          : '업로드된 학술 RAG 문서에서 관련 근거를 찾지 못했습니다. 할루시네이션 방지를 위해 추정 답변은 제공하지 마세요.';
 
         // 검색 결과를 도구 출력으로 다시 AI에게 전송
         const toolResponse = await this.chatSession!.sendMessage({
@@ -865,7 +995,8 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
     return {
       text,
       thoughts: this.currentThoughts,
-      functionCalls: functionCalls || []
+      functionCalls: functionCalls || [],
+      evidence: academicGrounding.evidence
     };
   }
 
@@ -900,9 +1031,16 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
    * 학술 파일 업로드 (PDF/이미지)
    */
   public async uploadAcademicFile(file: File): Promise<FileMetadata> {
+    return this.uploadAcademicFileWithOptions(file);
+  }
+
+  public async uploadAcademicFileWithOptions(file: File, options?: { indexLocally?: boolean }): Promise<FileMetadata> {
+    const indexLocally = options?.indexLocally ?? true;
     if (file.type === 'application/pdf') {
       const metadata = await this.uploadPDF(file);
-      this.indexAcademicPdfInBackground(file, metadata);
+      if (indexLocally) {
+        this.indexAcademicPdfInBackground(file, metadata);
+      }
       return metadata;
     }
 
@@ -1063,7 +1201,7 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
   private async extractMindmapKeywords(fileUri: string, mimeType: string): Promise<string[]> {
     if (!this.geminiClient) return [];
 
-    let modelName = this.currentConfig?.modelName || 'gemini-2.5-flash-lite';
+    let modelName = this.currentConfig?.modelName || 'gemini-3.1-flash-lite-preview';
     const prompt = `다음 마인드맵 이미지를 보고 핵심 주제 키워드를 8~15개 이내로 추출하세요.\n- 중복 없이 간결한 명사/구로 작성\n- 결과는 JSON으로만 반환 (형식: {"keywords": ["..."]})`;
     const schema = {
       type: 'object',
@@ -1113,127 +1251,6 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
     } catch {
       return null;
     }
-  }
-
-  private splitAcademicFiles() {
-    const pdfFiles = this.academicFiles.filter(file => file.mimeType === 'application/pdf');
-    const imageFiles = this.academicFiles.filter(file => file.mimeType.startsWith('image/'));
-    return { pdfFiles, imageFiles };
-  }
-
-  private async selectAcademicFilesForTopic(topic: string): Promise<FileMetadata[]> {
-    const { pdfFiles, imageFiles } = this.splitAcademicFiles();
-    const fallbackSelected = this.limitAcademicAttachments(this.selectRelevantFilesForTopic(topic));
-
-    if (pdfFiles.length === 0 || imageFiles.length === 0) {
-      return fallbackSelected;
-    }
-
-    const mindmapSelected = await this.selectPdfFilesFromMindmaps(topic, pdfFiles, imageFiles);
-    const imageSelected = this.selectRelevantMindmapImages(topic, imageFiles);
-
-    const combined = this.limitAcademicAttachments([
-      ...mindmapSelected,
-      ...imageSelected,
-      ...fallbackSelected
-    ]);
-
-    return combined;
-  }
-
-  private selectRelevantMindmapImages(topic: string, imageFiles: FileMetadata[]): FileMetadata[] {
-    const lowerTopic = topic.toLowerCase();
-    return imageFiles
-      .map(file => {
-        const keywords = file.keywords || [];
-        const score = keywords.reduce((acc, keyword) => {
-          if (lowerTopic.includes(keyword.toLowerCase())) {
-            return acc + 10;
-          }
-          return acc;
-        }, 0);
-        return { file, score };
-      })
-      .filter(item => item.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .map(item => item.file);
-  }
-
-  private async selectPdfFilesFromMindmaps(
-    topic: string,
-    pdfFiles: FileMetadata[],
-    imageFiles: FileMetadata[]
-  ): Promise<FileMetadata[]> {
-    if (!this.geminiClient) return [];
-
-    const limitedImages = imageFiles.slice(0, 3);
-    const pdfNames = pdfFiles.map(file => file.displayName || file.name);
-    if (limitedImages.length === 0 || pdfNames.length === 0) return [];
-
-    const schema = {
-      type: 'object',
-      properties: {
-        fileNames: { type: 'array', items: { type: 'string' } },
-        rationale: { type: 'string' }
-      },
-      required: ['fileNames'],
-      propertyOrdering: ['fileNames', 'rationale']
-    };
-
-    const prompt = `다음 마인드맵 이미지들을 참고하여 질문 주제와 가장 관련성이 높은 PDF 이름을 선택하세요.\n- 주제: "${topic}"\n- 선택지는 아래 PDF 목록 중에서만 고르세요.\n- 출력은 JSON으로만 반환 (형식: {"fileNames": ["..."] , "rationale": "..." })\n\nPDF 목록:\n${pdfNames.map((name) => `- ${name}`).join('\n')}`;
-
-    try {
-      const response = await this.geminiClient.models.generateContent({
-        model: this.currentConfig?.modelName || 'gemini-2.5-flash-lite',
-        contents: [prompt, ...limitedImages.map(file => createPartFromUri(file.uri, file.mimeType))],
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: schema
-        }
-      });
-
-      const parsed = this.safeParseJson(response.text || '');
-      const fileNames = Array.isArray(parsed?.fileNames) ? parsed?.fileNames : [];
-      const normalizedNames = fileNames
-        .filter((name) => typeof name === 'string')
-        .map((name) => name.toLowerCase());
-
-      if (normalizedNames.length === 0) return [];
-
-      const matched = pdfFiles.filter(file => {
-        const displayName = (file.displayName || file.name).toLowerCase();
-        return normalizedNames.some((name) => displayName.includes(name));
-      });
-
-      console.log('📚 [AIService] Mindmap-guided PDF selection:', matched.map(file => file.displayName).join(', '));
-      return matched;
-    } catch (err) {
-      console.warn('⚠️ [AIService] Mindmap selection failed:', err);
-      return [];
-    }
-  }
-
-  private limitAcademicAttachments(files: FileMetadata[]): FileMetadata[] {
-    const pdfFile = files.find(file => file.mimeType === 'application/pdf');
-    const imageFile = files.find(file => file.mimeType.startsWith('image/'));
-    const limited: FileMetadata[] = [];
-    if (pdfFile) limited.push(pdfFile);
-    if (imageFile) limited.push(imageFile);
-    return limited;
-  }
-
-  private isTokenLimitError(error: unknown): boolean {
-    if (!error) return false;
-    if (typeof error === 'string') {
-      return error.toLowerCase().includes('input token count exceeds');
-    }
-
-    if (typeof error === 'object' && 'message' in error) {
-      const message = String((error as { message?: string }).message || '').toLowerCase();
-      return message.includes('input token count exceeds') || message.includes('1048576');
-    }
-
-    return false;
   }
 
   private isModelNotFoundError(error: unknown): boolean {
@@ -1464,95 +1481,101 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
     return this.academicKeywords.some((keyword) => lowerPrompt.includes(keyword));
   }
 
-  // 대용량 PDF 제외 키워드 (Gemini API 1000페이지 제한 초과 파일들)
-  // ⚠️ 분할된 PDF는 여기서 제외하지 않음 (예: 로빈스_Part1, Part2, Part3)
-  private static readonly LARGE_PDF_EXCLUSIONS: string[] = [
-    // 현재 제외 대상 없음 - 분할된 PDF 사용 시 이 배열은 비워둠
-    // 분할되지 않은 대용량 PDF가 있다면 여기에 키워드 추가
-  ];
+  private requiresAcademicGrounding(prompt: string): boolean {
+    const lowerPrompt = prompt.toLowerCase();
 
-  /**
-   * AI 도구 호출용: 주제 기반 PDF 선택 (단일 파일 반환)
-   * AI가 load_academic_knowledge 도구를 호출할 때 사용
-   * ⚠️ Gemini API 제한: PDF 최대 1000페이지
-   */
-  private selectRelevantFilesForTopic(topic: string, maxFiles: number = 2): FileMetadata[] {
-    this.normalizeAcademicFiles();
-    if (this.academicFiles.length === 0) return [];
-
-    const lowerTopic = topic.toLowerCase();
-
-    // 주제별 파일 매칭 (AI가 전달한 topic 기반)
-    const scoredFiles = this.academicFiles.map(file => {
-      let score = 0;
-      const displayName = (file.displayName || file.name).toLowerCase();
-
-      // [페이지 제한 체크] 대용량 PDF 제외 (1000페이지 초과 파일들)
-      const isLargePDF = AIService.LARGE_PDF_EXCLUSIONS.some(keyword => 
-        displayName.includes(keyword.toLowerCase())
-      );
-      if (isLargePDF) {
-        console.warn('⚠️ [AIService] Excluded large PDF (>1000 pages):', file.displayName);
-        return { file, score: -999 }; // 최저 점수로 제외
-      }
-
-      // 에드가 샤인 관련
-      if ((lowerTopic.includes('샤인') || lowerTopic.includes('schein') || lowerTopic.includes('에드가')) &&
-          (displayName.includes('샤인') || displayName.includes('schein') || displayName.includes('culture'))) {
-        score += 50;
-      }
-
-      // 로빈스 조직행동론 (분할된 파트별 매칭)
-      if (lowerTopic.includes('로빈스') || lowerTopic.includes('robbins') || lowerTopic.includes('조직행동')) {
-        if (displayName.includes('로빈스') || displayName.includes('robbins')) {
-          // 파트별 세부 매칭
-          if ((lowerTopic.includes('개인') || lowerTopic.includes('성격') || lowerTopic.includes('동기') || lowerTopic.includes('지각')) &&
-              displayName.includes('part1')) {
-            score += 60; // Part1 우선
-          } else if ((lowerTopic.includes('집단') || lowerTopic.includes('팀') || lowerTopic.includes('리더십') || lowerTopic.includes('의사소통')) &&
-              displayName.includes('part2')) {
-            score += 60; // Part2 우선
-          } else if ((lowerTopic.includes('조직') || lowerTopic.includes('문화') || lowerTopic.includes('구조') || lowerTopic.includes('변화')) &&
-              displayName.includes('part3')) {
-            score += 60; // Part3 우선
-          } else {
-            score += 40; // 일반 로빈스 매칭
-          }
-        }
-      }
-
-      // 조직개발/변화관리 관련
-      if ((lowerTopic.includes('변화') || lowerTopic.includes('개발') || lowerTopic.includes('od') || lowerTopic.includes('change')) &&
-          (displayName.includes('change') || displayName.includes('development') || displayName.includes('cummings'))) {
-        score += 50;
-      }
-
-      // 버크만은 제외 (별도 채팅 업로드로 처리)
-      if (displayName.includes('버크만')) score -= 100;
-
-      // 일반 키워드 매칭
-      const keywords = file.keywords || [];
-      for (const kw of keywords) {
-        if (lowerTopic.includes(kw.toLowerCase())) score += 10;
-      }
-
-      return { file, score };
-    });
-
-    // 점수순 정렬 후 상위 N개 선택 (0점 이하는 제외)
-    const selected = scoredFiles
-      .filter(sf => sf.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, maxFiles)
-      .map(sf => sf.file);
-
-    if (selected.length === 0) {
-      console.log('📚 [AIService] No suitable academic file found for topic, will use static knowledge');
+    if (this.academicGroundingKeywords.some((keyword) => lowerPrompt.includes(keyword))) {
+      return true;
     }
 
-    return selected;
+    return [
+      /근거.*설명/,
+      /출처.*설명/,
+      /학술.*설명/,
+      /이론.*설명/,
+      /논문.*기반/,
+      /문헌.*기반/,
+      /저자.*관점/,
+      /학자.*관점/
+    ].some((pattern) => pattern.test(lowerPrompt));
   }
 
+  private async prepareAcademicGrounding(prompt: string): Promise<AcademicGroundingResult> {
+    const needsAcademicGrounding = this.requiresAcademicGrounding(prompt);
+    const needsWebGrounding = this.requiresWebSearch(prompt);
+
+    const webContext = needsWebGrounding
+      ? await this.searchWeb(prompt, needsAcademicGrounding ? 4 : 5)
+      : null;
+
+    if (!needsAcademicGrounding) {
+      if (webContext?.status === 'ok' && webContext.contextText) {
+        return {
+          status: 'web',
+          prompt: `[시스템] 다음은 웹 검색 결과입니다. 최신성이나 사례 설명이 필요한 부분은 아래 자료를 우선 사용하세요. 웹 자료는 학술 문헌과 동일하지 않으므로, 사실과 해석을 구분하고 과장하지 마세요. 답변 끝에는 참고한 웹 출처를 간단히 정리하세요.\n\n[웹 검색 근거]\n${webContext.contextText}\n\n[사용자 질문]\n${prompt}`,
+          evidence: this.buildWebEvidence(webContext.sources, '최신 사례나 동향 확인을 위해 웹 검색 근거를 사용했습니다.')
+        };
+      }
+
+      return {
+        status: 'not-needed',
+        prompt,
+        evidence: this.buildGeneralEvidence(
+          this.appendWebSearchFailureNote('문헌이나 웹 근거를 별도로 적용하지 않은 일반 답변입니다.', webContext)
+        )
+      };
+    }
+
+    const hasIndex = await ragService.hasIndex();
+    const ragContext = hasIndex
+      ? await ragService.retrieveContext(prompt, {
+        topK: 6,
+        minScore: 0.2,
+        maxContextChars: 7000
+      })
+      : null;
+
+    if (ragContext?.contextText?.trim() && webContext?.status === 'ok' && webContext.contextText) {
+      return {
+        status: 'hybrid',
+        prompt: `[시스템] 다음 질문에는 문헌 기반 근거와 웹 검색 근거가 함께 제공됩니다. 답변 시 우선순위는 1) 문헌 기반 개념과 원리, 2) 웹 기반 최신 사례와 동향입니다. 문헌으로 확인되지 않은 내용을 학술적 사실처럼 단정하지 마세요. 답변 끝에는 문헌 출처와 웹 출처를 구분해 짧게 정리하세요.\n\n[문헌 근거]\n${ragContext.contextText}\n\n[웹 검색 근거]\n${webContext.contextText}\n\n[사용자 질문]\n${prompt}`,
+        evidence: this.buildHybridEvidence(
+          ragContext.sources.map((source) => ({ docName: source.docName, pageNumber: source.pageNumber })),
+          webContext.sources,
+          '문헌으로 개념을 고정하고 웹 검색으로 최신 사례를 보강했습니다.'
+        )
+      };
+    }
+
+    if (ragContext?.contextText?.trim()) {
+      return {
+        status: 'grounded',
+        prompt: `[시스템] 다음은 문서 기반 RAG 검색 결과입니다. 아래 근거에 포함된 정보만 사용해 답변하세요. 근거가 부족하면 모른다고 답하고 추정하지 마세요. 답변 끝에는 사용한 출처를 간단히 정리하세요.\n\n[문서 근거]\n${ragContext.contextText}\n\n[사용자 질문]\n${prompt}`,
+        evidence: this.buildAcademicEvidence(
+          ragContext.sources.map((source) => ({ docName: source.docName, pageNumber: source.pageNumber })),
+          '업로드된 문헌 RAG에서 직접 근거를 확보했습니다.'
+        )
+      };
+    }
+
+    if (webContext?.status === 'ok' && webContext.contextText) {
+      return {
+        status: 'web',
+        prompt: `[시스템] 사용자는 학술 근거를 기대하고 있지만, 현재 업로드된 학술 RAG 문서에서 직접 근거를 찾지 못했습니다. 대신 아래 웹 검색 자료를 참고해 답변할 수 있습니다. 단, 웹 자료는 학술 검증을 대체하지 않으므로 첫 부분에 학술 문헌으로 검증된 답변은 아니라는 점을 밝히고, 답변 끝에 관련 문헌 업로드가 필요하다고 안내하세요.\n\n[웹 검색 근거]\n${webContext.contextText}\n\n[사용자 질문]\n${prompt}`,
+        evidence: this.buildWebEvidence(webContext.sources, '문헌 RAG 근거가 부족해 웹 검색 자료로만 보조 설명했습니다.')
+      };
+    }
+
+    return {
+      status: 'fallback',
+      prompt: hasIndex
+        ? `[시스템] 업로드된 학술 RAG 문서에서 아래 질문과 직접 연결되는 근거를 찾지 못했고, 웹 검색 근거도 확보하지 못했습니다. 일반 지식으로 답변할 수는 있지만, 다음을 반드시 지키세요. 1) 문헌 근거가 확인되지 않은 참고용 일반 설명임을 첫 부분에 명시할 것. 2) 확실하지 않은 내용은 추정이라고 밝힐 것. 3) 마지막에 더 정확한 답변을 위해 관련 학술 문헌 업로드가 필요하다고 안내할 것.\n\n[사용자 질문]\n${prompt}`
+        : `[시스템] 사용자는 학술 근거가 있는 설명을 기대하고 있습니다. 하지만 현재 검색 가능한 학술 RAG 문서가 없고, 웹 검색 근거도 확보하지 못했습니다. 따라서 일반 지식으로 답변하되, 다음을 반드시 지키세요. 1) 지금 답변은 문헌 근거가 확인되지 않은 일반 설명이라고 첫 부분에 명시할 것. 2) 단정적 표현을 줄이고 불확실성은 분명히 밝힐 것. 3) 답변 마지막에 정확한 학술 검증을 위해 관련 문헌 또는 PDF 업로드가 필요하다고 안내할 것.\n\n[사용자 질문]\n${prompt}`,
+      evidence: this.buildGeneralEvidence(
+        this.appendWebSearchFailureNote('문헌 또는 웹 근거를 확보하지 못해 일반 지식으로만 설명합니다.', webContext)
+      )
+    };
+  }
   /**
    * 등록된 학술 지식 파일 목록 조회
    */
@@ -1577,7 +1600,7 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
 
   public async analyzeWithPDF(fileUri: string, mimeType: string, prompt: string): Promise<string> {
     if (!this.geminiClient) throw new Error('Gemini API 설정을 먼저 완료해주세요.');
-    const modelName = this.currentConfig?.modelName || 'gemini-2.5-flash-lite';
+    const modelName = this.currentConfig?.modelName || 'gemini-3.1-flash-lite-preview';
     const thinkingConfig = this.getThinkingConfig(modelName);
     const fileContent = createPartFromUri(fileUri, mimeType);
     const response = await this.geminiClient.models.generateContent({
@@ -1608,14 +1631,11 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
       return this.availableModelsCache;
     }
 
+    // 2026-03 기준 최신 Gemini 3.x 모델 (2.x 시리즈 제거)
     return [
-      'gemini-2.5-flash',
-      'gemini-2.5-flash-lite',
-      'gemini-2.5-pro',
-      'gemini-3-flash',
-      'gemini-3-flash-preview',
-      'gemini-3-pro',
-      'gemini-3-pro-preview',
+      'gemini-3.1-flash-lite-preview',  // 저비용/고속, Function Calling 지원
+      'gemini-3-flash-preview',          // 프론티어급 성능, 비용 효율
+      'gemini-3.1-pro-preview',          // 고급 추론, 에이전트/코딩 최적화
     ];
   }
 
@@ -1635,8 +1655,9 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
       .map((model) => this.normalizeModelId(model))
       .filter((name) => !!name);
 
+    // Gemini 3.x 시리즈만 허용 (2.x 시리즈 완전 제거)
     const allowed = normalized.filter((name) => {
-      if (!/^gemini-(2\.5|3)/.test(name)) {
+      if (!/^gemini-3/.test(name)) {
         return false;
       }
 
@@ -1656,8 +1677,15 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
 
   private resolveModelAlias(preferredModel: string, available: string[]): string | null {
     const aliasMap: Record<string, string> = {
-      'gemini-flash-latest': 'gemini-3-flash',
-      'gemini-pro-latest': 'gemini-3-pro',
+      'gemini-flash-latest': 'gemini-3-flash-preview',
+      'gemini-pro-latest': 'gemini-3.1-pro-preview',
+      // 레거시 별칭 매핑 (2.x → 3.x 자동 전환)
+      'gemini-2.5-flash-lite': 'gemini-3.1-flash-lite-preview',
+      'gemini-2.5-flash': 'gemini-3-flash-preview',
+      'gemini-2.5-pro': 'gemini-3.1-pro-preview',
+      'gemini-3-flash': 'gemini-3-flash-preview',
+      'gemini-3-pro': 'gemini-3.1-pro-preview',
+      'gemini-3-pro-preview': 'gemini-3.1-pro-preview',  // Shut down → 3.1 Pro로 이관
     };
 
     const directAlias = aliasMap[preferredModel];
@@ -1738,8 +1766,8 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
       return;
     }
 
-    const fallback = available.includes('gemini-2.5-flash-lite')
-      ? 'gemini-2.5-flash-lite'
+    const fallback = available.includes('gemini-3.1-flash-lite-preview')
+      ? 'gemini-3.1-flash-lite-preview'
       : available[0];
 
     console.warn('⚠️ [AIService] Selected model not available:', preferredModel, '→ using', fallback);
@@ -1748,10 +1776,14 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
   }
 
   private normalizeModelConfig(config: AIConfig): AIConfig {
-    const normalized = { ...config, provider: 'gemini' as const };
+    const normalized = {
+      ...config,
+      provider: 'gemini' as const,
+      tavilyApiKey: config.tavilyApiKey?.trim() || undefined
+    };
     const available = this.getAvailableGeminiModels();
     if (!normalized.modelName || !available.includes(normalized.modelName)) {
-      normalized.modelName = 'gemini-2.5-flash-lite';
+      normalized.modelName = 'gemini-3.1-flash-lite-preview';
     }
     return normalized;
   }
@@ -1759,6 +1791,7 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
   private getThinkingConfig(modelName: string): ThinkingConfig | null {
     const lowerName = modelName.toLowerCase();
 
+    // Gemini 3.x 시리즈: Thinking 모드 활성화
     if (lowerName.includes('gemini-3')) {
       return {
         includeThoughts: true,
@@ -1766,12 +1799,7 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
       };
     }
 
-    if (lowerName.includes('gemini-2.5')) {
-      return {
-        thinkingBudget: 1024
-      };
-    }
-
+    // 다른 모델은 Thinking 비활성화
     return null;
   }
 
@@ -1781,7 +1809,7 @@ Culture-MAP V2는 **Dave Gray의 Culture Map 모델**을 기반으로 한 조직
   }
 
   public async getModelTokenLimits(modelName?: string): Promise<{ inputTokenLimit: number; outputTokenLimit: number }> {
-    const resolvedModel = modelName || this.currentConfig?.modelName || 'gemini-2.5-flash-lite';
+    const resolvedModel = modelName || this.currentConfig?.modelName || 'gemini-3.1-flash-lite-preview';
     const cached = this.modelTokenLimitCache[resolvedModel];
     if (cached) return { inputTokenLimit: cached.inputTokenLimit, outputTokenLimit: cached.outputTokenLimit };
 

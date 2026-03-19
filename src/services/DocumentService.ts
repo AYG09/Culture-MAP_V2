@@ -1,7 +1,4 @@
-import * as pdfjsLib from 'pdfjs-dist';
-
-// PDF.js worker 설정 (CDN 사용)
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+type PdfJsModule = typeof import('pdfjs-dist');
 
 export interface DocumentContext {
   id: string;
@@ -15,11 +12,24 @@ export interface DocumentContext {
  */
 class DocumentService {
   private documentContexts: DocumentContext[] = [];
+  private pdfjsPromise: Promise<PdfJsModule> | null = null;
+
+  private async getPdfJs(): Promise<PdfJsModule> {
+    if (!this.pdfjsPromise) {
+      this.pdfjsPromise = import('pdfjs-dist').then((pdfjsLib) => {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+        return pdfjsLib;
+      });
+    }
+
+    return this.pdfjsPromise;
+  }
 
   /**
    * PDF 파일에서 텍스트 추출
    */
   public async extractTextFromPDF(file: File): Promise<string> {
+    const pdfjsLib = await this.getPdfJs();
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     let fullText = '';
@@ -46,6 +56,7 @@ class DocumentService {
    * PDF 페이지 단위 텍스트 추출 (스트리밍용)
    */
   public async *iteratePdfPages(file: File): AsyncGenerator<{ pageNumber: number; text: string }> {
+    const pdfjsLib = await this.getPdfJs();
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 

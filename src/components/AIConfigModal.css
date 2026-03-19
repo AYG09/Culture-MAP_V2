@@ -198,6 +198,10 @@
     text-decoration: underline;
 }
 
+.ai-config-modal .ai-config-help-muted {
+    color: var(--text-muted, #6b7280);
+}
+
 .ai-config-modal .consulting-switch {
     display: flex;
     gap: 10px;

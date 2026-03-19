@@ -15,6 +15,22 @@ export type SessionType = 'workshop' | 'consulting';
 
 export type ChatScope = 'group' | 'direct';
 
+export type EvidenceLevel = 'academic' | 'web' | 'hybrid' | 'general' | 'system';
+
+export interface EvidenceSource {
+    kind: 'academic' | 'web';
+    title: string;
+    detail?: string;
+    url?: string;
+}
+
+export interface MessageEvidence {
+    level: EvidenceLevel;
+    summary: string;
+    note?: string;
+    sources?: EvidenceSource[];
+}
+
 export interface ChatMessage {
     id: string;
     role: 'user' | 'assistant' | 'system';
@@ -30,6 +46,7 @@ export interface ChatMessage {
         mimeType: string;
     }>;
     suggestedActions?: AiAction[]; // AI가 제안한 맵 수정 액션
+    evidence?: MessageEvidence;
 }
 
 // ============================================

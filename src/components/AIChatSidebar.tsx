@@ -7,11 +7,19 @@ import { aiService } from '../services/AIService';
 import AIConfigModal from './AIConfigModal';
 import ConsultingToolsPanel from './ConsultingToolsPanel';
 import liveblocksService from '../services/LiveblocksService';
-import type { ChatMessage } from '../types/liveblocks';
+import type { ChatMessage, EvidenceLevel, MessageEvidence } from '../types/liveblocks';
 import type { AiAction } from '../types/actions';
 import type { NoteData, ConnectionData } from '../types/culture';
 import type { PasswordType } from '../services/GatewayAdminService';
 import './AIChatSidebar.css';
+
+const EVIDENCE_LEVEL_LABELS: Record<EvidenceLevel, string> = {
+    academic: '문헌 근거',
+    web: '웹 검토',
+    hybrid: '문헌 + 웹',
+    general: '일반 설명',
+    system: '시스템 안내'
+};
 
 // 사용자 아바타 컴포넌트 - Tidio 스타일
 interface UserAvatarProps {
@@ -74,6 +82,11 @@ const isTokenLimitError = (message: string) => {
         || normalized.includes('토큰')
         || normalized.includes('limit')
     );
+};
+
+const getEvidenceClassName = (evidence?: MessageEvidence) => {
+    if (!evidence) return 'general';
+    return evidence.level;
 };
 
 const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
@@ -463,12 +476,17 @@ ${layerHeightContext}
                 `${contextString}\n\n[사용자 메시지]\n${currentText || '첨부된 파일을 분석해주세요.'}${jsonAttachmentSection}`,
                 fileUri,
                 mimeType,
-                { forceFunctionCall, allowExternalTools: !isPrivateChat && explicitMapEditRequest }
+                {
+                    forceFunctionCall,
+                    allowExternalTools: !isPrivateChat && explicitMapEditRequest,
+                    groundingQuery: currentText || '첨부된 파일을 분석해주세요.'
+                }
             );
 
             let aiMsgId = '';
             let finalActions: AiAction[] = [];
             let isFirstChunk = true;
+            let currentEvidence: MessageEvidence | undefined;
 
             const hasAcademicFiles = aiService.getAcademicFiles().length > 0;
             const timeoutMs = hasAcademicFiles || fileUri ? 120000 : 30000;
@@ -478,39 +496,65 @@ ${layerHeightContext}
                 if (isFirstChunk) {
                     console.warn(`⌛ [AIChatSidebar] AI Response Timeout (${Math.round(timeoutMs / 1000)}s)`);
                     setIsLoading(false);
-                    const timeoutId = liveblocksService.startAiResponse();
-                    liveblocksService.updateAiResponse(timeoutId, `AI 응답이 ${Math.round(timeoutMs / 1000)}초 이상 지연되어 연결을 중단했습니다. 인터넷 연결을 확인하거나 Gemini API 할당량을 확인해주세요.`);
+                    const timeoutEvidence: MessageEvidence = {
+                        level: 'system',
+                        summary: '시스템 응답 지연',
+                        note: '응답 타임아웃으로 AI 결과를 받지 못했습니다.'
+                    };
+                    const timeoutId = liveblocksService.startAiResponse(timeoutEvidence);
+                    liveblocksService.updateAiResponse(timeoutId, `AI 응답이 ${Math.round(timeoutMs / 1000)}초 이상 지연되어 연결을 중단했습니다. 인터넷 연결을 확인하거나 Gemini API 할당량을 확인해주세요.`, undefined, timeoutEvidence);
                 }
             }, timeoutMs);
 
+            const ensureAiMessage = (evidence?: MessageEvidence) => {
+                const nextEvidence = evidence ?? currentEvidence;
+                if (isFirstChunk) {
+                    console.log('🤖 [AIChatSidebar] AI First chunk received!');
+                    clearTimeout(responseTimeout);
+                    setIsLoading(false);
+                    if (!isPrivateChat && liveblocksService.isConnected()) {
+                        aiMsgId = liveblocksService.startAiResponse(nextEvidence);
+                        console.log('🤖 [AIChatSidebar] AI Message ID created:', aiMsgId);
+                    }
+                    isFirstChunk = false;
+
+                    if (!aiMsgId) {
+                        console.warn('⚠️ [AIChatSidebar] Liveblocks not connected, using local state');
+                        const localMsgId = `local-ai-${Date.now()}`;
+                        aiMsgId = localMsgId;
+                        setMessages(prev => [...prev, {
+                            id: localMsgId,
+                            role: 'assistant' as const,
+                            content: '',
+                            userName: 'AI Assistant',
+                            userColor: '#8b5cf6',
+                            timestamp: Date.now(),
+                            scope: chatScope,
+                            evidence: nextEvidence
+                        }]);
+                    }
+                    return;
+                }
+
+                if (!nextEvidence || !aiMsgId) return;
+                if (!aiMsgId.startsWith('local-')) {
+                    liveblocksService.updateAiResponse(aiMsgId, undefined, undefined, nextEvidence);
+                } else {
+                    setMessages(prev => prev.map(m =>
+                        m.id === aiMsgId ? { ...m, evidence: nextEvidence } : m
+                    ));
+                }
+            };
+
             try {
                 for await (const chunk of aiStream) {
-                    if (isFirstChunk) {
-                        console.log('🤖 [AIChatSidebar] AI First chunk received!');
-                        clearTimeout(responseTimeout);
-                        setIsLoading(false); // 스트리밍이 시작되면 일반 로딩 인디케이터 숨김
-                        if (!isPrivateChat && liveblocksService.isConnected()) {
-                            aiMsgId = liveblocksService.startAiResponse();
-                            console.log('🤖 [AIChatSidebar] AI Message ID created:', aiMsgId);
-                        }
-                        isFirstChunk = false;
-
-                        // Liveblocks가 연결되지 않은 경우 로컬 상태로 폴백
-                        if (!aiMsgId) {
-                            console.warn('⚠️ [AIChatSidebar] Liveblocks not connected, using local state');
-                            const localMsgId = `local-ai-${Date.now()}`;
-                            aiMsgId = localMsgId;
-                            setMessages(prev => [...prev, {
-                                id: localMsgId,
-                                role: 'assistant' as const,
-                                content: '',
-                                userName: 'AI Assistant',
-                                userColor: '#8b5cf6',
-                                timestamp: Date.now(),
-                                scope: chatScope
-                            }]);
-                        }
+                    if (chunk.type === 'metadata') {
+                        currentEvidence = chunk.evidence;
+                        ensureAiMessage(currentEvidence);
+                        continue;
                     }
+
+                    ensureAiMessage();
 
                     if (chunk.type === 'text') {
                         console.log('🤖 [AIChatSidebar] Received text chunk, fullText length:', chunk.fullText?.length);
@@ -523,42 +567,16 @@ ${layerHeightContext}
                                 pendingAiTimerRef.current = null;
                                 if (!pending) return;
                                 if (pending.id && !pending.id.startsWith('local-')) {
-                                    liveblocksService.updateAiResponse(pending.id, pending.text);
+                                    liveblocksService.updateAiResponse(pending.id, pending.text, undefined, currentEvidence);
                                 } else {
                                     setMessages(prev => prev.map(m =>
-                                        m.id === pending.id ? { ...m, content: pending.text } : m
+                                        m.id === pending.id ? { ...m, content: pending.text, evidence: currentEvidence ?? m.evidence } : m
                                     ));
                                 }
                                 pendingAiTextRef.current = null;
                             }, 120);
                         }
                     } else if (chunk.type === 'actions') {
-                        if (isFirstChunk) {
-                            console.log('🤖 [AIChatSidebar] AI First chunk received (actions)');
-                            clearTimeout(responseTimeout);
-                            setIsLoading(false);
-                            if (!isPrivateChat && liveblocksService.isConnected()) {
-                                aiMsgId = liveblocksService.startAiResponse();
-                                console.log('🤖 [AIChatSidebar] AI Message ID created:', aiMsgId);
-                            }
-                            isFirstChunk = false;
-
-                            if (!aiMsgId) {
-                                console.warn('⚠️ [AIChatSidebar] Liveblocks not connected, using local state');
-                                const localMsgId = `local-ai-${Date.now()}`;
-                                aiMsgId = localMsgId;
-                                setMessages(prev => [...prev, {
-                                    id: localMsgId,
-                                    role: 'assistant' as const,
-                                    content: '',
-                                    userName: 'AI Assistant',
-                                    userColor: '#8b5cf6',
-                                    timestamp: Date.now(),
-                                    scope: chatScope
-                                }]);
-                            }
-                        }
-
                         finalActions = Array.isArray(chunk.actions) ? chunk.actions : [];
                         console.log('🎯 [AIChatSidebar] Actions received:', finalActions.length, 'items');
 
@@ -586,10 +604,10 @@ ${layerHeightContext}
                             const snapshotLabel = resolveSnapshotName(snapshotActions[0]);
                             const responseText = `스냅샷 ID ${snapshotLabel} 저장되었습니다.`;
                             if (aiMsgId && !aiMsgId.startsWith('local-')) {
-                                liveblocksService.updateAiResponse(aiMsgId, responseText, []);
+                                liveblocksService.updateAiResponse(aiMsgId, responseText, [], currentEvidence);
                             } else if (aiMsgId) {
                                 setMessages(prev => prev.map(m =>
-                                    m.id === aiMsgId ? { ...m, content: responseText, suggestedActions: [] } : m
+                                    m.id === aiMsgId ? { ...m, content: responseText, suggestedActions: [], evidence: currentEvidence ?? m.evidence } : m
                                 ));
                             }
                         } else {
@@ -612,16 +630,16 @@ ${layerHeightContext}
                             actionsWithFlags.forEach(action => onActionExecute(action));
                             // 실행 완료 후 텍스트만 업데이트 (액션은 저장하지 않음 - 이미 실행됨)
                             if (aiMsgId && !aiMsgId.startsWith('local-')) {
-                                liveblocksService.updateAiResponse(aiMsgId);
+                                liveblocksService.updateAiResponse(aiMsgId, undefined, undefined, currentEvidence);
                             }
                             } else {
                                 // 수동 실행 모드: 메시지에 actions 저장하여 버튼 표시
                                 console.log('🛡️ [AIChatSidebar] Manual mode - storing actions for user confirmation');
                                 if (aiMsgId && !aiMsgId.startsWith('local-')) {
-                                    liveblocksService.updateAiResponse(aiMsgId, undefined, actionsWithFlags);
+                                    liveblocksService.updateAiResponse(aiMsgId, undefined, actionsWithFlags, currentEvidence);
                                 } else {
                                     setMessages(prev => prev.map(m =>
-                                        m.id === aiMsgId ? { ...m, suggestedActions: actionsWithFlags } : m
+                                        m.id === aiMsgId ? { ...m, suggestedActions: actionsWithFlags, evidence: currentEvidence ?? m.evidence } : m
                                     ));
                                 }
                             }
@@ -637,10 +655,10 @@ ${layerHeightContext}
                 const pending = pendingAiTextRef.current;
                 if (pending?.id) {
                     if (!pending.id.startsWith('local-')) {
-                        liveblocksService.updateAiResponse(pending.id, pending.text);
+                        liveblocksService.updateAiResponse(pending.id, pending.text, undefined, currentEvidence);
                     } else {
                         setMessages(prev => prev.map(m =>
-                            m.id === pending.id ? { ...m, content: pending.text } : m
+                            m.id === pending.id ? { ...m, content: pending.text, evidence: currentEvidence ?? m.evidence } : m
                         ));
                     }
                 }
@@ -654,7 +672,11 @@ ${layerHeightContext}
                 : `죄송합니다. 오류가 발생했습니다: ${message}`;
             console.error('Chat error:', error);
             if (!isPrivateChat && liveblocksService.isConnected()) {
-                liveblocksService.sendAiResponse(userFriendlyMessage);
+                liveblocksService.sendAiResponse(userFriendlyMessage, undefined, {
+                    level: 'system',
+                    summary: '시스템 오류 안내',
+                    note: 'AI 응답 처리 중 오류가 발생했습니다.'
+                });
             } else {
                 setMessages(prev => [...prev, {
                     id: `ai-error-${Date.now()}`,
@@ -663,7 +685,12 @@ ${layerHeightContext}
                     userName: 'AI Assistant',
                     userColor: '#8b5cf6',
                     timestamp: Date.now(),
-                    scope: chatScope
+                    scope: chatScope,
+                    evidence: {
+                        level: 'system',
+                        summary: '시스템 오류 안내',
+                        note: 'AI 응답 처리 중 오류가 발생했습니다.'
+                    }
                 }]);
             }
         } finally {
@@ -891,6 +918,38 @@ ${layerHeightContext}
                                     <div className="message-content">{msg.content}</div>
                                 ) : (
                                     <div className="message-content markdown-body">
+                                            {msg.evidence && (
+                                                <div className={`message-evidence evidence-${getEvidenceClassName(msg.evidence)}`}>
+                                                    <div className="message-evidence-badge">
+                                                        {EVIDENCE_LEVEL_LABELS[msg.evidence.level]}
+                                                    </div>
+                                                    <div className="message-evidence-summary">{msg.evidence.summary}</div>
+                                                    {msg.evidence.note && (
+                                                        <div className="message-evidence-note">{msg.evidence.note}</div>
+                                                    )}
+                                                    {msg.evidence.sources && msg.evidence.sources.length > 0 && (
+                                                        <div className="message-evidence-sources">
+                                                            {msg.evidence.sources.map((source, index) => (
+                                                                <a
+                                                                    key={`${msg.id}-source-${index}`}
+                                                                    className="message-evidence-source"
+                                                                    href={source.url || '#'}
+                                                                    target={source.url ? '_blank' : undefined}
+                                                                    rel={source.url ? 'noreferrer' : undefined}
+                                                                    onClick={(event) => {
+                                                                        if (!source.url) {
+                                                                            event.preventDefault();
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <span>{source.title}</span>
+                                                                    {source.detail && <span>{source.detail}</span>}
+                                                                </a>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                             {msg.content}
                                         </ReactMarkdown>
