@@ -12,11 +12,19 @@ const {
   mockSetConfig,
   mockGetAvailableGeminiModels,
   mockGetAvailableGeminiModelsAsync,
+  mockGetAcademicFiles,
+  mockAddAcademicFile,
+  mockRemoveAcademicFile,
+  mockRemoveSharedRagDocument,
 } = vi.hoisted(() => ({
   mockGetConfig: vi.fn<() => AIConfig | null>(),
   mockSetConfig: vi.fn<(config: AIConfig) => void>(),
   mockGetAvailableGeminiModels: vi.fn<() => string[]>(),
   mockGetAvailableGeminiModelsAsync: vi.fn<() => Promise<string[]>>(),
+  mockGetAcademicFiles: vi.fn<() => Array<{ name: string; displayName: string; mimeType: string }>>(),
+  mockAddAcademicFile: vi.fn<(file: File) => Promise<unknown>>(),
+  mockRemoveAcademicFile: vi.fn<(fileName: string) => void>(),
+  mockRemoveSharedRagDocument: vi.fn<(docId: string) => void>(),
 }));
 
 vi.mock('../../services/AIService', () => ({
@@ -25,9 +33,12 @@ vi.mock('../../services/AIService', () => ({
     setConfig: mockSetConfig,
     getAvailableGeminiModels: mockGetAvailableGeminiModels,
     getAvailableGeminiModelsAsync: mockGetAvailableGeminiModelsAsync,
+    getAcademicFiles: mockGetAcademicFiles,
+    addAcademicFile: mockAddAcademicFile,
+    removeAcademicFile: mockRemoveAcademicFile,
     uploadAcademicFileWithOptions: vi.fn(),
     indexAcademicPdfToShared: vi.fn(),
-    removeSharedRagDocument: vi.fn(),
+    removeSharedRagDocument: mockRemoveSharedRagDocument,
   },
 }));
 
@@ -49,11 +60,15 @@ describe('AIConfigModal', () => {
       apiKey: TEST_GEMINI_KEY,
       tavilyApiKey: undefined,
       modelName: 'gemini-2.5-flash-lite',
+      ragSearchScope: 'both',
       autoExecuteFunctionCalls: false,
       sharedApiKeyMode: false,
     });
     mockGetAvailableGeminiModels.mockReturnValue(['gemini-2.5-flash-lite']);
     mockGetAvailableGeminiModelsAsync.mockResolvedValue(['gemini-2.5-flash-lite']);
+    mockGetAcademicFiles.mockReturnValue([]);
+    mockAddAcademicFile.mockResolvedValue(undefined);
+    mockRemoveAcademicFile.mockImplementation(() => undefined);
     mockSetConfig.mockImplementation((config) => {
       localStorage.setItem('culture-map-ai-config', JSON.stringify(config));
     });
@@ -81,6 +96,7 @@ describe('AIConfigModal', () => {
         provider: 'gemini',
         apiKey: TEST_GEMINI_KEY,
         tavilyApiKey: TEST_TAVILY_KEY,
+        ragSearchScope: 'both',
       }));
     });
 
@@ -105,5 +121,35 @@ describe('AIConfigModal', () => {
     await waitFor(() => {
       expect(screen.getByPlaceholderText('선택 사항: Tavily API 키를 입력하세요')).toHaveValue('');
     });
+  });
+
+  it('RAG 검색 범위를 변경하고 저장하면 설정에 반영된다', async () => {
+    const user = userEvent.setup();
+
+    render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: '공유만' }));
+    await user.click(screen.getByRole('button', { name: /설정 저장/ }));
+
+    await waitFor(() => {
+      expect(mockSetConfig).toHaveBeenCalledWith(expect.objectContaining({
+        ragSearchScope: 'shared',
+      }));
+    });
+  });
+
+  it('로컬 RAG 문서 삭제 버튼이 removeAcademicFile을 호출한다', async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockGetAcademicFiles.mockReturnValue([
+      { name: 'local-doc-1', displayName: '로컬 문헌.pdf', mimeType: 'application/pdf' },
+    ]);
+
+    render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await user.click(screen.getByTitle('삭제'));
+
+    expect(mockRemoveAcademicFile).toHaveBeenCalledWith('local-doc-1');
+    confirmSpy.mockRestore();
   });
 });

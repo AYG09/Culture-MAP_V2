@@ -21,6 +21,7 @@ export interface RagQueryOptions {
   topK?: number;
   minScore?: number;
   maxContextChars?: number;
+  scope?: RagSearchScope;
 }
 
 export interface RagQueryResult {
@@ -33,7 +34,11 @@ type EmbedContentResponse = {
   embedding?: { values?: number[] };
 };
 
-const DEFAULT_EMBEDDING_MODEL = 'text-embedding-004';
+export type RagSearchScope = 'both' | 'local' | 'shared';
+
+type EmbeddingTaskType = 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY';
+
+const EMBEDDING_MODEL_CANDIDATES = ['text-embedding-004', 'embedding-001', 'models/embedding-001'] as const;
 const DEFAULT_EMBEDDING_DIM = 768;
 
 class RagIndexStore {
@@ -162,9 +167,17 @@ class RagService {
   private store = new RagIndexStore();
   private cachedChunks: RagChunkRecord[] | null = null;
   private loadingPromise: Promise<RagChunkRecord[]> | null = null;
+  private resolvedEmbeddingModel: string | null = null;
+  private lastRetrievalError: string | null = null;
 
   public setClient(client: GoogleGenAI | null) {
     this.client = client;
+    this.resolvedEmbeddingModel = null;
+    this.lastRetrievalError = null;
+  }
+
+  public getLastRetrievalError(): string | null {
+    return this.lastRetrievalError;
   }
 
   public async indexAcademicPdf(file: File, info: RagDocumentInfo): Promise<{ chunkCount: number } | null> {
@@ -254,77 +267,80 @@ class RagService {
    */
   public async retrieveContext(query: string, options: RagQueryOptions = {}): Promise<RagQueryResult | null> {
     if (!this.client) {
+      this.lastRetrievalError = null;
       return null;
     }
 
-    // 로컬 청크 + 공유 청크 통합
-    const localChunks = await this.ensureChunksLoaded();
-    const sharedChunks = liveblocksService.getSharedRagChunks();
-    
-    // SharedRagChunk를 RagChunkRecord 형태로 변환
-    const convertedSharedChunks: RagChunkRecord[] = sharedChunks.map(chunk => ({
-      id: chunk.id,
-      docId: chunk.docId,
-      docName: chunk.docName,
-      content: chunk.content,
-      embedding: chunk.embedding,
-      pageNumber: chunk.pageNumber,
-    }));
-
-    const allChunks = [...localChunks, ...convertedSharedChunks];
-    if (allChunks.length === 0) return null;
-
-    const queryEmbedding = await this.embedQuery(query);
-    if (queryEmbedding.length === 0) return null;
-
-    const topK = options.topK ?? 6;
-    const minScore = options.minScore ?? 0.2;
-    const maxContextChars = options.maxContextChars ?? 6000;
-
-    // Hybrid search weights (tunable)
-    const VECTOR_WEIGHT = 0.7;
-    const KEYWORD_WEIGHT = 0.3;
-
-    const scored = allChunks
-      .map((chunk) => {
-        const vectorScore = cosineSimilarity(queryEmbedding, chunk.embedding);
-        const keywordScore = keywordMatchScore(query, chunk.content);
-        // Hybrid score: weighted combination of vector similarity and keyword match
-        const hybridScore = vectorScore * VECTOR_WEIGHT + keywordScore * KEYWORD_WEIGHT;
-        return {
-          chunk,
-          score: hybridScore,
-          vectorScore,
-          keywordScore
-        };
-      })
-      .filter((item) => Number.isFinite(item.score) && item.score >= minScore)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, topK);
-
-    if (scored.length === 0) return null;
-
-    const sources: Array<{ docId: string; docName: string; score: number; pageNumber?: number }> = [];
-    const contextParts: string[] = [];
-    let usedChars = 0;
-
-    scored.forEach((item, index) => {
-      const pageInfo = item.chunk.pageNumber ? ` (p.${item.chunk.pageNumber})` : '';
-      const header = `[출처 ${index + 1}] ${item.chunk.docName}${pageInfo}`;
-      const body = item.chunk.content.trim();
-      const block = `${header}\n${body}`;
-      if (usedChars + block.length > maxContextChars) {
-        return;
+    try {
+      const localChunks = await this.ensureChunksLoaded();
+      const sharedChunks = this.getSharedChunks();
+      const allChunks = this.getScopedChunks(localChunks, sharedChunks, options.scope ?? 'both');
+      if (allChunks.length === 0) {
+        this.lastRetrievalError = null;
+        return null;
       }
-      usedChars += block.length;
-      contextParts.push(block);
-      sources.push({ docId: item.chunk.docId, docName: item.chunk.docName, score: item.score, pageNumber: item.chunk.pageNumber });
-    });
 
-    return {
-      contextText: contextParts.join('\n\n'),
-      sources
-    };
+      const queryEmbedding = await this.embedQuery(query);
+      if (queryEmbedding.length === 0) {
+        this.lastRetrievalError = null;
+        return null;
+      }
+
+      const topK = options.topK ?? 6;
+      const minScore = options.minScore ?? 0.2;
+      const maxContextChars = options.maxContextChars ?? 6000;
+
+      const VECTOR_WEIGHT = 0.7;
+      const KEYWORD_WEIGHT = 0.3;
+
+      const scored = allChunks
+        .map((chunk) => {
+          const vectorScore = cosineSimilarity(queryEmbedding, chunk.embedding);
+          const keywordScore = keywordMatchScore(query, chunk.content);
+          const hybridScore = vectorScore * VECTOR_WEIGHT + keywordScore * KEYWORD_WEIGHT;
+          return {
+            chunk,
+            score: hybridScore,
+            vectorScore,
+            keywordScore
+          };
+        })
+        .filter((item) => Number.isFinite(item.score) && item.score >= minScore)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, topK);
+
+      if (scored.length === 0) {
+        this.lastRetrievalError = null;
+        return null;
+      }
+
+      const sources: Array<{ docId: string; docName: string; score: number; pageNumber?: number }> = [];
+      const contextParts: string[] = [];
+      let usedChars = 0;
+
+      scored.forEach((item, index) => {
+        const pageInfo = item.chunk.pageNumber ? ` (p.${item.chunk.pageNumber})` : '';
+        const header = `[출처 ${index + 1}] ${item.chunk.docName}${pageInfo}`;
+        const body = item.chunk.content.trim();
+        const block = `${header}\n${body}`;
+        if (usedChars + block.length > maxContextChars) {
+          return;
+        }
+        usedChars += block.length;
+        contextParts.push(block);
+        sources.push({ docId: item.chunk.docId, docName: item.chunk.docName, score: item.score, pageNumber: item.chunk.pageNumber });
+      });
+
+      this.lastRetrievalError = null;
+      return {
+        contextText: contextParts.join('\n\n'),
+        sources
+      };
+    } catch (error) {
+      this.lastRetrievalError = this.buildRetrievalErrorMessage(error);
+      console.warn('⚠️ [RagService] Academic retrieval skipped:', this.lastRetrievalError);
+      return null;
+    }
   }
 
   /**
@@ -351,6 +367,30 @@ class RagService {
 
   private async refreshCache() {
     this.cachedChunks = await this.store.getAllChunks();
+  }
+
+  private getSharedChunks(): RagChunkRecord[] {
+    const sharedChunks = liveblocksService.getSharedRagChunks();
+    return sharedChunks.map(chunk => ({
+      id: chunk.id,
+      docId: chunk.docId,
+      docName: chunk.docName,
+      content: chunk.content,
+      embedding: chunk.embedding,
+      pageNumber: chunk.pageNumber,
+    }));
+  }
+
+  private getScopedChunks(localChunks: RagChunkRecord[], sharedChunks: RagChunkRecord[], scope: RagSearchScope): RagChunkRecord[] {
+    if (scope === 'local') {
+      return localChunks;
+    }
+
+    if (scope === 'shared') {
+      return sharedChunks;
+    }
+
+    return [...localChunks, ...sharedChunks];
   }
 
   private async buildChunksFromPdf(file: File, docName: string): Promise<Array<{ content: string; docName: string; pageNumber?: number }>> {
@@ -422,17 +462,52 @@ class RagService {
   }
 
   private async embedDocuments(texts: string[]): Promise<number[][]> {
+    return this.requestEmbeddings(texts, 'RETRIEVAL_DOCUMENT');
+  }
+
+  private async embedQuery(text: string): Promise<number[]> {
+    const embeddings = await this.requestEmbeddings(text ? [text] : [], 'RETRIEVAL_QUERY');
+    return embeddings[0] || [];
+  }
+
+  private async requestEmbeddings(texts: string[], taskType: EmbeddingTaskType): Promise<number[][]> {
     if (!this.client || texts.length === 0) return [];
 
-    const response = (await this.client.models.embedContent({
-      model: DEFAULT_EMBEDDING_MODEL,
-      contents: texts,
-      config: {
-        taskType: 'RETRIEVAL_DOCUMENT',
-        outputDimensionality: DEFAULT_EMBEDDING_DIM
-      }
-    })) as EmbedContentResponse;
+    let lastError: unknown = null;
 
+    for (const model of this.getEmbeddingModelCandidates()) {
+      try {
+        const response = (await this.client.models.embedContent({
+          model,
+          contents: texts,
+          config: {
+            taskType,
+            outputDimensionality: DEFAULT_EMBEDDING_DIM
+          }
+        })) as EmbedContentResponse;
+
+        this.resolvedEmbeddingModel = model;
+        return this.extractEmbeddings(response);
+      } catch (error) {
+        lastError = error;
+        if (!this.isRetryableEmbeddingModelError(error)) {
+          throw error;
+        }
+      }
+    }
+
+    throw new Error(this.buildEmbeddingUnavailableMessage(lastError));
+  }
+
+  private getEmbeddingModelCandidates(): string[] {
+    const orderedModels = [this.resolvedEmbeddingModel, ...EMBEDDING_MODEL_CANDIDATES].filter(
+      (model): model is string => Boolean(model)
+    );
+
+    return orderedModels.filter((model, index) => orderedModels.indexOf(model) === index);
+  }
+
+  private extractEmbeddings(response: EmbedContentResponse): number[][] {
     if (response.embeddings && response.embeddings.length > 0) {
       return response.embeddings.map((item) => item.values || []);
     }
@@ -444,27 +519,35 @@ class RagService {
     return [];
   }
 
-  private async embedQuery(text: string): Promise<number[]> {
-    if (!this.client || !text) return [];
+  private isRetryableEmbeddingModelError(error: unknown): boolean {
+    const message = this.getErrorMessage(error).toLowerCase();
+    return message.includes('not found') || message.includes('not supported') || message.includes('unsupported') || message.includes('404');
+  }
 
-    const response = (await this.client.models.embedContent({
-      model: DEFAULT_EMBEDDING_MODEL,
-      contents: [text],
-      config: {
-        taskType: 'RETRIEVAL_QUERY',
-        outputDimensionality: DEFAULT_EMBEDDING_DIM
-      }
-    })) as EmbedContentResponse;
+  private buildEmbeddingUnavailableMessage(error: unknown): string {
+    const detail = this.getErrorMessage(error);
+    return detail
+      ? `현재 환경에서 사용할 수 있는 Gemini 임베딩 모델을 찾지 못했습니다. ${detail}`
+      : '현재 환경에서 사용할 수 있는 Gemini 임베딩 모델을 찾지 못했습니다.';
+  }
 
-    if (response.embeddings && response.embeddings[0]?.values) {
-      return response.embeddings[0].values || [];
+  private buildRetrievalErrorMessage(error: unknown): string {
+    if (this.isRetryableEmbeddingModelError(error)) {
+      return '현재 Gemini 임베딩 모델을 사용할 수 없어 업로드된 문헌 검색을 건너뛰었습니다.';
     }
 
-    if (response.embedding?.values) {
-      return response.embedding.values;
+    const detail = this.getErrorMessage(error);
+    return detail
+      ? `업로드된 문헌 검색 중 오류가 발생해 문헌 근거를 조회하지 못했습니다. ${detail}`
+      : '업로드된 문헌 검색 중 오류가 발생해 문헌 근거를 조회하지 못했습니다.';
+  }
+
+  private getErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message;
     }
 
-    return [];
+    return typeof error === 'string' ? error : '';
   }
 }
 

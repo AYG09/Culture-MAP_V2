@@ -11,6 +11,7 @@ import { GoogleGenAI, createPartFromUri, FunctionCallingConfigMode, type Thinkin
 import { MAP_TOOL_DECLARATIONS, type AiFunctionCall, type ToolDeclaration } from '../types/actions';
 import type { ChatMessage, EvidenceSource, Insight, InsightType, MessageEvidence } from '../types/liveblocks';
 import ragService from './RagService';
+import type { RagSearchScope } from './RagService';
 import liveblocksService from './LiveblocksService';
 
 export type AIProvider = 'gemini';
@@ -20,6 +21,7 @@ export interface AIConfig {
   apiKey: string;
   tavilyApiKey?: string;
   modelName?: string;
+  ragSearchScope?: RagSearchScope;
   autoExecuteFunctionCalls?: boolean; // true면 function call 자동 실행, false면 사용자 확인 후 실행
   sharedApiKeyMode?: boolean; // 세션 공용 API 키 모드 (동시 호출 제한)
 }
@@ -210,6 +212,23 @@ class AIService {
 
   private buildGeneralEvidence(note?: string): MessageEvidence {
     return this.createEvidence('general', '일반 지식 기반 답변', note);
+  }
+  private getAcademicGroundingGuardInstruction(): string {
+    return '현재 Culture Map 데이터 유무와 문헌 검색 가능 여부는 별개입니다. 문헌 근거 부족이나 검색 실패만으로 현재 맵 데이터가 없다고 말하지 마세요.';
+  }
+
+  private buildAcademicFallbackLead(hasIndex: boolean, ragUnavailable: boolean, topic?: string): string {
+    const target = topic ? `"${topic}"에 대한 직접 근거` : '질문과 직접 연결되는 근거';
+
+    if (!hasIndex) {
+      return '현재 검색 가능한 학술 RAG 문서가 없습니다.';
+    }
+
+    if (ragUnavailable) {
+      return `업로드된 학술 RAG 문서는 있을 수 있지만, 현재 임베딩 검색을 사용할 수 없어 ${target}를 조회하지 못했습니다.`;
+    }
+
+    return `업로드된 학술 RAG 문서에서 ${target}를 찾지 못했습니다.`;
   }
 
   private extractHostname(url: string): string | undefined {
@@ -464,7 +483,8 @@ class AIService {
           provider: 'gemini',
           apiKey: defaultApiKey,
           tavilyApiKey: undefined,
-          modelName: 'gemini-3.1-flash-lite-preview'  // Gemini 3.1 Flash-Lite: Function Calling 지원, 저비용/고속
+          modelName: 'gemini-3.1-flash-lite-preview',  // Gemini 3.1 Flash-Lite: Function Calling 지원, 저비용/고속
+          ragSearchScope: 'both'
         });
         console.log('📡 AI Service initialized from environment variables');
       }
@@ -490,6 +510,10 @@ class AIService {
 
   public getConfig(): AIConfig | null {
     return this.currentConfig;
+  }
+
+  public getRagSearchScope(): RagSearchScope {
+    return this.currentConfig?.ragSearchScope ?? 'both';
   }
 
   /**
@@ -682,8 +706,10 @@ class AIService {
         const ragContext = await ragService.retrieveContext(topic, {
           topK: 6,
           minScore: 0.2,
-          maxContextChars: 7000
+          maxContextChars: 7000,
+          scope: this.getRagSearchScope()
         });
+        const ragRetrievalError = ragService.getLastRetrievalError();
 
         if (ragContext?.contextText) {
           yield {
@@ -715,7 +741,7 @@ class AIService {
 
         try {
           const followUp = await session!.sendMessage({
-            message: `[시스템] 업로드된 학술 RAG 문서에서 "${topic}"에 대한 직접 근거를 찾지 못했습니다. 일반 지식으로 답변하되, 문헌 근거가 확인되지 않은 참고용 설명임을 명확히 밝히고 마지막에 "정확한 학술 검증을 위해 관련 문헌 업로드가 필요합니다"라고 안내하세요.`
+            message: `[시스템] ${this.buildAcademicFallbackLead(true, Boolean(ragRetrievalError), topic)} 일반 지식으로 답변하되, 문헌 근거가 확인되지 않은 참고용 설명임을 명확히 밝히고, ${this.getAcademicGroundingGuardInstruction()} 마지막에 "정확한 학술 검증을 위해 관련 문헌 업로드가 필요합니다"라고 안내하세요.`
           });
           const followUpParts = extractPartsFromResponse(followUp);
           for (const part of followUpParts) {
@@ -739,8 +765,10 @@ class AIService {
         const ragContext = await ragService.retrieveContext(topicStr, {
           topK: 6,
           minScore: 0.2,
-          maxContextChars: 7000
+          maxContextChars: 7000,
+          scope: this.getRagSearchScope()
         });
+        const ragRetrievalError = ragService.getLastRetrievalError();
         if (ragContext?.contextText) {
           yield {
             type: 'metadata',
@@ -752,7 +780,7 @@ class AIService {
         }
         const knowledgeResult = ragContext?.contextText?.trim()
           ? ragContext.contextText
-          : '업로드된 학술 RAG 문서에서 관련 근거를 찾지 못했습니다. 일반 지식으로만 설명하되 문헌 근거가 확인되지 않은 참고용 설명임을 명시하고, 정확한 학술 검증을 위해 관련 문헌 업로드가 필요하다고 안내하세요.';
+          : `${this.buildAcademicFallbackLead(true, Boolean(ragRetrievalError), topicStr)} 일반 지식으로만 설명하되 문헌 근거가 확인되지 않은 참고용 설명임을 명시하고, ${this.getAcademicGroundingGuardInstruction()} 정확한 학술 검증을 위해 관련 문헌 업로드가 필요하다고 안내하세요.`;
 
         // 검색 결과를 AI에게 다시 전달하여 후속 응답 생성
         try {
@@ -934,7 +962,8 @@ class AIService {
         const ragContext = await ragService.retrieveContext(topic, {
           topK: 6,
           minScore: 0.2,
-          maxContextChars: 7000
+          maxContextChars: 7000,
+          scope: this.getRagSearchScope()
         });
         const knowledgeResult = ragContext?.contextText?.trim()
           ? ragContext.contextText
@@ -1505,6 +1534,7 @@ class AIService {
   private async prepareAcademicGrounding(prompt: string): Promise<AcademicGroundingResult> {
     const needsAcademicGrounding = this.requiresAcademicGrounding(prompt);
     const needsWebGrounding = this.requiresWebSearch(prompt);
+    const groundingGuard = this.getAcademicGroundingGuardInstruction();
 
     const webContext = needsWebGrounding
       ? await this.searchWeb(prompt, needsAcademicGrounding ? 4 : 5)
@@ -1533,14 +1563,16 @@ class AIService {
       ? await ragService.retrieveContext(prompt, {
         topK: 6,
         minScore: 0.2,
-        maxContextChars: 7000
+        maxContextChars: 7000,
+        scope: this.getRagSearchScope()
       })
       : null;
+    const ragRetrievalError = hasIndex ? ragService.getLastRetrievalError() : null;
 
     if (ragContext?.contextText?.trim() && webContext?.status === 'ok' && webContext.contextText) {
       return {
         status: 'hybrid',
-        prompt: `[시스템] 다음 질문에는 문헌 기반 근거와 웹 검색 근거가 함께 제공됩니다. 답변 시 우선순위는 1) 문헌 기반 개념과 원리, 2) 웹 기반 최신 사례와 동향입니다. 문헌으로 확인되지 않은 내용을 학술적 사실처럼 단정하지 마세요. 답변 끝에는 문헌 출처와 웹 출처를 구분해 짧게 정리하세요.\n\n[문헌 근거]\n${ragContext.contextText}\n\n[웹 검색 근거]\n${webContext.contextText}\n\n[사용자 질문]\n${prompt}`,
+        prompt: `[시스템] 다음 질문에는 문헌 기반 근거와 웹 검색 근거가 함께 제공됩니다. 답변 시 우선순위는 1) 문헌 기반 개념과 원리, 2) 웹 기반 최신 사례와 동향입니다. 문헌으로 확인되지 않은 내용을 학술적 사실처럼 단정하지 마세요. ${groundingGuard} 답변 끝에는 문헌 출처와 웹 출처를 구분해 짧게 정리하세요.\n\n[문헌 근거]\n${ragContext.contextText}\n\n[웹 검색 근거]\n${webContext.contextText}\n\n[사용자 질문]\n${prompt}`,
         evidence: this.buildHybridEvidence(
           ragContext.sources.map((source) => ({ docName: source.docName, pageNumber: source.pageNumber })),
           webContext.sources,
@@ -1552,7 +1584,7 @@ class AIService {
     if (ragContext?.contextText?.trim()) {
       return {
         status: 'grounded',
-        prompt: `[시스템] 다음은 문서 기반 RAG 검색 결과입니다. 아래 근거에 포함된 정보만 사용해 답변하세요. 근거가 부족하면 모른다고 답하고 추정하지 마세요. 답변 끝에는 사용한 출처를 간단히 정리하세요.\n\n[문서 근거]\n${ragContext.contextText}\n\n[사용자 질문]\n${prompt}`,
+        prompt: `[시스템] 다음은 문서 기반 RAG 검색 결과입니다. 아래 근거에 포함된 정보만 사용해 답변하세요. 근거가 부족하면 모른다고 답하고 추정하지 마세요. ${groundingGuard} 답변 끝에는 사용한 출처를 간단히 정리하세요.\n\n[문서 근거]\n${ragContext.contextText}\n\n[사용자 질문]\n${prompt}`,
         evidence: this.buildAcademicEvidence(
           ragContext.sources.map((source) => ({ docName: source.docName, pageNumber: source.pageNumber })),
           '업로드된 문헌 RAG에서 직접 근거를 확보했습니다.'
@@ -1561,20 +1593,32 @@ class AIService {
     }
 
     if (webContext?.status === 'ok' && webContext.contextText) {
+      const fallbackLead = this.buildAcademicFallbackLead(hasIndex, Boolean(ragRetrievalError));
       return {
         status: 'web',
-        prompt: `[시스템] 사용자는 학술 근거를 기대하고 있지만, 현재 업로드된 학술 RAG 문서에서 직접 근거를 찾지 못했습니다. 대신 아래 웹 검색 자료를 참고해 답변할 수 있습니다. 단, 웹 자료는 학술 검증을 대체하지 않으므로 첫 부분에 학술 문헌으로 검증된 답변은 아니라는 점을 밝히고, 답변 끝에 관련 문헌 업로드가 필요하다고 안내하세요.\n\n[웹 검색 근거]\n${webContext.contextText}\n\n[사용자 질문]\n${prompt}`,
-        evidence: this.buildWebEvidence(webContext.sources, '문헌 RAG 근거가 부족해 웹 검색 자료로만 보조 설명했습니다.')
+        prompt: `[시스템] 사용자는 학술 근거를 기대하고 있습니다. ${fallbackLead} 대신 아래 웹 검색 자료를 참고해 답변할 수 있습니다. 단, 웹 자료는 학술 검증을 대체하지 않으므로 첫 부분에 학술 문헌으로 검증된 답변은 아니라는 점을 밝히고, ${groundingGuard} 답변 끝에 관련 문헌 업로드가 필요하다고 안내하세요.\n\n[웹 검색 근거]\n${webContext.contextText}\n\n[사용자 질문]\n${prompt}`,
+        evidence: this.buildWebEvidence(
+          webContext.sources,
+          ragRetrievalError
+            ? '문헌 검색 시스템을 사용할 수 없어 웹 검색 자료로만 보조 설명했습니다.'
+            : '문헌 RAG 근거가 부족해 웹 검색 자료로만 보조 설명했습니다.'
+        )
       };
     }
 
+    const fallbackLead = this.buildAcademicFallbackLead(hasIndex, Boolean(ragRetrievalError));
     return {
       status: 'fallback',
       prompt: hasIndex
-        ? `[시스템] 업로드된 학술 RAG 문서에서 아래 질문과 직접 연결되는 근거를 찾지 못했고, 웹 검색 근거도 확보하지 못했습니다. 일반 지식으로 답변할 수는 있지만, 다음을 반드시 지키세요. 1) 문헌 근거가 확인되지 않은 참고용 일반 설명임을 첫 부분에 명시할 것. 2) 확실하지 않은 내용은 추정이라고 밝힐 것. 3) 마지막에 더 정확한 답변을 위해 관련 학술 문헌 업로드가 필요하다고 안내할 것.\n\n[사용자 질문]\n${prompt}`
-        : `[시스템] 사용자는 학술 근거가 있는 설명을 기대하고 있습니다. 하지만 현재 검색 가능한 학술 RAG 문서가 없고, 웹 검색 근거도 확보하지 못했습니다. 따라서 일반 지식으로 답변하되, 다음을 반드시 지키세요. 1) 지금 답변은 문헌 근거가 확인되지 않은 일반 설명이라고 첫 부분에 명시할 것. 2) 단정적 표현을 줄이고 불확실성은 분명히 밝힐 것. 3) 답변 마지막에 정확한 학술 검증을 위해 관련 문헌 또는 PDF 업로드가 필요하다고 안내할 것.\n\n[사용자 질문]\n${prompt}`,
+        ? `[시스템] ${fallbackLead} 또한 웹 검색 근거도 확보하지 못했습니다. 일반 지식으로 답변할 수는 있지만, 다음을 반드시 지키세요. 1) 문헌 근거가 확인되지 않은 참고용 일반 설명임을 첫 부분에 명시할 것. 2) 확실하지 않은 내용은 추정이라고 밝힐 것. 3) ${groundingGuard} 4) 마지막에 더 정확한 답변을 위해 관련 학술 문헌 업로드가 필요하다고 안내할 것.\n\n[사용자 질문]\n${prompt}`
+        : `[시스템] 사용자는 학술 근거가 있는 설명을 기대하고 있습니다. ${fallbackLead} 또한 웹 검색 근거도 확보하지 못했습니다. 따라서 일반 지식으로 답변하되, 다음을 반드시 지키세요. 1) 지금 답변은 문헌 근거가 확인되지 않은 일반 설명이라고 첫 부분에 명시할 것. 2) 단정적 표현을 줄이고 불확실성은 분명히 밝힐 것. 3) ${groundingGuard} 4) 답변 마지막에 정확한 학술 검증을 위해 관련 문헌 또는 PDF 업로드가 필요하다고 안내할 것.\n\n[사용자 질문]\n${prompt}`,
       evidence: this.buildGeneralEvidence(
-        this.appendWebSearchFailureNote('문헌 또는 웹 근거를 확보하지 못해 일반 지식으로만 설명합니다.', webContext)
+        this.appendWebSearchFailureNote(
+          ragRetrievalError
+            ? '문헌 검색 시스템 문제로 문헌 근거를 조회하지 못해 일반 지식으로만 설명합니다.'
+            : '문헌 또는 웹 근거를 확보하지 못해 일반 지식으로만 설명합니다.',
+          webContext
+        )
       )
     };
   }
@@ -1782,7 +1826,8 @@ class AIService {
       ...config,
       provider: 'gemini' as const,
       apiKey: config.apiKey.trim(),
-      tavilyApiKey: config.tavilyApiKey?.trim() || undefined
+      tavilyApiKey: config.tavilyApiKey?.trim() || undefined,
+      ragSearchScope: config.ragSearchScope ?? 'both'
     };
     const available = this.getAvailableGeminiModels();
     if (!normalized.modelName || !available.includes(normalized.modelName)) {

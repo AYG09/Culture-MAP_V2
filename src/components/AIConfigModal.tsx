@@ -15,6 +15,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
     const [apiKey, setApiKey] = useState(currentConfig?.apiKey || '');
     const [tavilyApiKey, setTavilyApiKey] = useState(currentConfig?.tavilyApiKey || '');
     const [modelName, setModelName] = useState(currentConfig?.modelName || 'gemini-2.5-flash-lite');
+    const [ragSearchScope, setRagSearchScope] = useState<NonNullable<AIConfig['ragSearchScope']>>(currentConfig?.ragSearchScope || 'both');
     const [autoExecute, setAutoExecute] = useState(currentConfig?.autoExecuteFunctionCalls || false);
     const [sharedApiKeyMode, setSharedApiKeyMode] = useState(currentConfig?.sharedApiKeyMode || false);
     const [isSaved, setIsSaved] = useState(false);
@@ -29,6 +30,18 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
 
     const currentUserId = liveblocksService.getCurrentUserId();
 
+    const [localRagDocs, setLocalRagDocs] = useState<Array<{ name: string; displayName: string; mimeType: string }>>([]);
+    const [isUploadingLocal, setIsUploadingLocal] = useState(false);
+
+    const loadLocalRagDocs = useCallback(() => {
+        const docs = aiService.getAcademicFiles().filter((file) => file.mimeType === 'application/pdf');
+        setLocalRagDocs(docs.map((file) => ({
+            name: file.name,
+            displayName: file.displayName || file.name,
+            mimeType: file.mimeType,
+        })));
+    }, []);
+
     // 공유 RAG 상태
     const [sharedRagDocs, setSharedRagDocs] = useState<Array<{ docId: string; docName: string; uploaderId: string; uploaderName: string; chunkCount: number; uploadedAt: number }>>([]);
     const [isUploadingToShared, setIsUploadingToShared] = useState(false);
@@ -41,8 +54,9 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
 
     useEffect(() => {
         if (!isOpen) return;
+        loadLocalRagDocs();
         loadSharedRagDocs();
-    }, [isOpen, loadSharedRagDocs]);
+    }, [isOpen, loadLocalRagDocs, loadSharedRagDocs]);
 
     // 공유 RAG 청크 변경 감지
     useEffect(() => {
@@ -79,6 +93,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
         setApiKey(latestConfig?.apiKey || '');
         setTavilyApiKey(latestConfig?.tavilyApiKey || '');
         setModelName(latestConfig?.modelName || 'gemini-2.5-flash-lite');
+        setRagSearchScope(latestConfig?.ragSearchScope || 'both');
         setAutoExecute(latestConfig?.autoExecuteFunctionCalls || false);
         setSharedApiKeyMode(latestConfig?.sharedApiKeyMode || false);
         setShowKey(false);
@@ -94,6 +109,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
             apiKey: apiKey.trim(),
             tavilyApiKey: tavilyApiKey.trim() || undefined,
             modelName: modelName.trim(),
+            ragSearchScope,
             autoExecuteFunctionCalls: autoExecute,
             sharedApiKeyMode
         };
@@ -103,6 +119,52 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
             setIsSaved(false);
             onClose();
         }, 1500);
+    };
+
+    const handleLocalRagUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        const pdfFiles = files.filter(file => file.type === 'application/pdf');
+        if (pdfFiles.length === 0) {
+            alert('로컬 RAG는 PDF 파일만 지원합니다.');
+            e.target.value = '';
+            return;
+        }
+
+        const currentCount = localRagDocs.length;
+        const remainingSlots = Math.max(0, 10 - currentCount);
+        if (pdfFiles.length > remainingSlots) {
+            alert(`로컬 RAG는 브라우저당 최대 10개까지 가능합니다. (현재 ${currentCount}개)`);
+        }
+
+        const filesToUpload = pdfFiles.slice(0, remainingSlots);
+        if (filesToUpload.length === 0) {
+            e.target.value = '';
+            return;
+        }
+
+        try {
+            setIsUploadingLocal(true);
+            for (const file of filesToUpload) {
+                await aiService.addAcademicFile(file);
+            }
+            loadLocalRagDocs();
+        } catch (error) {
+            console.error('로컬 RAG 업로드 실패:', error);
+            alert('로컬 RAG 업로드에 실패했습니다. API 키를 확인해주세요.');
+        } finally {
+            setIsUploadingLocal(false);
+            e.target.value = '';
+        }
+    };
+
+    const handleRemoveLocalRagDoc = (fileName: string) => {
+        if (!window.confirm('이 문서를 이 브라우저의 로컬 RAG에서 삭제하시겠습니까?')) {
+            return;
+        }
+        aiService.removeAcademicFile(fileName);
+        loadLocalRagDocs();
     };
 
     // 공유 RAG로 PDF 업로드
@@ -370,6 +432,36 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                     </div>
 
                     <div className="config-section">
+                        <label className="section-label">RAG 검색 범위</label>
+                        <div className="provider-tabs" role="tablist" aria-label="RAG 검색 범위">
+                            <button
+                                className={`provider-tab ${ragSearchScope === 'both' ? 'active' : ''}`}
+                                onClick={() => setRagSearchScope('both')}
+                                type="button"
+                            >
+                                전체
+                            </button>
+                            <button
+                                className={`provider-tab ${ragSearchScope === 'local' ? 'active' : ''}`}
+                                onClick={() => setRagSearchScope('local')}
+                                type="button"
+                            >
+                                로컬만
+                            </button>
+                            <button
+                                className={`provider-tab ${ragSearchScope === 'shared' ? 'active' : ''}`}
+                                onClick={() => setRagSearchScope('shared')}
+                                type="button"
+                            >
+                                공유만
+                            </button>
+                        </div>
+                        <p className="help-text ai-config-help-muted">
+                            전체는 로컬과 세션 공유 문헌을 함께 검색하고, 나머지는 선택한 저장소만 검색합니다.
+                        </p>
+                    </div>
+
+                    <div className="config-section">
                         <label className="section-label">컨설팅 모드 전환</label>
                         <div className="consulting-switch">
                             <input
@@ -410,8 +502,72 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                         <p className="help-text">* 전환은 세션 연결 상태에서만 가능합니다.</p>
                     </div>
 
+                    <div className="academic-section" style={{ borderTopColor: '#f59e0b' }}>
+                        <div className="academic-header">
+                            <label className="section-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Upload size={16} color="#f59e0b" />
+                                로컬 RAG 지식베이스 (이 브라우저 전용)
+                            </label>
+                            <span style={{ fontSize: '0.75rem', color: '#d97706' }}>
+                                {localRagDocs.length}/10 문서
+                            </span>
+                        </div>
+
+                        <div className="file-list">
+                            {localRagDocs.length === 0 && (
+                                <p style={{ fontSize: '0.8rem', color: '#9ca3af', textAlign: 'center', margin: '10px 0' }}>
+                                    로컬 RAG 문서가 없습니다. 업로드한 PDF는 이 브라우저에서만 AI 검색에 사용됩니다.
+                                </p>
+                            )}
+                            {localRagDocs.map((doc) => (
+                                <div key={doc.name} className="file-item">
+                                    <div className="file-info" style={{ flex: 1 }}>
+                                        <FileText size={14} color="#f59e0b" />
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                            <span className="file-name" title={doc.displayName}>{doc.displayName}</span>
+                                            <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>
+                                                이 브라우저 전용 문헌
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <button
+                                        className="remove-file-btn"
+                                        onClick={() => handleRemoveLocalRagDoc(doc.name)}
+                                        title="삭제"
+                                        type="button"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        <label className="upload-academic-btn" style={{ backgroundColor: '#fff7ed', color: '#d97706', borderColor: 'rgba(245, 158, 11, 0.35)' }}>
+                            <input
+                                type="file"
+                                accept=".pdf"
+                                multiple
+                                style={{ display: 'none' }}
+                                onChange={handleLocalRagUpload}
+                                disabled={isUploadingLocal}
+                            />
+                            {isUploadingLocal ? (
+                                <>
+                                    <Loader2 size={16} className="spinner" /> 로컬 임베딩 생성 중...
+                                </>
+                            ) : (
+                                <>
+                                    <Upload size={16} /> 이 브라우저에 PDF 저장 (로컬 RAG)
+                                </>
+                            )}
+                        </label>
+                        <p className="help-text" style={{ marginTop: '8px', color: '#b45309' }}>
+                            개인 참고용 문헌입니다. 다른 참여자에게 공유되지 않으며 현재 브라우저에서만 검색됩니다.
+                        </p>
+                    </div>
+
                     {/* 공유 RAG 섹션 (벡터 임베딩 공유) */}
-                        <div className="academic-section" style={{ borderColor: '#10b981' }}>
+                        <div className="academic-section" style={{ borderTopColor: '#10b981' }}>
                             <div className="academic-header">
                                 <label className="section-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <Database size={16} color="#10b981" />
