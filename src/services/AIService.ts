@@ -418,9 +418,11 @@ class AIService {
   public setConfig(config: AIConfig) {
     const normalized = this.normalizeModelConfig(config);
     this.currentConfig = normalized;
-    if (config.provider === 'gemini' && config.apiKey) {
-      this.geminiClient = new GoogleGenAI({ apiKey: config.apiKey });
-    }
+
+    this.geminiClient =
+      normalized.provider === 'gemini' && normalized.apiKey
+        ? new GoogleGenAI({ apiKey: normalized.apiKey })
+        : null;
 
     ragService.setClient(this.geminiClient);
 
@@ -1779,6 +1781,7 @@ class AIService {
     const normalized = {
       ...config,
       provider: 'gemini' as const,
+      apiKey: config.apiKey.trim(),
       tavilyApiKey: config.tavilyApiKey?.trim() || undefined
     };
     const available = this.getAvailableGeminiModels();

@@ -46,6 +46,18 @@ const toNoteType = (remoteType?: string): NoteType =>
 
 const toRemoteType = (noteType: NoteType): string => NOTE_TYPE_TO_REMOTE[noteType];
 
+const shouldSkipGate = (): boolean => {
+  if (import.meta.env.VITE_SKIP_GATE === 'true') {
+    return true;
+  }
+
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return new URLSearchParams(window.location.search).get('skipGate') === 'true';
+};
+
 const mapLiveblocksNoteToAppNote = (note: StickyNoteData): AppNote => {
   const content = note.content ?? '';
   const sentiment = isSentiment(note.sentiment) ? note.sentiment : 'neutral';
@@ -73,7 +85,7 @@ const mapLiveblocksNoteToAppNote = (note: StickyNoteData): AppNote => {
 function App() {
   const [, setNotes] = useState<AppNote[]>([]);
   const [, setConnections] = useState<ConnectionData[]>([]);
-  const [showVideoSplash, setShowVideoSplash] = useState(import.meta.env.VITE_SKIP_GATE !== 'true');
+  const [showVideoSplash, setShowVideoSplash] = useState(() => !shouldSkipGate());
   const [isLiveblocksInitialized, setIsLiveblocksInitialized] = useState(false);
   const [currentSessionCode, setCurrentSessionCode] = useState<string | null>(null);
 

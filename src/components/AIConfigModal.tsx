@@ -72,6 +72,20 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
         };
     }, []);
 
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const latestConfig = aiService.getConfig();
+        setApiKey(latestConfig?.apiKey || '');
+        setTavilyApiKey(latestConfig?.tavilyApiKey || '');
+        setModelName(latestConfig?.modelName || 'gemini-2.5-flash-lite');
+        setAutoExecute(latestConfig?.autoExecuteFunctionCalls || false);
+        setSharedApiKeyMode(latestConfig?.sharedApiKeyMode || false);
+        setShowKey(false);
+        setShowTavilyKey(false);
+        setIsSaved(false);
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     const handleSave = () => {

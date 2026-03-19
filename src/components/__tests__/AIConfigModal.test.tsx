@@ -87,4 +87,23 @@ describe('AIConfigModal', () => {
     const storedConfig = JSON.parse(localStorage.getItem('culture-map-ai-config') || '{}');
     expect(storedConfig.tavilyApiKey).toBe(TEST_TAVILY_KEY);
   });
+
+  it('닫았다가 다시 열면 저장된 설정값으로 다시 초기화된다', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+
+    const { rerender } = render(<AIConfigModal isOpen={true} onClose={onClose} />);
+
+    const tavilyInput = screen.getByPlaceholderText('선택 사항: Tavily API 키를 입력하세요');
+    await user.clear(tavilyInput);
+    await user.type(tavilyInput, 'draft-unsaved-key');
+    expect(tavilyInput).toHaveValue('draft-unsaved-key');
+
+    rerender(<AIConfigModal isOpen={false} onClose={onClose} />);
+    rerender(<AIConfigModal isOpen={true} onClose={onClose} />);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('선택 사항: Tavily API 키를 입력하세요')).toHaveValue('');
+    });
+  });
 });

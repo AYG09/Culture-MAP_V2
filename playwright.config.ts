@@ -18,10 +18,6 @@ export default defineConfig({
   reporter: 'html',
   webServer: {
     command: 'npm run dev > server-log.txt 2>&1',
-    env: {
-      ...process.env,
-      VITE_SKIP_GATE: 'true',
-    },
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,

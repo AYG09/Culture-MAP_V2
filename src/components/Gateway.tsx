@@ -20,6 +20,18 @@ interface GatewayProps {
   onAuthenticated?: (sessionCode: string) => void;
 }
 
+const shouldSkipGateway = (): boolean => {
+  if (import.meta.env.VITE_SKIP_GATE === 'true') {
+    return true;
+  }
+
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return new URLSearchParams(window.location.search).get('skipGate') === 'true';
+};
+
 const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
   const LAST_SESSION_STORAGE_KEY = 'culture-map-last-session';
   const [isAuth, setIsAuth] = useState(false);
@@ -193,7 +205,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
   // 초기화
   useEffect(() => {
     const init = async () => {
-      const skipGate = import.meta.env.VITE_SKIP_GATE;
+      const skipGate = shouldSkipGateway() ? 'true' : 'false';
       console.log('🚪 [Gateway] VITE_SKIP_GATE 값:', skipGate, '타입:', typeof skipGate);
 
       if (skipGate === 'true') {
