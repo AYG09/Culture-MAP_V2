@@ -16,7 +16,9 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,css,md}\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "npx playwright test",
+    "test:e2e": "npx playwright test --project=app",
+    "test:e2e:debug": "npx playwright test --project=debug",
+    "test:e2e:all": "npx playwright test",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {

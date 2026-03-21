@@ -275,6 +275,12 @@ function App() {
               userName={liveblocksService.getCurrentUserDisplayName()}
               userColor={liveblocksService.getCurrentUserColor()}
               userId={liveblocksService.getCurrentUserId()}
+              fallback={(
+                <div className="app-loading-fallback">
+                  실시간 협업 워크스페이스에 연결하는 중...
+                  {currentSessionCode ? ` (${currentSessionCode})` : ''}
+                </div>
+              )}
             >
               <Router>
                 <div className="app-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>

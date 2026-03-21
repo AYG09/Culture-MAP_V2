@@ -1,5 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
+const debugSpecs = ['**/debug-ai.spec.ts', '**/debug-ai-v2.spec.ts'];
+
 export default defineConfig({
   testDir: './playwright',
   /* 테스트 실행 시간 제한 - AI 응답 시간을 고려하여 상향 */
@@ -15,7 +17,17 @@ export default defineConfig({
   /* CI에서는 옵트인, 로컬에서는 옵트아웃 */
   workers: process.env.CI ? 1 : undefined,
   /* 리포터 설정 */
-  reporter: 'html',
+  reporter: process.env.PLAYWRIGHT_REPORTER ?? 'line',
+  projects: [
+    {
+      name: 'app',
+      testIgnore: debugSpecs,
+    },
+    {
+      name: 'debug',
+      testMatch: debugSpecs,
+    },
+  ],
   webServer: {
     command: 'npm run dev > server-log.txt 2>&1',
     url: 'http://localhost:5173',

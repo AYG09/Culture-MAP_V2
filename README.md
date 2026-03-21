@@ -34,8 +34,13 @@ npm install
 ```env
 VITE_LIVEBLOCKS_PUBLIC_KEY=your_key
 VITE_GEMINI_API_KEY=your_key
+TAVILY_API_KEY=your_key
 VITE_SKIP_GATE=true # 개발 시 게이트웨이 건너뛰기
 ```
+
+`TAVILY_API_KEY` 는 서버 측 웹 검색 API에서만 사용됩니다.
+
+설정창에서 사용자가 Tavily 키를 직접 입력하면, 해당 브라우저 세션의 웹 검색 요청에 한해 사용자 키가 우선 사용됩니다.
 
 ### 3. 개발 서버 실행
 
@@ -87,7 +92,9 @@ npm run dev          # 개발 서버 실행
 npm run build        # 프로덕션 빌드 (dist/ 생성)
 npm run type-check   # TypeScript 타입 검사
 npm run lint         # 코드 컨벤션 검사
-npm run test:e2e     # Playwright E2E 테스트
+npm run test:e2e     # 메인 Playwright E2E 스위트
+npm run test:e2e:debug # 디버그용 AI Playwright 스위트
+npm run test:e2e:all # 메인 + 디버그 Playwright 전체 스위트
 ```
 
 ## 📝 라이선스

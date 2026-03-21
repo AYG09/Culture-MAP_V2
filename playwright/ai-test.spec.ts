@@ -1,56 +1,39 @@
-
 import { test, expect } from '@playwright/test';
 
-test('AI Basic Response Test', async ({ page }) => {
-    // 1. Setup - Skip Gate and Use Env Vars
-    // (Vite will pick up VITE_SKIP_GATE=true if we set it, or we just bypass the gateway manually)
-    await page.goto('http://localhost:5173');
-    
-    // Bypass Gateway if needed
-    if (await page.locator('input[type="password"]').isVisible()) {
-        await page.locator('input[type="password"]').fill('MASTER2025'); // Assuming this is one of the passwords
-        await page.click('button:has-text("입장")');
-    }
+import { clearBrowserState, ensureAiPanelAccessible, goToWorkspace } from './helpers';
 
-    // 2. Wait for AI Sidebar
-    const aiInput = page.getByPlaceholder('AI에게 지시하기...');
-    await expect(aiInput).toBeVisible({ timeout: 15000 });
+test('AI가 기본 질문에 응답한다', async ({ page }) => {
+    await clearBrowserState(page);
+    await goToWorkspace(page);
+    await ensureAiPanelAccessible(page);
 
-    // 3. Simple Message
-    await aiInput.fill('안녕, 1+1은 뭐니?');
+    const aiMessages = page.locator('.message-wrapper.ai');
+    const initialAiCount = await aiMessages.count();
+    const aiInput = page.locator('.chat-input-field');
+
+    await aiInput.fill('안녕, 1+1은 뭐니? 한 줄로 답해줘.');
     await aiInput.press('Enter');
 
-    // 4. Expect AI Response
-    const aiMessage = page.locator('.message-wrapper.ai').first();
-    await expect(aiMessage).toBeVisible({ timeout: 30000 });
-    
-    const content = await aiMessage.locator('.message-content').textContent();
-    console.log('AI Response:', content);
-    expect(content?.length).toBeGreaterThan(0);
+    await expect(aiMessages).toHaveCount(initialAiCount + 1, { timeout: 90000 });
+    await expect(aiMessages.last().locator('.message-content')).not.toHaveText('', { timeout: 30000 });
 });
 
-test('AI Tool Calling Test', async ({ page }) => {
-    await page.goto('http://localhost:5173');
-    
-    if (await page.locator('input[type="password"]').isVisible()) {
-        await page.locator('input[type="password"]').fill('MASTER2025');
-        await page.click('button:has-text("입장")');
-    }
+test('AI 도구 호출로 노드 생성 제안을 적용할 수 있다', async ({ page }) => {
+    await clearBrowserState(page);
+    await goToWorkspace(page);
+    await ensureAiPanelAccessible(page);
 
-    const aiInput = page.getByPlaceholder('AI에게 지시하기...');
-    await expect(aiInput).toBeVisible({ timeout: 15000 });
+    const nodeLocator = page.locator('.react-flow__node');
+    const initialNodeCount = await nodeLocator.count();
+    const aiInput = page.locator('.chat-input-field');
 
-    // Force add_node
-    await aiInput.fill('결과 레이어에 "테스트 노드" 하나 추가해줘. 반드시 add_node 도구를 사용해.');
+    await aiInput.fill('결과 레이어에 "AI 테스트 노드"라는 결과 노드 하나를 추가해줘. 반드시 도구를 사용해서 실행 가능한 제안으로 만들어줘.');
     await aiInput.press('Enter');
 
-    // Expect Apply Button
-    const applyBtn = page.locator('.action-apply-btn');
-    await expect(applyBtn).toBeVisible({ timeout: 60000 });
-    
+    const applyBtn = page.locator('.action-apply-btn').last();
+    await expect(applyBtn).toBeVisible({ timeout: 120000 });
     await applyBtn.click();
-    console.log('Apply button clicked');
 
-    // Check if node is created
-    await expect(page.locator('.react-flow__node')).toBeVisible({ timeout: 10000 });
+    await expect(nodeLocator).toHaveCount(initialNodeCount + 1, { timeout: 15000 });
+    await expect(page.locator('.react-flow__node').filter({ hasText: 'AI 테스트 노드' })).toBeVisible({ timeout: 15000 });
 });

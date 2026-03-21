@@ -21,6 +21,193 @@ const EVIDENCE_LEVEL_LABELS: Record<EvidenceLevel, string> = {
     system: '시스템 안내'
 };
 
+const LAYER_LABELS: Record<number, string> = {
+    1: '결과 레이어',
+    2: '행동 레이어',
+    3: '유형 레버 레이어',
+    4: '무형 레버 레이어'
+};
+
+const ACTION_GROUP_META: Record<string, { label: string; tone: string }> = {
+    structure: { label: '구조', tone: 'structure' },
+    connection: { label: '연결', tone: 'connection' },
+    layout: { label: '배치', tone: 'layout' },
+    focus: { label: '탐색', tone: 'focus' },
+    style: { label: '표현', tone: 'style' },
+    system: { label: '시스템', tone: 'system' }
+};
+
+const getActionGroup = (actionName: string) => {
+    if (actionName === 'add_node' || actionName === 'add_nodes_with_connections' || actionName === 'update_node' || actionName === 'delete_node') {
+        return 'structure';
+    }
+    if (actionName === 'create_connection' || actionName === 'delete_connection' || actionName === 'reroute_edges') {
+        return 'connection';
+    }
+    if (actionName === 'auto_layout' || actionName === 'adjust_layer_height') {
+        return 'layout';
+    }
+    if (actionName === 'focus_node' || actionName === 'set_viewport' || actionName === 'pan_viewport' || actionName === 'zoom_viewport' || actionName === 'fit_view') {
+        return 'focus';
+    }
+    if (actionName === 'set_layer_opacity' || actionName === 'toggle_layer_background' || actionName === 'set_ui_visibility' || actionName === 'set_style_variables') {
+        return 'style';
+    }
+    return 'system';
+};
+
+const getActionExecutionKey = (messageId: string, action: AiAction, index: number) => {
+    return `${messageId}:${index}:${action.name}:${JSON.stringify(action.args ?? {})}`;
+};
+
+const getActionTitle = (action: AiAction) => {
+    const args = (action.args ?? {}) as Record<string, unknown>;
+
+    switch (action.name) {
+        case 'add_node':
+            return `${String(args.label ?? args.content ?? '새 노드')} 추가`;
+        case 'add_nodes_with_connections':
+            return `${Array.isArray(args.nodes) ? args.nodes.length : 0}개 노드 묶음 생성`;
+        case 'update_node':
+            return `${String(args.label ?? args.content ?? args.id ?? '선택 노드')} 수정`;
+        case 'delete_node':
+            return `${String(args.id ?? '선택 노드')} 제거`;
+        case 'create_connection':
+            return `${String(args.sourceId ?? args.source ?? '출발 노드')} -> ${String(args.targetId ?? args.target ?? '도착 노드')} 연결`;
+        case 'delete_connection':
+            return `${String(args.id ?? '연결선')} 제거`;
+        case 'auto_layout':
+            return '자동 레이아웃 재정렬';
+        case 'reroute_edges':
+            return '연결선 경로 재정리';
+        case 'adjust_layer_height':
+            return `${LAYER_LABELS[Number(args.layer)] ?? '레이어'} 높이 조정`;
+        case 'pin_node':
+            return `${String(args.id ?? '노드')} 고정`;
+        case 'unpin_node':
+            return `${String(args.id ?? '노드')} 고정 해제`;
+        case 'focus_node':
+            return `${String(args.id ?? '노드')}로 포커스 이동`;
+        case 'fit_view':
+            return '전체 맵 보기로 맞춤';
+        case 'set_viewport':
+            return '뷰포트 위치 조정';
+        case 'pan_viewport':
+            return '화면 이동';
+        case 'zoom_viewport':
+            return '확대 수준 조정';
+        case 'set_layer_opacity':
+            return `${LAYER_LABELS[Number(args.layer)] ?? '레이어'} 투명도 조정`;
+        case 'toggle_layer_background':
+            return `레이어 배경 ${args.visible ? '표시' : '숨김'}`;
+        case 'set_ui_visibility':
+            return '작업 UI 표시 상태 조정';
+        case 'set_style_variables':
+            return '스타일 변수 업데이트';
+        case 'save_snapshot':
+            return `${String(args.name ?? args.snapshot_id ?? '현재 상태')} 스냅샷 저장`;
+        case 'restore_snapshot':
+            return `${String(args.name ?? args.snapshot_id ?? '저장 상태')} 스냅샷 복원`;
+        default:
+            return action.name.replaceAll('_', ' ');
+    }
+};
+
+const getActionDescription = (action: AiAction) => {
+    const args = (action.args ?? {}) as Record<string, unknown>;
+
+    switch (action.name) {
+        case 'add_node':
+            return `${LAYER_LABELS[Number(args.layer)] ?? '적절한 레이어'}에 ${String(args.type ?? '노드')} 항목을 추가합니다.`;
+        case 'add_nodes_with_connections': {
+            const nodeCount = Array.isArray(args.nodes) ? args.nodes.length : 0;
+            const connectionCount = Array.isArray(args.connections) ? args.connections.length : 0;
+            return `${nodeCount}개 노드를 만들고 ${connectionCount}개 연결을 함께 구성합니다.`;
+        }
+        case 'update_node':
+            return `기존 노드의 내용, 감정, 위치 또는 레이어 정보를 갱신합니다.`;
+        case 'delete_node':
+            return '선택한 노드와 관련 연결을 정리합니다.';
+        case 'create_connection':
+            return `${args.relationType === 'indirect' ? '간접' : '직접'} 인과 관계를 새로 추가합니다.`;
+        case 'delete_connection':
+            return '현재 연결 관계를 제거합니다.';
+        case 'auto_layout':
+            return `${String(args.spacing ?? 'normal')} 간격 기준으로 맵을 다시 정렬합니다.`;
+        case 'reroute_edges':
+            return '겹치거나 어색한 연결선을 다시 계산합니다.';
+        case 'adjust_layer_height':
+            return `레이어 높이를 ${String(args.height ?? '-') }px 기준으로 조정합니다.`;
+        case 'pin_node':
+            return '레이아웃 변경 중에도 노드 위치를 유지합니다.';
+        case 'unpin_node':
+            return '노드 위치를 다시 자동 배치 대상에 포함합니다.';
+        case 'focus_node':
+            return '해당 노드가 화면 중심으로 오도록 시점을 이동합니다.';
+        case 'fit_view':
+            return '전체 맵이 한 화면에 보이도록 맞춥니다.';
+        case 'set_viewport':
+            return '화면 좌표와 줌 레벨을 직접 설정합니다.';
+        case 'pan_viewport':
+            return `현재 시점을 x ${String(args.dx ?? 0)}, y ${String(args.dy ?? 0)} 만큼 이동합니다.`;
+        case 'zoom_viewport':
+            return '확대 배율을 조정해 세부 확인 또는 전체 파악을 돕습니다.';
+        case 'set_layer_opacity':
+            return `레이어 시인성을 ${Math.round(Number(args.opacity ?? 0) * 100)}% 수준으로 조정합니다.`;
+        case 'toggle_layer_background':
+            return '레이어 구분 배경의 표시 여부를 전환합니다.';
+        case 'set_ui_visibility':
+            return '미니맵, 컨트롤, 레이어 패널 등 보조 UI 가시성을 조정합니다.';
+        case 'set_style_variables':
+            return '노드와 연결선의 시각 스타일을 함께 업데이트합니다.';
+        case 'save_snapshot':
+            return '현재 작업 상태를 로컬 또는 공유 스냅샷으로 남깁니다.';
+        case 'restore_snapshot':
+            return '저장해 둔 작업 상태로 되돌립니다.';
+        default:
+            return '캔버스에 필요한 변경을 적용합니다.';
+    }
+};
+
+const getActionMeta = (action: AiAction) => {
+    const args = (action.args ?? {}) as Record<string, unknown>;
+    const meta: string[] = [];
+
+    if (typeof args.layer === 'number' && LAYER_LABELS[args.layer]) {
+        meta.push(LAYER_LABELS[args.layer]);
+    }
+    if (typeof args.type === 'string') {
+        meta.push(String(args.type).replaceAll('_', ' '));
+    }
+    if (typeof args.relationType === 'string') {
+        meta.push(args.relationType === 'indirect' ? '간접 연결' : '직접 연결');
+    }
+    if (typeof args.isPositive === 'boolean') {
+        meta.push(args.isPositive ? '긍정 영향' : '부정 영향');
+    }
+    if (typeof args.spacing === 'string') {
+        meta.push(`${args.spacing} 간격`);
+    }
+
+    return meta;
+};
+
+const getActionStats = (actions: AiAction[]) => {
+    const counts = actions.reduce<Record<string, number>>((acc, action) => {
+        const group = getActionGroup(action.name);
+        acc[group] = (acc[group] ?? 0) + 1;
+        return acc;
+    }, {});
+
+    return Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([group, count]) => ({
+            key: group,
+            label: ACTION_GROUP_META[group]?.label ?? group,
+            count
+        }));
+};
+
 // 사용자 아바타 컴포넌트 - Tidio 스타일
 interface UserAvatarProps {
     userName: string;
@@ -121,6 +308,31 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     const filteredMessages = useMemo(() => {
         return messages.filter((msg) => (msg.scope ?? 'group') === chatScope);
     }, [messages, chatScope]);
+    const [appliedActionKeys, setAppliedActionKeys] = useState<string[]>([]);
+
+    const handleApplySingleAction = useCallback((messageId: string, action: AiAction, index: number) => {
+        const actionKey = getActionExecutionKey(messageId, action, index);
+        if (appliedActionKeys.includes(actionKey)) {
+            return;
+        }
+        onActionExecute(action);
+        setAppliedActionKeys((prev) => prev.concat(actionKey));
+    }, [appliedActionKeys, onActionExecute]);
+
+    const handleApplyAllActions = useCallback((messageId: string, actions: AiAction[]) => {
+        const nextKeys: string[] = [];
+        actions.forEach((action, index) => {
+            const actionKey = getActionExecutionKey(messageId, action, index);
+            if (!appliedActionKeys.includes(actionKey)) {
+                onActionExecute(action);
+                nextKeys.push(actionKey);
+            }
+        });
+
+        if (nextKeys.length > 0) {
+            setAppliedActionKeys((prev) => prev.concat(nextKeys));
+        }
+    }, [appliedActionKeys, onActionExecute]);
 
     // 메시지 복사 기능
     const handleCopyMessage = useCallback(async (messageId: string, content: string) => {
@@ -144,6 +356,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
         }
 
         aiService.resetChatSession();
+        setAppliedActionKeys([]);
     }, []);
 
     useEffect(() => {
@@ -974,18 +1187,67 @@ ${layerHeightContext}
 
                                 {msg.suggestedActions && msg.suggestedActions.length > 0 && (
                                     <div className="ai-tools-panel">
-                                        <div className="tools-header">
-                                            <Sparkles size={12} /> AI 제안 액션 ({msg.suggestedActions.length})
+                                        <div className="ai-tools-header-row">
+                                            <div className="tools-header">
+                                                <Sparkles size={12} /> 추천 변경안 {msg.suggestedActions.length}개
+                                            </div>
+                                            <button
+                                                className="action-apply-btn"
+                                                onClick={() => handleApplyAllActions(msg.id, msg.suggestedActions ?? [])}
+                                                aria-label="AI 제안 액션을 모두 캔버스에 적용"
+                                            >
+                                                전체 적용
+                                            </button>
                                         </div>
-                                        <button
-                                            className="action-apply-btn"
-                                            onClick={() => {
-                                                msg.suggestedActions?.forEach(action => onActionExecute(action));
-                                            }}
-                                            aria-label="AI 제안 액션을 캔버스에 적용"
-                                        >
-                                            캔버스에 즉시 적용
-                                        </button>
+                                        <div className="ai-tools-summary">
+                                            <p className="ai-tools-summary-text">
+                                                응답 내용을 바로 실행 가능한 작업으로 정리했습니다. 필요한 카드만 골라 적용할 수 있습니다.
+                                            </p>
+                                            <div className="ai-tool-stats">
+                                                {getActionStats(msg.suggestedActions).map((stat) => (
+                                                    <span key={`${msg.id}-${stat.key}`} className="ai-tool-stat">
+                                                        {stat.label} {stat.count}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="ai-tool-grid">
+                                            {msg.suggestedActions.map((action, index) => {
+                                                const group = getActionGroup(action.name);
+                                                const meta = getActionMeta(action);
+                                                const actionKey = getActionExecutionKey(msg.id, action, index);
+                                                const isApplied = appliedActionKeys.includes(actionKey);
+
+                                                return (
+                                                    <div key={actionKey} className={`ai-tool-card ai-tool-card--${ACTION_GROUP_META[group]?.tone ?? 'system'}`}>
+                                                        <div className="ai-tool-card-header">
+                                                            <span className="ai-tool-card-type">{ACTION_GROUP_META[group]?.label ?? '시스템'}</span>
+                                                            <span className="ai-tool-card-index">#{index + 1}</span>
+                                                        </div>
+                                                        <div className="ai-tool-card-title">{getActionTitle(action)}</div>
+                                                        <div className="ai-tool-card-desc">{getActionDescription(action)}</div>
+                                                        {meta.length > 0 && (
+                                                            <div className="ai-tool-card-meta">
+                                                                {meta.map((item) => (
+                                                                    <span key={`${actionKey}-${item}`} className="ai-tool-card-meta-chip">{item}</span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        <div className="ai-tool-card-footer">
+                                                            <div className="ai-tool-card-name">{action.name}</div>
+                                                            <button
+                                                                className={`action-apply-inline-btn ${isApplied ? 'is-applied' : ''}`}
+                                                                onClick={() => handleApplySingleAction(msg.id, action, index)}
+                                                                disabled={isApplied}
+                                                                aria-label={isApplied ? '이미 적용된 액션' : '이 액션만 적용'}
+                                                            >
+                                                                {isApplied ? '적용됨' : '이 액션만 적용'}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 )}
                             </div>

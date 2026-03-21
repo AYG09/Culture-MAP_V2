@@ -38,9 +38,11 @@ import {
   ChevronDown,
   Cloud,
   Frown,
+  FileText,
   LayoutGrid,
   Layers,
   Link2,
+  MessageSquare,
   Minus,
   Pin,
   PinOff,
@@ -50,6 +52,7 @@ import {
   Smile,
   Target,
   Trash2,
+  Users,
   X,
 } from 'lucide-react';
 import AnimatedFlowEdge from './edges/AnimatedFlowEdge';
@@ -66,6 +69,7 @@ const ExportMenu = lazy(() => import('./ExportMenu'));
 const ReportEditor = lazy(() => import('./ReportEditor'));
 
 // 타입
+import { FREQUENCY_LABELS } from '../types/culture';
 import type { NoteData, ConnectionData, PerceptionIntensity } from '../types/culture';
 import type { StickyNoteData, ConnectionData as LBConnectionData, SessionType } from '../types/liveblocks';
 
@@ -119,6 +123,10 @@ type CollaborationLock = {
   userId: string;
   displayName?: string;
 };
+
+type WorkspacePanel = 'map' | 'ai' | 'report' | 'layers' | 'session';
+type AiPanelMode = 'hidden' | 'peek' | 'full';
+type RightPanelMode = 'none' | 'layers' | 'session' | 'inspector';
 
 // 커스텀 노드 타입 정의
 const nodeTypes = {
@@ -273,7 +281,7 @@ const CultureMapFlow = ({
 
   // 선택된 노드/엣지 상태 (추후 활용 가능)
   const [selectedNodes, setSelectedNodes] = useState<Node[]>([]);
-  const [, setSelectedEdges] = useState<Edge[]>([]);
+  const [selectedEdges, setSelectedEdges] = useState<Edge[]>([]);
   const selectedNodeIds = useMemo(() => selectedNodes.map((node) => node.id), [selectedNodes]);
   const hasSelectedNodes = selectedNodeIds.length > 0;
 
@@ -526,6 +534,10 @@ ${chatHistorySection}
 
   // 세션 관리 모달 상태
   const [showSessionInfo, setShowSessionInfo] = useState(false);
+  const [activeWorkspacePanel, setActiveWorkspacePanel] = useState<WorkspacePanel>('map');
+  const [aiPanelMode, setAiPanelMode] = useState<AiPanelMode>('peek');
+  const [rightPanelMode, setRightPanelMode] = useState<RightPanelMode>('layers');
+  const [isCanvasFocusMode, setIsCanvasFocusMode] = useState(false);
 
   // 반응형: 모바일 감지
   const isMobile = useIsMobile();
@@ -1424,6 +1436,159 @@ ${chatHistorySection}
     ],
     []
   );
+
+  const handleWorkspacePanelChange = useCallback((panel: WorkspacePanel) => {
+    setActiveWorkspacePanel(panel);
+
+    if (panel === 'report') {
+      setActiveTab('report');
+      setAiPanelMode('hidden');
+      setRightPanelMode('none');
+      setIsCanvasFocusMode(false);
+      return;
+    }
+
+    setActiveTab('map');
+    setIsCanvasFocusMode(false);
+
+    if (panel === 'ai') {
+      setAiPanelMode('full');
+      setRightPanelMode('none');
+      return;
+    }
+
+    if (panel === 'layers') {
+      setAiPanelMode('hidden');
+      setRightPanelMode('layers');
+      return;
+    }
+
+    if (panel === 'session') {
+      setAiPanelMode('hidden');
+      setRightPanelMode('session');
+      return;
+    }
+
+    setRightPanelMode('none');
+  }, []);
+
+  const handleToggleAiDrawerMode = useCallback(() => {
+    setActiveTab('map');
+    setActiveWorkspacePanel('ai');
+    setRightPanelMode('none');
+    setIsCanvasFocusMode(false);
+    setAiPanelMode((prev) => {
+      if (prev === 'hidden') return 'peek';
+      if (prev === 'peek') return 'full';
+      return 'hidden';
+    });
+  }, []);
+
+  const handleToggleCanvasFocusMode = useCallback(() => {
+    setIsCanvasFocusMode((prev) => {
+      const next = !prev;
+      if (next) {
+        setAiPanelMode('hidden');
+        setRightPanelMode('none');
+        setShowLayerControlPanel(false);
+      } else if (activeWorkspacePanel === 'ai') {
+        setAiPanelMode('full');
+      }
+      return next;
+    });
+  }, [activeWorkspacePanel]);
+
+  const selectedInspectorNode = useMemo(() => {
+    const selectedNode = selectedNodes[0];
+    if (!selectedNode) {
+      return null;
+    }
+
+    const data = (selectedNode.data as {
+      content?: string;
+      sentiment?: NoteData['sentiment'];
+      frequency?: PerceptionIntensity | null;
+      basis?: string;
+      createdBy?: NoteData['createdBy'];
+      pinned?: boolean;
+    } | undefined) ?? {};
+
+    const note = aiContext.notes.find((item) => item.id === selectedNode.id);
+    const connectionCount = aiContext.connections.filter(
+      (item) => item.sourceId === selectedNode.id || item.targetId === selectedNode.id
+    ).length;
+    const layerName = layerDefinitions.find((item) => item.index + 1 === (note?.layer ?? toLayerValue(undefined, toNoteType(selectedNode.type))))?.name;
+
+    return {
+      id: selectedNode.id,
+      content: data.content ?? note?.content ?? '내용 없음',
+      type: note?.type ?? toNoteType(selectedNode.type),
+      layer: note?.layer ?? toLayerValue(undefined, toNoteType(selectedNode.type)),
+      layerName: layerName ?? '미분류',
+      sentiment: data.sentiment ?? note?.sentiment ?? 'neutral',
+      frequency: data.frequency ?? note?.perceptionIntensity ?? null,
+      basis: data.basis ?? note?.basis ?? '',
+      createdBy: data.createdBy ?? note?.createdBy ?? 'user',
+      pinned: data.pinned ?? note?.pinned ?? false,
+      position: selectedNode.position,
+      connectionCount,
+    };
+  }, [aiContext.connections, aiContext.notes, layerDefinitions, selectedNodes]);
+
+  const selectedInspectorEdge = useMemo(() => {
+    const selectedEdge = selectedEdges[0];
+    if (!selectedEdge) {
+      return null;
+    }
+
+    const edgeData = (selectedEdge.data as {
+      relationType?: ConnectionData['relationType'];
+      isPositive?: boolean;
+    } | undefined) ?? {};
+
+    const connection = aiContext.connections.find((item) => item.id === selectedEdge.id);
+    const sourceNote = aiContext.notes.find((item) => item.id === selectedEdge.source);
+    const targetNote = aiContext.notes.find((item) => item.id === selectedEdge.target);
+    const relationDirection = `${sourceNote?.content ?? selectedEdge.source} -> ${targetNote?.content ?? selectedEdge.target}`;
+    const causalInterpretation = connection?.isPositive ?? edgeData.isPositive ?? true
+      ? `${sourceNote?.content ?? '출발 노드'}가 강화될수록 ${targetNote?.content ?? '도착 노드'}도 함께 강화되는 흐름입니다.`
+      : `${sourceNote?.content ?? '출발 노드'}가 강화될수록 ${targetNote?.content ?? '도착 노드'}에는 제약 또는 긴장이 커지는 흐름입니다.`;
+
+    return {
+      id: selectedEdge.id,
+      relationType: connection?.relationType ?? edgeData.relationType ?? 'direct',
+      isPositive: connection?.isPositive ?? edgeData.isPositive ?? true,
+      sourceLabel: sourceNote?.content ?? selectedEdge.source,
+      targetLabel: targetNote?.content ?? selectedEdge.target,
+      relationDirection,
+      causalInterpretation,
+      createdBy: connection?.createdBy ?? 'user',
+      sourceHandle: connection?.sourceHandle ?? selectedEdge.sourceHandle,
+      targetHandle: connection?.targetHandle ?? selectedEdge.targetHandle,
+    };
+  }, [aiContext.connections, aiContext.notes, selectedEdges]);
+
+  const handleRightPanelTabChange = useCallback((mode: Exclude<RightPanelMode, 'none'>) => {
+    if (mode === 'inspector' && !selectedInspectorNode && !selectedInspectorEdge) {
+      return;
+    }
+
+    setActiveTab('map');
+    setIsCanvasFocusMode(false);
+    setRightPanelMode(mode);
+
+    if (mode === 'layers') {
+      setActiveWorkspacePanel('layers');
+      return;
+    }
+
+    if (mode === 'session') {
+      setActiveWorkspacePanel('session');
+      return;
+    }
+
+    setActiveWorkspacePanel('map');
+  }, [selectedInspectorEdge, selectedInspectorNode]);
 
   const handleLayerLabelClick = useCallback(
     (layerIndex: number) => {
@@ -3233,8 +3398,15 @@ ${chatHistorySection}
     console.log('🎨 [Render] contextMenu opened:', contextMenu);
   }
 
+  const session = liveblocksService.getCurrentSession();
+  const effectiveRightPanelMode: RightPanelMode = selectedInspectorNode || selectedInspectorEdge
+    ? 'inspector'
+    : rightPanelMode;
+  const showDesktopAiDrawer = !isMobile && activeTab === 'map' && !isCanvasFocusMode && aiPanelMode !== 'hidden';
+  const showDesktopRightPanel = !isMobile && activeTab === 'map' && !isCanvasFocusMode && effectiveRightPanelMode !== 'none';
+
   return (
-    <div className="culture-map-flow-wrapper" style={{
+    <div className={`culture-map-flow-wrapper workspace-shell ${isCanvasFocusMode ? 'workspace-shell--focus' : ''}`} style={{
       display: 'flex',
       flexDirection: 'column',
       width: '100%',
@@ -3242,8 +3414,40 @@ ${chatHistorySection}
       overflow: 'hidden', // 자식 요소가 부모를 넘치지 못하게
       ...(applyStyleVariables(styleVariables) as CSSProperties)
     }}>
+      <div className="workspace-session-strip no-print">
+        <div className="workspace-session-strip__left">
+          <div className="workspace-session-chip">
+            <span className="workspace-session-chip__label">워크스페이스</span>
+            <strong>{activeTab === 'report' ? '보고서 편집' : '컬쳐맵 분석'}</strong>
+          </div>
+          <div className="workspace-session-chip workspace-session-chip--mode">
+            <span className="workspace-session-chip__label">모드</span>
+            <strong>{mode === 'consulting' ? '컨설팅' : '워크숍'}</strong>
+          </div>
+        </div>
+        <div className="workspace-session-strip__right">
+          {session ? (
+            <>
+              <div className="workspace-inline-status">
+                <span className="workspace-inline-status__label">세션</span>
+                <strong>{session.name || session.code}</strong>
+              </div>
+              <div className="workspace-inline-status">
+                <span className="workspace-inline-status__label">참여자</span>
+                <strong>{session.connectedUsers}명</strong>
+              </div>
+            </>
+          ) : (
+            <div className="workspace-inline-status">
+              <span className="workspace-inline-status__label">세션</span>
+              <strong>연결 중</strong>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* 상단 바 */}
-      <div className="culture-top-bar no-print">
+      <div className="culture-top-bar no-print workspace-toolbar">
         <div className="top-bar-left">
           <h1 className="top-bar-title">
             <span role="img" aria-label="map icon">🗺️</span>
@@ -3278,6 +3482,24 @@ ${chatHistorySection}
         </div>
 
         <div className="top-bar-right">
+          <button
+            className={`glass-button ${aiPanelMode !== 'hidden' ? 'glass-button--accent' : ''}`}
+            type="button"
+            onClick={handleToggleAiDrawerMode}
+            title="AI 패널 표시 상태 전환"
+          >
+            💬 AI {aiPanelMode === 'hidden' ? '열기' : aiPanelMode === 'peek' ? '확장' : '접기'}
+          </button>
+
+          <button
+            className={`glass-button ${isCanvasFocusMode ? 'glass-button--accent' : ''}`}
+            type="button"
+            onClick={handleToggleCanvasFocusMode}
+            title="캔버스 집중 모드 전환"
+          >
+            {isCanvasFocusMode ? '🧭 집중 해제' : '🎯 집중 모드'}
+          </button>
+
           {/* 컬쳐맵 내보내기 메뉴 */}
           {showExportMenu && (
             <Suspense fallback={<div className="lazy-loading">로딩...</div>}>
@@ -3293,38 +3515,34 @@ ${chatHistorySection}
           )}
 
           {/* 세션 정보 */}
-          {(() => {
-            const session = liveblocksService.getCurrentSession();
-
-            return session ? (
-              <>
-                <button
-                  className="glass-button glass-button--accent"
-                  type="button"
-                  onClick={() => setShowSessionInfo(true)}
-                  title="세션 관리 및 접속 안내"
-                >
-                  🔗 세션 관리
-                </button>
-                <button
-                  className="glass-button"
-                  type="button"
-                  onClick={() => {
-                    if (window.confirm('세션에서 나가시겠습니까?\n\n작업 내용은 저장됩니다.')) {
-                      localStorage.removeItem('culture-map-last-session');
-                      liveblocksService.leaveSession();
-                      window.location.reload();
-                    }
-                  }}
-                  title="세션 나가기"
-                >
-                  🚪 나가기
-                </button>
-              </>
-            ) : (
-              <span style={{ fontSize: '14px', color: '#6b7280' }}>세션 연결 중...</span>
-            );
-          })()}
+          {session ? (
+            <>
+              <button
+                className="glass-button glass-button--accent"
+                type="button"
+                onClick={() => setShowSessionInfo(true)}
+                title="세션 관리 및 접속 안내"
+              >
+                🔗 세션 관리
+              </button>
+              <button
+                className="glass-button"
+                type="button"
+                onClick={() => {
+                  if (window.confirm('세션에서 나가시겠습니까?\n\n작업 내용은 저장됩니다.')) {
+                    localStorage.removeItem('culture-map-last-session');
+                    liveblocksService.leaveSession();
+                    window.location.reload();
+                  }
+                }}
+                title="세션 나가기"
+              >
+                🚪 나가기
+              </button>
+            </>
+          ) : (
+            <span style={{ fontSize: '14px', color: '#6b7280' }}>세션 연결 중...</span>
+          )}
 
           {/* Clear All 버튼 */}
           <button
@@ -3351,7 +3569,7 @@ ${chatHistorySection}
       </div>
 
       {/* 메인 컨텐츠 영역 */}
-      <div className="culture-map-flow-container" style={{
+      <div className="culture-map-flow-container workspace-body" style={{
         display: 'flex',
         width: '100%',
         flex: 1,
@@ -3362,50 +3580,105 @@ ${chatHistorySection}
         {/* 컬쳐맵 탭 */}
         {activeTab === 'map' && (
           <>
-            {/* 왼쪽 사이드메뉴 - 데스크톱만 표시 */}
             {!isMobile && (
-              <div className="left-panel no-print" style={{
-                position: 'relative',
-                width: `${sidebarWidth}px`,
-                minWidth: `${sidebarWidth}px`,
-                height: '100%',
-                overflowY: 'auto',
-                borderRight: '1px solid #e5e7eb',
-                backgroundColor: '#f9fafb',
-                wordBreak: 'keep-all',
-                wordWrap: 'break-word',
-                overflowWrap: 'break-word'
-              }}>
-                <AIChatSidebar
-                  onActionExecute={handleAiAction}
-                  notes={aiContext.notes}
-                  connections={aiContext.connections}
-                  layerHeights={layerHeights}
-                  passwordType={mode}
-                />
+              <aside className="workspace-activity-rail no-print" aria-label="워크스페이스 패널 전환">
+                <button
+                  type="button"
+                  className={`workspace-activity-button ${activeTab === 'map' && activeWorkspacePanel === 'map' && rightPanelMode === 'none' && aiPanelMode === 'hidden' ? 'workspace-activity-button--active' : ''}`}
+                  onClick={() => handleWorkspacePanelChange('map')}
+                >
+                  <LayoutGrid size={18} />
+                  <span>맵</span>
+                </button>
+                <button
+                  type="button"
+                  className={`workspace-activity-button ${aiPanelMode !== 'hidden' ? 'workspace-activity-button--active' : ''}`}
+                  onClick={() => handleWorkspacePanelChange('ai')}
+                >
+                  <MessageSquare size={18} />
+                  <span>AI</span>
+                </button>
+                <button
+                  type="button"
+                  className={`workspace-activity-button ${rightPanelMode === 'layers' ? 'workspace-activity-button--active' : ''}`}
+                  onClick={() => handleWorkspacePanelChange('layers')}
+                >
+                  <Layers size={18} />
+                  <span>층위</span>
+                </button>
+                <button
+                  type="button"
+                  className={`workspace-activity-button ${rightPanelMode === 'session' ? 'workspace-activity-button--active' : ''}`}
+                  onClick={() => handleWorkspacePanelChange('session')}
+                >
+                  <Users size={18} />
+                  <span>세션</span>
+                </button>
+                <button
+                  type="button"
+                  className="workspace-activity-button"
+                  onClick={() => handleWorkspacePanelChange('report')}
+                >
+                  <FileText size={18} />
+                  <span>리포트</span>
+                </button>
+              </aside>
+            )}
 
-                {/* 리사이즈 핸들 */}
-                <div
-                  onMouseDown={handleMouseDown}
-                  style={{
-                    position: 'absolute',
-                    right: 0,
-                    top: 0,
-                    width: '5px',
-                    height: '100%',
-                    cursor: 'col-resize',
-                    backgroundColor: isResizing ? '#3b82f6' : 'transparent',
-                    transition: isResizing ? 'none' : 'background-color 0.2s',
-                    zIndex: 10
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isResizing) e.currentTarget.style.backgroundColor = '#e5e7eb';
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isResizing) e.currentTarget.style.backgroundColor = 'transparent';
-                  }}
-                />
-              </div>
+            {showDesktopAiDrawer && (
+              aiPanelMode === 'peek' ? (
+                <aside className="workspace-ai-drawer workspace-ai-drawer--peek no-print">
+                  <button
+                    type="button"
+                    className="workspace-ai-peek-button"
+                    onClick={() => setAiPanelMode('full')}
+                  >
+                    <MessageSquare size={18} />
+                    <span>AI 코파일럿</span>
+                    <small>확장</small>
+                  </button>
+                </aside>
+              ) : (
+                <div className="workspace-ai-drawer no-print" style={{
+                  position: 'relative',
+                  width: `${sidebarWidth}px`,
+                  minWidth: `${sidebarWidth}px`,
+                  height: '100%',
+                  overflowY: 'auto',
+                  wordBreak: 'keep-all',
+                  wordWrap: 'break-word',
+                  overflowWrap: 'break-word'
+                }}>
+                  <AIChatSidebar
+                    onActionExecute={handleAiAction}
+                    notes={aiContext.notes}
+                    connections={aiContext.connections}
+                    layerHeights={layerHeights}
+                    passwordType={mode}
+                  />
+
+                  <div
+                    onMouseDown={handleMouseDown}
+                    style={{
+                      position: 'absolute',
+                      right: 0,
+                      top: 0,
+                      width: '5px',
+                      height: '100%',
+                      cursor: 'col-resize',
+                      backgroundColor: isResizing ? '#3b82f6' : 'transparent',
+                      transition: isResizing ? 'none' : 'background-color 0.2s',
+                      zIndex: 10
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isResizing) e.currentTarget.style.backgroundColor = '#e5e7eb';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isResizing) e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  />
+                </div>
+              )
             )}
 
             {/* 모바일 사이드바 오버레이 */}
@@ -3480,6 +3753,7 @@ ${chatHistorySection}
 
             {/* 메인 React Flow 영역 */}
             <div
+              className="workspace-canvas-shell"
               ref={flowWrapperRef}
               data-capture-root="true"
               style={{ position: 'relative', flex: '1 1 0', overflow: 'hidden' }}
@@ -3684,6 +3958,244 @@ ${chatHistorySection}
                 })}
               </div>
             </div> {/* 메인 React Flow 영역 닫기 */}
+
+            {showDesktopRightPanel && (
+              <aside className="workspace-side-panel no-print">
+                <div className="workspace-side-panel__header">
+                  <div>
+                    <span className="workspace-side-panel__eyebrow">컨텍스트 패널</span>
+                    <h3>
+                      {effectiveRightPanelMode === 'inspector'
+                        ? '인스펙터'
+                        : effectiveRightPanelMode === 'session'
+                          ? '세션'
+                          : '레이어'}
+                    </h3>
+                  </div>
+                  <div className="workspace-side-panel__tabs" role="tablist" aria-label="우측 패널 모드">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={effectiveRightPanelMode === 'layers'}
+                      className={`workspace-side-panel__tab ${effectiveRightPanelMode === 'layers' ? 'workspace-side-panel__tab--active' : ''}`}
+                      onClick={() => handleRightPanelTabChange('layers')}
+                    >
+                      레이어
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={effectiveRightPanelMode === 'session'}
+                      className={`workspace-side-panel__tab ${effectiveRightPanelMode === 'session' ? 'workspace-side-panel__tab--active' : ''}`}
+                      onClick={() => handleRightPanelTabChange('session')}
+                    >
+                      세션
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={effectiveRightPanelMode === 'inspector'}
+                      disabled={!selectedInspectorNode && !selectedInspectorEdge}
+                      className={`workspace-side-panel__tab ${effectiveRightPanelMode === 'inspector' ? 'workspace-side-panel__tab--active' : ''}`}
+                      onClick={() => handleRightPanelTabChange('inspector')}
+                    >
+                      인스펙터
+                    </button>
+                  </div>
+                </div>
+
+                {effectiveRightPanelMode === 'inspector' && (
+                  <div className="workspace-side-card">
+                    <div className="workspace-side-card__header">
+                      <h3>{selectedInspectorNode ? '노드 상세' : '연결 흐름'}</h3>
+                      <button
+                        type="button"
+                        className="workspace-side-link"
+                        onClick={() => {
+                          setSelectedNodes([]);
+                          setSelectedEdges([]);
+                          setRightPanelMode('layers');
+                        }}
+                      >
+                        선택 해제
+                      </button>
+                    </div>
+
+                    {selectedInspectorNode && (
+                      <>
+                        <p className="workspace-side-card__description">선택한 노드의 층위, 감정, 근거와 연결 밀도를 함께 확인합니다.</p>
+                        <div className="workspace-side-card__stats">
+                          <div className="workspace-side-card__stat">
+                            <span>노드 유형</span>
+                            <strong>{selectedInspectorNode.type}</strong>
+                          </div>
+                          <div className="workspace-side-card__stat">
+                            <span>층위</span>
+                            <strong>{selectedInspectorNode.layerName}</strong>
+                          </div>
+                          <div className="workspace-side-card__stat">
+                            <span>감정</span>
+                            <strong>{selectedInspectorNode.sentiment === 'positive' ? '긍정' : selectedInspectorNode.sentiment === 'negative' ? '부정' : '중립'}</strong>
+                          </div>
+                          <div className="workspace-side-card__stat">
+                            <span>연결 수</span>
+                            <strong>{selectedInspectorNode.connectionCount}개</strong>
+                          </div>
+                          <div className="workspace-side-card__stat">
+                            <span>빈도</span>
+                            <strong>{selectedInspectorNode.frequency ? FREQUENCY_LABELS[selectedInspectorNode.frequency] : '없음'}</strong>
+                          </div>
+                          <div className="workspace-side-card__stat">
+                            <span>생성 주체</span>
+                            <strong>{selectedInspectorNode.createdBy === 'ai' ? 'AI' : '사용자'}</strong>
+                          </div>
+                          <div className="workspace-side-card__stat">
+                            <span>자동 정렬 고정</span>
+                            <strong>{selectedInspectorNode.pinned ? '고정됨' : '이동 가능'}</strong>
+                          </div>
+                          <div className="workspace-side-card__stat">
+                            <span>위치</span>
+                            <strong>{`${Math.round(selectedInspectorNode.position.x)}, ${Math.round(selectedInspectorNode.position.y)}`}</strong>
+                          </div>
+                        </div>
+                        <div className="workspace-inspector-block">
+                          <span className="workspace-inspector-block__label">내용</span>
+                          <p>{selectedInspectorNode.content}</p>
+                        </div>
+                        <div className="workspace-inspector-block">
+                          <span className="workspace-inspector-block__label">메모 및 근거</span>
+                          <p>{selectedInspectorNode.basis || '등록된 근거 없음'}</p>
+                        </div>
+                      </>
+                    )}
+
+                    {!selectedInspectorNode && selectedInspectorEdge && (
+                      <>
+                        <p className="workspace-side-card__description">선택한 연결선의 방향성과 인과 해석을 함께 확인합니다.</p>
+                        <div className="workspace-inspector-connection-flow">
+                          <div className="workspace-inspector-connection-node">
+                            <span>출발</span>
+                            <strong>{selectedInspectorEdge.sourceLabel}</strong>
+                          </div>
+                          <div className="workspace-inspector-connection-arrow">→</div>
+                          <div className="workspace-inspector-connection-node">
+                            <span>도착</span>
+                            <strong>{selectedInspectorEdge.targetLabel}</strong>
+                          </div>
+                        </div>
+                        <div className="workspace-side-card__stats">
+                          <div className="workspace-side-card__stat">
+                            <span>관계 방향</span>
+                            <strong>{selectedInspectorEdge.relationDirection}</strong>
+                          </div>
+                          <div className="workspace-side-card__stat">
+                            <span>연결 유형</span>
+                            <strong>{selectedInspectorEdge.relationType === 'indirect' ? '간접 영향' : '직접 영향'}</strong>
+                          </div>
+                          <div className="workspace-side-card__stat">
+                            <span>영향 부호</span>
+                            <strong>{selectedInspectorEdge.isPositive ? '긍정 영향' : '부정 영향'}</strong>
+                          </div>
+                          <div className="workspace-side-card__stat">
+                            <span>생성 주체</span>
+                            <strong>{selectedInspectorEdge.createdBy === 'ai' ? 'AI' : '사용자'}</strong>
+                          </div>
+                        </div>
+                        <div className="workspace-inspector-block">
+                          <span className="workspace-inspector-block__label">인과 해석</span>
+                          <p>{selectedInspectorEdge.causalInterpretation}</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {effectiveRightPanelMode === 'layers' && (
+                  <div className="workspace-side-card">
+                    <div className="workspace-side-card__header">
+                      <h3>층위 구조</h3>
+                      <button type="button" className="workspace-side-link" onClick={() => setShowLayerControlPanel(true)}>
+                        세부 편집
+                      </button>
+                    </div>
+                    <p className="workspace-side-card__description">좌측 층위 전환과 연결된 요약 패널입니다. 현재 4층위 모델의 상태와 가이드를 빠르게 확인합니다.</p>
+                    <div className="workspace-side-card__list">
+                      {layerDefinitions.map((layer) => {
+                        const noteCount = aiContext.notes.filter((note) => note.layer === layer.index + 1).length;
+                        const isSelected = selectedLayerIndex === layer.index;
+                        return (
+                          <button
+                            key={layer.name}
+                            type="button"
+                            className={`workspace-layer-summary ${isSelected ? 'workspace-layer-summary--active' : ''}`}
+                            onClick={() => {
+                              setSelectedLayerIndex(layer.index);
+                              setShowLayerControlPanel(true);
+                            }}
+                          >
+                            <div>
+                              <strong>{layer.name}</strong>
+                              <p>{layer.description}</p>
+                            </div>
+                            <span>{noteCount}개</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="workspace-side-card__actions">
+                      <button
+                        type="button"
+                        className="workspace-side-action"
+                        onClick={() => setShowLayerBackground(!showLayerBackground)}
+                      >
+                        {showLayerBackground ? '층위 배경 숨기기' : '층위 배경 표시'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {effectiveRightPanelMode === 'session' && (
+                  <div className="workspace-side-card">
+                    <div className="workspace-side-card__header">
+                      <h3>세션 상태</h3>
+                      <button type="button" className="workspace-side-link" onClick={() => setShowSessionInfo(true)}>
+                        전체 보기
+                      </button>
+                    </div>
+                    <p className="workspace-side-card__description">좌측 세션 전환과 연결된 패널입니다. 협업 상태와 공유 진입점을 빠르게 확인합니다.</p>
+                    {session ? (
+                      <>
+                        <div className="workspace-side-card__stats">
+                          <div className="workspace-side-card__stat">
+                            <span>세션명</span>
+                            <strong>{session.name || `세션 ${session.code}`}</strong>
+                          </div>
+                          <div className="workspace-side-card__stat">
+                            <span>세션 코드</span>
+                            <strong>{session.code}</strong>
+                          </div>
+                          <div className="workspace-side-card__stat">
+                            <span>참여자</span>
+                            <strong>{session.connectedUsers}명</strong>
+                          </div>
+                          <div className="workspace-side-card__stat">
+                            <span>내 역할</span>
+                            <strong>{session.isHost ? '호스트' : '참가자'}</strong>
+                          </div>
+                        </div>
+                        <div className="workspace-side-card__actions">
+                          <button type="button" className="workspace-side-action" onClick={() => setShowSessionInfo(true)}>
+                            QR 및 공유 열기
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="workspace-side-card__description">세션 정보를 불러오는 중입니다.</p>
+                    )}
+                  </div>
+                )}
+              </aside>
+            )}
           </>
         )} {/* 컬쳐맵 탭 닫기 */}
 
