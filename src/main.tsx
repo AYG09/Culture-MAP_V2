@@ -6,6 +6,17 @@ import 'react-quill-new/dist/quill.snow.css'; // React Quill New 스타일
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 import liveblocksService from './services/LiveblocksService';
 import { aiService } from './services/AIService';
+import { reloadOnceForChunkLoadError } from './utils/chunkLoadRecovery';
+
+window.addEventListener('unhandledrejection', (event) => {
+  if (reloadOnceForChunkLoadError(event.reason)) {
+    event.preventDefault();
+  }
+});
+
+window.addEventListener('error', (event) => {
+  reloadOnceForChunkLoadError(event.error || event.message);
+});
 
 // Liveblocks 앱 초기화
 async function initializeApp() {

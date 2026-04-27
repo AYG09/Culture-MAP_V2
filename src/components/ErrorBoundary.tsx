@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { reloadOnceForChunkLoadError } from '../utils/chunkLoadRecovery';
 
 interface Props {
   children: ReactNode;
@@ -19,6 +20,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    if (reloadOnceForChunkLoadError(error)) return;
     console.error('Uncaught error:', error, errorInfo);
   }
 

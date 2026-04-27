@@ -3,11 +3,11 @@ import { BrowserRouter as Router } from 'react-router-dom';
 
 import liveblocksService from './services/LiveblocksService';
 import aiService from './services/AIService';
+import LiveblocksRoomProvider from './components/LiveblocksRoomProvider';
 
 const Gateway = lazy(() => import('./components/Gateway'));
 const CultureMapFlow = lazy(() => import('./components/CultureMapFlow'));
 const VideoSplash = lazy(() => import('./components/VideoSplash'));
-const LiveblocksRoomProvider = lazy(() => import('./components/LiveblocksRoomProvider'));
 
 import type { ConnectionData, NoteData, NoteType } from './types/culture';
 import type { StickyNoteData, ConnectionData as LBConnectionData } from './types/liveblocks';
