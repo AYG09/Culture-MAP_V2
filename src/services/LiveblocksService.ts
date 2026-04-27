@@ -76,11 +76,15 @@ class LiveblocksService {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'x-culturemap-user-id': this.userId,
-                        'x-culturemap-user-name': this.displayName,
-                        'x-culturemap-user-color': this.userColor,
                     },
-                    body: JSON.stringify({ room }),
+                    body: JSON.stringify({
+                        room,
+                        user: {
+                            id: this.userId,
+                            name: this.displayName,
+                            color: this.userColor,
+                        },
+                    }),
                 });
 
                 if (!response.ok) {

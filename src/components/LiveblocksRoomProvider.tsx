@@ -47,11 +47,15 @@ export function LiveblocksRoomProvider({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-culturemap-user-id': userId || '',
-          'x-culturemap-user-name': userName || '익명',
-          'x-culturemap-user-color': userColor || '#888888',
         },
-        body: JSON.stringify({ room }),
+        body: JSON.stringify({
+          room,
+          user: {
+            id: userId || '',
+            name: userName || '익명',
+            color: userColor || '#888888',
+          },
+        }),
       });
 
       if (!response.ok) {

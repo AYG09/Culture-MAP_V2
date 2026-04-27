@@ -16,9 +16,10 @@ function getHeaderValue(value: string | string[] | undefined): string | undefine
 }
 
 function getUser(req: VercelRequest): { id: string; name: string; color: string } {
-    const requestedUserId = getHeaderValue(req.headers['x-culturemap-user-id']);
-    const requestedName = getHeaderValue(req.headers['x-culturemap-user-name']);
-    const requestedColor = getHeaderValue(req.headers['x-culturemap-user-color']);
+    const bodyUser = req.body?.user && typeof req.body.user === 'object' ? req.body.user as Record<string, unknown> : {};
+    const requestedUserId = typeof bodyUser.id === 'string' ? bodyUser.id : getHeaderValue(req.headers['x-culturemap-user-id']);
+    const requestedName = typeof bodyUser.name === 'string' ? bodyUser.name : getHeaderValue(req.headers['x-culturemap-user-name']);
+    const requestedColor = typeof bodyUser.color === 'string' ? bodyUser.color : getHeaderValue(req.headers['x-culturemap-user-color']);
     const ip = getHeaderValue(req.headers['x-forwarded-for'])?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
     const fallbackId = `guest-${Buffer.from(ip).toString('base64url').slice(0, 16)}`;
 
