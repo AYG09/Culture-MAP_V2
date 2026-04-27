@@ -13,12 +13,13 @@
 
 | Key | 설명 |
 |-----|------|
-| `VITE_LIVEBLOCKS_PUBLIC_KEY` | Liveblocks 공개 키 |
+| `LIVEBLOCKS_SECRET_KEY` | Liveblocks Secret Key (서버 인증/룸 관리용) |
+| `APP_ORIGIN` | 허용할 앱 Origin |
+| `ADMIN_API_TOKEN` | 관리자 API 보호 토큰 |
 | `VITE_GEMINI_API_KEY` | Gemini AI API 키 |
 | `VITE_APP_ENV` | 앱 환경 (production) |
 | `VITE_SKIP_GATE` | 게이트웨이 활성화 여부 |
 | `VITE_GATEWAY_ADMIN_PASSWORD` | 관리자 비밀번호 |
-| `LIVEBLOCKS_SECRET_KEY` | Liveblocks Secret Key (Serverless Function용) |
 
 ## 새 기능 (2026-01-15)
 

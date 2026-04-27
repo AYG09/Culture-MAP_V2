@@ -13,13 +13,8 @@ async function initializeApp() {
 
   // Liveblocks 클라이언트 초기화
   try {
-    const publicKey = import.meta.env.VITE_LIVEBLOCKS_PUBLIC_KEY;
-    if (publicKey) {
-      liveblocksService.initialize(publicKey);
-      console.log('✅ Liveblocks 준비 완료');
-    } else {
-      console.warn('⚠️ Liveblocks API 키가 설정되지 않음 - 협업 기능 비활성화');
-    }
+    liveblocksService.initialize();
+    console.log('✅ Liveblocks 준비 완료');
   } catch (error) {
     console.error('❌ Liveblocks 초기화 오류:', error);
   }

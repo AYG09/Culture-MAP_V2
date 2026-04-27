@@ -96,9 +96,8 @@ function App() {
 
   // Liveblocks 초기화 (세션 연결은 Gateway에서 처리)
   useEffect(() => {
-    const publicKey = import.meta.env.VITE_LIVEBLOCKS_PUBLIC_KEY;
-    if (publicKey && !isLiveblocksInitialized) {
-      liveblocksService.initialize(publicKey);
+    if (!isLiveblocksInitialized) {
+      liveblocksService.initialize();
       setIsLiveblocksInitialized(true);
       console.log('🔗 Liveblocks 초기화 완료');
     }

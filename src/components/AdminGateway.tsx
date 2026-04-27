@@ -593,7 +593,10 @@ const AdminGateway = ({ onBack }: AdminGatewayProps) => {
     try {
       const results = await liveblocksAdminService.deleteRooms(Array.from(selectedRooms));
       const successCount = results.filter(r => r.success).length;
-      alert(`${successCount}/${selectedRooms.size}개 룸 삭제 완료`);
+      const failed = results.filter(r => !r.success);
+      alert(failed.length > 0
+        ? `${successCount}/${selectedRooms.size}개 룸 삭제 완료\n실패: ${failed.map(r => r.roomId).join(', ')}`
+        : `${successCount}/${selectedRooms.size}개 룸 삭제 완료`);
       setSelectedRooms(new Set());
       await loadCloudRooms();
     } catch (err) {

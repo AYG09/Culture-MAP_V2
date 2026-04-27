@@ -32,7 +32,9 @@ npm install
 `.env.local` 파일을 생성하고 다음 정보를 입력합니다:
 
 ```env
-VITE_LIVEBLOCKS_PUBLIC_KEY=your_key
+LIVEBLOCKS_SECRET_KEY=your_secret_key
+APP_ORIGIN=http://localhost:5173
+ADMIN_API_TOKEN=change-this-admin-token
 VITE_GEMINI_API_KEY=your_key
 TAVILY_API_KEY=your_key
 VITE_SKIP_GATE=true # 개발 시 게이트웨이 건너뛰기

@@ -372,7 +372,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
     }
 
     // 비밀번호 설정 여부 확인
-    const hasPassword = await liveblocksService.getOrganizationPassword(org);
+    const hasPassword = await liveblocksService.hasOrganizationPassword(org);
     if (!hasPassword) {
       // 비밀번호 미설정 시 바로 진입
       setSelectedOrg(org);
@@ -434,10 +434,14 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
     setIsSubmitting(true);
 
     try {
-      // 환경변수에서 관리자 비밀번호 가져와서 비교
-      const envAdminPassword = import.meta.env.VITE_GATEWAY_ADMIN_PASSWORD || 'admin';
+      const response = await fetch('/api/admin-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ password: adminPassword }),
+      });
 
-      if (adminPassword === envAdminPassword) {
+      if (response.ok) {
         setShowAdminModal(false);
         setShowAdminPanel(true);
         setAdminPassword(''); // 초기화

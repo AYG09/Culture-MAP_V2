@@ -17,6 +17,12 @@ export interface ListRoomsResponse {
     nextCursor?: string;
 }
 
+export interface DeleteRoomResult {
+    roomId: string;
+    success: boolean;
+    error?: string;
+}
+
 class LiveblocksAdminService {
     private baseUrl = '/api/liveblocks-admin';
 
@@ -25,9 +31,10 @@ class LiveblocksAdminService {
      */
     async listRooms(): Promise<LiveblocksRoom[]> {
         try {
-            const response = await fetch(`${this.baseUrl}?action=list`);
+            const response = await fetch(`${this.baseUrl}?action=list`, { credentials: 'include' });
             if (!response.ok) {
-                throw new Error(`Failed to list rooms: ${response.statusText}`);
+                const errorText = await response.text();
+                throw new Error(`Failed to list rooms: ${response.status} ${errorText}`);
             }
             const data: ListRoomsResponse = await response.json();
             return data.data || [];
@@ -45,8 +52,13 @@ class LiveblocksAdminService {
             const response = await fetch(`${this.baseUrl}?action=delete`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({ roomId }),
             });
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to delete room ${roomId}: ${response.status} ${errorText}`);
+            }
             const data = await response.json();
             return data.success === true;
         } catch (error) {
@@ -58,13 +70,18 @@ class LiveblocksAdminService {
     /**
      * 여러 룸 일괄 삭제
      */
-    async deleteRooms(roomIds: string[]): Promise<{ roomId: string; success: boolean }[]> {
+    async deleteRooms(roomIds: string[]): Promise<DeleteRoomResult[]> {
         try {
             const response = await fetch(`${this.baseUrl}?action=delete-bulk`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({ roomIds }),
             });
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Bulk delete failed: ${response.status} ${errorText}`);
+            }
             const data = await response.json();
             return data.results || [];
         } catch (error) {

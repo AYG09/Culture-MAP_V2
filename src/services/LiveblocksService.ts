@@ -68,10 +68,27 @@ class LiveblocksService {
         this.userColor = this.generateUserColor();
     }
 
-    public initialize(publicKey: string): void {
+    public initialize(): void {
         if (this.client) return;
         this.client = createClient({
-            publicApiKey: publicKey,
+            authEndpoint: async (room) => {
+                const response = await fetch('/api/liveblocks-auth', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-culturemap-user-id': this.userId,
+                        'x-culturemap-user-name': this.displayName,
+                        'x-culturemap-user-color': this.userColor,
+                    },
+                    body: JSON.stringify({ room }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Liveblocks authorization failed: ${response.status}`);
+                }
+
+                return await response.json();
+            },
             largeMessageStrategy: 'split',
         });
         console.log('🔗 Liveblocks 클라이언트 초기화 완료');
@@ -136,6 +153,12 @@ class LiveblocksService {
         return JSON.parse(JSON.stringify(value)) as T;
     }
 
+    private assertHostCanRunDestructiveAction(action: string): void {
+        if (!this.currentSession?.isHost) {
+            throw new Error(`${action}은 호스트만 실행할 수 있습니다.`);
+        }
+    }
+
     private getHistoryArray() {
         if (!this.yDoc) return null;
         return this.yDoc.getArray<{
@@ -187,6 +210,7 @@ class LiveblocksService {
     }
 
     public undoLastAction(): boolean {
+        this.assertHostCanRunDestructiveAction('undoLastAction');
         if (!this.yDoc) return false;
         const history = this.getHistoryArray();
         if (!history || history.length === 0) return false;
@@ -234,7 +258,23 @@ class LiveblocksService {
         if (normalizedCode && !this.isValidSessionCode(normalizedCode)) {
             throw new Error('세션 코드가 올바르지 않습니다. 3~12자 영문/숫자/하이픈만 사용할 수 있습니다.');
         }
-        const code = normalizedCode ?? this.generateSessionCode();
+        const response = await fetch('/api/sessions?action=create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                code: normalizedCode || undefined,
+                name: sessionName,
+                type: sessionType,
+                organization,
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`세션 생성에 실패했습니다. (${response.status})`);
+        }
+
+        const data = await response.json() as { code: string };
+        const code = data.code;
         await this.joinSession(code, true, sessionName, sessionType, organization);
         return code;
     }
@@ -320,15 +360,11 @@ class LiveblocksService {
         this.emit('session-type-changed', sessionType);
 
         try {
-            await this.connectToConfigRoom();
-            const sessionsMap = this.configDoc?.getMap<unknown>('sessions');
-            if (sessionsMap) {
-                const existing = sessionsMap.get(this.currentSession.code) as { code: string; name: string; type: string; createdAt: number; createdBy: string } | undefined;
-                sessionsMap.set(this.currentSession.code, {
-                    ...(existing || { code: this.currentSession.code, name: this.currentSession.name || `세션 ${this.currentSession.code}`, createdAt: Date.now(), createdBy: this.displayName }),
-                    type: sessionType,
-                });
-            }
+            await fetch('/api/sessions?action=update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: this.currentSession.code, type: sessionType }),
+            });
         } catch (error) {
             console.warn('⚠️ 세션 레지스트리 타입 업데이트 실패:', error);
         }
@@ -879,6 +915,7 @@ class LiveblocksService {
      * 노드/연결선 전체 초기화 (AI 일괄 생성 등 replace 시나리오용)
      */
     public clearMapData(): void {
+        this.assertHostCanRunDestructiveAction('clearMapData');
         if (!this.yDoc) return;
         this.pushHistorySnapshot('clearMapData');
         const nodes = this.yDoc.getArray<StickyNoteData>('nodes');
@@ -899,6 +936,10 @@ class LiveblocksService {
      * @param connections 복원할 연결선 배열
      */
     public restoreMapData(notes: StickyNoteData[], connections: LBConnectionData[]): void {
+        this.assertHostCanRunDestructiveAction('restoreMapData');
+        if (notes.length === 0 && connections.length === 0) {
+            throw new Error('빈 데이터로 세션을 복원할 수 없습니다.');
+        }
         if (!this.yDoc) return;
         this.pushHistorySnapshot('restoreMapData');
         const nodesArray = this.yDoc.getArray<StickyNoteData>('nodes');
@@ -1517,45 +1558,27 @@ class LiveblocksService {
      * 관리자 설정 Room에 연결 (호스트 비밀번호 관리용)
      */
     private async connectToConfigRoom(): Promise<Y.Map<unknown>> {
-        if (!this.client) throw new Error('Liveblocks 클라이언트가 초기화되지 않았습니다.');
+        throw new Error('클라이언트의 admin-config 룸 직접 접근은 보안상 비활성화되었습니다.');
+    }
 
-        // 이미 연결되어 있으면 기존 것 사용
-        if (this.configDoc) {
-            return this.configDoc.getMap<unknown>('adminConfig');
+    private async requestConfig<T>(action: string, body?: Record<string, unknown>): Promise<T> {
+        const response = await fetch(`/api/config?action=${encodeURIComponent(action)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(body || {}),
+        });
+        if (!response.ok) {
+            throw new Error(`Config request failed: ${response.status}`);
         }
-
-        this.configDoc = new Y.Doc();
-        const roomId = 'culturemap-admin-config';
-
-        const { room, leave } = this.client.enterRoom<{ cursor: null }>(roomId, {
-            initialPresence: { cursor: null },
-        });
-
-        this.configLeave = leave;
-        this.configProvider = new LiveblocksYjsProvider(room, this.configDoc);
-
-        // 동기화 대기
-        await new Promise<void>((resolve) => {
-            const checkSync = () => {
-                if (this.configProvider?.synced) {
-                    resolve();
-                } else {
-                    setTimeout(checkSync, 100);
-                }
-            };
-            checkSync();
-        });
-
-        return this.configDoc.getMap<unknown>('adminConfig');
+        return await response.json() as T;
     }
 
     /**
      * 호스트 비밀번호 저장 (관리자만 사용)
      */
     public async setHostPassword(password: string): Promise<void> {
-        const config = await this.connectToConfigRoom();
-        config.set('hostPassword', password);
-        config.set('updatedAt', Date.now());
+        await this.requestConfig<{ success: boolean }>('setHostPassword', { password });
         console.log('✅ 호스트 비밀번호 저장 완료');
     }
 
@@ -1563,20 +1586,16 @@ class LiveblocksService {
      * 호스트 비밀번호 가져오기
      */
     public async getHostPassword(): Promise<string | null> {
-        const config = await this.connectToConfigRoom();
-        return (config.get('hostPassword') as string) || null;
+        const data = await this.requestConfig<{ value: string | null }>('getHostPassword');
+        return data.value;
     }
 
     /**
      * 호스트 비밀번호 검증
      */
     public async validateHostPassword(inputPassword: string): Promise<boolean> {
-        const savedPassword = await this.getHostPassword();
-        if (!savedPassword) {
-            console.warn('⚠️ 호스트 비밀번호가 설정되지 않았습니다.');
-            return false;
-        }
-        return inputPassword === savedPassword;
+        const data = await this.requestConfig<{ valid: boolean }>('validateHostPassword', { password: inputPassword });
+        return data.valid;
     }
 
     /**
@@ -1605,22 +1624,11 @@ class LiveblocksService {
      * 세션을 레지스트리에 등록
      */
     public async registerSession(code: string, name: string, type: SessionType, organization?: string): Promise<void> {
-        await this.connectToConfigRoom();
-        const sessionsMap = this.configDoc?.getMap<unknown>('sessions');
-
-        if (!sessionsMap) return;
-
-        const existing = sessionsMap.get(code) as { code: string; name: string; type: string; createdAt: number; createdBy: string; organization?: string } | undefined;
-        const sessionData = {
-            code,
-            name,
-            type,
-            organization: organization ?? existing?.organization,
-            createdAt: existing?.createdAt ?? Date.now(),
-            createdBy: existing?.createdBy ?? this.displayName
-        };
-
-        sessionsMap.set(code, sessionData);
+        await fetch('/api/sessions?action=update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, name, type, organization }),
+        });
         console.log('✅ 세션 레지스트리에 등록:', code, organization ? `(${organization})` : '');
     }
 
@@ -1628,57 +1636,33 @@ class LiveblocksService {
      * 세션 레지스트리 목록 조회
      */
     public async getSessionRegistry(): Promise<Array<{ code: string; name: string; type: string; createdAt: number; organization?: string }>> {
-        await this.connectToConfigRoom();
-        const sessionsMap = this.configDoc?.getMap<unknown>('sessions');
-
-        if (!sessionsMap) {
-            return [];
-        }
-
-        const sessions: Array<{ code: string; name: string; type: string; createdAt: number; organization?: string }> = [];
-        sessionsMap.forEach((value, key) => {
-            const session = value as { code: string; name: string; type: string; createdAt: number; organization?: string };
-            sessions.push({ ...session, code: key });
-        });
-
-        // 최신순 정렬
-        return sessions.sort((a, b) => b.createdAt - a.createdAt);
+        const response = await fetch('/api/sessions?action=list');
+        if (!response.ok) return [];
+        const data = await response.json() as { sessions?: Array<{ code: string; name: string; type: string; createdAt: number; organization?: string }> };
+        return data.sessions || [];
     }
 
     /**
      * 세션을 레지스트리에서 제거
      */
     public async unregisterSession(code: string): Promise<void> {
-        await this.connectToConfigRoom();
-        const sessionsMap = this.configDoc?.getMap<unknown>('sessions');
-
-        if (sessionsMap) {
-            sessionsMap.delete(code);
-            console.log('✅ 세션 레지스트리에서 제거:', code);
-        }
+        await fetch('/api/sessions?action=delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code }),
+        });
+        console.log('✅ 세션 레지스트리에서 제거:', code);
     }
 
     /**
      * 세션의 organization(기업명) 업데이트
      */
     public async updateSessionOrganization(code: string, organization: string): Promise<void> {
-        await this.connectToConfigRoom();
-        const sessionsMap = this.configDoc?.getMap<unknown>('sessions');
-
-        if (!sessionsMap) return;
-
-        const existing = sessionsMap.get(code) as { code: string; name: string; type: string; createdAt: number; createdBy: string; organization?: string } | undefined;
-        if (!existing) {
-            console.warn('⚠️ 세션을 찾을 수 없음:', code);
-            return;
-        }
-
-        const updatedData = {
-            ...existing,
-            organization
-        };
-
-        sessionsMap.set(code, updatedData);
+        await fetch('/api/sessions?action=update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, organization }),
+        });
         console.log('✅ 세션 organization 업데이트:', code, '→', organization);
     }
 
@@ -1686,16 +1670,8 @@ class LiveblocksService {
      * 여러 세션의 organization 일괄 업데이트
      */
     public async bulkUpdateSessionOrganization(codes: string[], organization: string): Promise<void> {
-        await this.connectToConfigRoom();
-        const sessionsMap = this.configDoc?.getMap<unknown>('sessions');
-
-        if (!sessionsMap) return;
-
         for (const code of codes) {
-            const existing = sessionsMap.get(code) as { code: string; name: string; type: string; createdAt: number; createdBy: string; organization?: string } | undefined;
-            if (existing) {
-                sessionsMap.set(code, { ...existing, organization });
-            }
+            await this.updateSessionOrganization(code, organization);
         }
         console.log('✅ 세션 organization 일괄 업데이트:', codes.length, '개 →', organization);
     }
@@ -1704,23 +1680,11 @@ class LiveblocksService {
      * 세션명 변경 (레지스트리 반영)
      */
     public async updateSessionName(code: string, name: string): Promise<void> {
-        await this.connectToConfigRoom();
-        const sessionsMap = this.configDoc?.getMap<unknown>('sessions');
-
-        if (!sessionsMap) return;
-
-        const existing = sessionsMap.get(code) as { code: string; name: string; type: string; createdAt: number; createdBy: string; organization?: string } | undefined;
-        if (!existing) {
-            console.warn('⚠️ 세션을 찾을 수 없음:', code);
-            return;
-        }
-
-        const updatedData = {
-            ...existing,
-            name
-        };
-
-        sessionsMap.set(code, updatedData);
+        await fetch('/api/sessions?action=update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, name }),
+        });
         console.log('✅ 세션명 업데이트:', code, '→', name);
 
         // 현재 세션이면 로컬 상태도 업데이트
@@ -1737,26 +1701,15 @@ class LiveblocksService {
      * 마스터키 가져오기 (없으면 기본값 설정)
      */
     public async getMasterKey(): Promise<string> {
-        const config = await this.connectToConfigRoom();
-        let masterKey = config.get('masterKey') as string | undefined;
-        
-        if (!masterKey) {
-            // 기본값 설정
-            config.set('masterKey', this.DEFAULT_MASTER_KEY);
-            masterKey = this.DEFAULT_MASTER_KEY;
-            console.log('🔑 마스터키 기본값 설정:', this.DEFAULT_MASTER_KEY);
-        }
-        
-        return masterKey;
+        const data = await this.requestConfig<{ value: string }>('getMasterKey');
+        return data.value || this.DEFAULT_MASTER_KEY;
     }
 
     /**
      * 마스터키 설정 (관리자만 사용)
      */
     public async setMasterKey(key: string): Promise<void> {
-        const config = await this.connectToConfigRoom();
-        config.set('masterKey', key);
-        config.set('updatedAt', Date.now());
+        await this.requestConfig<{ success: boolean }>('setMasterKey', { key });
         console.log('✅ 마스터키 변경 완료');
     }
 
@@ -1764,8 +1717,8 @@ class LiveblocksService {
      * 마스터키 검증
      */
     public async validateMasterKey(input: string): Promise<boolean> {
-        const masterKey = await this.getMasterKey();
-        return input === masterKey;
+        const data = await this.requestConfig<{ valid: boolean }>('validateMasterKey', { key: input });
+        return data.valid;
     }
 
     // ==================== 기업 비밀번호 관리 ====================
@@ -1774,17 +1727,7 @@ class LiveblocksService {
      * 기업 비밀번호 설정
      */
     public async setOrganizationPassword(org: string, password: string): Promise<void> {
-        const config = await this.connectToConfigRoom();
-        
-        // organizationPasswords Map 가져오기 또는 생성
-        let orgPasswords = config.get('organizationPasswords') as Record<string, string> | undefined;
-        if (!orgPasswords) {
-            orgPasswords = {};
-        }
-        
-        orgPasswords[org] = password;
-        config.set('organizationPasswords', orgPasswords);
-        config.set('updatedAt', Date.now());
+        await this.requestConfig<{ success: boolean }>('setOrganizationPassword', { organization: org, password });
         console.log('✅ 기업 비밀번호 설정:', org);
     }
 
@@ -1792,47 +1735,37 @@ class LiveblocksService {
      * 기업 비밀번호 가져오기
      */
     public async getOrganizationPassword(org: string): Promise<string | null> {
-        const config = await this.connectToConfigRoom();
-        const orgPasswords = config.get('organizationPasswords') as Record<string, string> | undefined;
-        
-        if (!orgPasswords) return null;
-        return orgPasswords[org] || null;
+        const data = await this.requestConfig<{ value: string | null }>('getOrganizationPassword', { organization: org });
+        return data.value;
+    }
+
+    public async hasOrganizationPassword(org: string): Promise<boolean> {
+        const data = await this.requestConfig<{ exists: boolean }>('hasOrganizationPassword', { organization: org });
+        return data.exists;
     }
 
     /**
      * 기업 비밀번호 검증 (대소문자 구분 없음)
      */
     public async validateOrganizationPassword(org: string, inputPw: string): Promise<boolean> {
-        const savedPw = await this.getOrganizationPassword(org);
-        if (!savedPw) {
-            // 비밀번호 미설정 시 통과
-            return true;
-        }
-        return inputPw.toLowerCase() === savedPw.toLowerCase();
+        const data = await this.requestConfig<{ valid: boolean }>('validateOrganizationPassword', { organization: org, password: inputPw });
+        return data.valid;
     }
 
     /**
      * 모든 기업 비밀번호 가져오기 (관리자용)
      */
     public async getAllOrganizationPasswords(): Promise<Record<string, string>> {
-        const config = await this.connectToConfigRoom();
-        const orgPasswords = config.get('organizationPasswords') as Record<string, string> | undefined;
-        return orgPasswords || {};
+        const data = await this.requestConfig<{ value: Record<string, string> }>('getAllOrganizationPasswords');
+        return data.value || {};
     }
 
     /**
      * 기업 비밀번호 삭제
      */
     public async deleteOrganizationPassword(org: string): Promise<void> {
-        const config = await this.connectToConfigRoom();
-        const orgPasswords = config.get('organizationPasswords') as Record<string, string> | undefined;
-        
-        if (orgPasswords && orgPasswords[org]) {
-            delete orgPasswords[org];
-            config.set('organizationPasswords', orgPasswords);
-            config.set('updatedAt', Date.now());
-            console.log('✅ 기업 비밀번호 삭제:', org);
-        }
+        await this.requestConfig<{ success: boolean }>('deleteOrganizationPassword', { organization: org });
+        console.log('✅ 기업 비밀번호 삭제:', org);
     }
 
     // ============================================
@@ -1843,11 +1776,7 @@ class LiveblocksService {
      * 세션 비밀번호 설정
      */
     public async setSessionPassword(sessionCode: string, password: string): Promise<void> {
-        const config = await this.connectToConfigRoom();
-        const sessionPasswords = config.get('sessionPasswords') as Record<string, string> | undefined || {};
-        sessionPasswords[sessionCode] = password;
-        config.set('sessionPasswords', sessionPasswords);
-        config.set('updatedAt', Date.now());
+        await this.requestConfig<{ success: boolean }>('setSessionPassword', { sessionCode, password });
         console.log('✅ 세션 비밀번호 설정:', sessionCode);
     }
 
@@ -1855,45 +1784,37 @@ class LiveblocksService {
      * 세션 비밀번호 가져오기
      */
     public async getSessionPassword(sessionCode: string): Promise<string | null> {
-        const config = await this.connectToConfigRoom();
-        const sessionPasswords = config.get('sessionPasswords') as Record<string, string> | undefined;
-        return sessionPasswords?.[sessionCode] || null;
+        const data = await this.requestConfig<{ value: string | null }>('getSessionPassword', { sessionCode });
+        return data.value;
+    }
+
+    public async hasSessionPassword(sessionCode: string): Promise<boolean> {
+        const data = await this.requestConfig<{ exists: boolean }>('hasSessionPassword', { sessionCode });
+        return data.exists;
     }
 
     /**
      * 세션 비밀번호 검증 (대소문자 구분 없음)
      */
     public async validateSessionPassword(sessionCode: string, inputPw: string): Promise<boolean> {
-        const savedPw = await this.getSessionPassword(sessionCode);
-        if (!savedPw) {
-            // 비밀번호 미설정 시 통과
-            return true;
-        }
-        return inputPw.toLowerCase() === savedPw.toLowerCase();
+        const data = await this.requestConfig<{ valid: boolean }>('validateSessionPassword', { sessionCode, password: inputPw });
+        return data.valid;
     }
 
     /**
      * 모든 세션 비밀번호 가져오기 (관리자용)
      */
     public async getAllSessionPasswords(): Promise<Record<string, string>> {
-        const config = await this.connectToConfigRoom();
-        const sessionPasswords = config.get('sessionPasswords') as Record<string, string> | undefined;
-        return sessionPasswords || {};
+        const data = await this.requestConfig<{ value: Record<string, string> }>('getAllSessionPasswords');
+        return data.value || {};
     }
 
     /**
      * 세션 비밀번호 삭제
      */
     public async deleteSessionPassword(sessionCode: string): Promise<void> {
-        const config = await this.connectToConfigRoom();
-        const sessionPasswords = config.get('sessionPasswords') as Record<string, string> | undefined;
-        
-        if (sessionPasswords && sessionPasswords[sessionCode]) {
-            delete sessionPasswords[sessionCode];
-            config.set('sessionPasswords', sessionPasswords);
-            config.set('updatedAt', Date.now());
-            console.log('✅ 세션 비밀번호 삭제:', sessionCode);
-        }
+        await this.requestConfig<{ success: boolean }>('deleteSessionPassword', { sessionCode });
+        console.log('✅ 세션 비밀번호 삭제:', sessionCode);
     }
 
     // ============================================
@@ -1906,48 +1827,28 @@ class LiveblocksService {
      * @param alias 사용자 지정 별칭 (빈 문자열이면 삭제)
      */
     public async setSessionAlias(sessionCode: string, alias: string): Promise<{ success: boolean; error?: string }> {
-        const config = await this.connectToConfigRoom();
-        const aliases = config.get('sessionAliases') as Record<string, string> | undefined || {};
-        
         const trimmedAlias = alias.trim().toUpperCase();
-        
-        // 빈 별칭이면 기존 별칭 삭제
-        if (!trimmedAlias) {
-            // 이 세션의 기존 별칭 찾아서 삭제
-            for (const [existingAlias, code] of Object.entries(aliases)) {
-                if (code === sessionCode) {
-                    delete aliases[existingAlias];
-                }
-            }
-            config.set('sessionAliases', aliases);
-            config.set('updatedAt', Date.now());
-            console.log('✅ 세션 별칭 삭제:', sessionCode);
-            return { success: true };
-        }
 
         // 별칭이 기존 세션 코드와 충돌하는지 확인
         const registry = await this.getSessionRegistry();
         const existingCodes = registry.map(s => s.code.toUpperCase());
-        if (existingCodes.includes(trimmedAlias)) {
+        if (trimmedAlias && existingCodes.includes(trimmedAlias)) {
             return { success: false, error: '이미 존재하는 세션 코드와 동일합니다' };
         }
 
         // 별칭이 다른 세션에서 사용 중인지 확인
-        if (aliases[trimmedAlias] && aliases[trimmedAlias] !== sessionCode) {
+        const aliases = await this.getAllSessionAliases();
+        if (trimmedAlias && aliases[trimmedAlias] && aliases[trimmedAlias] !== sessionCode) {
             return { success: false, error: '이미 다른 세션에서 사용 중인 별칭입니다' };
         }
 
-        // 이 세션의 기존 별칭 삭제 (1:1 관계 유지)
-        for (const [existingAlias, code] of Object.entries(aliases)) {
-            if (code === sessionCode) {
-                delete aliases[existingAlias];
-            }
-        }
+        const response = await fetch('/api/sessions?action=update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: sessionCode, alias: trimmedAlias }),
+        });
+        if (!response.ok) return { success: false, error: '별칭 저장에 실패했습니다' };
 
-        // 새 별칭 설정
-        aliases[trimmedAlias] = sessionCode;
-        config.set('sessionAliases', aliases);
-        config.set('updatedAt', Date.now());
         console.log('✅ 세션 별칭 설정:', trimmedAlias, '→', sessionCode);
         return { success: true };
     }
@@ -1956,16 +1857,8 @@ class LiveblocksService {
      * 세션 코드로 별칭 가져오기
      */
     public async getSessionAlias(sessionCode: string): Promise<string | null> {
-        const config = await this.connectToConfigRoom();
-        const aliases = config.get('sessionAliases') as Record<string, string> | undefined;
-        if (!aliases) return null;
-        
-        for (const [alias, code] of Object.entries(aliases)) {
-            if (code === sessionCode) {
-                return alias;
-            }
-        }
-        return null;
+        const aliases = await this.getAllSessionAliases();
+        return Object.entries(aliases).find(([, code]) => code === sessionCode)?.[0] || null;
     }
 
     /**
@@ -1973,9 +1866,11 @@ class LiveblocksService {
      * @returns { alias: sessionCode } 형태
      */
     public async getAllSessionAliases(): Promise<Record<string, string>> {
-        const config = await this.connectToConfigRoom();
-        const aliases = config.get('sessionAliases') as Record<string, string> | undefined;
-        return aliases || {};
+        const sessions = await this.getSessionRegistry() as Array<{ code: string; alias?: string }>;
+        return sessions.reduce<Record<string, string>>((acc, session) => {
+            if (session.alias) acc[session.alias] = session.code;
+            return acc;
+        }, {});
     }
 
     /**

@@ -99,13 +99,12 @@ useEffect(() => {
 import { LiveblocksProvider, RoomProvider, ClientSideSuspense } from '@liveblocks/react/suspense';
 
 export function LiveblocksRoomProvider({ sessionCode, children }) {
-  const publicKey = import.meta.env.VITE_LIVEBLOCKS_PUBLIC_KEY;
   const roomId = sessionCode ? `culturemap-v2-${sessionCode}` : null;
   
-  if (!publicKey || !roomId) return <>{children}</>;
+  if (!roomId) return <>{children}</>;
   
   return (
-    <LiveblocksProvider publicApiKey={publicKey}>
+    <LiveblocksProvider authEndpoint="/api/liveblocks-auth">
       <RoomProvider id={roomId} initialPresence={{ cursor: null }}>
         <ClientSideSuspense fallback={null}>
           {children}

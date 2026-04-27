@@ -19,11 +19,14 @@
     "test:e2e": "npx playwright test --project=app",
     "test:e2e:debug": "npx playwright test --project=debug",
     "test:e2e:all": "npx playwright test",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "liveblocks:audit": "node scripts/liveblocks-room-security.mjs",
+    "liveblocks:lockdown": "node scripts/liveblocks-room-security.mjs --apply"
   },
   "dependencies": {
     "@google/genai": "^1.35.0",
     "@liveblocks/client": "^3.12.1",
+    "@liveblocks/node": "^3.18.5",
     "@liveblocks/react": "^3.12.1",
     "@liveblocks/yjs": "^3.12.1",
     "@types/dagre": "^0.7.53",

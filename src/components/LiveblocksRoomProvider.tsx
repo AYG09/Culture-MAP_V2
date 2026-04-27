@@ -35,13 +35,33 @@ export function LiveblocksRoomProvider({
   children,
   fallback = null,
 }: LiveblocksRoomProviderProps) {
-  const publicKey = import.meta.env.VITE_LIVEBLOCKS_PUBLIC_KEY;
-
   // roomId 생성 (liveblocksService와 동일한 형식)
   const roomId = useMemo(() => {
     if (!sessionCode) return null;
     return `culturemap-v2-${sessionCode}`;
   }, [sessionCode]);
+
+  const authEndpoint = useMemo(
+    () => async (room?: string) => {
+      const response = await fetch('/api/liveblocks-auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-culturemap-user-id': userId || '',
+          'x-culturemap-user-name': userName || '익명',
+          'x-culturemap-user-color': userColor || '#888888',
+        },
+        body: JSON.stringify({ room }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Liveblocks authorization failed: ${response.status}`);
+      }
+
+      return await response.json();
+    },
+    [userColor, userId, userName]
+  );
 
   // 초기 presence 설정
   const initialPresence = useMemo(
@@ -58,13 +78,13 @@ export function LiveblocksRoomProvider({
     [userName, userColor, userId]
   );
 
-  // publicKey나 roomId가 없으면 children만 렌더링
-  if (!publicKey || !roomId) {
+  // roomId가 없으면 children만 렌더링
+  if (!roomId) {
     return <>{children}</>;
   }
 
   return (
-    <LiveblocksProvider publicApiKey={publicKey}>
+    <LiveblocksProvider authEndpoint={authEndpoint}>
       <RoomProvider id={roomId} initialPresence={initialPresence}>
         <ClientSideSuspense fallback={fallback}>
           {children}
