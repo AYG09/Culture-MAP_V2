@@ -43,13 +43,10 @@ describe('RagService', () => {
     (ragService as any).lastRetrievalError = null;
   });
 
-  it('text-embedding-004가 실패하면 대체 임베딩 모델로 재시도한다', async () => {
-    const embedContent = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('models/text-embedding-004 is not found for API version v1beta'))
-      .mockResolvedValueOnce({
-        embeddings: [{ values: [1, 0] }],
-      });
+  it('gemini-embedding-001로 문헌 검색 임베딩을 생성한다', async () => {
+    const embedContent = vi.fn().mockResolvedValue({
+      embeddings: [{ values: [1, 0] }],
+    });
 
     ragService.setClient({
       models: {
@@ -65,16 +62,15 @@ describe('RagService', () => {
     });
 
     expect(result?.contextText).toContain('Schein.pdf');
-    expect(embedContent).toHaveBeenCalledTimes(2);
-    expect(embedContent.mock.calls[0][0].model).toBe('text-embedding-004');
-    expect(embedContent.mock.calls[1][0].model).toBe('embedding-001');
+    expect(embedContent).toHaveBeenCalledTimes(1);
+    expect(embedContent.mock.calls[0][0].model).toBe('gemini-embedding-001');
     expect(ragService.getLastRetrievalError()).toBeNull();
   });
 
   it('모든 임베딩 모델이 실패하면 예외를 삼키고 조회를 null로 돌려준다', async () => {
     const embedContent = vi
       .fn()
-      .mockRejectedValue(new Error('models/text-embedding-004 is not found for API version v1beta'));
+      .mockRejectedValue(new Error('models/gemini-embedding-001 is not supported for embedContent'));
 
     ragService.setClient({
       models: {
@@ -85,7 +81,7 @@ describe('RagService', () => {
     const result = await ragService.retrieveContext('샤인의 조직문화 이론', { scope: 'local' });
 
     expect(result).toBeNull();
-    expect(embedContent).toHaveBeenCalledTimes(3);
+    expect(embedContent).toHaveBeenCalledTimes(1);
     expect(ragService.getLastRetrievalError()).toContain('Gemini 임베딩 모델을 사용할 수 없어');
   });
 

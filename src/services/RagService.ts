@@ -38,7 +38,7 @@ export type RagSearchScope = 'both' | 'local' | 'shared';
 
 type EmbeddingTaskType = 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY';
 
-const EMBEDDING_MODEL_CANDIDATES = ['text-embedding-004', 'embedding-001', 'models/embedding-001'] as const;
+const EMBEDDING_MODEL_CANDIDATES = ['gemini-embedding-001'] as const;
 const DEFAULT_EMBEDDING_DIM = 768;
 
 class RagIndexStore {

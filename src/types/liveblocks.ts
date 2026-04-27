@@ -88,7 +88,7 @@ export interface SharedRagChunk {
     docId: string;        // 문서 고유 ID
     docName: string;      // 문서 표시 이름
     content: string;      // 청크 텍스트 내용
-    embedding: number[];  // 768차원 벡터 (Gemini text-embedding-004)
+    embedding: number[];  // 768차원 벡터 (Gemini gemini-embedding-001)
     pageNumber?: number;  // 페이지 번호 (선택)
     uploaderId: string;   // 업로더 사용자 ID
     uploaderName: string; // 업로더 표시 이름
