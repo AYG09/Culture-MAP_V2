@@ -484,7 +484,7 @@ class AIService {
           apiKey: defaultApiKey,
           tavilyApiKey: undefined,
           modelName: 'gemini-3.1-flash-lite-preview',  // Gemini 3.1 Flash-Lite: Function Calling 지원, 저비용/고속
-          ragSearchScope: 'both'
+          ragSearchScope: 'shared'
         });
         console.log('📡 AI Service initialized from environment variables');
       }
@@ -513,7 +513,7 @@ class AIService {
   }
 
   public getRagSearchScope(): RagSearchScope {
-    return this.currentConfig?.ragSearchScope ?? 'both';
+    return 'shared';
   }
 
   /**
@@ -1827,7 +1827,7 @@ class AIService {
       provider: 'gemini' as const,
       apiKey: config.apiKey.trim(),
       tavilyApiKey: config.tavilyApiKey?.trim() || undefined,
-      ragSearchScope: config.ragSearchScope ?? 'both'
+      ragSearchScope: 'shared' as const
     };
     const available = this.getAvailableGeminiModels();
     if (!normalized.modelName || !available.includes(normalized.modelName)) {

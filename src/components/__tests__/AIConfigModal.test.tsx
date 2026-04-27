@@ -15,6 +15,7 @@ const {
   mockGetAcademicFiles,
   mockAddAcademicFile,
   mockRemoveAcademicFile,
+  mockGetSharedRagDocList,
   mockRemoveSharedRagDocument,
 } = vi.hoisted(() => ({
   mockGetConfig: vi.fn<() => AIConfig | null>(),
@@ -24,6 +25,7 @@ const {
   mockGetAcademicFiles: vi.fn<() => Array<{ name: string; displayName: string; mimeType: string }>>(),
   mockAddAcademicFile: vi.fn<(file: File) => Promise<unknown>>(),
   mockRemoveAcademicFile: vi.fn<(fileName: string) => void>(),
+  mockGetSharedRagDocList: vi.fn<() => Array<{ docId: string; docName: string; uploaderId: string; uploaderName: string; chunkCount: number; uploadedAt: number }>>(),
   mockRemoveSharedRagDocument: vi.fn<(docId: string) => void>(),
 }));
 
@@ -45,7 +47,7 @@ vi.mock('../../services/AIService', () => ({
 vi.mock('../../services/LiveblocksService', () => ({
   default: {
     getCurrentUserId: vi.fn(() => 'user-1'),
-    getSharedRagDocList: vi.fn(() => []),
+    getSharedRagDocList: mockGetSharedRagDocList,
     onSharedRagChunks: vi.fn(() => () => {}),
     getCurrentSession: vi.fn(() => null),
     updateSessionType: vi.fn(),
@@ -60,13 +62,14 @@ describe('AIConfigModal', () => {
       apiKey: TEST_GEMINI_KEY,
       tavilyApiKey: undefined,
       modelName: 'gemini-2.5-flash-lite',
-      ragSearchScope: 'both',
+      ragSearchScope: 'shared',
       autoExecuteFunctionCalls: false,
       sharedApiKeyMode: false,
     });
     mockGetAvailableGeminiModels.mockReturnValue(['gemini-2.5-flash-lite']);
     mockGetAvailableGeminiModelsAsync.mockResolvedValue(['gemini-2.5-flash-lite']);
     mockGetAcademicFiles.mockReturnValue([]);
+    mockGetSharedRagDocList.mockReturnValue([]);
     mockAddAcademicFile.mockResolvedValue(undefined);
     mockRemoveAcademicFile.mockImplementation(() => undefined);
     mockSetConfig.mockImplementation((config) => {
@@ -96,7 +99,7 @@ describe('AIConfigModal', () => {
         provider: 'gemini',
         apiKey: TEST_GEMINI_KEY,
         tavilyApiKey: TEST_TAVILY_KEY,
-        ragSearchScope: 'both',
+        ragSearchScope: 'shared',
       }));
     });
 
@@ -123,12 +126,12 @@ describe('AIConfigModal', () => {
     });
   });
 
-  it('RAG 검색 범위를 변경하고 저장하면 설정에 반영된다', async () => {
+  it('학술자료 검색 범위는 세션 RAG로 고정 저장된다', async () => {
     const user = userEvent.setup();
 
     render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
 
-    await user.click(screen.getByRole('button', { name: '공유만' }));
+    expect(screen.getByText('세션 RAG만 사용')).toBeVisible();
     await user.click(screen.getByRole('button', { name: /설정 저장/ }));
 
     await waitFor(() => {
@@ -138,18 +141,18 @@ describe('AIConfigModal', () => {
     });
   });
 
-  it('로컬 RAG 문서 삭제 버튼이 removeAcademicFile을 호출한다', async () => {
+  it('세션 RAG 문서 삭제 버튼이 removeSharedRagDocument를 호출한다', async () => {
     const user = userEvent.setup();
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    mockGetAcademicFiles.mockReturnValue([
-      { name: 'local-doc-1', displayName: '로컬 문헌.pdf', mimeType: 'application/pdf' },
+    mockGetSharedRagDocList.mockReturnValue([
+      { docId: 'shared-doc-1', docName: '공유 문헌.pdf', uploaderId: 'user-1', uploaderName: 'User 1', chunkCount: 3, uploadedAt: Date.now() },
     ]);
 
     render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
 
     await user.click(screen.getByTitle('삭제'));
 
-    expect(mockRemoveAcademicFile).toHaveBeenCalledWith('local-doc-1');
+    expect(mockRemoveSharedRagDocument).toHaveBeenCalledWith('shared-doc-1');
     confirmSpy.mockRestore();
   });
 });

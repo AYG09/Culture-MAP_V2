@@ -263,7 +263,7 @@ class RagService {
   }
 
   /**
-   * 통합 검색: 로컬 + 공유 RAG 청크 모두 검색
+   * 세션 공유 RAG 청크 검색
    */
   public async retrieveContext(query: string, options: RagQueryOptions = {}): Promise<RagQueryResult | null> {
     if (!this.client) {
@@ -274,7 +274,7 @@ class RagService {
     try {
       const localChunks = await this.ensureChunksLoaded();
       const sharedChunks = this.getSharedChunks();
-      const allChunks = this.getScopedChunks(localChunks, sharedChunks, options.scope ?? 'both');
+      const allChunks = this.getScopedChunks(localChunks, sharedChunks, options.scope ?? 'shared');
       if (allChunks.length === 0) {
         this.lastRetrievalError = null;
         return null;

@@ -43,6 +43,7 @@ import {
   Layers,
   Link2,
   MessageSquare,
+  MoreHorizontal,
   Minus,
   Pin,
   PinOff,
@@ -453,7 +454,8 @@ ${chatHistorySection}
   }, [showLayerBackground]);
   const [showControls, setShowControls] = useState(true);
   const [showMiniMap, setShowMiniMap] = useState(true);
-  const [showExportMenu, setShowExportMenu] = useState(true);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showWorkspaceMoreMenu, setShowWorkspaceMoreMenu] = useState(false);
 
   const [styleVariables, setStyleVariables] = useState({
     nodeBackground: 'rgba(255, 255, 255, 0.95)',
@@ -3472,13 +3474,6 @@ ${chatHistorySection}
             </button>
           </div>
 
-          <button
-            className="glass-circle-button"
-            type="button"
-            onClick={() => setShowHelpModal(true)}
-          >
-            ?
-          </button>
         </div>
 
         <div className="top-bar-right">
@@ -3498,6 +3493,15 @@ ${chatHistorySection}
             title="캔버스 집중 모드 전환"
           >
             {isCanvasFocusMode ? '🧭 집중 해제' : '🎯 집중 모드'}
+          </button>
+
+          <button
+            className={`glass-button ${showExportMenu ? 'glass-button--accent' : ''}`}
+            type="button"
+            onClick={() => setShowExportMenu((value) => !value)}
+            title="내보내기와 캡처 도구 표시"
+          >
+            📦 내보내기
           </button>
 
           {/* 컬쳐맵 내보내기 메뉴 */}
@@ -3525,46 +3529,63 @@ ${chatHistorySection}
               >
                 🔗 세션 관리
               </button>
-              <button
-                className="glass-button"
-                type="button"
-                onClick={() => {
-                  if (window.confirm('세션에서 나가시겠습니까?\n\n작업 내용은 저장됩니다.')) {
-                    localStorage.removeItem('culture-map-last-session');
-                    liveblocksService.leaveSession();
-                    window.location.reload();
-                  }
-                }}
-                title="세션 나가기"
-              >
-                🚪 나가기
-              </button>
             </>
           ) : (
             <span style={{ fontSize: '14px', color: '#6b7280' }}>세션 연결 중...</span>
           )}
 
-          {/* Clear All 버튼 */}
-          <button
-            className="glass-button glass-button--danger"
-            type="button"
-            onClick={() => {
-              if (window.confirm('⚠️ 모든 노드와 연결선을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
-                // 모든 노드와 엣지 삭제
-                setNodes([]);
-                setEdges([]);
-                onNotesChange([]);
-                onConnectionsChange([]);
-
-                // Liveblocks 저장소 일괄 초기화
-                liveblocksService.clearMapData();
-
-                console.log('🗑️ [React Flow] 전체 삭제 완료');
-              }
-            }}
-          >
-            🗑️ 전체 삭제
-          </button>
+          <div className="workspace-more-menu-wrap">
+            <button
+              className={`glass-button workspace-more-trigger ${showWorkspaceMoreMenu ? 'glass-button--accent' : ''}`}
+              type="button"
+              onClick={() => setShowWorkspaceMoreMenu((value) => !value)}
+              title="도움말, 세션 나가기, 위험 작업"
+            >
+              <MoreHorizontal size={16} /> 더보기
+            </button>
+            {showWorkspaceMoreMenu && (
+              <div className="workspace-more-menu" role="menu">
+                <button type="button" onClick={() => { setShowHelpModal(true); setShowWorkspaceMoreMenu(false); }}>
+                  <span>?</span>
+                  도움말
+                </button>
+                {session && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowWorkspaceMoreMenu(false);
+                      if (window.confirm('세션에서 나가시겠습니까?\n\n작업 내용은 저장됩니다.')) {
+                        localStorage.removeItem('culture-map-last-session');
+                        liveblocksService.leaveSession();
+                        window.location.reload();
+                      }
+                    }}
+                  >
+                    <span>🚪</span>
+                    세션 나가기
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="workspace-more-menu__danger"
+                  onClick={() => {
+                    setShowWorkspaceMoreMenu(false);
+                    if (window.confirm('⚠️ 모든 노드와 연결선을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
+                      setNodes([]);
+                      setEdges([]);
+                      onNotesChange([]);
+                      onConnectionsChange([]);
+                      liveblocksService.clearMapData();
+                      console.log('🗑️ [React Flow] 전체 삭제 완료');
+                    }
+                  }}
+                >
+                  <Trash2 size={16} />
+                  전체 삭제
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

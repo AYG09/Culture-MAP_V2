@@ -61,6 +61,7 @@ describe('RagService', () => {
       topK: 1,
       minScore: 0,
       maxContextChars: 500,
+      scope: 'local',
     });
 
     expect(result?.contextText).toContain('Schein.pdf');
@@ -81,7 +82,7 @@ describe('RagService', () => {
       },
     } as any);
 
-    const result = await ragService.retrieveContext('샤인의 조직문화 이론');
+    const result = await ragService.retrieveContext('샤인의 조직문화 이론', { scope: 'local' });
 
     expect(result).toBeNull();
     expect(embedContent).toHaveBeenCalledTimes(3);

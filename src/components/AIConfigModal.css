@@ -202,6 +202,36 @@
     color: var(--text-muted, #6b7280);
 }
 
+.ai-config-modal .ai-config-rag-mode {
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: rgba(246, 243, 242, 0.82);
+}
+
+.ai-config-modal .rag-mode-summary {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    color: #1b6d24;
+}
+
+.ai-config-modal .rag-mode-summary div {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.ai-config-modal .rag-mode-summary strong {
+    font-size: 0.9rem;
+    color: #1b1c1c;
+}
+
+.ai-config-modal .rag-mode-summary span {
+    font-size: 0.76rem;
+    line-height: 1.45;
+    color: #424752;
+}
+
 .ai-config-modal .consulting-switch {
     display: flex;
     gap: 10px;
@@ -304,6 +334,10 @@
     margin-top: 10px;
     padding-top: 20px;
     border-top: 1px dashed var(--border-color, rgba(0, 0, 0, 0.1));
+}
+
+.ai-config-modal .session-rag-section {
+    border-top-color: rgba(27, 109, 36, 0.36);
 }
 
 .ai-config-modal .academic-header {
@@ -460,4 +494,35 @@
 
 .ai-config-modal .toggle-switch.active .toggle-knob {
     transform: translateX(22px);
+}
+
+.ai-config-modal .rag-doc-count {
+    font-size: 0.75rem;
+    color: #1b6d24;
+    font-weight: 700;
+}
+
+.ai-config-modal .empty-rag-message {
+    margin: 10px 0;
+    color: #727783;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.ai-config-modal .session-rag-section .upload-academic-btn {
+    background: #1b6d24;
+    border-color: rgba(27, 109, 36, 0.36);
+    color: #ffffff;
+}
+
+.ai-config-modal .session-rag-section .upload-academic-btn:hover:not(:disabled) {
+    background: #14571c;
+    border-color: rgba(27, 109, 36, 0.5);
+}
+
+.ai-config-modal .session-rag-note {
+    margin-top: 8px;
+    color: #1b6d24;
+    line-height: 1.5;
 }
