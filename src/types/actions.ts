@@ -698,7 +698,18 @@ export function isAddNodesWithConnectionsPayload(args: unknown): args is AddNode
     return obj.nodes.every((node) => {
         if (typeof node !== 'object' || node === null) return false;
         const data = node as Record<string, unknown>;
-        return typeof data.label === 'string' && typeof data.layer === 'number';
+        const nestedData = data.data && typeof data.data === 'object'
+            ? data.data as Record<string, unknown>
+            : {};
+        const hasLabel =
+            typeof data.label === 'string'
+            || typeof data.content === 'string'
+            || typeof nestedData.content === 'string';
+        const hasLayer =
+            typeof data.layer === 'number'
+            || typeof nestedData.layer === 'number'
+            || ['result', 'behavior', 'tangible_lever', 'intangible_lever', '결과', '행동', '유형_레버', '무형_레버'].includes(String(data.type ?? nestedData.type ?? ''));
+        return hasLabel && hasLayer;
     });
 }
 

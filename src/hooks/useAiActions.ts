@@ -35,11 +35,106 @@ import {
   isUpdateNodePayload,
 } from '../types/actions';
 import { INTENSITY_MAP } from '../types/culture';
+import type { ConnectionData, NoteData } from '../types/culture';
 import { convertFromFlowData, convertToFlowData } from '../utils/flowDataConverter';
 import { getOptimalHandles, LAYER_MAX_HEIGHT } from '../utils/flowAutoLayout';
 
 const SNAPSHOT_INDEX_KEY = 'culture-map-snapshots:index';
 type SnapshotIndexEntry = { id: string; savedAt: string };
+
+type StyleVariables = {
+  nodeBackground: string;
+  nodeBorderColor: string;
+  nodeTextColor: string;
+  nodeBorderRadius: number;
+  nodeShadow: string;
+  nodeFontFamily: string;
+  nodeFontSize: number;
+  edgeColor: string;
+  edgeWidth: number;
+};
+
+type RawBatchNodeInput = Record<string, unknown> & {
+  data?: Record<string, unknown>;
+  position?: Record<string, unknown>;
+};
+
+type NormalizedBatchNodeInput = BatchNodeInput & {
+  sourceRef?: string;
+  isLocked?: boolean;
+};
+
+const TYPE_TO_LAYER: Record<string, 1 | 2 | 3 | 4> = {
+  result: 1,
+  behavior: 2,
+  tangible_lever: 3,
+  intangible_lever: 4,
+  '결과': 1,
+  '행동': 2,
+  '유형_레버': 3,
+  '무형_레버': 4,
+};
+
+const normalizeBatchNodeInput = (input: unknown): NormalizedBatchNodeInput | null => {
+  if (!input || typeof input !== 'object') return null;
+
+  const raw = input as RawBatchNodeInput;
+  const data = raw.data && typeof raw.data === 'object' ? raw.data : {};
+  const position = raw.position && typeof raw.position === 'object' ? raw.position : {};
+
+  const rawType = typeof raw.type === 'string'
+    ? raw.type
+    : typeof data.type === 'string'
+      ? data.type
+      : undefined;
+  const layer = typeof raw.layer === 'number'
+    ? raw.layer
+    : typeof data.layer === 'number'
+      ? data.layer
+      : rawType
+        ? TYPE_TO_LAYER[rawType]
+        : undefined;
+  const label = typeof raw.label === 'string'
+    ? raw.label
+    : typeof raw.content === 'string'
+      ? raw.content
+      : typeof data.content === 'string'
+        ? data.content
+        : undefined;
+
+  if (!label || !layer || ![1, 2, 3, 4].includes(layer)) return null;
+
+  const sentiment = typeof raw.sentiment === 'string'
+    ? raw.sentiment
+    : typeof data.sentiment === 'string'
+      ? data.sentiment
+      : undefined;
+  const sourceRef = typeof raw.tempId === 'string'
+    ? raw.tempId
+    : typeof raw.id === 'string'
+      ? raw.id
+      : undefined;
+
+  return {
+    tempId: typeof raw.tempId === 'string' ? raw.tempId : sourceRef,
+    sourceRef,
+    label,
+    content: typeof raw.content === 'string'
+      ? raw.content
+      : typeof data.content === 'string'
+        ? data.content
+        : label,
+    type: (rawType ?? '행동') as BatchNodeInput['type'],
+    layer: layer as 1 | 2 | 3 | 4,
+    sentiment: sentiment === 'positive' || sentiment === 'negative' || sentiment === 'neutral'
+      ? sentiment
+      : undefined,
+    intensity: typeof raw.intensity === 'number' ? raw.intensity as BatchNodeInput['intensity'] : undefined,
+    x: typeof raw.x === 'number' ? raw.x : typeof position.x === 'number' ? position.x : undefined,
+    y: typeof raw.y === 'number' ? raw.y : typeof position.y === 'number' ? position.y : undefined,
+    isLocked: typeof data.isLocked === 'boolean' ? data.isLocked : undefined,
+  };
+};
 
 const loadSnapshotIndex = (): SnapshotIndexEntry[] => {
   try {
@@ -89,20 +184,15 @@ interface UseAiActionsProps {
   setShowLayerControlPanel: (show: boolean) => void;
   
   // Styling
-  styleVariables: {
-    edgeColor: string;
-    edgeWidth: number;
-    // Add other necessary style variables if strictly needed, or use Partial
-    [key: string]: any; 
-  };
-  setStyleVariables: React.Dispatch<React.SetStateAction<any>>;
+  styleVariables: StyleVariables;
+  setStyleVariables: React.Dispatch<React.SetStateAction<StyleVariables>>;
   
   // Callbacks & Layout
   safeAutoLayout: (showAlert?: boolean) => Promise<void>;
   rerouteEdges: () => void;
   ensureLiveblocksConnected: (actionLabel: string) => boolean;
-  onNotesChange: (notes: any[]) => void; // Using any[] to avoid circular deps if possible, or strict types
-  onConnectionsChange: (connections: any[]) => void;
+  onNotesChange: (notes: NoteData[]) => void;
+  onConnectionsChange: (connections: ConnectionData[]) => void;
   handleNodeContentUpdate: (id: string, content: string) => void;
   handleStartNodeEditing: (id: string) => boolean;
   handleStopNodeEditing: (id: string) => void;
@@ -266,10 +356,23 @@ export const useAiActions = ({
       }
 
       case 'add_nodes_with_connections': {
-        if (!isAddNodesWithConnectionsPayload(args)) break;
+        if (!isAddNodesWithConnectionsPayload(args)) {
+          console.error('❌ [Action Bridge] Invalid add_nodes_with_connections payload:', args);
+          break;
+        }
         const payload = args as AddNodesWithConnectionsPayload;
-        const nodeInputs = Array.isArray(payload.nodes) ? (payload.nodes as BatchNodeInput[]) : [];
+        const rawNodeInputs = Array.isArray(payload.nodes) ? payload.nodes : [];
         const connectionInputs = Array.isArray(payload.connections) ? (payload.connections as BatchConnectionInput[]) : [];
+
+        const nodeInputMap = new Map<string, NormalizedBatchNodeInput>();
+        rawNodeInputs.forEach((input, index) => {
+          const normalized = normalizeBatchNodeInput(input);
+          if (!normalized) return;
+          const key = normalized.sourceRef || `__anon_${index}`;
+          nodeInputMap.set(key, normalized);
+        });
+        const nodeInputs = Array.from(nodeInputMap.values());
+
         if (!nodeInputs.length) break;
 
         const typeMap: Record<string, string> = {
@@ -310,6 +413,7 @@ export const useAiActions = ({
 
           const newNodeId = `node-${batchTimestamp}-${index}-${Math.random().toString(36).substr(2, 4)}`;
           if (input.tempId) idMap[input.tempId] = newNodeId;
+          if (input.sourceRef) idMap[input.sourceRef] = newNodeId;
 
           liveblocksService.updateStickyNote({
             id: newNodeId,
@@ -340,6 +444,8 @@ export const useAiActions = ({
               onEditEnd: handleStopNodeEditing,
               onTogglePin: handleTogglePin,
               pinned: false,
+              isLocked: input.isLocked ?? false,
+              lockedBy: undefined,
             },
             draggable: true,
           });
@@ -364,7 +470,7 @@ export const useAiActions = ({
 
           const sourceNode = updatedNodes.find(n => n.id === sourceId);
           const targetNode = updatedNodes.find(n => n.id === targetId);
-          let { sourceHandle, targetHandle } = (sourceNode && targetNode) 
+          const { sourceHandle, targetHandle } = (sourceNode && targetNode) 
             ? getOptimalHandles(sourceNode, targetNode) 
             : { sourceHandle: undefined, targetHandle: undefined };
 
@@ -409,7 +515,7 @@ export const useAiActions = ({
         const frequency = isConsultingMode
           ? (typeof payload.intensity === 'number' ? INTENSITY_MAP.TO_STRING(payload.intensity) : payload.intensity)
           : undefined;
-        let content = payload.content || payload.label;
+        const content = payload.content || payload.label;
         const hasX = typeof payload.x === 'number' && Number.isFinite(payload.x);
         const hasY = typeof payload.y === 'number' && Number.isFinite(payload.y);
         const layerValue = typeof payload.layer === 'number' ? payload.layer : undefined;
@@ -528,7 +634,7 @@ export const useAiActions = ({
         
         const sourceNode = nodesRef.current.find(n => n.id === sourceId);
         const targetNode = nodesRef.current.find(n => n.id === targetId);
-        let { sourceHandle, targetHandle } = (sourceNode && targetNode) 
+        const { sourceHandle, targetHandle } = (sourceNode && targetNode) 
             ? getOptimalHandles(sourceNode, targetNode) 
             : { sourceHandle: undefined, targetHandle: undefined };
 
@@ -700,7 +806,7 @@ export const useAiActions = ({
 
       case 'set_style_variables': {
         const payload = (args as unknown) as SetStyleVariablesPayload;
-        setStyleVariables((prev: any) => {
+        setStyleVariables((prev: StyleVariables) => {
           const nextEdgeColor = payload.edgeColor ?? prev.edgeColor;
           const nextEdgeWidth = typeof payload.edgeWidth === 'number' ? payload.edgeWidth : prev.edgeWidth;
           
@@ -931,7 +1037,7 @@ export const useAiActions = ({
             requestedLayout = true;
             const spacing = queuedAction?.args?.spacing;
             if (spacing === 'compact' || spacing === 'normal' || spacing === 'wide') {
-              layoutSpacingRef.current = spacing as any;
+              layoutSpacingRef.current = spacing;
             }
             continue;
           }

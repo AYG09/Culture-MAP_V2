@@ -60,6 +60,72 @@ const getActionExecutionKey = (messageId: string, action: AiAction, index: numbe
     return `${messageId}:${index}:${action.name}:${JSON.stringify(action.args ?? {})}`;
 };
 
+const compactCultureMapJson = (value: unknown): string | null => {
+    if (!value || typeof value !== 'object') return null;
+    const root = value as Record<string, unknown>;
+    if (!Array.isArray(root.nodes) && !Array.isArray(root.edges)) return null;
+
+    const toRecord = (item: unknown) => item && typeof item === 'object' ? item as Record<string, unknown> : null;
+    const compactNodes = new Map<string, Record<string, unknown>>();
+    const compactEdges = new Map<string, Record<string, unknown>>();
+
+    if (Array.isArray(root.nodes)) {
+        root.nodes.forEach((item, index) => {
+            const node = toRecord(item);
+            const data = toRecord(node?.data);
+            const position = toRecord(node?.position);
+            const id = typeof node?.id === 'string' && node.id.trim() ? node.id : `node-${index}`;
+            compactNodes.set(id, {
+                id,
+                type: typeof node?.type === 'string' ? node.type : data?.type,
+                position: {
+                    x: typeof position?.x === 'number' ? position.x : undefined,
+                    y: typeof position?.y === 'number' ? position.y : undefined
+                },
+                data: {
+                    content: typeof data?.content === 'string' ? data.content : undefined,
+                    sentiment: typeof data?.sentiment === 'string' ? data.sentiment : undefined,
+                    isLocked: typeof data?.isLocked === 'boolean' ? data.isLocked : undefined
+                }
+            });
+        });
+    }
+
+    if (Array.isArray(root.edges)) {
+        root.edges.forEach((item, index) => {
+            const edge = toRecord(item);
+            const data = toRecord(edge?.data);
+            const style = toRecord(edge?.style);
+            const markerEnd = toRecord(edge?.markerEnd);
+            const source = typeof edge?.source === 'string' ? edge.source : edge?.sourceId;
+            const target = typeof edge?.target === 'string' ? edge.target : edge?.targetId;
+            const id = typeof edge?.id === 'string' && edge.id.trim() ? edge.id : `edge-${source}-${target}-${index}`;
+            compactEdges.set(id, {
+                id,
+                source,
+                target,
+                type: edge?.type,
+                animated: edge?.animated,
+                style: {
+                    stroke: style?.stroke,
+                    strokeWidth: style?.strokeWidth,
+                    strokeDasharray: style?.strokeDasharray
+                },
+                markerEnd: markerEnd && Object.keys(markerEnd).length > 0 ? markerEnd : undefined,
+                data: {
+                    relationType: data?.relationType,
+                    isPositive: data?.isPositive
+                }
+            });
+        });
+    }
+
+    return JSON.stringify({
+        nodes: Array.from(compactNodes.values()),
+        edges: Array.from(compactEdges.values())
+    }, null, 2);
+};
+
 const getActionTitle = (action: AiAction) => {
     const args = (action.args ?? {}) as Record<string, unknown>;
 
@@ -495,6 +561,34 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
 
         const currentText = textToSend;
         const isPrivateChat = chatScope === 'direct';
+        const applyPendingActionsRequest = /^(전체\s*)?(반영|적용|실행)(해|해줘|해라|해\s*주세요|해주세요)?[.!?]?$/.test(currentText.trim());
+
+        if (!isPrivateChat && attachments.length === 0 && applyPendingActionsRequest) {
+            const latestPendingActionMessage = [...filteredMessages]
+                .reverse()
+                .find((message) => message.suggestedActions && message.suggestedActions.length > 0);
+
+            if (latestPendingActionMessage?.suggestedActions?.length) {
+                if (!overrideText) setInputValue('');
+                if (liveblocksService.isConnected()) {
+                    liveblocksService.sendChatMessage(currentText);
+                } else {
+                    setMessages(prev => [...prev, {
+                        id: `user-${Date.now()}`,
+                        role: 'user' as const,
+                        content: currentText,
+                        userId: currentUserId,
+                        userName: '나',
+                        userColor: '#3b82f6',
+                        timestamp: Date.now(),
+                        scope: chatScope
+                    }]);
+                }
+                handleApplyAllActions(latestPendingActionMessage.id, latestPendingActionMessage.suggestedActions);
+                return;
+            }
+        }
+
         if (!overrideText) setInputValue('');
         setIsLoading(true);
         let lockAcquired = false;
@@ -626,11 +720,13 @@ ${layerHeightContext}
                     try {
                         setUploadProgress('JSON 파일 읽는 중...');
                         const rawText = await attachment.text();
-                        JSON.parse(rawText);
+                        const parsedJson = JSON.parse(rawText);
+                        const compactText = compactCultureMapJson(parsedJson);
+                        const sourceText = compactText ?? rawText;
                         jsonAttachmentName = attachment.name;
-                        jsonAttachmentText = rawText.length > MAX_JSON_ATTACH_CHARS
-                            ? `${rawText.slice(0, MAX_JSON_ATTACH_CHARS)}\n\n...[중략: ${rawText.length - MAX_JSON_ATTACH_CHARS}자 생략]`
-                            : rawText;
+                        jsonAttachmentText = sourceText.length > MAX_JSON_ATTACH_CHARS
+                            ? `${sourceText.slice(0, MAX_JSON_ATTACH_CHARS)}\n\n...[중략: ${sourceText.length - MAX_JSON_ATTACH_CHARS}자 생략]`
+                            : sourceText;
                         setUploadProgress(null);
                     } catch (jsonErr) {
                         console.error('JSON parse failed:', jsonErr);
@@ -651,9 +747,9 @@ ${layerHeightContext}
                 }
             }
 
-            const actionVerbs = ['추가', '생성', '만들', '연결', '정리', '정렬', '배치', '레이아웃', '삭제', '지워', '제거', '수정', '변경', '옮겨', '이동', '높이', '요약', '축약', '줄여', '간략', '다듬', '정제', '편집', '바꿔', '되돌', '돌려', '복원', '원복', '취소'];
+            const actionVerbs = ['추가', '생성', '만들', '연결', '정리', '정렬', '배치', '레이아웃', '삭제', '지워', '제거', '수정', '변경', '옮겨', '이동', '높이', '요약', '축약', '줄여', '간략', '다듬', '정제', '편집', '바꿔', '되돌', '돌려', '복원', '원복', '취소', '반영', '적용', '실행'];
             const actionNouns = ['노드', '포스트잇', '연결', '선', '화살표', '엣지', '레이아웃', '정렬', '배치', '맵', '레이어', '내용', '문장', '텍스트', '감성', '감정', '긍정', '부정', '중립', '빈도', '강도'];
-            const explicitActionPattern = /(추가해|추가해줘|생성해|생성해줘|만들어|만들어줘|연결해|연결해줘|삭제해|지워줘|제거해|수정해|변경해|옮겨줘|이동해|정렬해|배치해|레이아웃해|높여|줄여|되돌려|되돌려줘|돌려|돌려줘|복원해|복원해줘|원복해|원복해줘|취소해|취소해줘|undo)/;
+            const explicitActionPattern = /(추가해|추가해줘|생성해|생성해줘|만들어|만들어줘|연결해|연결해줘|삭제해|지워줘|제거해|수정해|변경해|옮겨줘|이동해|정렬해|배치해|레이아웃해|높여|줄여|되돌려|되돌려줘|돌려|돌려줘|복원해|복원해줘|원복해|원복해줘|취소해|취소해줘|반영해|반영해줘|적용해|적용해줘|실행해|실행해줘|undo)/;
             const explanationKeywords = ['설명', '왜', '근거', '의미', '정의', '차이', '무슨', '뭐야', '무엇', '말해', '알려', '이유', '해석'];
             const contentReviewPattern = /(요약|축약|간략|검토|분석|설명|해석|정리).*(내용|텍스트|문장|의미|근거|현재 맵|이 맵|노드들|컬쳐맵)|((내용|텍스트|문장|의미|근거|현재 맵|이 맵|노드들|컬쳐맵).*(요약|축약|간략|검토|분석|설명|해석|정리))/;
             const hasVerb = actionVerbs.some(keyword => currentText.includes(keyword));
