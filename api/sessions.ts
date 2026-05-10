@@ -10,6 +10,7 @@ type SessionRecord = {
     createdAt: number;
     organization?: string;
     alias?: string;
+    hostUserId?: string;
 };
 
 const ROOM_PREFIX = 'culturemap-v2-';
@@ -87,6 +88,7 @@ function roomToSession(room: { id: string; metadata?: Record<string, unknown>; c
         createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
         organization: typeof metadata.organization === 'string' ? metadata.organization : undefined,
         alias: typeof metadata.alias === 'string' ? metadata.alias : undefined,
+        hostUserId: typeof metadata.hostUserId === 'string' ? metadata.hostUserId : undefined,
     };
 }
 
@@ -108,6 +110,7 @@ async function createSession(req: VercelRequest, res: VercelResponse, liveblocks
     const sessionType: SessionType = req.body?.type === 'consulting' ? 'consulting' : 'workshop';
     const name = typeof req.body?.name === 'string' && req.body.name.trim() ? req.body.name.trim().slice(0, 120) : `세션 ${code}`;
     const organization = typeof req.body?.organization === 'string' ? req.body.organization.trim().slice(0, 120) : '';
+    const hostUserId = typeof req.body?.hostUserId === 'string' ? req.body.hostUserId.trim().slice(0, 120) : '';
     const createdAt = Date.now();
 
     await liveblocks.getOrCreateRoom(roomId, {
@@ -118,10 +121,11 @@ async function createSession(req: VercelRequest, res: VercelResponse, liveblocks
             type: sessionType,
             createdAt: String(createdAt),
             ...(organization && { organization }),
+            ...(hostUserId && { hostUserId }),
         },
     });
 
-    return res.status(201).json({ code, name, type: sessionType, createdAt, organization: organization || undefined });
+    return res.status(201).json({ code, name, type: sessionType, createdAt, organization: organization || undefined, hostUserId: hostUserId || undefined });
 }
 
 async function updateSession(req: VercelRequest, res: VercelResponse, liveblocks: Liveblocks) {
@@ -137,6 +141,7 @@ async function updateSession(req: VercelRequest, res: VercelResponse, liveblocks
     if (req.body?.type === 'workshop' || req.body?.type === 'consulting') nextMetadata.type = req.body.type;
     if (typeof req.body?.organization === 'string') nextMetadata.organization = req.body.organization.trim().slice(0, 120);
     if (typeof req.body?.alias === 'string') nextMetadata.alias = req.body.alias.trim().toUpperCase().slice(0, 40);
+    if (typeof req.body?.hostUserId === 'string') nextMetadata.hostUserId = req.body.hostUserId.trim().slice(0, 120);
 
     await liveblocks.updateRoom(roomId, { metadata: { ...currentMetadata, ...nextMetadata } });
     return res.status(200).json({ success: true });

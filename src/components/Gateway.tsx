@@ -13,6 +13,7 @@ interface SessionInfo {
   lastActivity: string;
   isActive: boolean;
   organization?: string;
+  hostUserId?: string;
 }
 
 interface LastSessionInfo {
@@ -153,7 +154,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
 
     return {
       code: existingSession.code,
-      isHost: parsed.isHost ?? false,
+      isHost: (parsed.isHost ?? false) || existingSession.hostUserId === liveblocksService.getCurrentUserId(),
     };
   }, [clearLastSession, findSessionInRegistry, forgetMissingSession, isValidSessionCode, normalizeSessionCode]);
 
@@ -191,7 +192,8 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
         userCount: 0,
         lastActivity: new Date(s.createdAt).toLocaleString('ko-KR'),
         isActive: true,
-        organization: s.organization
+        organization: s.organization,
+        hostUserId: s.hostUserId,
       }));
       setSessions(formattedSessions);
       console.log('📋 세션 레지스트리 로드:', formattedSessions.length, '개');
@@ -407,8 +409,9 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
       }
       
       // 3. 검증 통과 시 해당 세션으로 진입
-      await liveblocksService.joinSession(existingSession.code, false);
-      persistLastSession(existingSession.code, false);
+      const isSessionHost = existingSession.hostUserId === liveblocksService.getCurrentUserId();
+      await liveblocksService.joinSession(existingSession.code, isSessionHost);
+      persistLastSession(existingSession.code, isSessionHost);
       setIsAuth(true);
       setShowJoinModal(false);
       setPendingSession(null);

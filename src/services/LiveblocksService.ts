@@ -55,6 +55,7 @@ class LiveblocksService {
     private userColor: string;
     private hasClearedIndexeddbCache = false;
     private listeners: EventListeners = {};
+    private readonly hostSessionClaimsKey = 'culture-map-host-session-claims';
     
     // 로컬에서 업데이트 중인 항목 추적 (원격 변경과 구분)
     private pendingLocalUpdates: Set<string> = new Set();
@@ -158,8 +159,52 @@ class LiveblocksService {
     }
 
     private assertHostCanRunDestructiveAction(action: string): void {
+        this.refreshHostStatusFromMetadata();
         if (!this.currentSession?.isHost) {
             throw new Error(`${action}은 호스트만 실행할 수 있습니다.`);
+        }
+    }
+
+    private getHostSessionClaims(): Record<string, string> {
+        try {
+            const raw = localStorage.getItem(this.hostSessionClaimsKey);
+            if (!raw) return {};
+            const parsed = JSON.parse(raw);
+            return parsed && typeof parsed === 'object' ? parsed as Record<string, string> : {};
+        } catch {
+            localStorage.removeItem(this.hostSessionClaimsKey);
+            return {};
+        }
+    }
+
+    private rememberHostSession(code: string): void {
+        const normalizedCode = this.normalizeSessionCode(code);
+        if (!normalizedCode) return;
+        const claims = this.getHostSessionClaims();
+        claims[normalizedCode] = this.userId;
+        localStorage.setItem(this.hostSessionClaimsKey, JSON.stringify(claims));
+    }
+
+    private hasLocalHostClaim(code: string): boolean {
+        const normalizedCode = this.normalizeSessionCode(code);
+        if (!normalizedCode) return false;
+        return this.getHostSessionClaims()[normalizedCode] === this.userId;
+    }
+
+    private refreshHostStatusFromMetadata(): void {
+        if (!this.currentSession) return;
+        const claimedHost = this.hasLocalHostClaim(this.currentSession.code);
+        const metadata = this.yDoc?.getMap<unknown>('metadata');
+        const hostUserId = metadata?.get('hostUserId');
+        const metadataHost = typeof hostUserId === 'string' && hostUserId === this.userId;
+
+        if ((claimedHost || metadataHost) && !this.currentSession.isHost) {
+            this.currentSession = { ...this.currentSession, isHost: true };
+            this.emit('session-role-changed', this.currentSession);
+        }
+
+        if (this.currentSession.isHost && metadata && typeof hostUserId !== 'string') {
+            metadata.set('hostUserId', this.userId);
         }
     }
 
@@ -270,6 +315,7 @@ class LiveblocksService {
                 name: sessionName,
                 type: sessionType,
                 organization,
+                hostUserId: this.userId,
             }),
         });
 
@@ -285,10 +331,12 @@ class LiveblocksService {
 
     public async joinSession(code: string, isHost: boolean = false, sessionName?: string, sessionType: SessionType = 'workshop', organization?: string): Promise<void> {
         if (!this.client) throw new Error('Liveblocks 클라이언트가 초기화되지 않았습니다.');
+        const normalizedCode = this.normalizeSessionCode(code);
+        const shouldJoinAsHost = isHost || this.hasLocalHostClaim(normalizedCode);
 
         await this.leaveSession();
         this.yDoc = new Y.Doc();
-        const roomId = `culturemap-v2-${code}`;
+        const roomId = `culturemap-v2-${normalizedCode}`;
         const { room, leave } = this.client.enterRoom<SessionPresence>(roomId, {
             initialPresence: {
                 userId: this.userId,
@@ -308,29 +356,32 @@ class LiveblocksService {
         this.hasClearedIndexeddbCache = false;
 
 
-        this.currentSession = { code, isHost, connectedUsers: 1, name: sessionName, type: sessionType };
+        this.currentSession = { code: normalizedCode, isHost: shouldJoinAsHost, connectedUsers: 1, name: sessionName, type: sessionType };
 
-        if (isHost) {
+        if (shouldJoinAsHost) {
+            this.rememberHostSession(normalizedCode);
             const metadata = this.yDoc.getMap<unknown>('metadata');
             if (!metadata.get('code')) {
-                metadata.set('code', code);
-                metadata.set('name', sessionName || `세션 ${code}`);
+                metadata.set('code', normalizedCode);
+                metadata.set('name', sessionName || `세션 ${normalizedCode}`);
                 metadata.set('type', sessionType);
                 metadata.set('createdAt', Date.now());
+                metadata.set('hostUserId', this.userId);
+            } else if (!metadata.get('hostUserId')) {
                 metadata.set('hostUserId', this.userId);
             }
         }
 
-        if (isHost) {
+        if (shouldJoinAsHost) {
             try {
-                await this.registerSession(code, sessionName || `세션 ${code}`, sessionType, organization);
+                await this.registerSession(normalizedCode, sessionName || `세션 ${normalizedCode}`, sessionType, organization);
             } catch (error) {
                 console.warn('⚠️ 세션 레지스트리 등록 실패:', error);
             }
         }
 
         this.setupDataListeners();
-        this.indexeddbProvider.on('synced', () => this.emit('sync-complete', { code }));
+        this.indexeddbProvider.on('synced', () => this.emit('sync-complete', { code: normalizedCode }));
 
         const handleProviderSync = async (isSynced: boolean) => {
             if (!isSynced || this.hasClearedIndexeddbCache) return;
@@ -344,6 +395,7 @@ class LiveblocksService {
                 console.log(`🧹 [Liveblocks] 세션 연결 시 중복 정리: 노드 ${cleanedNodes}개, 연결선 ${cleanedConnections}개 제거`);
             }
             
+            this.refreshHostStatusFromMetadata();
             this.provider?.off('sync', handleProviderSync);
         };
         this.provider.on('sync', handleProviderSync);
@@ -1264,18 +1316,11 @@ class LiveblocksService {
             // Delta에서 insert된 노드들 추출
             const insertedNotes: StickyNoteData[] = [];
             
-            // retain 위치 추적을 위한 인덱스
-            let currentIndex = 0;
-            
             for (const op of delta) {
-                if ('retain' in op && typeof op.retain === 'number') {
-                    currentIndex += op.retain;
-                } else if ('delete' in op && typeof op.delete === 'number') {
+                if ('delete' in op && typeof op.delete === 'number') {
                     // 삭제된 노드는 event.changes.deleted에서 처리
-                    currentIndex += 0; // delete는 인덱스를 이동시키지 않음
                 } else if ('insert' in op && Array.isArray(op.insert)) {
                     insertedNotes.push(...(op.insert as StickyNoteData[]));
-                    currentIndex += op.insert.length;
                 }
             }
 
@@ -1467,6 +1512,7 @@ class LiveblocksService {
         if (typeof nextName === 'string' && nextName && this.currentSession.name !== nextName) {
             this.currentSession = { ...this.currentSession, name: nextName };
         }
+        this.refreshHostStatusFromMetadata();
     }
 
     public updateLayerSettings(settings: LayerSettings): void {
@@ -1631,7 +1677,7 @@ class LiveblocksService {
         await fetch('/api/sessions?action=update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code, name, type, organization }),
+            body: JSON.stringify({ code, name, type, organization, hostUserId: this.userId }),
         });
         console.log('✅ 세션 레지스트리에 등록:', code, organization ? `(${organization})` : '');
     }
@@ -1639,10 +1685,10 @@ class LiveblocksService {
     /**
      * 세션 레지스트리 목록 조회
      */
-    public async getSessionRegistry(): Promise<Array<{ code: string; name: string; type: string; createdAt: number; organization?: string }>> {
+    public async getSessionRegistry(): Promise<Array<{ code: string; name: string; type: string; createdAt: number; organization?: string; hostUserId?: string }>> {
         const response = await fetch('/api/sessions?action=list');
         if (!response.ok) return [];
-        const data = await response.json() as { sessions?: Array<{ code: string; name: string; type: string; createdAt: number; organization?: string }> };
+        const data = await response.json() as { sessions?: Array<{ code: string; name: string; type: string; createdAt: number; organization?: string; hostUserId?: string }> };
         return data.sessions || [];
     }
 

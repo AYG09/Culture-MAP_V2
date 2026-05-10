@@ -717,22 +717,29 @@ ${layerHeightContext}
                     attachment.type === 'application/json' || attachment.name.toLowerCase().endsWith('.json');
 
                 if (isJsonAttachment) {
+                    setUploadProgress('JSON 파일 읽는 중...');
+                    const rawText = await attachment.text();
+                    jsonAttachmentName = attachment.name;
                     try {
-                        setUploadProgress('JSON 파일 읽는 중...');
-                        const rawText = await attachment.text();
                         const parsedJson = JSON.parse(rawText);
                         const compactText = compactCultureMapJson(parsedJson);
                         const sourceText = compactText ?? rawText;
-                        jsonAttachmentName = attachment.name;
                         jsonAttachmentText = sourceText.length > MAX_JSON_ATTACH_CHARS
                             ? `${sourceText.slice(0, MAX_JSON_ATTACH_CHARS)}\n\n...[중략: ${sourceText.length - MAX_JSON_ATTACH_CHARS}자 생략]`
                             : sourceText;
-                        setUploadProgress(null);
                     } catch (jsonErr) {
                         console.error('JSON parse failed:', jsonErr);
-                        setUploadProgress('JSON 형식이 올바르지 않습니다.');
-                        return;
+                        const parseMessage = jsonErr instanceof Error ? jsonErr.message : '알 수 없는 JSON 파싱 오류';
+                        const truncatedRawText = rawText.length > MAX_JSON_ATTACH_CHARS
+                            ? `${rawText.slice(0, MAX_JSON_ATTACH_CHARS)}\n\n...[중략: ${rawText.length - MAX_JSON_ATTACH_CHARS}자 생략]`
+                            : rawText;
+                        jsonAttachmentText = [
+                            `[주의] 이 파일은 엄격한 JSON으로 파싱되지 않았습니다: ${parseMessage}`,
+                            '아래 원문 일부를 텍스트로 읽고, 구조 오류가 있으면 사용자에게 먼저 알려주세요.',
+                            truncatedRawText
+                        ].join('\n\n');
                     }
+                    setUploadProgress(null);
                 } else {
                     try {
                         setUploadProgress('파일 업로드 중...');
