@@ -15,6 +15,11 @@ interface SessionInfo {
   organization?: string;
 }
 
+interface LastSessionInfo {
+  code?: string;
+  isHost?: boolean;
+}
+
 interface GatewayProps {
   children: ReactNode;
   onAuthenticated?: (sessionCode: string) => void;
@@ -90,22 +95,77 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
     localStorage.removeItem(LAST_SESSION_STORAGE_KEY);
   }, []);
 
+  const removeCachedSession = useCallback((code: string) => {
+    try {
+      const storedSessions = localStorage.getItem('culture-map-sessions');
+      if (!storedSessions) return;
+
+      const cachedSessions = JSON.parse(storedSessions) as SessionInfo[];
+      const filteredSessions = cachedSessions.filter(
+        session => session.code.toUpperCase() !== code.toUpperCase()
+      );
+      localStorage.setItem('culture-map-sessions', JSON.stringify(filteredSessions));
+    } catch {
+      localStorage.removeItem('culture-map-sessions');
+    }
+  }, []);
+
+  const findSessionInRegistry = useCallback(async (code: string) => {
+    const normalizedCode = normalizeSessionCode(code);
+    if (!normalizedCode || !isValidSessionCode(normalizedCode)) return null;
+
+    const registry = await liveblocksService.getSessionRegistry();
+    return registry.find(
+      session => session.code.toUpperCase() === normalizedCode.toUpperCase()
+    ) || null;
+  }, [isValidSessionCode, normalizeSessionCode]);
+
+  const forgetMissingSession = useCallback((code: string) => {
+    console.warn('⚠️ [Gateway] 삭제된 세션 기록을 정리합니다:', code);
+    clearLastSession();
+    removeCachedSession(code);
+  }, [clearLastSession, removeCachedSession]);
+
+  const getStoredSessionIfAvailable = useCallback(async (): Promise<Required<LastSessionInfo> | null> => {
+    const stored = localStorage.getItem(LAST_SESSION_STORAGE_KEY);
+    if (!stored) return null;
+
+    let parsed: LastSessionInfo;
+    try {
+      parsed = JSON.parse(stored) as LastSessionInfo;
+    } catch {
+      clearLastSession();
+      return null;
+    }
+
+    const normalizedCode = parsed.code ? normalizeSessionCode(parsed.code) : '';
+    if (!normalizedCode || !isValidSessionCode(normalizedCode)) {
+      clearLastSession();
+      return null;
+    }
+
+    const existingSession = await findSessionInRegistry(normalizedCode);
+    if (!existingSession) {
+      console.warn('⚠️ [Gateway] 마지막 세션이 삭제되어 자동 재접속을 건너뜁니다:', normalizedCode);
+      forgetMissingSession(normalizedCode);
+      return null;
+    }
+
+    return {
+      code: existingSession.code,
+      isHost: parsed.isHost ?? false,
+    };
+  }, [clearLastSession, findSessionInRegistry, forgetMissingSession, isValidSessionCode, normalizeSessionCode]);
+
   const handleSkipGateAutoJoin = useCallback(async () => {
     try {
-      const stored = localStorage.getItem(LAST_SESSION_STORAGE_KEY);
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored) as { code: string; isHost?: boolean };
-          if (parsed.code) {
-            console.log('🔁 [Gateway] 마지막 세션 자동 재접속 시도:', parsed.code);
-            await liveblocksService.joinSession(parsed.code, parsed.isHost ?? false);
-            setIsAuth(true);
-            if (onAuthenticated) onAuthenticated(parsed.code);
-            return;
-          }
-        } catch {
-          clearLastSession();
-        }
+      const storedSession = await getStoredSessionIfAvailable();
+      if (storedSession) {
+        console.log('🔁 [Gateway] 마지막 세션 자동 재접속 시도:', storedSession.code);
+        await liveblocksService.joinSession(storedSession.code, storedSession.isHost);
+        setIsAuth(true);
+        if (onAuthenticated) onAuthenticated(storedSession.code);
+        return;
       }
 
       const code = await liveblocksService.createSession('새 세션', 'workshop');
@@ -114,15 +174,16 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
       if (onAuthenticated) onAuthenticated(code);
     } catch (e) {
       console.error('Skip gate auto-join failed:', e);
+      clearLastSession();
     } finally {
       setIsLoading(false);
     }
-  }, [clearLastSession, onAuthenticated, persistLastSession]);
+  }, [clearLastSession, getStoredSessionIfAvailable, onAuthenticated, persistLastSession]);
 
   const loadSessions = useCallback(async () => {
     try {
       // Liveblocks 세션 레지스트리에서 로드
-      let registrySessions = await liveblocksService.getSessionRegistry();
+      const registrySessions = await liveblocksService.getSessionRegistry();
 
       const formattedSessions = registrySessions.map(s => ({
         code: s.code,
@@ -212,30 +273,27 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
         console.log('🚪 [Gateway] 게이트웨이 스킵 - 자동 연결');
         await handleSkipGateAutoJoin();
       } else {
-        const stored = localStorage.getItem(LAST_SESSION_STORAGE_KEY);
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored) as { code: string; isHost?: boolean };
-            if (parsed.code) {
-              console.log('🔁 [Gateway] 마지막 세션 자동 재접속 시도:', parsed.code);
-              await liveblocksService.joinSession(parsed.code, parsed.isHost ?? false);
-              setIsAuth(true);
-              if (onAuthenticated) onAuthenticated(parsed.code);
-              setIsLoading(false);
-              return;
-            }
-          } catch {
-            clearLastSession();
+        try {
+          const storedSession = await getStoredSessionIfAvailable();
+          if (storedSession) {
+            console.log('🔁 [Gateway] 마지막 세션 자동 재접속 시도:', storedSession.code);
+            await liveblocksService.joinSession(storedSession.code, storedSession.isHost);
+            setIsAuth(true);
+            if (onAuthenticated) onAuthenticated(storedSession.code);
+            return;
           }
+        } catch (err) {
+          console.error('마지막 세션 자동 재접속 확인 실패:', err);
+          clearLastSession();
         }
 
         console.log('🚪 [Gateway] 일반 모드 - 세션 목록 로드');
         await loadSessions();
-        setIsLoading(false);
       }
+      setIsLoading(false);
     };
     init();
-  }, [clearLastSession, handleSkipGateAutoJoin, onAuthenticated, loadSessions]);
+  }, [clearLastSession, getStoredSessionIfAvailable, handleSkipGateAutoJoin, onAuthenticated, loadSessions]);
 
   const saveSession = (session: SessionInfo) => {
     const updated = [...sessions.filter(s => s.code !== session.code), session];
@@ -327,10 +385,18 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
 
       const inputCode = sessionCode.toUpperCase();
       const targetCode = pendingSession.code.toUpperCase();
+
+      const existingSession = await findSessionInRegistry(pendingSession.code);
+      if (!existingSession) {
+        forgetMissingSession(pendingSession.code);
+        setError('이미 삭제된 세션입니다. 세션 목록을 새로고침했습니다.');
+        await loadSessions();
+        return;
+      }
       
       // 1. 세션의 커스텀 코드(별칭) 확인
-      const alias = await liveblocksService.getSessionAlias(pendingSession.code);
-      const validCodes = [targetCode];
+      const alias = await liveblocksService.getSessionAlias(existingSession.code);
+      const validCodes = [existingSession.code.toUpperCase(), targetCode];
       if (alias) validCodes.push(alias.toUpperCase());
       
       // 2. 입력한 코드가 해당 세션의 코드 또는 커스텀 코드와 일치하는지 검증
@@ -340,12 +406,12 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
       }
       
       // 3. 검증 통과 시 해당 세션으로 진입
-      await liveblocksService.joinSession(pendingSession.code, false);
-      persistLastSession(pendingSession.code, false);
+      await liveblocksService.joinSession(existingSession.code, false);
+      persistLastSession(existingSession.code, false);
       setIsAuth(true);
       setShowJoinModal(false);
       setPendingSession(null);
-      if (onAuthenticated) onAuthenticated(pendingSession.code);
+      if (onAuthenticated) onAuthenticated(existingSession.code);
     } catch (err) {
       console.error('Session join failed:', err);
       setError('세션 입장에 실패했습니다.');
@@ -570,10 +636,18 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
                         // 마스터키로 바이패스 시 바로 입장
                         if (bypassedByMasterKey) {
                           try {
-                            await liveblocksService.joinSession(session.code, false);
-                            persistLastSession(session.code, false);
+                            const existingSession = await findSessionInRegistry(session.code);
+                            if (!existingSession) {
+                              forgetMissingSession(session.code);
+                              setError('이미 삭제된 세션입니다. 세션 목록을 새로고침했습니다.');
+                              await loadSessions();
+                              return;
+                            }
+
+                            await liveblocksService.joinSession(existingSession.code, false);
+                            persistLastSession(existingSession.code, false);
                             setIsAuth(true);
-                            if (onAuthenticated) onAuthenticated(session.code);
+                            if (onAuthenticated) onAuthenticated(existingSession.code);
                           } catch (err) {
                             console.error('Session join failed:', err);
                             setError('세션 입장에 실패했습니다.');
