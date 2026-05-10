@@ -150,7 +150,7 @@ export interface AutoLayoutPayload {
 /**
  * 연결선 재정렬 액션 페이로드
  */
-export interface RerouteEdgesPayload {}
+export type RerouteEdgesPayload = Record<string, never>;
 
 /**
  * 레이어 높이 조절 액션 페이로드
@@ -265,7 +265,7 @@ export interface RestoreSnapshotPayload {
 /**
  * 자동 정렬 원복 액션 페이로드
  */
-export interface UndoLayoutPayload {}
+export type UndoLayoutPayload = Record<string, never>;
 
 /**
  * 학술 검색 액션 페이로드
@@ -457,7 +457,7 @@ export const MAP_TOOL_DECLARATIONS = [
     },
     {
         name: 'auto_layout',
-        description: 'Call when user wants to organize, arrange, or tidy up the map layout. Trigger words: 정렬, 정리, 배치. Examples: "맵 정렬해줘", "레이아웃 정리". (노드 위치만 정렬하며 연결선 재정렬은 별도 도구 사용)',
+        description: 'Call when user wants to organize, arrange, or tidy up node positions on the map layout. Trigger words: 정렬, 배치, 레이아웃. Do NOT call for content summary/review requests such as "현재 맵 내용 정리/요약/분석". Examples: "맵 정렬해줘", "레이아웃 정리". (노드 위치만 정렬하며 연결선 재정렬은 별도 도구 사용)',
         parametersJsonSchema: {
             type: 'object',
             properties: {
@@ -468,7 +468,7 @@ export const MAP_TOOL_DECLARATIONS = [
     },
     {
         name: 'reroute_edges',
-        description: 'Call ONLY when user explicitly mentions connections/lines to re-route or re-align edge handles. Trigger words: 연결선, 선 다시, 연결선 정렬. Examples: "연결선 다시 조정해", "연결선도 다시 정렬해"',
+        description: 'Call ONLY when user explicitly mentions connections/lines/edges to re-route or re-align edge handles. Do NOT call for general auto_layout or content analysis. Trigger words: 연결선, 선 다시, 연결선 정렬, 엣지 정리. Examples: "연결선 다시 조정해", "연결선도 다시 정렬해"',
         parametersJsonSchema: {
             type: 'object',
             properties: {},
@@ -482,7 +482,7 @@ export const MAP_TOOL_DECLARATIONS = [
             type: 'object',
             properties: {
                 layer: { type: 'number', enum: [1, 2, 3, 4], description: 'Layer index (1:결과, 2:행동, 3:유형, 4:무형)' },
-                height: { type: 'number', description: 'New height in pixels (min: 100, max: 600)' }
+                height: { type: 'number', description: 'New height in pixels (min: 100, max: 1000)' }
             },
             required: ['layer', 'height'],
             propertyOrdering: ['layer', 'height']

@@ -32,9 +32,11 @@ Layer 4 (무형레버) → Layer 3 (유형레버) → Layer 2 (행동) → Layer
 ## 2. 도구 사용 규칙
 
 ### 2.1 기본 규칙
-1. 노드 추가/수정 후 반드시 `auto_layout` 호출
-2. 공간 부족 시 `adjust_layer_height` 호출
-3. 사용자가 명시적으로 노드 생성을 요청할 때만 도구 사용
+1. 사용자가 명시적으로 맵 편집을 요청할 때만 도구를 사용한다.
+2. 내용 요약/검토/분석/설명 요청은 먼저 텍스트로 답한다. `정리`가 내용 정리를 뜻하면 `auto_layout`을 호출하지 않는다.
+3. 노드/연결을 실제로 추가·삭제·수정한 뒤에는 필요 시 `auto_layout`을 호출한다.
+4. 공간 부족 시 `adjust_layer_height`를 호출한다. 현재 레이어 높이 상한은 1000px이다.
+5. 연결선 경로만 다시 계산하려면 사용자가 `연결선`, `선`, `엣지`를 명시했을 때만 `reroute_edges`를 사용한다.
 
 ### 2.2 사용 가능한 도구
 | 도구 | 설명 |
@@ -42,9 +44,16 @@ Layer 4 (무형레버) → Layer 3 (유형레버) → Layer 2 (행동) → Layer
 | `add_node` | 새 노드 추가 |
 | `update_node` | 기존 노드 수정 |
 | `delete_node` | 노드 삭제 |
+| `pin_node` | 노드 위치 고정 |
+| `unpin_node` | 노드 위치 고정 해제 |
 | `create_connection` | 노드 간 연결선 생성 |
+| `delete_connection` | 연결선 삭제 |
 | `auto_layout` | 레이아웃 자동 정렬 |
+| `reroute_edges` | 연결선 핸들/경로 재정렬 |
 | `adjust_layer_height` | 레이어 높이 조정 |
+| `save_snapshot` | 현재 맵 스냅샷 저장 |
+| `restore_snapshot` | 저장 스냅샷 복원 |
+| `undo_layout` | 직전 자동정렬 되돌리기 |
 | `load_academic_knowledge` | 학술 자료 로드 |
 
 ---
@@ -71,13 +80,15 @@ Layer 4 (무형레버) → Layer 3 (유형레버) → Layer 2 (행동) → Layer
 3. add_node(layer: 2, label: "솔선수범 행동") → nodeId: "node-3"
 4. create_connection(sourceId: "node-1", targetId: "node-2")
 5. create_connection(sourceId: "node-2", targetId: "node-3")
-6. auto_layout()
+6. auto_layout() 또는 배치 액션 이후 자동 정렬
 ```
 
 #### ❌ 잘못된 예시 (DON'T)
 - 노드만 생성하고 연결선 없이 끝내기
 - 연결 방향 반대로 하기 (Layer 1 → Layer 4)
 - 같은 층위 내에서만 연결 (인과관계 무시)
+- "현재 맵 내용 정리/요약/검토" 요청을 레이아웃 정렬로 오해하기
+- 일반 정렬 요청에서 `reroute_edges`까지 호출해 연결선을 과하게 분산하기
 
 ---
 
@@ -109,4 +120,6 @@ AI 도구 호출 전:
 - [ ] 적절한 Layer를 선택했나?
 - [ ] 관련된 기존 노드가 있다면 연결선도 생성했나?
 - [ ] 연결 방향이 상위→하위 (원인→결과)인가?
-- [ ] 마지막에 auto_layout을 호출했나?
+- [ ] 내용 설명/요약 요청을 도구 호출로 오해하지 않았나?
+- [ ] 연결선 재정렬은 사용자가 명시했을 때만 호출했나?
+- [ ] 필요한 경우 마지막에 auto_layout을 호출했나?

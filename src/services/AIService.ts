@@ -155,8 +155,10 @@ class AIService {
 맵 편집 규칙:
 - 노드와 연결은 Layer 4 → 3 → 2 → 1 방향의 인과 흐름을 우선합니다.
 - 여러 노드와 연결을 함께 만들 때는 add_nodes_with_connections를 우선합니다.
-- 정렬이 필요하면 auto_layout을 호출합니다.
-- 연결선이 어지럽다면 reroute_edges를 호출합니다.
+- 새 노드/연결을 실제로 추가하거나 삭제/수정한 경우에만 후속 정렬(auto_layout)을 고려합니다.
+- auto_layout은 노드 배치 정렬용입니다. 연결선 경로만 바꾸려는 요청에는 reroute_edges를 사용합니다.
+- reroute_edges는 사용자가 "연결선", "선", "엣지" 재정렬을 명시적으로 요청할 때만 사용합니다. 일반적인 설명, 분석, 요약 요청에는 사용하지 않습니다.
+- "정리", "검토", "요약", "분석", "설명"이 내용 이해를 뜻하면 도구를 호출하지 말고 텍스트로 답변합니다.
 - 사용자가 설명이나 근거를 요청하면 먼저 텍스트로 설명합니다.
 
 응답 규칙:
@@ -392,6 +394,8 @@ class AIService {
       'delete_node',
       'delete_connection',
       'create_connection',
+      'pin_node',
+      'unpin_node',
       'auto_layout',
       'reroute_edges',
       'adjust_layer_height',
@@ -405,7 +409,8 @@ class AIService {
       'set_ui_visibility',
       'set_style_variables',
       'save_snapshot',
-      'restore_snapshot'
+      'restore_snapshot',
+      'undo_layout'
     ];
     const allowedToolNames = mode === FunctionCallingConfigMode.ANY
       ? (allowedFunctionNames ?? mapEditTools)

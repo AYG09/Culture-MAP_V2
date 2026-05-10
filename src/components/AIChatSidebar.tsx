@@ -547,7 +547,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     워크샵 모드에서는 빈도/강도 표기를 사용하지 말고 도구에서도 intensity/frequency를 사용하지 마세요.
 총 노드 수: ${_notes.length}개, 총 연결선 수: ${_connections.length}개
 
-� 층위 구조 (상위→하위 = 원인→결과):
+📐 층위 구조 (상위→하위 = 원인→결과):
 - Layer 4 (무형레버): 조직의 기본 가정, 가치관, 신념
 - Layer 3 (유형레버): 제도, 정책, 시스템, 보상체계
 - Layer 2 (행동): 구성원들의 실제 행동 패턴
@@ -566,6 +566,8 @@ ${layerHeightContext}
 💡 여러 노드와 연결을 한 번에 만들 때는 add_nodes_with_connections를 사용하고, nodes에 tempId를 지정한 뒤 connections에서 tempId를 참조하세요.
 💡 특정 위치로 옮길 때는 update_node에 x/y 좌표를 포함하세요.
 💡 레이아웃이 겹치거나 연결선이 가려지면 adjust_layer_height로 레이어 높이를 늘려 공간을 확보하세요.
+💡 "요약/검토/분석/설명/정리"가 내용 이해를 뜻하면 도구를 호출하지 말고 텍스트로만 답변하세요.
+💡 reroute_edges는 사용자가 연결선/선/엣지 재정렬을 명시적으로 요청할 때만 사용하세요.
 🚫 도구 호출은 코드로 출력하지 말고 반드시 function call로 실행하세요.`;
 
         let fileUri: string | undefined;
@@ -653,14 +655,16 @@ ${layerHeightContext}
             const actionNouns = ['노드', '포스트잇', '연결', '선', '화살표', '엣지', '레이아웃', '정렬', '배치', '맵', '레이어', '내용', '문장', '텍스트', '감성', '감정', '긍정', '부정', '중립', '빈도', '강도'];
             const explicitActionPattern = /(추가해|추가해줘|생성해|생성해줘|만들어|만들어줘|연결해|연결해줘|삭제해|지워줘|제거해|수정해|변경해|옮겨줘|이동해|정렬해|배치해|레이아웃해|높여|줄여|되돌려|되돌려줘|돌려|돌려줘|복원해|복원해줘|원복해|원복해줘|취소해|취소해줘|undo)/;
             const explanationKeywords = ['설명', '왜', '근거', '의미', '정의', '차이', '무슨', '뭐야', '무엇', '말해', '알려', '이유', '해석'];
+            const contentReviewPattern = /(요약|축약|간략|검토|분석|설명|해석|정리).*(내용|텍스트|문장|의미|근거|현재 맵|이 맵|노드들|컬쳐맵)|((내용|텍스트|문장|의미|근거|현재 맵|이 맵|노드들|컬쳐맵).*(요약|축약|간략|검토|분석|설명|해석|정리))/;
             const hasVerb = actionVerbs.some(keyword => currentText.includes(keyword));
             const hasNoun = actionNouns.some(keyword => currentText.includes(keyword));
-            const layoutOnlyRequest = /정렬|정리|배치|레이아웃|높이/.test(currentText);
+            const contentReviewRequest = contentReviewPattern.test(currentText);
+            const layoutOnlyRequest = !contentReviewRequest && /(정렬|배치|레이아웃|높이|위치.*정리|맵.*정렬|맵.*배치|선.*정리|연결선.*정리)/.test(currentText);
             const undoOnlyRequest = /(되돌|돌려|복원|원복|취소|undo)/i.test(currentText);
             const mapEditIntentDetected = (hasVerb && hasNoun) || layoutOnlyRequest;
             const explanationRequest = explanationKeywords.some(keyword => currentText.includes(keyword));
             const explicitActionDetected = explicitActionPattern.test(currentText);
-            const explicitMapEditRequest = !isPrivateChat && (explicitActionDetected || layoutOnlyRequest || undoOnlyRequest) && !explanationRequest;
+            const explicitMapEditRequest = !isPrivateChat && !contentReviewRequest && (explicitActionDetected || layoutOnlyRequest || undoOnlyRequest) && !explanationRequest;
             const preservePositionsRequested = /(위치.*유지|현재.*위치|정렬.*하지|정렬하지|레이아웃.*하지|자동\s*정렬.*(하지|말))/i.test(currentText);
             const forceFunctionCall = explicitMapEditRequest;
 
