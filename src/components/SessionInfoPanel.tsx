@@ -9,6 +9,7 @@ interface SessionInfoPanelProps {
   isHost: boolean;
   connectedUsers: number;
   onClose?: () => void;
+  onRoleChanged?: () => void;
 }
 
 const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
@@ -17,11 +18,16 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
   isHost,
   connectedUsers,
   onClose,
+  onRoleChanged,
 }) => {
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [localIP, setLocalIP] = useState<string>('');
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(sessionName || `세션 ${sessionCode}`);
+  const [localIsHost, setLocalIsHost] = useState(isHost);
+  const [hostPasswordInput, setHostPasswordInput] = useState('');
+  const [hostClaimMessage, setHostClaimMessage] = useState<string | null>(null);
+  const [isClaimingHost, setIsClaimingHost] = useState(false);
 
   const sessionQuery = `?multiuser=true&session=${sessionCode}`;
   const originUrl = `${window.location.origin}${sessionQuery}`;
@@ -36,6 +42,10 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
     getLocalIP();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionCode]);
+
+  useEffect(() => {
+    setLocalIsHost(isHost);
+  }, [isHost]);
 
   const generateQRCode = async () => {
     try {
@@ -103,6 +113,36 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
     }
   };
 
+  const handleClaimHost = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const password = hostPasswordInput.trim();
+    if (!password) {
+      setHostClaimMessage('호스트 비밀번호를 입력해주세요.');
+      return;
+    }
+
+    setIsClaimingHost(true);
+    setHostClaimMessage(null);
+    try {
+      const valid = await liveblocksService.claimHostWithPassword(password);
+      if (!valid) {
+        setHostClaimMessage('비밀번호가 일치하지 않습니다.');
+        return;
+      }
+
+      setLocalIsHost(true);
+      setHostPasswordInput('');
+      setHostClaimMessage('호스트 권한을 획득했습니다.');
+      onRoleChanged?.();
+    } catch (error) {
+      console.error('호스트 권한 획득 실패:', error);
+      const message = error instanceof Error ? error.message : '호스트 권한 획득에 실패했습니다.';
+      setHostClaimMessage(message);
+    } finally {
+      setIsClaimingHost(false);
+    }
+  };
+
   return (
     <div className="session-info-panel">
       <div className="session-info-header">
@@ -144,7 +184,7 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
           ) : (
             <div className="session-name-display">
               <span className="name">{editedName}</span>
-              {isHost && (
+              {localIsHost && (
                 <button onClick={() => setIsEditingName(true)} className="edit-btn">
                   ✏️ 편집
                 </button>
@@ -167,8 +207,8 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
           <div className="status-info">
             <p>
               <span className="label">역할:</span>
-              <span className={`role ${isHost ? 'host' : 'participant'}`}>
-                {isHost ? '👑 호스트' : '👤 참가자'}
+              <span className={`role ${localIsHost ? 'host' : 'participant'}`}>
+                {localIsHost ? '👑 호스트' : '👤 참가자'}
               </span>
             </p>
             <p>
@@ -177,6 +217,45 @@ const SessionInfoPanel: React.FC<SessionInfoPanelProps> = ({
             </p>
           </div>
         </div>
+
+        {localIsHost ? (
+          <div className="host-claim-section host-owned">
+            <h4>🔐 호스트 권한</h4>
+            <p className="host-claim-description">
+              현재 브라우저는 이 세션의 호스트 권한을 보유하고 있습니다.
+            </p>
+            {hostClaimMessage && (
+              <div className="host-claim-message success">
+                {hostClaimMessage}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="host-claim-section">
+            <h4>🔐 호스트 권한 획득</h4>
+            <p className="host-claim-description">
+              관리자 화면에서 설정한 호스트 비밀번호를 입력하면 현재 브라우저가 이 세션의 호스트 권한을 갖습니다.
+            </p>
+            <form className="host-claim-form" onSubmit={handleClaimHost}>
+              <input
+                type="password"
+                value={hostPasswordInput}
+                onChange={(event) => setHostPasswordInput(event.target.value)}
+                placeholder="호스트 비밀번호"
+                autoComplete="current-password"
+                disabled={isClaimingHost}
+              />
+              <button type="submit" disabled={isClaimingHost}>
+                {isClaimingHost ? '확인 중...' : '호스트 되기'}
+              </button>
+            </form>
+            {hostClaimMessage && (
+              <div className={`host-claim-message ${localIsHost ? 'success' : 'error'}`}>
+                {hostClaimMessage}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="qr-section">
           <h4>📱 모바일 접속용 QR코드</h4>

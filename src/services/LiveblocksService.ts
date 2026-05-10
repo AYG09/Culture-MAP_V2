@@ -119,6 +119,37 @@ class LiveblocksService {
         return this.currentSession;
     }
 
+    public async claimHostWithPassword(password: string): Promise<boolean> {
+        if (!this.currentSession) {
+            throw new Error('세션이 연결되어 있지 않습니다.');
+        }
+
+        const valid = await this.validateHostPassword(password);
+        if (!valid) return false;
+
+        const normalizedCode = this.normalizeSessionCode(this.currentSession.code);
+        this.rememberHostSession(normalizedCode);
+        this.currentSession = { ...this.currentSession, isHost: true };
+
+        const metadata = this.yDoc?.getMap<unknown>('metadata');
+        if (metadata) {
+            metadata.set('hostUserId', this.userId);
+        }
+
+        try {
+            await fetch('/api/sessions?action=update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: normalizedCode, hostUserId: this.userId }),
+            });
+        } catch (error) {
+            console.warn('⚠️ 세션 레지스트리 호스트 업데이트 실패:', error);
+        }
+
+        this.emit('session-role-changed', this.currentSession);
+        return true;
+    }
+
     private getSnapshotMap() {
         if (!this.yDoc) return null;
         return this.yDoc.getMap<SnapshotEntry>('snapshots');

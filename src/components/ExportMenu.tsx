@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { toPng } from 'html-to-image';
 import { type ReactFlowInstance, getNodesBounds, getViewportForBounds } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
@@ -14,6 +14,7 @@ interface ExportMenuProps {
   onSaveSnapshot?: (snapshotName: string) => void;
   onRestoreSnapshot?: (snapshotName: string) => void;
   onUndoLayout?: () => void;
+  onImportJSON?: (jsonText: string) => Promise<void> | void;
 }
 
 type SnapshotIndexEntry = { id: string; savedAt: string };
@@ -25,11 +26,13 @@ export default function ExportMenu({
   onSaveSnapshot,
   onRestoreSnapshot,
   onUndoLayout,
+  onImportJSON,
 }: ExportMenuProps) {
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [isSnapshotPanelOpen, setIsSnapshotPanelOpen] = useState(false);
   const [snapshotIndex, setSnapshotIndex] = useState<SnapshotIndexEntry[]>([]);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   /**
    * PNG 이미지로 내보내기
@@ -319,6 +322,41 @@ export default function ExportMenu({
     await exportExcel();
   };
 
+  const handleImportJSONClick = () => {
+    setExportError(null);
+    importInputRef.current?.click();
+  };
+
+  const handleImportJSONFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.json') && file.type !== 'application/json') {
+      setExportError('JSON 파일만 불러올 수 있습니다.');
+      return;
+    }
+
+    if (!onImportJSON) {
+      setExportError('JSON 불러오기 기능이 준비되지 않았습니다.');
+      return;
+    }
+
+    setIsExporting(true);
+    setExportError(null);
+    try {
+      const text = await file.text();
+      await onImportJSON(text);
+      console.log('✅ JSON 불러오기 완료:', file.name);
+    } catch (error) {
+      console.error('❌ JSON 불러오기 실패:', error);
+      const message = error instanceof Error ? error.message : 'JSON 불러오기에 실패했습니다.';
+      setExportError(message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleSaveSnapshot = () => {
     if (!onSaveSnapshot) return;
     const input = window.prompt('컬쳐맵 ID를 입력하세요.', 'default');
@@ -391,6 +429,22 @@ export default function ExportMenu({
       >
         {isExporting ? <span className="spinner"></span> : '📄'} <span>JSON</span>
       </button>
+
+      <button
+        className="glass-button export-button export-button-json-import"
+        onClick={handleImportJSONClick}
+        disabled={isExporting}
+        title="저장된 컬쳐맵 JSON 파일로 현재 맵을 복원"
+      >
+        {isExporting ? <span className="spinner"></span> : '📂'} <span>JSON 불러오기</span>
+      </button>
+      <input
+        ref={importInputRef}
+        type="file"
+        accept="application/json,.json"
+        className="json-import-input"
+        onChange={handleImportJSONFile}
+      />
 
       <button
         className="glass-button export-button export-button-excel"

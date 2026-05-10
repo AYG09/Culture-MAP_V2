@@ -137,6 +137,79 @@
   font-weight: 600;
 }
 
+.host-claim-section {
+  padding: 16px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+}
+
+.host-claim-section.host-owned {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+}
+
+.host-claim-description {
+  margin: 0 0 12px 0;
+  color: #1e40af;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.host-claim-section.host-owned .host-claim-description {
+  color: #047857;
+}
+
+.host-claim-form {
+  display: flex;
+  gap: 8px;
+}
+
+.host-claim-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+  background: #fff;
+  color: #111827;
+}
+
+.host-claim-form input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.host-claim-form button {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.host-claim-form button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.host-claim-message {
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.host-claim-message.success {
+  color: #047857;
+}
+
+.host-claim-message.error {
+  color: #b91c1c;
+}
+
 /* QR 코드 섹션 */
 .qr-code-container {
   text-align: center;
@@ -274,6 +347,10 @@
   .status-info {
     flex-direction: column;
     gap: 8px;
+  }
+
+  .host-claim-form {
+    flex-direction: column;
   }
 
   .url-display {

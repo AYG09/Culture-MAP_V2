@@ -78,6 +78,7 @@ import type { StickyNoteData, ConnectionData as LBConnectionData, SessionType } 
 import { convertToFlowData, convertFromFlowData } from '../utils/flowDataConverter';
 import { buildElkLayoutOptions, getElkLayoutedElements, getLayoutedElements, applyOptimalHandlesToEdges, getOptimalHandles, LAYER_MAX_HEIGHT } from '../utils/flowAutoLayout';
 import { parseAIOutput } from '../utils/parser';
+import { parseCultureMapJson } from '../utils/cultureMapJsonImport';
 
 // Liveblocks 서비스
 import liveblocksService from '../services/LiveblocksService';
@@ -227,6 +228,7 @@ const CultureMapFlow = ({
   // 세션 타입 기반 모드 결정
   const currentSession = liveblocksService.getCurrentSession();
   const [sessionType, setSessionType] = useState<SessionType>(currentSession?.type ?? 'workshop');
+  const [, setSessionRoleVersion] = useState(0);
   const mode = sessionType;
   const isConsultingMode = sessionType === 'consulting';
 
@@ -1395,6 +1397,102 @@ ${chatHistorySection}
     handleAiAction({ name: 'undo_layout', args: {} });
   }, [handleAiAction]);
 
+  const handleImportJSON = useCallback(async (jsonText: string) => {
+    const parsed = parseCultureMapJson(jsonText);
+    const session = liveblocksService.getCurrentSession();
+    if (liveblocksService.isConnected() && !session?.isHost) {
+      throw new Error('JSON 복원은 호스트만 실행할 수 있습니다. 세션 관리에서 호스트 비밀번호로 권한을 획득해주세요.');
+    }
+
+    if (!window.confirm(`현재 컬쳐맵을 JSON 파일의 노드 ${parsed.nodes.length}개, 연결선 ${parsed.edges.length}개로 교체합니다. 계속할까요?`)) {
+      return;
+    }
+
+    const converted = convertFromFlowData(parsed.nodes, parsed.edges);
+    const { nodes: nextNodes, edges: nextEdges } = convertToFlowData(
+      converted.notes,
+      converted.connections,
+      handleNodeContentUpdate,
+      {
+        onNodeEditStart: handleStartNodeEditing,
+        onNodeEditEnd: handleStopNodeEditing,
+        onTogglePin: handleTogglePin,
+        currentUserId: liveblocksService.getCurrentUserId() ?? undefined,
+        includeFrequency: isConsultingMode,
+      }
+    );
+
+    setNodes(nextNodes);
+    setEdges(nextEdges);
+    nodesRef.current = nextNodes;
+    edgesRef.current = nextEdges;
+    onNotesChange(converted.notes);
+    onConnectionsChange(converted.connections);
+
+    if (parsed.layerHeights) {
+      setLayerHeights(parsed.layerHeights);
+    }
+    if (parsed.layerOpacities) {
+      setLayerOpacities(parsed.layerOpacities);
+    }
+
+    if (liveblocksService.isConnected()) {
+      const lbNotes = converted.notes.map((note) => ({
+        id: note.id,
+        content: note.content,
+        x: note.position.x,
+        y: note.position.y,
+        layer: note.layer,
+        sentiment: note.sentiment,
+        type: toRemoteType(note.type),
+        width: note.width,
+        height: note.height,
+        frequency: note.perceptionIntensity,
+        basis: note.basis,
+        pinned: note.pinned,
+        pinnedHandles: note.pinnedHandles,
+        timestamp: Date.now(),
+        author: liveblocksService.getCurrentUserDisplayName(),
+      }));
+      const lbConnections = converted.connections.map((connection) => ({
+        id: connection.id,
+        sourceId: connection.sourceId,
+        targetId: connection.targetId,
+        relationType: connection.relationType,
+        isPositive: connection.isPositive,
+        sourceHandle: connection.sourceHandle,
+        targetHandle: connection.targetHandle,
+      }));
+      liveblocksService.restoreMapData(lbNotes, lbConnections);
+
+      if (parsed.layerHeights || parsed.layerOpacities) {
+        liveblocksService.updateLayerSettings({
+          layerHeights: parsed.layerHeights ?? layerHeights,
+          layerOpacities: parsed.layerOpacities ?? layerOpacities,
+        });
+      }
+    }
+
+    if (parsed.viewport && reactFlowInstance) {
+      await reactFlowInstance.setViewport(parsed.viewport);
+    }
+  }, [
+    handleNodeContentUpdate,
+    handleStartNodeEditing,
+    handleStopNodeEditing,
+    handleTogglePin,
+    isConsultingMode,
+    layerHeights,
+    layerOpacities,
+    onConnectionsChange,
+    onNotesChange,
+    reactFlowInstance,
+    setEdges,
+    setLayerHeights,
+    setLayerOpacities,
+    setNodes,
+  ]);
+
   const aiContext = useMemo(() => convertFromFlowData(nodes, edges), [nodes, edges]);
 
   const layerDefinitions = useMemo(
@@ -1831,6 +1929,12 @@ ${chatHistorySection}
   });
 
   /* Removed old useEffect logic handled by useLiveblocksSync */
+
+  useEffect(() => {
+    const handleRoleChanged = () => setSessionRoleVersion((version) => version + 1);
+    liveblocksService.on('session-role-changed', handleRoleChanged);
+    return () => liveblocksService.off('session-role-changed', handleRoleChanged);
+  }, []);
 
   useEffect(() => {
     const currentUserId = getCurrentUserId();
@@ -3510,6 +3614,7 @@ ${chatHistorySection}
                 onSaveSnapshot={handleSaveSnapshot}
                 onRestoreSnapshot={handleRestoreSnapshot}
                 onUndoLayout={handleUndoLayout}
+                onImportJSON={handleImportJSON}
               />
             </Suspense>
           )}
@@ -4730,6 +4835,7 @@ ${chatHistorySection}
                 sessionName={session.name}
                 isHost={session.isHost}
                 connectedUsers={session.connectedUsers}
+                onRoleChanged={() => setSessionRoleVersion((version) => version + 1)}
                 onClose={() => setShowSessionInfo(false)}
               />
             </div>
