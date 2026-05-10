@@ -71,7 +71,7 @@ const ReportEditor = lazy(() => import('./ReportEditor'));
 
 // 타입
 import { FREQUENCY_LABELS } from '../types/culture';
-import type { NoteData, ConnectionData, PerceptionIntensity } from '../types/culture';
+import type { NoteData, ConnectionData, PerceptionIntensity, NoteType } from '../types/culture';
 import type { StickyNoteData, ConnectionData as LBConnectionData, SessionType } from '../types/liveblocks';
 
 // 유틸리티
@@ -95,6 +95,16 @@ interface CultureMapFlowProps {
   onConnectionsChange: (connections: ConnectionData[]) => void;
   onNodeUpdate: (id: string, content: string) => void;
 }
+
+const NOTE_TYPE_TO_REMOTE: Record<NoteType, string> = {
+  결과: 'result',
+  행동: 'behavior',
+  유형_레버: 'tangible_lever',
+  무형_레버: 'intangible_lever',
+  insight: 'behavior',
+};
+
+const toRemoteType = (noteType: NoteType): string => NOTE_TYPE_TO_REMOTE[noteType];
 
 type PaneContextMenuState = {
   type: 'pane';
