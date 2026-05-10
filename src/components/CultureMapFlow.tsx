@@ -140,6 +140,64 @@ type WorkspacePanel = 'map' | 'ai' | 'report' | 'layers' | 'session';
 type AiPanelMode = 'hidden' | 'peek' | 'full';
 type RightPanelMode = 'none' | 'layers' | 'session' | 'inspector';
 
+type InspectorConnectedNode = {
+  id: string;
+  content: string;
+  layerName: string;
+  directionLabel: string;
+  relationLabel: string;
+};
+
+type InspectorNodeSummary = {
+  id: string;
+  content: string;
+  type: NoteData['type'];
+  layer: NoteData['layer'];
+  layerName: string;
+  sentiment: NoteData['sentiment'];
+  frequency: PerceptionIntensity | null;
+  basis: string;
+  createdBy: NoteData['createdBy'];
+  pinned: boolean;
+  position: Node['position'];
+  connectionCount: number;
+  connectedNodes: InspectorConnectedNode[];
+  contextSignature: string;
+};
+
+type InspectorAnalysisCacheEntry = {
+  nodeId: string;
+  content: string;
+  generatedAt: string;
+  contextSignature: string;
+};
+
+type InspectorAnalysisCache = Record<string, InspectorAnalysisCacheEntry>;
+
+const INSPECTOR_ANALYSIS_CACHE_KEY = 'culture-map-inspector-node-analysis:v1';
+
+const readInspectorAnalysisCache = (): InspectorAnalysisCache => {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(INSPECTOR_ANALYSIS_CACHE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === 'object' ? parsed as InspectorAnalysisCache : {};
+  } catch (error) {
+    console.warn('⚠️ 인스펙터 AI 분석 캐시를 읽지 못했습니다:', error);
+    return {};
+  }
+};
+
+const writeInspectorAnalysisCache = (cache: InspectorAnalysisCache): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(INSPECTOR_ANALYSIS_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.warn('⚠️ 인스펙터 AI 분석 캐시를 저장하지 못했습니다:', error);
+  }
+};
+
 // 커스텀 노드 타입 정의
 const nodeTypes = {
   result: ResultNode,
@@ -552,6 +610,10 @@ ${chatHistorySection}
   const [aiPanelMode, setAiPanelMode] = useState<AiPanelMode>('peek');
   const [rightPanelMode, setRightPanelMode] = useState<RightPanelMode>('layers');
   const [isCanvasFocusMode, setIsCanvasFocusMode] = useState(false);
+  const [inspectorAnalysisCache, setInspectorAnalysisCache] = useState<InspectorAnalysisCache>(() => readInspectorAnalysisCache());
+  const [inspectorAnalysisLoadingId, setInspectorAnalysisLoadingId] = useState<string | null>(null);
+  const [inspectorAnalysisError, setInspectorAnalysisError] = useState<string | null>(null);
+  const inspectorAnalysisInFlightRef = useRef(new Set<string>());
 
   // 반응형: 모바일 감지
   const isMobile = useIsMobile();
@@ -1604,7 +1666,7 @@ ${chatHistorySection}
     });
   }, [activeWorkspacePanel]);
 
-  const selectedInspectorNode = useMemo(() => {
+  const selectedInspectorNode = useMemo<InspectorNodeSummary | null>(() => {
     const selectedNode = selectedNodes[0];
     if (!selectedNode) {
       return null;
@@ -1619,13 +1681,30 @@ ${chatHistorySection}
       pinned?: boolean;
     } | undefined) ?? {};
 
-    const note = aiContext.notes.find((item) => item.id === selectedNode.id);
-    const connectionCount = aiContext.connections.filter(
+    const notesById = new Map(aiContext.notes.map((item) => [item.id, item]));
+    const note = notesById.get(selectedNode.id);
+    const connectedConnections = aiContext.connections.filter(
       (item) => item.sourceId === selectedNode.id || item.targetId === selectedNode.id
-    ).length;
+    );
+    const connectionCount = connectedConnections.length;
     const layerName = layerDefinitions.find((item) => item.index + 1 === (note?.layer ?? toLayerValue(undefined, toNoteType(selectedNode.type))))?.name;
+    const getLayerName = (layer?: NoteData['layer']) => layerDefinitions.find((item) => item.index + 1 === layer)?.name ?? '미분류';
+    const connectedNodes = connectedConnections.map((connection) => {
+      const isOutgoing = connection.sourceId === selectedNode.id;
+      const counterpartId = isOutgoing ? connection.targetId : connection.sourceId;
+      const counterpart = notesById.get(counterpartId);
+      const isPositive = connection.isPositive !== false;
 
-    return {
+      return {
+        id: counterpartId,
+        content: counterpart?.content || counterpartId,
+        layerName: getLayerName(counterpart?.layer),
+        directionLabel: isOutgoing ? '영향을 줌' : '영향을 받음',
+        relationLabel: `${connection.relationType === 'indirect' ? '간접' : '직접'} · ${isPositive ? '긍정' : '부정'}`,
+      };
+    });
+
+    const nodeSummary = {
       id: selectedNode.id,
       content: data.content ?? note?.content ?? '내용 없음',
       type: note?.type ?? toNoteType(selectedNode.type),
@@ -1638,6 +1717,22 @@ ${chatHistorySection}
       pinned: data.pinned ?? note?.pinned ?? false,
       position: selectedNode.position,
       connectionCount,
+      connectedNodes,
+    };
+
+    const contextSignature = JSON.stringify({
+      content: nodeSummary.content,
+      type: nodeSummary.type,
+      layer: nodeSummary.layer,
+      sentiment: nodeSummary.sentiment,
+      frequency: nodeSummary.frequency,
+      basis: nodeSummary.basis,
+      connectedNodes,
+    });
+
+    return {
+      ...nodeSummary,
+      contextSignature,
     };
   }, [aiContext.connections, aiContext.notes, layerDefinitions, selectedNodes]);
 
@@ -1673,6 +1768,102 @@ ${chatHistorySection}
       targetHandle: connection?.targetHandle ?? selectedEdge.targetHandle,
     };
   }, [aiContext.connections, aiContext.notes, selectedEdges]);
+
+  const generateInspectorNodeAnalysis = useCallback(async (nodeSummary: InspectorNodeSummary, options?: { force?: boolean }) => {
+    const force = options?.force === true;
+    const cached = inspectorAnalysisCache[nodeSummary.id];
+    if (!force && cached) {
+      return;
+    }
+
+    if (inspectorAnalysisInFlightRef.current.has(nodeSummary.id)) {
+      return;
+    }
+
+    inspectorAnalysisInFlightRef.current.add(nodeSummary.id);
+    setInspectorAnalysisLoadingId(nodeSummary.id);
+    setInspectorAnalysisError(null);
+
+    try {
+      const layerSummary = layerDefinitions.map((layer) => {
+        const layerNotes = aiContext.notes.filter((note) => note.layer === layer.index + 1);
+        const sample = layerNotes.slice(0, 12).map((note) => note.content).join(' / ');
+        return `- ${layer.name}: ${layerNotes.length}개${sample ? ` (${sample})` : ''}`;
+      }).join('\n');
+      const connectedSummary = nodeSummary.connectedNodes.length > 0
+        ? nodeSummary.connectedNodes.map((item) => `- ${item.directionLabel}: [${item.layerName}] ${item.content} (${item.relationLabel})`).join('\n')
+        : '- 연결된 노드 없음';
+      const prompt = `당신은 조직문화 컨설턴트입니다. 아래 선택 노드가 전체 Culture Map 안에서 어떤 의미를 갖는지 한국어로 분석하세요.
+
+규칙:
+- 450자 이내로 작성합니다.
+- 노드 내용, 층위, 속성, 연결 관계를 함께 해석합니다.
+- 사용자가 바로 이해할 수 있게 2~3개의 짧은 문단 또는 불릿으로 답합니다.
+- 새로운 노드/연결 생성 제안이나 도구 호출 지시는 하지 않습니다.
+
+선택 노드:
+- 내용: ${nodeSummary.content}
+- 유형/층위: ${nodeSummary.type} / ${nodeSummary.layerName}
+- 속성: ${nodeSummary.sentiment === 'positive' ? '긍정' : nodeSummary.sentiment === 'negative' ? '부정' : '중립'}
+- 빈도: ${nodeSummary.frequency ? FREQUENCY_LABELS[nodeSummary.frequency] : '없음'}
+- 근거: ${nodeSummary.basis || '등록된 근거 없음'}
+
+연결된 노드:
+${connectedSummary}
+
+전체 맵 층위 요약:
+${layerSummary}
+
+전체 연결 수: ${aiContext.connections.length}개`;
+
+      const content = (await aiService.analyzeCulture(prompt)).trim();
+      if (!content) {
+        throw new Error('AI가 분석 내용을 반환하지 않았습니다.');
+      }
+
+      const entry: InspectorAnalysisCacheEntry = {
+        nodeId: nodeSummary.id,
+        content,
+        generatedAt: new Date().toISOString(),
+        contextSignature: nodeSummary.contextSignature,
+      };
+
+      setInspectorAnalysisCache((prev) => {
+        const next = { ...prev, [nodeSummary.id]: entry };
+        writeInspectorAnalysisCache(next);
+        return next;
+      });
+    } catch (error) {
+      console.error('인스펙터 노드 맥락 분석 실패:', error);
+      setInspectorAnalysisError(error instanceof Error ? error.message : '노드 맥락 분석에 실패했습니다.');
+    } finally {
+      inspectorAnalysisInFlightRef.current.delete(nodeSummary.id);
+      setInspectorAnalysisLoadingId((current) => current === nodeSummary.id ? null : current);
+    }
+  }, [aiContext.connections.length, aiContext.notes, inspectorAnalysisCache, layerDefinitions]);
+
+  useEffect(() => {
+    if (!selectedInspectorNode) {
+      setInspectorAnalysisError(null);
+      return;
+    }
+
+    if (inspectorAnalysisCache[selectedInspectorNode.id]) {
+      setInspectorAnalysisError(null);
+      return;
+    }
+
+    void generateInspectorNodeAnalysis(selectedInspectorNode);
+  }, [generateInspectorNodeAnalysis, inspectorAnalysisCache, selectedInspectorNode]);
+
+  const selectedInspectorAnalysis = selectedInspectorNode
+    ? inspectorAnalysisCache[selectedInspectorNode.id]
+    : undefined;
+  const isSelectedInspectorAnalysisStale = Boolean(
+    selectedInspectorNode
+    && selectedInspectorAnalysis
+    && selectedInspectorAnalysis.contextSignature !== selectedInspectorNode.contextSignature
+  );
 
   const handleRightPanelTabChange = useCallback((mode: Exclude<RightPanelMode, 'none'>) => {
     if (mode === 'inspector' && !selectedInspectorNode && !selectedInspectorEdge) {
@@ -4155,7 +4346,7 @@ ${chatHistorySection}
 
                     {selectedInspectorNode && (
                       <>
-                        <p className="workspace-side-card__description">선택한 노드의 층위, 감정, 근거와 연결 밀도를 함께 확인합니다.</p>
+                        <p className="workspace-side-card__description">선택한 노드의 층위, 속성, 근거와 연결 맥락을 함께 확인합니다.</p>
                         <div className="workspace-side-card__stats">
                           <div className="workspace-side-card__stat">
                             <span>노드 유형</span>
@@ -4166,7 +4357,7 @@ ${chatHistorySection}
                             <strong>{selectedInspectorNode.layerName}</strong>
                           </div>
                           <div className="workspace-side-card__stat">
-                            <span>감정</span>
+                            <span>속성</span>
                             <strong>{selectedInspectorNode.sentiment === 'positive' ? '긍정' : selectedInspectorNode.sentiment === 'negative' ? '부정' : '중립'}</strong>
                           </div>
                           <div className="workspace-side-card__stat">
@@ -4193,6 +4384,54 @@ ${chatHistorySection}
                         <div className="workspace-inspector-block">
                           <span className="workspace-inspector-block__label">내용</span>
                           <p>{selectedInspectorNode.content}</p>
+                        </div>
+                        <div className="workspace-inspector-block">
+                          <span className="workspace-inspector-block__label">연결된 노드</span>
+                          {selectedInspectorNode.connectedNodes.length > 0 ? (
+                            <div className="workspace-inspector-connected-list">
+                              {selectedInspectorNode.connectedNodes.map((connectedNode) => (
+                                <div key={`${selectedInspectorNode.id}-${connectedNode.id}-${connectedNode.directionLabel}`} className="workspace-inspector-connected-item">
+                                  <div>
+                                    <span>{connectedNode.directionLabel} · {connectedNode.layerName}</span>
+                                    <strong>{connectedNode.content}</strong>
+                                  </div>
+                                  <em>{connectedNode.relationLabel}</em>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p>연결된 노드가 없습니다.</p>
+                          )}
+                        </div>
+                        <div className="workspace-inspector-block workspace-inspector-ai-block">
+                          <div className="workspace-inspector-block__header">
+                            <span className="workspace-inspector-block__label">AI 맥락 분석</span>
+                            <button
+                              type="button"
+                              className="workspace-side-link"
+                              disabled={inspectorAnalysisLoadingId === selectedInspectorNode.id}
+                              onClick={() => void generateInspectorNodeAnalysis(selectedInspectorNode, { force: true })}
+                            >
+                              {inspectorAnalysisLoadingId === selectedInspectorNode.id ? '분석 중...' : '새로 분석'}
+                            </button>
+                          </div>
+                          {selectedInspectorAnalysis ? (
+                            <>
+                              {isSelectedInspectorAnalysisStale && (
+                                <p className="workspace-inspector-cache-note">연결 맥락이 바뀌었습니다. 새 분석이 필요하면 버튼을 눌러 갱신하세요.</p>
+                              )}
+                              <p>{selectedInspectorAnalysis.content}</p>
+                              <span className="workspace-inspector-cache-time">
+                                {new Date(selectedInspectorAnalysis.generatedAt).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })} 생성됨
+                              </span>
+                            </>
+                          ) : inspectorAnalysisLoadingId === selectedInspectorNode.id ? (
+                            <p>전체 컬쳐맵 맥락에서 이 노드의 의미를 분석하고 있습니다.</p>
+                          ) : inspectorAnalysisError ? (
+                            <p className="workspace-inspector-error">{inspectorAnalysisError}</p>
+                          ) : (
+                            <p>분석 결과가 아직 없습니다.</p>
+                          )}
                         </div>
                         <div className="workspace-inspector-block">
                           <span className="workspace-inspector-block__label">메모 및 근거</span>
