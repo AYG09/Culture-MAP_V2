@@ -29,28 +29,14 @@ function AnimatedFlowEdge({
   markerEnd,
   data,
 }: EdgeProps<AnimatedFlowEdge>) {
-  const bundleSize = typeof data?.bundleSize === 'number' ? data.bundleSize : 0;
-  const bundleIndex = typeof data?.bundleIndex === 'number' ? data.bundleIndex : 0;
-  const hasBundle = bundleSize > 1;
-  const centerOffset = hasBundle ? bundleIndex - (bundleSize - 1) / 2 : 0;
-  const bundleGap = 10;
-
-  const deltaX = targetX - sourceX;
-  const deltaY = targetY - sourceY;
-  const isHorizontalDominant = Math.abs(deltaX) >= Math.abs(deltaY);
-  const offset = centerOffset * bundleGap;
-
-  const adjustedSourceX = isHorizontalDominant ? sourceX : sourceX + offset;
-  const adjustedSourceY = isHorizontalDominant ? sourceY + offset : sourceY;
-  const adjustedTargetX = isHorizontalDominant ? targetX : targetX + offset;
-  const adjustedTargetY = isHorizontalDominant ? targetY + offset : targetY;
-
+  // React Flow가 계산한 source/target 좌표는 실제 handle 위치다.
+  // 이 좌표를 직접 보정하면 선이 노드 연결점에서 떨어져 보이므로 path만 원 좌표로 생성한다.
   const [edgePath] = getBezierPath({
-    sourceX: adjustedSourceX,
-    sourceY: adjustedSourceY,
+    sourceX,
+    sourceY,
     sourcePosition,
-    targetX: adjustedTargetX,
-    targetY: adjustedTargetY,
+    targetX,
+    targetY,
     targetPosition,
   });
 

@@ -565,46 +565,42 @@ ${chatHistorySection}
   const getCurrentUserId = useCallback(() => liveblocksService.getCurrentUserId() ?? 'local-user', []);
 
   const applyEdgeBundling = useCallback((edges: Edge[]): Edge[] => {
-    const byTarget = new Map<string, Edge[]>();
-    const bySource = new Map<string, Edge[]>();
+    const byExactRoute = new Map<string, Edge[]>();
 
     edges.forEach((edge) => {
-      if (!byTarget.has(edge.target)) {
-        byTarget.set(edge.target, []);
-      }
-      byTarget.get(edge.target)!.push(edge);
-
-      if (!bySource.has(edge.source)) {
-        bySource.set(edge.source, []);
-      }
-      bySource.get(edge.source)!.push(edge);
+      const routeKey = [
+        edge.source,
+        edge.target,
+        edge.sourceHandle ?? '',
+        edge.targetHandle ?? '',
+      ].join('::');
+      const group = byExactRoute.get(routeKey) ?? [];
+      group.push(edge);
+      byExactRoute.set(routeKey, group);
     });
 
     const bundleMap = new Map<string, { bundleSize: number; bundleIndex: number }>();
 
-    byTarget.forEach((group) => {
+    byExactRoute.forEach((group) => {
       if (group.length <= 1) return;
       const sorted = [...group].sort((a, b) => a.id.localeCompare(b.id));
       sorted.forEach((edge, index) => {
-        bundleMap.set(edge.id, { bundleSize: sorted.length, bundleIndex: index });
-      });
-    });
-
-    bySource.forEach((group) => {
-      if (group.length <= 1) return;
-      const sorted = [...group].sort((a, b) => a.id.localeCompare(b.id));
-      sorted.forEach((edge, index) => {
-        if (bundleMap.has(edge.id)) return;
         bundleMap.set(edge.id, { bundleSize: sorted.length, bundleIndex: index });
       });
     });
 
     return edges.map((edge) => {
+      const data = (edge.data as Record<string, unknown> | undefined) ?? {};
       const bundle = bundleMap.get(edge.id);
       if (!bundle) {
-        return edge;
+        const restData = { ...data };
+        delete restData.bundleSize;
+        delete restData.bundleIndex;
+        return {
+          ...edge,
+          data: restData,
+        };
       }
-      const data = (edge.data as Record<string, unknown> | undefined) ?? {};
       return {
         ...edge,
         data: {
@@ -2154,7 +2150,7 @@ ${chatHistorySection}
         const sameLayerNodes = nodes.filter(n => n.id !== changedNodeId && n.type === changedNode.type);
 
         let adjustedX = changedNode.position.x;
-        let adjustedY = changedNode.position.y;
+        const adjustedY = changedNode.position.y;
         let hasOverlap = true;
         let iterations = 0;
         const maxIterations = 10;
