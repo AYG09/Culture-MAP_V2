@@ -280,6 +280,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
             await liveblocksService.joinSession(storedSession.code, storedSession.isHost);
             setIsAuth(true);
             if (onAuthenticated) onAuthenticated(storedSession.code);
+            setIsLoading(false);
             return;
           }
         } catch (err) {
