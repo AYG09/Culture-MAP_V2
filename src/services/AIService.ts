@@ -157,6 +157,7 @@ class AIService {
 - 여러 노드와 연결을 함께 만들 때는 add_nodes_with_connections를 우선합니다.
 - 새 노드/연결을 실제로 추가하거나 삭제/수정한 경우에만 후속 정렬(auto_layout)을 고려합니다.
 - auto_layout은 노드 배치 정렬용입니다. 연결선 경로만 바꾸려는 요청에는 reroute_edges를 사용합니다.
+- 연결선/선/엣지 정리 요청에서는 기존 노드나 연결을 재생성하지 말고 reroute_edges만 사용합니다.
 - reroute_edges는 사용자가 "연결선", "선", "엣지" 재정렬을 명시적으로 요청할 때만 사용합니다. 일반적인 설명, 분석, 요약 요청에는 사용하지 않습니다.
 - "정리", "검토", "요약", "분석", "설명"이 내용 이해를 뜻하면 도구를 호출하지 말고 텍스트로 답변합니다.
 - 사용자가 설명이나 근거를 요청하면 먼저 텍스트로 설명합니다.
@@ -551,11 +552,12 @@ class AIService {
     prompt: string,
     fileUri?: string,
     mimeType?: string,
-    options?: { forceFunctionCall?: boolean; allowExternalTools?: boolean; groundingQuery?: string }
+    options?: { forceFunctionCall?: boolean; allowExternalTools?: boolean; groundingQuery?: string; allowedFunctionNames?: string[] }
   ): AsyncGenerator<AIStreamChunk, void, void> {
     const forceFunctionCall = options?.forceFunctionCall ?? false;
     const allowExternalTools = options?.allowExternalTools ?? true;
     const internalTools = ['search_academic_theory', 'load_academic_knowledge'];
+    const allowedFunctionNames = options?.allowedFunctionNames;
 
     const academicGrounding = await this.prepareAcademicGrounding(options?.groundingQuery ?? prompt);
     const promptToSend = academicGrounding.prompt;
@@ -563,7 +565,7 @@ class AIService {
     yield { type: 'metadata', evidence: academicGrounding.evidence };
 
     let session = forceFunctionCall
-      ? this.createChatSession(FunctionCallingConfigMode.ANY, this.chatHistory)
+      ? this.createChatSession(FunctionCallingConfigMode.ANY, this.chatHistory, allowedFunctionNames)
       : (allowExternalTools
           ? (this.chatSession || this.startChat())
           : this.createChatSession(FunctionCallingConfigMode.AUTO, this.chatHistory, internalTools));
@@ -610,7 +612,7 @@ class AIService {
           streamRetried = true;
           await this.validateModelAvailability(this.currentConfig?.modelName || '');
           session = forceFunctionCall
-            ? this.createChatSession(FunctionCallingConfigMode.ANY, this.chatHistory)
+            ? this.createChatSession(FunctionCallingConfigMode.ANY, this.chatHistory, allowedFunctionNames)
             : (allowExternalTools
                 ? this.startChat(this.chatHistory)
                 : this.createChatSession(FunctionCallingConfigMode.AUTO, this.chatHistory, internalTools));

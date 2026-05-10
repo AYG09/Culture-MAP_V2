@@ -589,6 +589,27 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
             }
         }
 
+        const actionVerbs = ['추가', '생성', '만들', '연결', '정리', '정렬', '배치', '레이아웃', '삭제', '지워', '제거', '수정', '변경', '옮겨', '이동', '높이', '요약', '축약', '줄여', '간략', '다듬', '정제', '편집', '바꿔', '되돌', '돌려', '복원', '원복', '취소', '반영', '적용', '실행'];
+        const actionNouns = ['노드', '포스트잇', '연결', '선', '화살표', '엣지', '레이아웃', '정렬', '배치', '맵', '레이어', '내용', '문장', '텍스트', '감성', '감정', '긍정', '부정', '중립', '빈도', '강도'];
+        const explicitActionPattern = /(추가해|추가해줘|생성해|생성해줘|만들어|만들어줘|연결해|연결해줘|삭제해|지워줘|제거해|수정해|변경해|옮겨줘|이동해|정렬해|배치해|레이아웃해|높여|줄여|되돌려|되돌려줘|돌려|돌려줘|복원해|복원해줘|원복해|원복해줘|취소해|취소해줘|반영해|반영해줘|적용해|적용해줘|실행해|실행해줘|undo)/;
+        const explanationKeywords = ['설명', '왜', '근거', '의미', '정의', '차이', '무슨', '뭐야', '무엇', '말해', '알려', '이유', '해석'];
+        const contentReviewPattern = /(요약|축약|간략|검토|분석|설명|해석|정리).*(내용|텍스트|문장|의미|근거|현재 맵|이 맵|노드들|컬쳐맵)|((내용|텍스트|문장|의미|근거|현재 맵|이 맵|노드들|컬쳐맵).*(요약|축약|간략|검토|분석|설명|해석|정리))/;
+        const hasVerb = actionVerbs.some(keyword => currentText.includes(keyword));
+        const hasNoun = actionNouns.some(keyword => currentText.includes(keyword));
+        const contentReviewRequest = contentReviewPattern.test(currentText);
+        const edgeRerouteOnlyRequest = !contentReviewRequest
+            && /((연결선|엣지|화살표|선)\s*(만|만을|만이라도)?\s*(정리|재정렬|정렬|조정|다시|깔끔|경로|겹침|겹치지)|((정리|재정렬|정렬|조정|다시|깔끔|경로).*(연결선|엣지|화살표|선)))/.test(currentText)
+            && !/(연결해|연결해줘|관계.*(만들|생성|추가)|새\s*연결|연결\s*(만들|생성|추가))/.test(currentText);
+        const layoutOnlyRequest = !contentReviewRequest && (edgeRerouteOnlyRequest || /(정렬|배치|레이아웃|높이|위치.*정리|맵.*정렬|맵.*배치)/.test(currentText));
+        const undoOnlyRequest = /(되돌|돌려|복원|원복|취소|undo)/i.test(currentText);
+        const mapEditIntentDetected = (hasVerb && hasNoun) || layoutOnlyRequest;
+        const explanationRequest = explanationKeywords.some(keyword => currentText.includes(keyword));
+        const explicitActionDetected = explicitActionPattern.test(currentText);
+        const explicitMapEditRequest = !isPrivateChat && !contentReviewRequest && (explicitActionDetected || layoutOnlyRequest || undoOnlyRequest) && !explanationRequest;
+        const preservePositionsRequested = /(위치.*유지|현재.*위치|정렬.*하지|정렬하지|레이아웃.*하지|자동\s*정렬.*(하지|말))/i.test(currentText);
+        const forceFunctionCall = explicitMapEditRequest;
+        const allowedFunctionNames = edgeRerouteOnlyRequest ? ['reroute_edges'] : undefined;
+
         if (!overrideText) setInputValue('');
         setIsLoading(true);
         let lockAcquired = false;
@@ -656,8 +677,8 @@ ${connectionsContext}
 ${layerHeightContext}
 
 💡 연결 방향: 상위 층위(원인=sourceId) → 하위 층위(결과=targetId)
-💡 참고: 노드 생성 후 관련 노드와 create_connection 호출 권장!
-💡 여러 노드와 연결을 한 번에 만들 때는 add_nodes_with_connections를 사용하고, nodes에 tempId를 지정한 뒤 connections에서 tempId를 참조하세요.
+${edgeRerouteOnlyRequest ? '🚫 이번 요청은 연결선/엣지 경로 정리만 수행합니다. 새 노드 생성, 기존 노드 재생성, 새 연결 생성, 삭제, 자동 레이아웃을 하지 말고 reroute_edges만 호출하세요.' : '💡 노드와 연결을 새로 생성해 달라는 요청일 때만 add_node/add_nodes_with_connections/create_connection을 사용하세요.'}
+${edgeRerouteOnlyRequest ? '' : '💡 여러 새 노드와 새 연결을 한 번에 만들 때만 add_nodes_with_connections를 사용하고, nodes에 tempId를 지정한 뒤 connections에서 tempId를 참조하세요.'}
 💡 특정 위치로 옮길 때는 update_node에 x/y 좌표를 포함하세요.
 💡 레이아웃이 겹치거나 연결선이 가려지면 adjust_layer_height로 레이어 높이를 늘려 공간을 확보하세요.
 💡 "요약/검토/분석/설명/정리"가 내용 이해를 뜻하면 도구를 호출하지 말고 텍스트로만 답변하세요.
@@ -754,23 +775,6 @@ ${layerHeightContext}
                 }
             }
 
-            const actionVerbs = ['추가', '생성', '만들', '연결', '정리', '정렬', '배치', '레이아웃', '삭제', '지워', '제거', '수정', '변경', '옮겨', '이동', '높이', '요약', '축약', '줄여', '간략', '다듬', '정제', '편집', '바꿔', '되돌', '돌려', '복원', '원복', '취소', '반영', '적용', '실행'];
-            const actionNouns = ['노드', '포스트잇', '연결', '선', '화살표', '엣지', '레이아웃', '정렬', '배치', '맵', '레이어', '내용', '문장', '텍스트', '감성', '감정', '긍정', '부정', '중립', '빈도', '강도'];
-            const explicitActionPattern = /(추가해|추가해줘|생성해|생성해줘|만들어|만들어줘|연결해|연결해줘|삭제해|지워줘|제거해|수정해|변경해|옮겨줘|이동해|정렬해|배치해|레이아웃해|높여|줄여|되돌려|되돌려줘|돌려|돌려줘|복원해|복원해줘|원복해|원복해줘|취소해|취소해줘|반영해|반영해줘|적용해|적용해줘|실행해|실행해줘|undo)/;
-            const explanationKeywords = ['설명', '왜', '근거', '의미', '정의', '차이', '무슨', '뭐야', '무엇', '말해', '알려', '이유', '해석'];
-            const contentReviewPattern = /(요약|축약|간략|검토|분석|설명|해석|정리).*(내용|텍스트|문장|의미|근거|현재 맵|이 맵|노드들|컬쳐맵)|((내용|텍스트|문장|의미|근거|현재 맵|이 맵|노드들|컬쳐맵).*(요약|축약|간략|검토|분석|설명|해석|정리))/;
-            const hasVerb = actionVerbs.some(keyword => currentText.includes(keyword));
-            const hasNoun = actionNouns.some(keyword => currentText.includes(keyword));
-            const contentReviewRequest = contentReviewPattern.test(currentText);
-            const layoutOnlyRequest = !contentReviewRequest && /(정렬|배치|레이아웃|높이|위치.*정리|맵.*정렬|맵.*배치|선.*정리|연결선.*정리)/.test(currentText);
-            const undoOnlyRequest = /(되돌|돌려|복원|원복|취소|undo)/i.test(currentText);
-            const mapEditIntentDetected = (hasVerb && hasNoun) || layoutOnlyRequest;
-            const explanationRequest = explanationKeywords.some(keyword => currentText.includes(keyword));
-            const explicitActionDetected = explicitActionPattern.test(currentText);
-            const explicitMapEditRequest = !isPrivateChat && !contentReviewRequest && (explicitActionDetected || layoutOnlyRequest || undoOnlyRequest) && !explanationRequest;
-            const preservePositionsRequested = /(위치.*유지|현재.*위치|정렬.*하지|정렬하지|레이아웃.*하지|자동\s*정렬.*(하지|말))/i.test(currentText);
-            const forceFunctionCall = explicitMapEditRequest;
-
             if (isPrivateChat && mapEditIntentDetected) {
                 setIsLoading(false);
                 const guidanceMessage: ChatMessage = {
@@ -799,7 +803,8 @@ ${layerHeightContext}
                 {
                     forceFunctionCall,
                     allowExternalTools: !isPrivateChat && explicitMapEditRequest,
-                    groundingQuery: currentText || '첨부된 파일을 분석해주세요.'
+                    groundingQuery: currentText || '첨부된 파일을 분석해주세요.',
+                    allowedFunctionNames
                 }
             );
 
@@ -897,10 +902,22 @@ ${layerHeightContext}
                             }, 120);
                         }
                     } else if (chunk.type === 'actions') {
-                        finalActions = Array.isArray(chunk.actions) ? chunk.actions : [];
+                        const normalizeActionName = (name?: string) => (name ?? '').trim().toLowerCase();
+                        const receivedActions = Array.isArray(chunk.actions) ? chunk.actions : [];
+                        finalActions = edgeRerouteOnlyRequest
+                            ? receivedActions.filter(action => normalizeActionName(action.name) === 'reroute_edges')
+                            : receivedActions;
+
+                        if (edgeRerouteOnlyRequest && finalActions.length !== receivedActions.length) {
+                            console.warn('🛡️ [AIChatSidebar] Edge-only request: blocked non-reroute actions:', receivedActions.map(action => action.name));
+                        }
+
+                        if (edgeRerouteOnlyRequest && receivedActions.length > 0 && finalActions.length === 0) {
+                            finalActions = [{ name: 'reroute_edges', args: {} }];
+                        }
+
                         console.log('🎯 [AIChatSidebar] Actions received:', finalActions.length, 'items');
 
-                        const normalizeActionName = (name?: string) => (name ?? '').trim().toLowerCase();
                         const isSnapshotSaveOnly =
                             finalActions.length > 0 &&
                             finalActions.every(action => normalizeActionName(action.name) === 'save_snapshot');

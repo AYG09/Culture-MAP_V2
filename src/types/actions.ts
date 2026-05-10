@@ -312,7 +312,7 @@ export interface ToolDeclaration {
 export const MAP_TOOL_DECLARATIONS = [
     {
         name: 'add_node',
-        description: 'MUST call this function when user asks to add, create, or make new sticky notes or nodes on the culture map. Trigger words: 추가, 생성, 만들어, 노드, 포스트잇, 결과, 행동, 동인. Examples: "결과 노드 추가해줘", "행동 2개 만들어", "새로운 포스트잇 생성"',
+        description: 'Call ONLY when user asks to add, create, or make new sticky notes or nodes on the culture map. Never use for organizing existing connections/lines/edges. Trigger words: 추가, 생성, 만들어, 노드, 포스트잇, 결과, 행동, 동인. Examples: "결과 노드 추가해줘", "행동 2개 만들어", "새로운 포스트잇 생성"',
         parametersJsonSchema: {
             type: 'object',
             properties: {
@@ -329,7 +329,7 @@ export const MAP_TOOL_DECLARATIONS = [
     },
     {
         name: 'add_nodes_with_connections',
-        description: 'MUST call when the user asks to create multiple nodes and their relationships in one request. Use tempId to reference newly created nodes inside connections. Examples: "A,B,C 노드 만들고 A-B, B-C 연결해줘"',
+        description: 'Call ONLY when the user asks to create multiple NEW nodes and their NEW relationships in one request. Never use for organizing existing connections/lines/edges or reconstructing the current map. Use tempId to reference newly created nodes inside connections. Examples: "A,B,C 노드 만들고 A-B, B-C 연결해줘"',
         parametersJsonSchema: {
             type: 'object',
             properties: {
@@ -429,7 +429,7 @@ export const MAP_TOOL_DECLARATIONS = [
     },
     {
         name: 'create_connection',
-        description: 'MUST call when user wants to connect, link, or draw lines between nodes. Trigger words: 연결, 선, 화살표, 관계, 인과. Examples: "두 노드 연결해줘", "관계 만들어"',
+        description: 'Call when user wants to create a NEW connection/link between existing nodes. Do not call for connection-line cleanup, rerouting, or visual edge organization; use reroute_edges for that. Trigger words: 연결, 선, 화살표, 관계, 인과. Examples: "두 노드 연결해줘", "관계 만들어"',
         parametersJsonSchema: {
             type: 'object',
             properties: {
@@ -468,7 +468,7 @@ export const MAP_TOOL_DECLARATIONS = [
     },
     {
         name: 'reroute_edges',
-        description: 'Call ONLY when user explicitly mentions connections/lines/edges to re-route or re-align edge handles. Do NOT call for general auto_layout or content analysis. Trigger words: 연결선, 선 다시, 연결선 정렬, 엣지 정리. Examples: "연결선 다시 조정해", "연결선도 다시 정렬해"',
+        description: 'Call ONLY when user explicitly asks to clean up, reroute, or re-align EXISTING connections/lines/edges. This tool must not create nodes or create/delete connections. Do NOT call for general auto_layout or content analysis. Trigger words: 연결선 정리, 선 다시, 연결선 정렬, 엣지 정리. Examples: "연결선 다시 조정해", "연결선도 다시 정렬해"',
         parametersJsonSchema: {
             type: 'object',
             properties: {},
