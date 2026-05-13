@@ -1,6 +1,7 @@
 # Logs
 logs
 *.log
+playwright-run.log
 build-log*.txt
 server-log.txt
 npm-debug.log*
@@ -49,6 +50,13 @@ serviceAccountKey.json
 # Vercel
 .vercel
 
+# AI assistant artifacts
+.agent/
+.cursor/
+.cursorrules
+shrimp-rules.md
+.claude/settings.local.json
+
 # Cache
 .cache
 .parcel-cache
@@ -56,3 +64,6 @@ serviceAccountKey.json
 # Test artifacts
 test-results/
 playwright-report/
+
+# Build metadata
+*.tsbuildinfo
