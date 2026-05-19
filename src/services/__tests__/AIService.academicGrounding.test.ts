@@ -57,7 +57,7 @@ describe('AIService academic grounding fallback', () => {
     (aiService as any).currentConfig = {
       provider: 'gemini',
       apiKey: 'test-key',
-      modelName: 'gemini-3.1-flash-lite-preview',
+      modelName: 'gemini-3.1-flash-lite',
       ragSearchScope: 'shared',
     };
 

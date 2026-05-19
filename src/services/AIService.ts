@@ -7,7 +7,7 @@
  * - Tool Use (Function Calling) 지원
  */
 
-import { GoogleGenAI, createPartFromUri, FunctionCallingConfigMode, type ThinkingConfig, type ThinkingLevel } from '@google/genai';
+import { GoogleGenAI, createPartFromUri, FunctionCallingConfigMode, type ThinkingConfig } from '@google/genai';
 import { MAP_TOOL_DECLARATIONS, type AiFunctionCall, type ToolDeclaration } from '../types/actions';
 import type { ChatMessage, EvidenceSource, Insight, InsightType, MessageEvidence } from '../types/liveblocks';
 import ragService from './RagService';
@@ -16,11 +16,14 @@ import liveblocksService from './LiveblocksService';
 
 export type AIProvider = 'gemini';
 
+export type ReasoningPreset = 'default' | 'fast' | 'balanced' | 'deep';
+
 export interface AIConfig {
   provider: AIProvider;
   apiKey: string;
   tavilyApiKey?: string;
   modelName?: string;
+  reasoningPreset?: ReasoningPreset;
   ragSearchScope?: RagSearchScope;
   autoExecuteFunctionCalls?: boolean; // true면 function call 자동 실행, false면 사용자 확인 후 실행
   sharedApiKeyMode?: boolean; // 세션 공용 API 키 모드 (동시 호출 제한)
@@ -94,6 +97,28 @@ type ChatSessionLike = {
   sendMessageStream: (input: { message: string | MessagePart[] }) => Promise<AsyncIterable<StreamChunk>>;
   sendMessage: (input: { message: string | MessagePart[] }) => Promise<SendMessageResult>;
 };
+
+// 우선순위 순서로 정렬된 기본 모델 선호 목록 (API 조회 결과에 있는 경우만 실제 사용)
+const FALLBACK_MODEL_PRIORITY = [
+  'gemini-3.1-flash-lite',          // Stable
+  'gemini-3.1-flash-lite-preview',  // Preview → Stable 대체 전
+  'gemini-3-flash-preview',
+  'gemini-2.5-flash-lite',
+] as const;
+
+// API 조회 전 하드코딩 fallback 기본값
+const DEFAULT_GEMINI_MODEL = FALLBACK_MODEL_PRIORITY[0];
+
+/**
+ * available 목록에서 FALLBACK_MODEL_PRIORITY 순서로 첫 번째 일치 모델을 반환.
+ * 일치하는 모델이 없으면 available[0]을 반환.
+ */
+function getDefaultGeminiModelId(available: string[]): string {
+  for (const preferred of FALLBACK_MODEL_PRIORITY) {
+    if (available.includes(preferred)) return preferred;
+  }
+  return available[0] ?? DEFAULT_GEMINI_MODEL;
+}
 
 /**
  * 외부 AI API 직접 호출 서비스
@@ -386,8 +411,8 @@ class AIService {
   ) {
     if (!this.geminiClient) throw new Error('Gemini API 설정을 먼저 완료해주세요.');
 
-    const modelName = this.currentConfig?.modelName || 'gemini-3.1-flash-lite-preview';
-    const thinkingConfig = this.getThinkingConfig(modelName);
+    const modelName = this.currentConfig?.modelName || DEFAULT_GEMINI_MODEL;
+    const thinkingConfig = this.getThinkingConfig(modelName, this.currentConfig?.reasoningPreset);
     const mapEditTools = [
       'add_node',
       'add_nodes_with_connections',
@@ -489,7 +514,7 @@ class AIService {
           provider: 'gemini',
           apiKey: defaultApiKey,
           tavilyApiKey: undefined,
-          modelName: 'gemini-3.1-flash-lite-preview',  // Gemini 3.1 Flash-Lite: Function Calling 지원, 저비용/고속
+          modelName: DEFAULT_GEMINI_MODEL,
           ragSearchScope: 'shared'
         });
         console.log('📡 AI Service initialized from environment variables');
@@ -529,7 +554,7 @@ class AIService {
     this.chatHistory = Array.isArray(history) ? [...history] : [];
     this.chatSession = this.createChatSession(FunctionCallingConfigMode.AUTO, this.chatHistory);
 
-    console.log('🔧 [AIService] startChat: Model =', this.currentConfig?.modelName || 'gemini-3.1-flash-lite-preview', 'Tools count =', MAP_TOOL_DECLARATIONS.length);
+    console.log('🔧 [AIService] startChat: Model =', this.currentConfig?.modelName || DEFAULT_GEMINI_MODEL, 'Tools count =', MAP_TOOL_DECLARATIONS.length);
     console.log('🔧 [AIService] Tool names:', MAP_TOOL_DECLARATIONS.map((t) => t.name).join(', '));
 
     return this.chatSession;
@@ -1239,7 +1264,7 @@ class AIService {
   private async extractMindmapKeywords(fileUri: string, mimeType: string): Promise<string[]> {
     if (!this.geminiClient) return [];
 
-    let modelName = this.currentConfig?.modelName || 'gemini-3.1-flash-lite-preview';
+    let modelName = this.currentConfig?.modelName || DEFAULT_GEMINI_MODEL;
     const prompt = `다음 마인드맵 이미지를 보고 핵심 주제 키워드를 8~15개 이내로 추출하세요.\n- 중복 없이 간결한 명사/구로 작성\n- 결과는 JSON으로만 반환 (형식: {"keywords": ["..."]})`;
     const schema = {
       type: 'object',
@@ -1653,8 +1678,8 @@ class AIService {
 
   public async analyzeWithPDF(fileUri: string, mimeType: string, prompt: string): Promise<string> {
     if (!this.geminiClient) throw new Error('Gemini API 설정을 먼저 완료해주세요.');
-    const modelName = this.currentConfig?.modelName || 'gemini-3.1-flash-lite-preview';
-    const thinkingConfig = this.getThinkingConfig(modelName);
+    const modelName = this.currentConfig?.modelName || DEFAULT_GEMINI_MODEL;
+    const thinkingConfig = this.getThinkingConfig(modelName, this.currentConfig?.reasoningPreset);
     const fileContent = createPartFromUri(fileUri, mimeType);
     const response = await this.geminiClient.models.generateContent({
       model: modelName,
@@ -1666,8 +1691,8 @@ class AIService {
 
   private async callGemini(prompt: string, schema?: Record<string, unknown>): Promise<string> {
     if (!this.geminiClient) throw new Error('Gemini 클라이언트가 초기화되지 않았습니다.');
-    const modelName = this.currentConfig?.modelName || 'gemini-2.5-flash-lite';
-    const thinkingConfig = this.getThinkingConfig(modelName);
+    const modelName = this.currentConfig?.modelName || DEFAULT_GEMINI_MODEL;
+    const thinkingConfig = this.getThinkingConfig(modelName, this.currentConfig?.reasoningPreset);
     const response = await this.geminiClient.models.generateContent({
       model: modelName,
       contents: prompt,
@@ -1683,45 +1708,51 @@ class AIService {
     if (this.availableModelsCache?.length) {
       return this.availableModelsCache;
     }
-
-    // 2026-03 기준 최신 Gemini 3.x 모델 (2.x 시리즈 제거)
-    return [
-      'gemini-3.1-flash-lite-preview',  // 저비용/고속, Function Calling 지원
-      'gemini-3-flash-preview',          // 프론티어급 성능, 비용 효율
-      'gemini-3.1-pro-preview',          // 고급 추론, 에이전트/코딩 최적화
-    ];
+    // API 조회 전 최소 fallback (Stable 우선)
+    return [...FALLBACK_MODEL_PRIORITY];
   }
 
   public async getAvailableGeminiModelsAsync(): Promise<string[]> {
     const fetched = await this.fetchAvailableModels();
     if (fetched.length > 0) {
-      const filtered = this.filterOfficialGeminiModels(fetched);
-      this.availableModelsCache = filtered;
-      return filtered;
+      this.availableModelsCache = fetched;
+      return fetched;
     }
-
     return this.getAvailableGeminiModels();
   }
 
-  private filterOfficialGeminiModels(models: string[]): string[] {
-    const normalized = models
-      .map((model) => this.normalizeModelId(model))
-      .filter((name) => !!name);
-
-    // Gemini 3.x 시리즈만 허용 (2.x 시리즈 완전 제거)
-    const allowed = normalized.filter((name) => {
-      if (!/^gemini-3/.test(name)) {
-        return false;
+  private filterOfficialGeminiModels(models: string[]): string[];
+  private filterOfficialGeminiModels(models: Array<{ id: string; supportedGenerationMethods?: string[] }>): string[];
+  private filterOfficialGeminiModels(models: string[] | Array<{ id: string; supportedGenerationMethods?: string[] }>): string[] {
+    const entries: Array<{ id: string; supportsGenerate: boolean }> = models.map((m) => {
+      if (typeof m === 'string') {
+        // 문자열 오버로드: capability 정보가 없으므로 이름 기반 fallback 허용
+        return { id: this.normalizeModelId(m), supportsGenerate: true };
       }
-
-      if (name.includes('flash-lite')) {
-        return true;
+      const id = this.normalizeModelId(m.id);
+      const methods = m.supportedGenerationMethods;
+      let supportsGenerate: boolean;
+      if (methods === undefined) {
+        // SDK가 필드 자체를 내려주지 않은 경우: 이름 기반 fallback 허용
+        supportsGenerate = true;
+      } else if (methods.length === 0) {
+        // 빈 배열: 지원 메서드 없음으로 명시 → 제외
+        supportsGenerate = false;
+      } else {
+        supportsGenerate = methods.includes('generateContent');
       }
-
-      return name.includes('flash') || name.includes('pro');
+      return { id, supportsGenerate };
     });
 
-    return Array.from(new Set(allowed));
+    const allowed = entries.filter(({ id, supportsGenerate }) => {
+      if (!id || !id.startsWith('gemini-')) return false;
+      if (!supportsGenerate) return false;
+      // 임베딩/TTS/Live/이미지전용 등 특수 모델 제외
+      if (/embedding|tts|live|vision-only|imagen/.test(id)) return false;
+      return true;
+    });
+
+    return Array.from(new Set(allowed.map(({ id }) => id)));
   }
 
   private normalizeModelId(modelName: string): string {
@@ -1729,22 +1760,27 @@ class AIService {
   }
 
   private resolveModelAlias(preferredModel: string, available: string[]): string | null {
-    const aliasMap: Record<string, string> = {
-      'gemini-flash-latest': 'gemini-3-flash-preview',
-      'gemini-pro-latest': 'gemini-3.1-pro-preview',
-      // 레거시 별칭 매핑 (2.x → 3.x 자동 전환)
-      'gemini-2.5-flash-lite': 'gemini-3.1-flash-lite-preview',
-      'gemini-2.5-flash': 'gemini-3-flash-preview',
-      'gemini-2.5-pro': 'gemini-3.1-pro-preview',
-      'gemini-3-flash': 'gemini-3-flash-preview',
-      'gemini-3-pro': 'gemini-3.1-pro-preview',
-      'gemini-3-pro-preview': 'gemini-3.1-pro-preview',  // Shut down → 3.1 Pro로 이관
+    // Stable 모델을 Preview보다 우선하는 alias 순서로 정의
+    const aliasMap: Record<string, string[]> = {
+      'gemini-flash-latest':            ['gemini-3-flash-preview'],
+      'gemini-pro-latest':              ['gemini-3.1-pro-preview'],
+      // Preview → Stable 마이그레이션
+      'gemini-3.1-flash-lite-preview':  ['gemini-3.1-flash-lite', 'gemini-3.1-flash-lite-preview'],
+      // 레거시 2.x → 3.x 자동 전환 (Stable 우선)
+      'gemini-2.5-flash-lite':          ['gemini-3.1-flash-lite', 'gemini-3.1-flash-lite-preview'],
+      'gemini-2.5-flash':               ['gemini-3-flash-preview'],
+      'gemini-2.5-pro':                 ['gemini-3.1-pro-preview'],
+      'gemini-3-flash':                 ['gemini-3-flash-preview'],
+      'gemini-3-pro':                   ['gemini-3.1-pro-preview'],
+      'gemini-3-pro-preview':           ['gemini-3.1-pro-preview'],  // Shut down → 3.1 Pro로 이관
     };
 
-    const directAlias = aliasMap[preferredModel];
-    if (directAlias) {
-      if (available.length === 0 || available.includes(directAlias)) {
-        return directAlias;
+    const candidates = aliasMap[preferredModel];
+    if (candidates) {
+      for (const candidate of candidates) {
+        if (available.length === 0 || available.includes(candidate)) {
+          return candidate;
+        }
       }
     }
 
@@ -1779,16 +1815,26 @@ class AIService {
         }
       }
 
-      const names = rawModels
+      const entries = rawModels
         .map((model) => {
-          const info = model as { name?: unknown; id?: unknown; displayName?: unknown };
-          return this.normalizeModelId(
-            String(info?.name || info?.id || info?.displayName || '')
-          );
+          const info = model as {
+            name?: unknown; id?: unknown; displayName?: unknown;
+            supportedGenerationMethods?: unknown; supportedActions?: unknown;
+          };
+          const rawId = String(info?.name || info?.id || info?.displayName || '');
+          const id = this.normalizeModelId(rawId);
+          // SDK 버전에 따라 필드명이 다를 수 있어 방어적으로 처리
+          // undefined = 필드 없음(fallback 허용), [] = 지원 메서드 없음(제외), ['generateContent'...] = 명시 지원
+          const methods: string[] | undefined = Array.isArray(info?.supportedGenerationMethods)
+            ? (info.supportedGenerationMethods as string[])
+            : Array.isArray(info?.supportedActions)
+              ? (info.supportedActions as string[])
+              : undefined;
+          return { id, supportedGenerationMethods: methods };
         })
-        .filter((name) => !!name);
+        .filter(({ id }) => !!id);
 
-      const filtered = this.filterOfficialGeminiModels(names);
+      const filtered = this.filterOfficialGeminiModels(entries);
       this.availableModelsCache = filtered;
       return filtered;
     } catch (error) {
@@ -1803,10 +1849,17 @@ class AIService {
     const normalizedPreferred = this.normalizeModelId(preferredModel);
     const currentConfig = this.currentConfig;
     if (!currentConfig) return;
+
+    // 현재 모델이 available 목록에 있으면 그대로 유지 (alias migration 불필요)
     if (available.length > 0 && available.includes(normalizedPreferred)) {
       return;
     }
 
+    if (available.length === 0) {
+      return;
+    }
+
+    // available에 없을 때만 alias migration 시도
     const alias = this.resolveModelAlias(normalizedPreferred, available);
     if (alias) {
       console.warn('⚠️ [AIService] Model alias resolved:', preferredModel, '→', alias);
@@ -1815,14 +1868,7 @@ class AIService {
       return;
     }
 
-    if (available.length === 0) {
-      return;
-    }
-
-    const fallback = available.includes('gemini-3.1-flash-lite-preview')
-      ? 'gemini-3.1-flash-lite-preview'
-      : available[0];
-
+    const fallback = getDefaultGeminiModelId(available);
     console.warn('⚠️ [AIService] Selected model not available:', preferredModel, '→ using', fallback);
     this.currentConfig = { ...currentConfig, modelName: fallback };
     localStorage.setItem('culture-map-ai-config', JSON.stringify(this.currentConfig));
@@ -1834,27 +1880,77 @@ class AIService {
       provider: 'gemini' as const,
       apiKey: config.apiKey.trim(),
       tavilyApiKey: config.tavilyApiKey?.trim() || undefined,
-      ragSearchScope: 'shared' as const
+      ragSearchScope: 'shared' as const,
+      reasoningPreset: config.reasoningPreset ?? 'default'
     };
     const available = this.getAvailableGeminiModels();
-    if (!normalized.modelName || !available.includes(normalized.modelName)) {
-      normalized.modelName = 'gemini-3.1-flash-lite-preview';
+    const modelId = normalized.modelName ? this.normalizeModelId(normalized.modelName) : null;
+
+    if (modelId && available.includes(modelId)) {
+      // available 목록에 있으면 그대로 유지 (alias migration 불필요)
+      normalized.modelName = modelId;
+    } else if (modelId) {
+      // available에 없을 때만 alias migration 시도
+      const alias = this.resolveModelAlias(modelId, available);
+      normalized.modelName = alias ?? getDefaultGeminiModelId(available);
+    } else {
+      normalized.modelName = getDefaultGeminiModelId(available);
     }
     return normalized;
   }
 
-  private getThinkingConfig(modelName: string): ThinkingConfig | null {
-    const lowerName = modelName.toLowerCase();
+  private getGeminiModelFamily(modelName: string): 'gemini-3' | 'gemini-2.5' | 'other' {
+    const id = modelName.toLowerCase();
+    // gemini-3 또는 gemini-3.1 등 3.x 계열
+    if (/^gemini-3(\.|-)/.test(id) || id === 'gemini-3') return 'gemini-3';
+    // gemini-2.5 계열
+    if (/^gemini-2\.5/.test(id)) return 'gemini-2.5';
+    return 'other';
+  }
 
-    // Gemini 3.x 시리즈: Thinking 모드 활성화
-    if (lowerName.includes('gemini-3')) {
-      return {
-        includeThoughts: true,
-        thinkingLevel: 'HIGH' as ThinkingLevel
-      };
+  private getThinkingConfig(modelName: string, preset: ReasoningPreset = 'default'): ThinkingConfig | null {
+    const family = this.getGeminiModelFamily(modelName);
+
+    if (family === 'gemini-3') {
+      // Gemini 3.x: thinkingLevel만 사용 (thinkingBudget 금지)
+      // 공식 JS 예시와 동일하게 소문자 literal 사용
+      const isProModel = /pro/.test(modelName.toLowerCase());
+
+      if (preset === 'default') {
+        // default: Google 기본값. thought stream 표시를 위해 includeThoughts만 설정
+        return { includeThoughts: true };
+      }
+      if (preset === 'fast') {
+        return { includeThoughts: true, thinkingLevel: 'low' as ThinkingConfig['thinkingLevel'] };
+      }
+      if (preset === 'balanced') {
+        // Pro 계열은 medium을 지원하지 않을 수 있어 high fallback
+        const level = isProModel ? 'high' : 'medium';
+        return { includeThoughts: true, thinkingLevel: level as ThinkingConfig['thinkingLevel'] };
+      }
+      if (preset === 'deep') {
+        return { includeThoughts: true, thinkingLevel: 'high' as ThinkingConfig['thinkingLevel'] };
+      }
     }
 
-    // 다른 모델은 Thinking 비활성화
+    if (family === 'gemini-2.5') {
+      // Gemini 2.5: thinkingBudget만 사용 (thinkingLevel 금지)
+      if (preset === 'default') {
+        // 모델 기본값을 따름 (2.5 Flash-Lite 기본은 thinking 없음)
+        return null;
+      }
+      if (preset === 'fast') {
+        return { includeThoughts: true, thinkingBudget: 1024 };
+      }
+      if (preset === 'balanced') {
+        return { includeThoughts: true, thinkingBudget: 8192 };
+      }
+      if (preset === 'deep') {
+        return { includeThoughts: true, thinkingBudget: 24576 };
+      }
+    }
+
+    // Other 모델: thinking 설정 생략
     return null;
   }
 
@@ -1864,7 +1960,7 @@ class AIService {
   }
 
   public async getModelTokenLimits(modelName?: string): Promise<{ inputTokenLimit: number; outputTokenLimit: number }> {
-    const resolvedModel = modelName || this.currentConfig?.modelName || 'gemini-3.1-flash-lite-preview';
+    const resolvedModel = modelName || this.currentConfig?.modelName || DEFAULT_GEMINI_MODEL;
     const cached = this.modelTokenLimitCache[resolvedModel];
     if (cached) return { inputTokenLimit: cached.inputTokenLimit, outputTokenLimit: cached.outputTokenLimit };
 

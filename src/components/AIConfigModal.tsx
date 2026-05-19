@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { X, Save, Key, Info, CheckCircle2, Trash2, Loader2, FileText, Eye, EyeOff, Share2, Database } from 'lucide-react';
-import { aiService, type AIProvider, type AIConfig } from '../services/AIService';
+import { X, Save, Key, Info, CheckCircle2, Trash2, Loader2, FileText, Eye, EyeOff, Share2, Database, AlertTriangle } from 'lucide-react';
+import { aiService, type AIProvider, type AIConfig, type ReasoningPreset } from '../services/AIService';
 import liveblocksService from '../services/LiveblocksService';
 import './AIConfigModal.css';
 
@@ -14,7 +14,8 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
     const provider: AIProvider = 'gemini';
     const [apiKey, setApiKey] = useState(currentConfig?.apiKey || '');
     const [tavilyApiKey, setTavilyApiKey] = useState(currentConfig?.tavilyApiKey || '');
-    const [modelName, setModelName] = useState(currentConfig?.modelName || 'gemini-2.5-flash-lite');
+    const [modelName, setModelName] = useState(currentConfig?.modelName || aiService.getAvailableGeminiModels()[0] || '');
+    const [reasoningPreset, setReasoningPreset] = useState<ReasoningPreset>(currentConfig?.reasoningPreset ?? 'default');
     const [autoExecute, setAutoExecute] = useState(currentConfig?.autoExecuteFunctionCalls || false);
     const [sharedApiKeyMode, setSharedApiKeyMode] = useState(currentConfig?.sharedApiKeyMode || false);
     const [isSaved, setIsSaved] = useState(false);
@@ -54,23 +55,34 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
     }, [isOpen, loadSharedRagDocs]);
 
     const [availableModels, setAvailableModels] = useState<string[]>(() => aiService.getAvailableGeminiModels());
+    const [isLoadingModels, setIsLoadingModels] = useState(false);
+    const [modelLoadError, setModelLoadError] = useState(false);
 
     useEffect(() => {
+        if (!isOpen) return;
         let mounted = true;
+        setIsLoadingModels(true);
+        setModelLoadError(false);
         aiService.getAvailableGeminiModelsAsync()
             .then((models) => {
-                if (mounted && models.length > 0) {
+                if (!mounted) return;
+                if (models.length > 0) {
                     setAvailableModels(models);
+                    setModelName((prev) => (models.includes(prev) ? prev : models[0]));
                 }
             })
             .catch((error) => {
                 console.warn('⚠️ [AIConfigModal] 모델 목록 로드 실패:', error);
+                if (mounted) setModelLoadError(true);
+            })
+            .finally(() => {
+                if (mounted) setIsLoadingModels(false);
             });
 
         return () => {
             mounted = false;
         };
-    }, []);
+    }, [isOpen]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -78,7 +90,8 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
         const latestConfig = aiService.getConfig();
         setApiKey(latestConfig?.apiKey || '');
         setTavilyApiKey(latestConfig?.tavilyApiKey || '');
-        setModelName(latestConfig?.modelName || 'gemini-2.5-flash-lite');
+        setModelName(latestConfig?.modelName || availableModels[0] || '');
+        setReasoningPreset(latestConfig?.reasoningPreset ?? 'default');
         setAutoExecute(latestConfig?.autoExecuteFunctionCalls || false);
         setSharedApiKeyMode(latestConfig?.sharedApiKeyMode || false);
         setShowKey(false);
@@ -94,6 +107,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
             apiKey: apiKey.trim(),
             tavilyApiKey: tavilyApiKey.trim() || undefined,
             modelName: modelName.trim(),
+            reasoningPreset,
             ragSearchScope: 'shared',
             autoExecuteFunctionCalls: autoExecute,
             sharedApiKeyMode
@@ -309,20 +323,57 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                     </div>
 
                     <div className="config-section">
-                        <label className="section-label">모델 선택</label>
+                        <label className="section-label">
+                            모델 선택
+                            {isLoadingModels && <Loader2 size={13} className="spinner" style={{ marginLeft: 6, verticalAlign: 'middle' }} />}
+                        </label>
                         <select
                             className="config-select"
                             value={modelName}
                             onChange={(e) => setModelName(e.target.value)}
+                            disabled={isLoadingModels}
                         >
                             {availableModels.map(m => (
                                 <option key={m} value={m}>{m}</option>
                             ))}
                         </select>
+                        {modelLoadError && (
+                            <p className="help-text" style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <AlertTriangle size={13} /> 모델 목록 조회 실패 — fallback 목록 사용 중
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="config-section">
+                        <label className="section-label">추론 깊이</label>
+                        <select
+                            className="config-select"
+                            value={reasoningPreset}
+                            onChange={(e) => setReasoningPreset(e.target.value as ReasoningPreset)}
+                        >
+                            <option value="default">기본값 — 모델 기본 설정</option>
+                            <option value="fast">빠름 — 낮은 추론, 빠른 응답</option>
+                            <option value="balanced">균형 — 중간 추론</option>
+                            <option value="deep">깊게 — 높은 추론, 정밀 분석</option>
+                        </select>
                         <p className="help-text" style={{ color: '#10b981', fontWeight: 500, lineHeight: 1.5 }}>
-                            {modelName.includes('gemini-3')
-                                ? "✨ Gemini 3.0: thinkingLevel 기반 추론(자동 적용)"
-                                : "⚙️ Gemini 2.5: thinkingBudget 기반 추론(자동 적용)"}
+                            {(() => {
+                                const isG3 = /^gemini-3(\.|-)/.test(modelName) || modelName === 'gemini-3';
+                                const isG25 = /^gemini-2\.5/.test(modelName);
+                                if (isG3) {
+                                    if (reasoningPreset === 'default') return '✨ Gemini 3.x: 모델 기본 추론 사용';
+                                    if (reasoningPreset === 'fast') return '✨ Gemini 3.x: 낮은 추론 수준 적용';
+                                    if (reasoningPreset === 'balanced') return '✨ Gemini 3.x: 중간 추론 수준 적용';
+                                    if (reasoningPreset === 'deep') return '✨ Gemini 3.x: 높은 추론 수준 적용';
+                                }
+                                if (isG25) {
+                                    if (reasoningPreset === 'default') return '⚙️ Gemini 2.5: 모델 기본 추론 사용';
+                                    if (reasoningPreset === 'fast') return '⚙️ Gemini 2.5: 낮은 토큰 예산 (빠름)';
+                                    if (reasoningPreset === 'balanced') return '⚙️ Gemini 2.5: 중간 토큰 예산 (균형)';
+                                    if (reasoningPreset === 'deep') return '⚙️ Gemini 2.5: 높은 토큰 예산 (정밀)';
+                                }
+                                return 'ℹ️ 모델 기본 추론 사용';
+                            })()}
                         </p>
                     </div>
 

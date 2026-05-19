@@ -129,6 +129,7 @@ export default defineConfig(({ mode }) => {
       css: true,
       clearMocks: true,
       restoreMocks: true,
+      include: ['src/**/*.{test,spec}.{ts,tsx}'],
     },
     define: {
       __APP_VERSION__: JSON.stringify(process.env.npm_package_version || '1.0.0')

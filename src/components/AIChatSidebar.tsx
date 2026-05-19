@@ -429,7 +429,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isLoading, uploadProgress]);
 
-    const activeModelLabel = currentConfig?.modelName || 'gemini-2.5-flash-lite';
+    const activeModelLabel = currentConfig?.modelName || aiService.getAvailableGeminiModels()[0] || 'gemini-3.1-flash-lite';
 
     // 접속자 수 업데이트 (세션 상태 감시)
     useEffect(() => {
