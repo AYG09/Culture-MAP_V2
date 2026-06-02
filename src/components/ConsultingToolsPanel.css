@@ -237,13 +237,16 @@
   animation: slideDown 0.18s ease-out;
   display: flex;
   flex-direction: column;
+  /* 패널이 상단 고정(sticky)되므로, 펼친 prep 영역은 내부 스크롤로 높이를 제한해
+     스텝 선택 메뉴가 항상 보이고 채팅 영역도 남도록 한다. */
+  max-height: 48vh;
+  overflow-y: auto;
 }
 
-/* 아주 낮은 화면에서만 fallback 스크롤 */
+/* 아주 낮은 화면에서는 더 작게 제한 */
 @media (max-height: 620px) {
   .prep-panel {
-    max-height: 58vh;
-    overflow-y: auto;
+    max-height: 42vh;
   }
 }
 
