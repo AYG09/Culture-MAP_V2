@@ -182,8 +182,12 @@
     background: var(--bg-primary, #ffffff);
 }
 
-/* 컨설팅 분석 도구 패널: 스크롤 영역 밖 고정 영역 (채팅만 아래에서 스크롤) */
+/* 컨설팅 분석 도구 패널: 스크롤 영역 밖 고정 영역 (채팅만 아래에서 스크롤)
+   z-index로 스태킹 컨텍스트를 만들어 STEP 서브메뉴 드롭다운이 채팅 메시지 위에 그려지게 한다.
+   (패널의 backdrop-filter가 드롭다운 z-index를 내부에 가두므로 슬롯 자체를 올려야 함) */
 .chat-tools-slot {
+    position: relative;
+    z-index: 40;
     flex: 0 0 auto;
     padding: 12px 16px 8px 16px;
     background: var(--bg-primary, #ffffff);
