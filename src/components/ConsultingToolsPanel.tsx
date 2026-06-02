@@ -238,7 +238,7 @@ const ConsultingToolsPanel: React.FC<ConsultingToolsPanelProps> = ({ onFillInput
         setValidationWarning(null);
     };
 
-    const useRecentOutput = (key: StepInputKey, outputId: string) => {
+    const applyRecentOutput = (key: StepInputKey, outputId: string) => {
         const output = recentOutputs.find(item => item.id === outputId);
         if (!output) return;
         updateStepInput(key, output.content);
@@ -442,7 +442,7 @@ const ConsultingToolsPanel: React.FC<ConsultingToolsPanelProps> = ({ onFillInput
                                             <select
                                                 className="recent-output-select"
                                                 value=""
-                                                onChange={(event) => useRecentOutput(key, event.target.value)}
+                                                onChange={(event) => applyRecentOutput(key, event.target.value)}
                                                 aria-label={`${STEP_INPUT_LABELS[key]} 최근 AI 답변 선택`}
                                             >
                                                 <option value="" disabled>최근 AI 답변 사용</option>
