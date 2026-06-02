@@ -34,6 +34,7 @@ export type GeminiModelListResult = {
   hasConfiguredApiKey?: boolean;
   clientReady?: boolean;
   stale?: boolean;
+  rawSourceShape?: 'models-array' | 'pager-page' | 'async-iterator' | 'iterate-all' | 'unknown';
 };
 
 export interface AIConfig {
@@ -1790,6 +1791,7 @@ class AIService {
         source: 'api',
         rawCount: outcome.rawCount,
         filteredCount: outcome.models.length,
+        rawSourceShape: outcome.shape,
         hasConfiguredApiKey: true,
         clientReady: true,
       };
@@ -1805,6 +1807,7 @@ class AIService {
           reason: 'stale-cache-after-refresh-error',
           rawCount: outcome.rawCount,
           filteredCount: 0,
+          rawSourceShape: outcome.shape,
           hasConfiguredApiKey: true,
           clientReady: true,
         };
@@ -1815,6 +1818,7 @@ class AIService {
         reason: 'filter-empty',
         rawCount: outcome.rawCount,
         filteredCount: 0,
+        rawSourceShape: outcome.shape,
         hasConfiguredApiKey: true,
         clientReady: true,
       };
@@ -1828,6 +1832,7 @@ class AIService {
           stale: true,
           reason: 'stale-cache-after-refresh-error',
           rawCount: 0,
+          rawSourceShape: outcome.shape,
           hasConfiguredApiKey: true,
           clientReady: true,
         };
@@ -1837,6 +1842,7 @@ class AIService {
         source: 'fallback',
         reason: 'empty-api-result',
         rawCount: 0,
+        rawSourceShape: outcome.shape,
         hasConfiguredApiKey: true,
         clientReady: true,
       };
@@ -1937,44 +1943,71 @@ class AIService {
   }
 
   // 내부 API 호출 결과 타입 — 오류를 삼키지 않고 구조화하여 반환
+  // models.list() 응답에서 raw model 객체 배열을 수집하는 헬퍼.
+  // SDK 버전·응답 형태에 무관하게 동작해야 한다.
+  private async collectRawModelsFromListResult(
+    result: unknown,
+  ): Promise<{ rawModels: Array<Record<string, unknown>>; shape: GeminiModelListResult['rawSourceShape'] }> {
+    const rawModels: Array<Record<string, unknown>> = [];
+    const obj = result as Record<string, unknown> | null;
+    if (!obj || typeof obj !== 'object') {
+      return { rawModels, shape: 'unknown' };
+    }
+
+    // 1) { models: [...] } — 레거시 직접 배열형
+    if (Array.isArray(obj.models)) {
+      rawModels.push(...(obj.models as Array<Record<string, unknown>>));
+      return { rawModels, shape: 'models-array' };
+    }
+
+    // 2) { page: [...] } — @google/genai Pager 최초 페이지
+    if (Array.isArray(obj.page)) {
+      rawModels.push(...(obj.page as Array<Record<string, unknown>>));
+      return { rawModels, shape: 'pager-page' };
+    }
+
+    // 3) iterateAll() — 구버전 SDK의 페이지 순회
+    if (typeof obj.iterateAll === 'function') {
+      for await (const model of (obj as { iterateAll: () => AsyncIterable<unknown> }).iterateAll()) {
+        if (model && typeof model === 'object') {
+          rawModels.push(model as Record<string, unknown>);
+        }
+      }
+      return { rawModels, shape: 'iterate-all' };
+    }
+
+    // 4) async iterator — Pager<Model>는 모델 객체를 직접 yield한다
+    if (Symbol.asyncIterator in obj) {
+      for await (const item of obj as AsyncIterable<unknown>) {
+        if (item && typeof item === 'object') {
+          rawModels.push(item as Record<string, unknown>);
+        }
+      }
+      return { rawModels, shape: 'async-iterator' };
+    }
+
+    return { rawModels, shape: 'unknown' };
+  }
+
   private async fetchModelsFromApi(): Promise<
     | { status: 'no-client' }
     | { status: 'api-error'; error: unknown }
-    | { status: 'empty-raw' }
-    | { status: 'filter-empty'; rawCount: number }
-    | { status: 'ok'; models: string[]; rawCount: number }
+    | { status: 'empty-raw'; shape: GeminiModelListResult['rawSourceShape'] }
+    | { status: 'filter-empty'; rawCount: number; shape: GeminiModelListResult['rawSourceShape'] }
+    | { status: 'ok'; models: string[]; rawCount: number; shape: GeminiModelListResult['rawSourceShape'] }
   > {
     if (!this.geminiClient) return { status: 'no-client' };
 
     let rawModels: Array<Record<string, unknown>>;
+    let shape: GeminiModelListResult['rawSourceShape'];
     try {
       const result = await this.geminiClient.models.list();
-      rawModels = [];
-      const resultObj = result as {
-        models?: unknown;
-        iterateAll?: () => AsyncIterable<unknown>;
-      };
-
-      if (Array.isArray(resultObj?.models)) {
-        rawModels.push(...(resultObj.models as Array<Record<string, unknown>>));
-      } else if (typeof resultObj?.iterateAll === 'function') {
-        for await (const model of resultObj.iterateAll()) {
-          if (model && typeof model === 'object') {
-            rawModels.push(model as Record<string, unknown>);
-          }
-        }
-      } else if (result && typeof result === 'object' && Symbol.asyncIterator in result) {
-        for await (const page of result as AsyncIterable<unknown>) {
-          if (page && typeof page === 'object' && Array.isArray((page as { models?: unknown }).models)) {
-            rawModels.push(...((page as { models?: unknown }).models as Array<Record<string, unknown>>));
-          }
-        }
-      }
+      ({ rawModels, shape } = await this.collectRawModelsFromListResult(result));
     } catch (error) {
       return { status: 'api-error', error };
     }
 
-    if (rawModels.length === 0) return { status: 'empty-raw' };
+    if (rawModels.length === 0) return { status: 'empty-raw', shape };
 
     const entries = rawModels
       .map((model) => {
@@ -1996,11 +2029,11 @@ class AIService {
       .filter(({ id }) => !!id);
 
     const filtered = this.filterOfficialGeminiModels(entries);
-    if (filtered.length === 0) return { status: 'filter-empty', rawCount: rawModels.length };
+    if (filtered.length === 0) return { status: 'filter-empty', rawCount: rawModels.length, shape };
 
     this.availableModelsCache = filtered;
     this.availableModelsCacheTime = Date.now();
-    return { status: 'ok', models: filtered, rawCount: rawModels.length };
+    return { status: 'ok', models: filtered, rawCount: rawModels.length, shape };
   }
 
   // validateModelAvailability 등 내부 호출용 — 오류 시 기존 캐시 또는 [] 반환

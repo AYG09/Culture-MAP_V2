@@ -351,3 +351,112 @@ describe('normalizeModelConfig — reasoningPreset', () => {
     expect(config.reasoningPreset).toBe('deep');
   });
 });
+
+describe('collectRawModelsFromListResult', () => {
+  const FLASH_MODEL = { name: 'models/gemini-3.5-flash', supportedActions: ['generateContent'] };
+  const LITE_MODEL  = { name: 'models/gemini-3.1-flash-lite', supportedGenerationMethods: ['generateContent'] };
+
+  it('{ models: [...] } 형태 — models-array shape', async () => {
+    const { rawModels, shape } = await svc.collectRawModelsFromListResult({ models: [FLASH_MODEL] });
+    expect(shape).toBe('models-array');
+    expect(rawModels).toHaveLength(1);
+    expect(rawModels[0]).toMatchObject({ name: 'models/gemini-3.5-flash' });
+  });
+
+  it('{ page: [...] } 형태 — pager-page shape', async () => {
+    const { rawModels, shape } = await svc.collectRawModelsFromListResult({ page: [FLASH_MODEL, LITE_MODEL] });
+    expect(shape).toBe('pager-page');
+    expect(rawModels).toHaveLength(2);
+    expect(rawModels[0]).toMatchObject({ name: 'models/gemini-3.5-flash' });
+  });
+
+  it('{ page: [] } 형태 — pager-page shape이지만 rawModels 비어있음', async () => {
+    const { rawModels, shape } = await svc.collectRawModelsFromListResult({ page: [] });
+    expect(shape).toBe('pager-page');
+    expect(rawModels).toHaveLength(0);
+  });
+
+  it('iterateAll() 형태 — iterate-all shape', async () => {
+    async function* gen() { yield FLASH_MODEL; yield LITE_MODEL; }
+    const { rawModels, shape } = await svc.collectRawModelsFromListResult({ iterateAll: gen });
+    expect(shape).toBe('iterate-all');
+    expect(rawModels).toHaveLength(2);
+  });
+
+  it('async iterator(모델 직접 yield) — async-iterator shape', async () => {
+    async function* gen() { yield FLASH_MODEL; }
+    const iterable = { [Symbol.asyncIterator]: gen };
+    const { rawModels, shape } = await svc.collectRawModelsFromListResult(iterable);
+    expect(shape).toBe('async-iterator');
+    expect(rawModels).toHaveLength(1);
+    expect(rawModels[0]).toMatchObject({ name: 'models/gemini-3.5-flash' });
+  });
+
+  it('알 수 없는 형태 — unknown shape, rawModels 비어있음', async () => {
+    const { rawModels, shape } = await svc.collectRawModelsFromListResult({ foo: 'bar' });
+    expect(shape).toBe('unknown');
+    expect(rawModels).toHaveLength(0);
+  });
+});
+
+describe('fetchModelsFromApi — 응답 형태별 통합', () => {
+  const FLASH_OBJ = { name: 'models/gemini-3.5-flash', supportedActions: ['generateContent'] };
+  const EMBED_OBJ = { name: 'models/text-embedding-004', supportedGenerationMethods: ['embedContent'] };
+
+  beforeEach(() => {
+    svc.availableModelsCache = null;
+    svc.availableModelsCacheTime = 0;
+  });
+
+  it('{ page: [gemini-3.5-flash] } Pager 응답 → status: ok, shape: pager-page', async () => {
+    svc.geminiClient = { models: { list: vi.fn().mockResolvedValue({ page: [FLASH_OBJ] }) } };
+    const outcome = await svc.fetchModelsFromApi();
+    expect(outcome.status).toBe('ok');
+    expect(outcome.shape).toBe('pager-page');
+    expect(outcome.models).toContain('gemini-3.5-flash');
+    svc.geminiClient = null;
+  });
+
+  it('async iterator가 모델 직접 yield → status: ok, shape: async-iterator', async () => {
+    async function* gen() { yield FLASH_OBJ; }
+    const iterable = { [Symbol.asyncIterator]: gen };
+    svc.geminiClient = { models: { list: vi.fn().mockResolvedValue(iterable) } };
+    const outcome = await svc.fetchModelsFromApi();
+    expect(outcome.status).toBe('ok');
+    expect(outcome.shape).toBe('async-iterator');
+    expect(outcome.models).toContain('gemini-3.5-flash');
+    svc.geminiClient = null;
+  });
+
+  it('{ models: [...] } 레거시 형태 → status: ok, shape: models-array', async () => {
+    svc.geminiClient = { models: { list: vi.fn().mockResolvedValue({ models: [FLASH_OBJ] }) } };
+    const outcome = await svc.fetchModelsFromApi();
+    expect(outcome.status).toBe('ok');
+    expect(outcome.shape).toBe('models-array');
+    expect(outcome.models).toContain('gemini-3.5-flash');
+    svc.geminiClient = null;
+  });
+
+  it('{ page: [] } → status: empty-raw, shape: pager-page', async () => {
+    svc.geminiClient = { models: { list: vi.fn().mockResolvedValue({ page: [] }) } };
+    const outcome = await svc.fetchModelsFromApi();
+    expect(outcome.status).toBe('empty-raw');
+    expect(outcome.shape).toBe('pager-page');
+    svc.geminiClient = null;
+  });
+
+  it('모델은 있지만 supportedActions가 generateContent 미포함 → status: filter-empty', async () => {
+    svc.geminiClient = { models: { list: vi.fn().mockResolvedValue({ page: [EMBED_OBJ] }) } };
+    const outcome = await svc.fetchModelsFromApi();
+    expect(outcome.status).toBe('filter-empty');
+    expect(outcome.rawCount).toBe(1);
+    svc.geminiClient = null;
+  });
+
+  it('models.list() throw → status: api-error', async () => {
+    svc.geminiClient = { models: { list: vi.fn().mockRejectedValue(new Error('network fail')) } };
+    const outcome = await svc.fetchModelsFromApi();
+    expect(outcome.status).toBe('api-error');
+    svc.geminiClient = null;
+  });
+});
