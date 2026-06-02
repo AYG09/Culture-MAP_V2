@@ -52,7 +52,7 @@ describe('ConsultingToolsPanel', () => {
 
     // 프롬프트 로드 완료를 기다림
     await waitFor(() => {
-      expect(screen.getByText('프롬프트만 복사')).toBeInTheDocument();
+      expect(screen.getByText('프롬프트 복사')).toBeInTheDocument();
     });
 
     // 즉시 전송 없음
@@ -66,19 +66,19 @@ describe('ConsultingToolsPanel', () => {
     await user.click(screen.getByRole('button', { name: /Step 1 1차 분석 선택/ }));
 
     await waitFor(() => {
-      expect(screen.getByText('프롬프트만 복사')).toBeInTheDocument();
-      expect(screen.getByText('채팅 입력창에 넣기')).toBeInTheDocument();
+      expect(screen.getByText('프롬프트 복사')).toBeInTheDocument();
+      expect(screen.getByText('입력창에 넣기')).toBeInTheDocument();
       expect(screen.getByText('선택한 자료로 분석 실행')).toBeInTheDocument();
     });
   });
 
-  it('프롬프트만 복사 버튼 클릭 후 "복사됨!" 피드백이 표시된다', async () => {
+  it('프롬프트 복사 버튼 클릭 후 "복사됨!" 피드백이 표시된다', async () => {
     render(<ConsultingToolsPanel onFillInput={onFillInput} onRunAnalysis={onRunAnalysis} />);
 
     await user.click(screen.getByRole('button', { name: /Step 1 1차 분석 선택/ }));
-    await waitFor(() => screen.getByText('프롬프트만 복사'));
+    await waitFor(() => screen.getByText('프롬프트 복사'));
 
-    await user.click(screen.getByText('프롬프트만 복사'));
+    await user.click(screen.getByText('프롬프트 복사'));
 
     // UI 피드백 확인 (클립보드 API 없어도 fallback 복사 후 상태 전환)
     await waitFor(() => expect(screen.getByText('복사됨!')).toBeInTheDocument());
@@ -86,13 +86,13 @@ describe('ConsultingToolsPanel', () => {
     await waitFor(() => expect(screen.getByText(/프롬프트가 복사되었습니다/)).toBeInTheDocument());
   });
 
-  it('채팅 입력창에 넣기는 onFillInput을 호출하고 전송하지 않는다', async () => {
+  it('입력창에 넣기는 onFillInput을 호출하고 전송하지 않는다', async () => {
     render(<ConsultingToolsPanel onFillInput={onFillInput} onRunAnalysis={onRunAnalysis} />);
 
     await user.click(screen.getByRole('button', { name: /Step 1 1차 분석 선택/ }));
-    await waitFor(() => screen.getByText('채팅 입력창에 넣기'));
+    await waitFor(() => screen.getByText('입력창에 넣기'));
 
-    await user.click(screen.getByText('채팅 입력창에 넣기'));
+    await user.click(screen.getByText('입력창에 넣기'));
 
     expect(onFillInput).toHaveBeenCalledWith(SAMPLE_PROMPT, 'Step 1: 1차 분석');
     expect(onRunAnalysis).not.toHaveBeenCalled();
@@ -223,7 +223,7 @@ describe('ConsultingToolsPanel', () => {
     render(<ConsultingToolsPanel onFillInput={onFillInput} onRunAnalysis={onRunAnalysis} />);
 
     await user.click(screen.getByRole('button', { name: /Step 1 1차 분석 선택/ }));
-    await waitFor(() => screen.getByText('프롬프트만 복사'));
+    await waitFor(() => screen.getByText('프롬프트 복사'));
 
     // DOM 구조 확인
     const prepPanel = document.querySelector('.prep-panel');
@@ -244,7 +244,7 @@ describe('ConsultingToolsPanel', () => {
     // textarea와 버튼이 동시에 보임
     expect(screen.getByLabelText('Step 1 1차 분석 결과')).toBeInTheDocument();
     expect(screen.getByText('선택한 자료로 분석 실행')).toBeInTheDocument();
-    expect(screen.getByText('채팅 입력창에 넣기')).toBeInTheDocument();
+    expect(screen.getByText('입력창에 넣기')).toBeInTheDocument();
   });
 
   it('Step 3 준비 화면에서 Step 1/Step 2 입력 영역과 액션 버튼이 모두 렌더링된다', async () => {
@@ -258,6 +258,6 @@ describe('ConsultingToolsPanel', () => {
     expect(screen.getByLabelText('Step 1 1차 분석 결과')).toBeInTheDocument();
     expect(screen.getByLabelText('Step 2 컬쳐맵 생성 결과')).toBeInTheDocument();
     expect(screen.getByText('선택한 자료로 분석 실행')).toBeInTheDocument();
-    expect(screen.getByText('소스 포함 복사')).toBeInTheDocument();
+    expect(screen.getByText('소스 포함')).toBeInTheDocument();
   });
 });

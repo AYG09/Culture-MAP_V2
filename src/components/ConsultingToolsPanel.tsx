@@ -562,17 +562,17 @@ const ConsultingToolsPanel: React.FC<ConsultingToolsPanelProps> = ({ onFillInput
 
                   {/* 액션 버튼 — 패널 하단 일반 영역 */}
                   <div className="prep-actions">
-                      <button className="prep-btn copy-btn" onClick={handleCopyPrompt} title="외부 AI 도구에서 사용할 프롬프트 복사">
+                      <button className="prep-btn copy-btn" onClick={handleCopyPrompt} title="외부 AI 도구에서 사용할 프롬프트만 복사">
                           <Copy size={13} />
-                          {copyStatus === 'base' ? '복사됨!' : '프롬프트만 복사'}
+                          {copyStatus === 'base' ? '복사됨!' : '프롬프트 복사'}
                       </button>
                       <button className="prep-btn copy-full-btn" onClick={handleCopyFullPrompt} title="입력한 단계 결과와 프롬프트를 함께 복사">
                           <Copy size={13} />
-                          {copyStatus === 'full' ? '복사됨!' : '소스 포함 복사'}
+                          {copyStatus === 'full' ? '복사됨!' : '소스 포함'}
                       </button>
                       <button className="prep-btn fill-btn" onClick={handleFillInput} title="채팅 입력창에 프롬프트를 넣습니다. 전송되지 않습니다.">
                           <SendHorizontal size={13} />
-                          채팅 입력창에 넣기
+                          입력창에 넣기
                       </button>
                       <button
                           className="prep-btn run-btn"
