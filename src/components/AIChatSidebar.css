@@ -171,12 +171,24 @@
 }
 
 /* ===== Content ===== */
+/* chat-content 가 유일한 스크롤 컨테이너 — consulting 패널과 채팅 메시지가 함께 스크롤됨 */
 .chat-content {
     flex: 1;
     min-height: 0;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     background: var(--bg-primary, #ffffff);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color, #e2e8f0) transparent;
+}
+
+.chat-content::-webkit-scrollbar {
+    width: 6px;
+}
+.chat-content::-webkit-scrollbar-thumb {
+    background: var(--border-color, #e2e8f0);
+    border-radius: 999px;
 }
 
 .chat-tools-slot {
@@ -207,28 +219,13 @@
 }
 
 /* ===== Messages ===== */
+/* chat-content 가 스크롤 컨테이너이므로 chat-messages는 overflow 없이 자연 확장 */
 .chat-messages {
     flex: 1;
-    overflow-y: auto;
     padding: 16px 16px 24px 16px;
     display: flex;
     flex-direction: column;
     gap: 18px;
-    scrollbar-width: thin;
-    scrollbar-color: var(--border-color, #e2e8f0) transparent;
-}
-
-.chat-messages::-webkit-scrollbar {
-    width: 10px;
-}
-
-.chat-messages::-webkit-scrollbar-thumb {
-    background: var(--border-color, #e2e8f0);
-    border-radius: 999px;
-}
-
-.chat-messages::-webkit-scrollbar-track {
-    background: transparent;
 }
 
 .welcome-container {

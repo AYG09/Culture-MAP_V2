@@ -216,7 +216,7 @@ describe('ConsultingToolsPanel', () => {
     expect(screen.getByText(/카드를 선택한 뒤 자료를 확인하고 실행하거나/)).toBeInTheDocument();
   });
 
-  it('준비 패널이 열리면 prep-scroll-body와 prep-actions가 모두 렌더링된다', async () => {
+  it('준비 패널이 열리면 prep-body와 prep-actions가 모두 렌더링되고 중첩 스크롤 래퍼가 없다', async () => {
     render(<ConsultingToolsPanel onFillInput={onFillInput} onRunAnalysis={onRunAnalysis} />);
 
     await user.click(screen.getByRole('button', { name: /Step 1 1차 분석 선택/ }));
@@ -225,8 +225,11 @@ describe('ConsultingToolsPanel', () => {
     // DOM 구조 확인
     const prepPanel = document.querySelector('.prep-panel');
     expect(prepPanel).toBeInTheDocument();
-    expect(prepPanel?.querySelector('.prep-scroll-body')).toBeInTheDocument();
+    // prep-body는 스크롤 전용 wrapper가 아닌 일반 콘텐츠 영역
+    expect(prepPanel?.querySelector('.prep-body')).toBeInTheDocument();
     expect(prepPanel?.querySelector('.prep-actions')).toBeInTheDocument();
+    // 이전 스크롤 전용 wrapper는 없어야 함
+    expect(prepPanel?.querySelector('.prep-scroll-body')).not.toBeInTheDocument();
   });
 
   it('Step 2 준비 화면에서 textarea와 액션 버튼이 동시에 렌더링된다', async () => {

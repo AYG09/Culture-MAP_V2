@@ -228,7 +228,7 @@
   box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.25);
 }
 
-/* 분석 준비 패널 — 독립 스크롤로 채팅 입력창과 충돌 방지 */
+/* 분석 준비 패널 — 자연 확장. chat-content가 스크롤 컨테이너 */
 .prep-panel {
   margin-top: 14px;
   background: rgba(99, 102, 241, 0.04);
@@ -237,25 +237,19 @@
   animation: slideDown 0.18s ease-out;
   display: flex;
   flex-direction: column;
-  max-height: min(60vh, 520px);
-  overflow: hidden;
 }
 
-.prep-scroll-body {
-  flex: 1;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+/* 아주 낮은 화면에서만 fallback 스크롤 */
+@media (max-height: 620px) {
+  .prep-panel {
+    max-height: 58vh;
+    overflow-y: auto;
+  }
+}
+
+/* prep-body: 내부 스크롤 없는 일반 콘텐츠 영역 */
+.prep-body {
   padding: 14px 14px 4px 14px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(99, 102, 241, 0.2) transparent;
-}
-
-.prep-scroll-body::-webkit-scrollbar {
-  width: 5px;
-}
-.prep-scroll-body::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.2);
-  border-radius: 999px;
 }
 
 .prep-panel-header {
@@ -346,9 +340,7 @@
 .source-textarea {
   width: 100%;
   resize: vertical;
-  min-height: 96px;
-  max-height: 200px;
-  overflow-y: auto;
+  min-height: 140px;
   border: 1px solid rgba(107, 114, 128, 0.22);
   border-radius: 8px;
   padding: 9px 10px;
@@ -358,6 +350,11 @@
   line-height: 1.5;
   font-family: inherit;
   box-sizing: border-box;
+}
+
+/* Step 2 컬쳐맵 결과 입력 — 더 넓게 */
+.source-textarea.culture-map-input {
+  min-height: 180px;
 }
 
 .source-textarea:focus {
@@ -527,20 +524,14 @@
   margin-bottom: 10px;
 }
 
-/* 경고 패딩 — scroll body 안에서만 margin 적용 */
-.no-materials-warning {
-  margin-top: 0;
-}
-
-/* 액션 버튼 — 패널 하단 고정 */
+/* 액션 버튼 — 패널 하단 일반 영역 (sticky 불필요, chat-content 스크롤로 접근) */
 .prep-actions {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  padding: 8px 14px 12px;
-  background: rgba(99, 102, 241, 0.04);
+  padding: 8px 14px 14px;
   border-top: 1px solid rgba(99, 102, 241, 0.1);
-  flex-shrink: 0;
+  margin-top: 4px;
 }
 
 .prep-btn {
@@ -610,15 +601,14 @@
   to { transform: rotate(360deg); }
 }
 
-/* 좁은 세로 화면 대응 */
-@media (max-height: 760px) {
-  .prep-panel {
-    max-height: 48vh;
+/* 좁은 세로 화면 — textarea만 축소 (prep-panel은 chat-content 스크롤로 해결) */
+@media (max-height: 720px) {
+  .source-textarea {
+    min-height: 110px;
   }
 
-  .source-textarea {
-    min-height: 80px;
-    max-height: 140px;
+  .source-textarea.culture-map-input {
+    min-height: 140px;
   }
 }
 
@@ -676,9 +666,5 @@
     min-width: 0;
     font-size: 0.74rem;
     padding: 6px 8px;
-  }
-
-  .prep-panel {
-    max-height: 52vh;
   }
 }

@@ -401,8 +401,8 @@ const ConsultingToolsPanel: React.FC<ConsultingToolsPanelProps> = ({ onFillInput
             {/* 분석 준비 패널 */}
             {preparedStep && (
                 <div className="prep-panel">
-                  {/* 스크롤 영역 — 입력/자료 내용 */}
-                  <div className="prep-scroll-body" tabIndex={0}>
+                  {/* 콘텐츠 영역 — chat-content 스크롤로 자연 접근 */}
+                  <div className="prep-body">
                     <div className="prep-panel-header">
                         <div className="prep-title-block">
                             <span className="prep-step-name">{preparedStep.step.name}: {preparedStep.step.description}</span>
@@ -440,12 +440,11 @@ const ConsultingToolsPanel: React.FC<ConsultingToolsPanelProps> = ({ onFillInput
                                         )}
                                     </div>
                                     <textarea
-                                        className="source-textarea"
+                                        className={`source-textarea${key === 'step2CultureMap' ? ' culture-map-input' : ''}`}
                                         aria-label={STEP_INPUT_LABELS[key]}
                                         value={stepInputs[key]}
                                         onChange={(event) => updateStepInput(key, event.target.value)}
                                         placeholder={STEP_INPUT_PLACEHOLDERS[key]}
-                                        rows={key === 'step2CultureMap' ? 7 : 6}
                                     />
                                 </div>
                             ))}
@@ -544,9 +543,9 @@ const ConsultingToolsPanel: React.FC<ConsultingToolsPanelProps> = ({ onFillInput
                         </div>
                     )}
 
-                  </div>{/* /prep-scroll-body */}
+                  </div>{/* /prep-body */}
 
-                  {/* 액션 버튼 — 패널 하단 고정 */}
+                  {/* 액션 버튼 — 패널 하단 일반 영역 */}
                   <div className="prep-actions">
                       <button className="prep-btn copy-btn" onClick={handleCopyPrompt} title="외부 AI 도구에서 사용할 프롬프트 복사">
                           <Copy size={13} />
