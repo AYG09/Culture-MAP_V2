@@ -18,6 +18,11 @@ export type AIProvider = 'gemini';
 
 export type ReasoningPreset = 'default' | 'fast' | 'balanced' | 'deep';
 
+export type GeminiModelListResult = {
+  models: string[];
+  source: 'api' | 'cache' | 'fallback';
+};
+
 export interface AIConfig {
   provider: AIProvider;
   apiKey: string;
@@ -100,9 +105,11 @@ type ChatSessionLike = {
 
 // 우선순위 순서로 정렬된 기본 모델 선호 목록 (API 조회 결과에 있는 경우만 실제 사용)
 const FALLBACK_MODEL_PRIORITY = [
+  'gemini-3.5-flash',               // Latest stable
   'gemini-3.1-flash-lite',          // Stable
-  'gemini-3.1-flash-lite-preview',  // Preview → Stable 대체 전
+  'gemini-3.1-pro-preview',
   'gemini-3-flash-preview',
+  'gemini-2.5-flash',
   'gemini-2.5-flash-lite',
 ] as const;
 
@@ -134,6 +141,8 @@ class AIService {
   private insights: Insight[] = [];
   private modelTokenLimitCache: Record<string, { inputTokenLimit: number; outputTokenLimit: number; updatedAt: number }> = {};
   private availableModelsCache: string[] | null = null;
+  private availableModelsCacheTime = 0;
+  private readonly MODELS_CACHE_TTL_MS = 10 * 60 * 1000; // 10분
   private readonly academicKeywords = [
     '샤인', 'schein', '에드가', 'edgar', '로빈스', 'robbins', 'cummings', 'worley',
     '이론', '관점', '모델', '프레임워크', '원리', '원칙', '연구', '학술',
@@ -1712,13 +1721,27 @@ class AIService {
     return [...FALLBACK_MODEL_PRIORITY];
   }
 
-  public async getAvailableGeminiModelsAsync(): Promise<string[]> {
-    const fetched = await this.fetchAvailableModels();
-    if (fetched.length > 0) {
-      this.availableModelsCache = fetched;
-      return fetched;
+  public async getAvailableGeminiModelsAsync(forceRefresh = false): Promise<string[]> {
+    return (await this.getAvailableGeminiModelsResult(forceRefresh)).models;
+  }
+
+  public async getAvailableGeminiModelsResult(forceRefresh = false): Promise<GeminiModelListResult> {
+    const cacheAge = Date.now() - this.availableModelsCacheTime;
+    const isCacheValid = !forceRefresh && !!this.availableModelsCache?.length && cacheAge < this.MODELS_CACHE_TTL_MS;
+    if (isCacheValid) {
+      return { models: this.availableModelsCache!, source: 'cache' };
     }
-    return this.getAvailableGeminiModels();
+
+    try {
+      const fetched = await this.fetchAvailableModels(forceRefresh);
+      if (fetched.length > 0) {
+        return { models: fetched, source: 'api' };
+      }
+    } catch {
+      // fetchAvailableModels는 내부에서 catch하여 [] 반환하므로 여기에 도달하지 않음
+    }
+
+    return { models: [...FALLBACK_MODEL_PRIORITY], source: 'fallback' };
   }
 
   private filterOfficialGeminiModels(models: string[]): string[];
@@ -1762,17 +1785,19 @@ class AIService {
   private resolveModelAlias(preferredModel: string, available: string[]): string | null {
     // Stable 모델을 Preview보다 우선하는 alias 순서로 정의
     const aliasMap: Record<string, string[]> = {
-      'gemini-flash-latest':            ['gemini-3-flash-preview'],
+      'gemini-flash-latest':            ['gemini-3.5-flash', 'gemini-3-flash-preview'],
       'gemini-pro-latest':              ['gemini-3.1-pro-preview'],
       // Preview → Stable 마이그레이션
       'gemini-3.1-flash-lite-preview':  ['gemini-3.1-flash-lite', 'gemini-3.1-flash-lite-preview'],
-      // 레거시 2.x → 3.x 자동 전환 (Stable 우선)
+      // 레거시 3.x → 3.5 자동 전환
+      'gemini-3-flash-preview':         ['gemini-3.5-flash', 'gemini-3-flash-preview'],
+      'gemini-3-flash':                 ['gemini-3.5-flash', 'gemini-3-flash-preview'],
+      // 레거시 2.x → 3.5 자동 전환
       'gemini-2.5-flash-lite':          ['gemini-3.1-flash-lite', 'gemini-3.1-flash-lite-preview'],
-      'gemini-2.5-flash':               ['gemini-3-flash-preview'],
+      'gemini-2.5-flash':               ['gemini-3.5-flash', 'gemini-3-flash-preview'],
       'gemini-2.5-pro':                 ['gemini-3.1-pro-preview'],
-      'gemini-3-flash':                 ['gemini-3-flash-preview'],
       'gemini-3-pro':                   ['gemini-3.1-pro-preview'],
-      'gemini-3-pro-preview':           ['gemini-3.1-pro-preview'],  // Shut down → 3.1 Pro로 이관
+      'gemini-3-pro-preview':           ['gemini-3.1-pro-preview'],
     };
 
     const candidates = aliasMap[preferredModel];
@@ -1787,9 +1812,12 @@ class AIService {
     return null;
   }
 
-  private async fetchAvailableModels(): Promise<string[]> {
-    if (this.availableModelsCache) return this.availableModelsCache;
-    if (!this.geminiClient) return [];
+  private async fetchAvailableModels(forceRefresh = false): Promise<string[]> {
+    const cacheAge = Date.now() - this.availableModelsCacheTime;
+    if (!forceRefresh && this.availableModelsCache && cacheAge < this.MODELS_CACHE_TTL_MS) {
+      return this.availableModelsCache;
+    }
+    if (!this.geminiClient) return this.availableModelsCache ?? [];
 
     try {
       const result = await this.geminiClient.models.list();
@@ -1836,6 +1864,7 @@ class AIService {
 
       const filtered = this.filterOfficialGeminiModels(entries);
       this.availableModelsCache = filtered;
+      this.availableModelsCacheTime = Date.now();
       return filtered;
     } catch (error) {
       console.warn('⚠️ [AIService] Failed to fetch available models:', error);
@@ -1901,7 +1930,7 @@ class AIService {
 
   private getGeminiModelFamily(modelName: string): 'gemini-3' | 'gemini-2.5' | 'other' {
     const id = modelName.toLowerCase();
-    // gemini-3 또는 gemini-3.1 등 3.x 계열
+    // gemini-3.x 계열 (3.5-flash, 3.1-flash-lite, 3-flash-preview 등 포함)
     if (/^gemini-3(\.|-)/.test(id) || id === 'gemini-3') return 'gemini-3';
     // gemini-2.5 계열
     if (/^gemini-2\.5/.test(id)) return 'gemini-2.5';

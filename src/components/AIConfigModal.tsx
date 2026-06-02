@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { X, Save, Key, Info, CheckCircle2, Trash2, Loader2, FileText, Eye, EyeOff, Share2, Database, AlertTriangle } from 'lucide-react';
-import { aiService, type AIProvider, type AIConfig, type ReasoningPreset } from '../services/AIService';
+import { aiService, type AIProvider, type AIConfig, type ReasoningPreset, type GeminiModelListResult } from '../services/AIService';
 import liveblocksService from '../services/LiveblocksService';
 import './AIConfigModal.css';
 
@@ -57,23 +57,28 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
     const [availableModels, setAvailableModels] = useState<string[]>(() => aiService.getAvailableGeminiModels());
     const [isLoadingModels, setIsLoadingModels] = useState(false);
     const [modelLoadError, setModelLoadError] = useState(false);
+    const [usingFallbackModels, setUsingFallbackModels] = useState(false);
 
     useEffect(() => {
         if (!isOpen) return;
         let mounted = true;
         setIsLoadingModels(true);
         setModelLoadError(false);
-        aiService.getAvailableGeminiModelsAsync()
-            .then((models) => {
+        setUsingFallbackModels(false);
+        // 설정창을 열 때마다 강제 갱신하여 최신 모델 목록 반영
+        aiService.getAvailableGeminiModelsResult(true)
+            .then((result: GeminiModelListResult) => {
                 if (!mounted) return;
-                if (models.length > 0) {
-                    setAvailableModels(models);
-                    setModelName((prev) => (models.includes(prev) ? prev : models[0]));
-                }
+                setAvailableModels(result.models);
+                setModelName((prev) => (result.models.includes(prev) ? prev : result.models[0]));
+                setUsingFallbackModels(result.source === 'fallback');
             })
             .catch((error) => {
                 console.warn('⚠️ [AIConfigModal] 모델 목록 로드 실패:', error);
-                if (mounted) setModelLoadError(true);
+                if (mounted) {
+                    setModelLoadError(true);
+                    setUsingFallbackModels(true);
+                }
             })
             .finally(() => {
                 if (mounted) setIsLoadingModels(false);
@@ -337,7 +342,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                                 <option key={m} value={m}>{m}</option>
                             ))}
                         </select>
-                        {modelLoadError && (
+                        {(modelLoadError || usingFallbackModels) && (
                             <p className="help-text" style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 4 }}>
                                 <AlertTriangle size={13} /> 모델 목록 조회 실패 — fallback 목록 사용 중
                             </p>

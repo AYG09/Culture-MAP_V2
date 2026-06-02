@@ -58,6 +58,28 @@ describe('filterOfficialGeminiModels', () => {
   });
 });
 
+describe('resolveModelAlias — gemini-3.5-flash', () => {
+  it('gemini-flash-latest는 available에 gemini-3.5-flash가 있으면 그쪽으로 마이그레이션된다', () => {
+    const result = svc.resolveModelAlias('gemini-flash-latest', ['gemini-3.5-flash', 'gemini-3-flash-preview']);
+    expect(result).toBe('gemini-3.5-flash');
+  });
+
+  it('gemini-3-flash-preview 저장값이 있고 available에 gemini-3.5-flash가 있으면 마이그레이션된다', () => {
+    const result = svc.resolveModelAlias('gemini-3-flash-preview', ['gemini-3.5-flash', 'gemini-3-flash-preview']);
+    expect(result).toBe('gemini-3.5-flash');
+  });
+
+  it('gemini-2.5-flash 저장값이 있고 available에 gemini-3.5-flash가 있으면 마이그레이션된다', () => {
+    const result = svc.resolveModelAlias('gemini-2.5-flash', ['gemini-3.5-flash']);
+    expect(result).toBe('gemini-3.5-flash');
+  });
+
+  it('gemini-3.5-flash는 alias 변환 없이 그대로 반환된다 (null = 변환 없음)', () => {
+    const result = svc.resolveModelAlias('gemini-3.5-flash', ['gemini-3.5-flash']);
+    expect(result).toBeNull();
+  });
+});
+
 describe('resolveModelAlias', () => {
   it('gemini-3.1-flash-lite-preview는 Stable gemini-3.1-flash-lite로 마이그레이션된다', () => {
     const result = svc.resolveModelAlias('gemini-3.1-flash-lite-preview', ['gemini-3.1-flash-lite', 'gemini-3.1-flash-lite-preview']);
@@ -83,17 +105,19 @@ describe('resolveModelAlias', () => {
 describe('getAvailableGeminiModels fallback', () => {
   beforeEach(() => {
     svc.availableModelsCache = null;
+    svc.availableModelsCacheTime = 0;
   });
 
-  it('캐시가 없으면 Stable gemini-3.1-flash-lite를 첫 번째로 반환한다', () => {
+  it('캐시가 없으면 gemini-3.5-flash를 첫 번째로 반환한다', () => {
     const models = svc.getAvailableGeminiModels();
-    expect(models[0]).toBe('gemini-3.1-flash-lite');
+    expect(models[0]).toBe('gemini-3.5-flash');
   });
 });
 
 describe('normalizeModelConfig', () => {
   beforeEach(() => {
     svc.availableModelsCache = null;
+    svc.availableModelsCacheTime = 0;
   });
 
   it('available 목록에 없는 gemini-2.5-flash-lite는 gemini-3.1-flash-lite로 마이그레이션된다', () => {
@@ -141,12 +165,41 @@ describe('normalizeModelConfig', () => {
     svc.availableModelsCache = null;
   });
 
-  it('모델명이 없으면 DEFAULT_GEMINI_MODEL을 사용한다', () => {
+  it('모델명이 없으면 DEFAULT_GEMINI_MODEL(gemini-3.5-flash)을 사용한다', () => {
     const config = svc.normalizeModelConfig({
       provider: 'gemini',
       apiKey: 'test',
     });
-    expect(config.modelName).toBe('gemini-3.1-flash-lite');
+    expect(config.modelName).toBe('gemini-3.5-flash');
+  });
+});
+
+describe('normalizeModelConfig — gemini-3.5-flash 검증', () => {
+  beforeEach(() => {
+    svc.availableModelsCache = null;
+    svc.availableModelsCacheTime = 0;
+  });
+
+  it('저장값 gemini-3-flash-preview가 available에서 제거되면 gemini-3.5-flash로 마이그레이션된다', () => {
+    // gemini-3-flash-preview가 deprecated되어 available에 없는 상황
+    svc.availableModelsCache = ['gemini-3.5-flash'];
+    const config = svc.normalizeModelConfig({ provider: 'gemini', apiKey: 'test', modelName: 'gemini-3-flash-preview' });
+    expect(config.modelName).toBe('gemini-3.5-flash');
+    svc.availableModelsCache = null;
+  });
+
+  it('저장값 gemini-3-flash-preview가 available에 아직 있으면 그대로 유지된다', () => {
+    svc.availableModelsCache = ['gemini-3.5-flash', 'gemini-3-flash-preview'];
+    const config = svc.normalizeModelConfig({ provider: 'gemini', apiKey: 'test', modelName: 'gemini-3-flash-preview' });
+    expect(config.modelName).toBe('gemini-3-flash-preview');
+    svc.availableModelsCache = null;
+  });
+
+  it('저장값 gemini-3.5-flash가 available에 있으면 그대로 유지된다', () => {
+    svc.availableModelsCache = ['gemini-3.5-flash'];
+    const config = svc.normalizeModelConfig({ provider: 'gemini', apiKey: 'test', modelName: 'gemini-3.5-flash' });
+    expect(config.modelName).toBe('gemini-3.5-flash');
+    svc.availableModelsCache = null;
   });
 });
 
@@ -173,6 +226,10 @@ describe('getGeminiModelFamily', () => {
 
   it('gemini-2.5-flash-lite는 gemini-2.5 계열로 판별된다', () => {
     expect(svc.getGeminiModelFamily('gemini-2.5-flash-lite')).toBe('gemini-2.5');
+  });
+
+  it('gemini-3.5-flash는 gemini-3 계열로 판별된다', () => {
+    expect(svc.getGeminiModelFamily('gemini-3.5-flash')).toBe('gemini-3');
   });
 
   it('알 수 없는 모델은 other로 판별된다', () => {
@@ -253,8 +310,21 @@ describe('getThinkingConfig', () => {
   });
 
   // --- invariant ---
+  it('gemini-3.5-flash는 thinkingBudget 없이 thinkingLevel만 사용한다', () => {
+    const cfg = svc.getThinkingConfig('gemini-3.5-flash', 'deep');
+    expect(cfg).toHaveProperty('thinkingLevel', 'high');
+    expect(cfg).not.toHaveProperty('thinkingBudget');
+  });
+
+  it('gemini-3.5-flash + default: includeThoughts만 있고 thinkingBudget 없음', () => {
+    const cfg = svc.getThinkingConfig('gemini-3.5-flash', 'default');
+    expect(cfg).not.toBeNull();
+    expect(cfg).toHaveProperty('includeThoughts', true);
+    expect(cfg).not.toHaveProperty('thinkingBudget');
+  });
+
   it('어떤 모델/preset 조합에서도 thinkingLevel과 thinkingBudget이 동시에 포함되지 않는다', () => {
-    const models = ['gemini-3.1-flash-lite', 'gemini-3-flash-preview', 'gemini-3.1-pro-preview',
+    const models = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3-flash-preview', 'gemini-3.1-pro-preview',
                     'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', 'gpt-4o'];
     const presets: Array<'default' | 'fast' | 'balanced' | 'deep'> = ['default', 'fast', 'balanced', 'deep'];
     for (const model of models) {
@@ -269,7 +339,7 @@ describe('getThinkingConfig', () => {
 });
 
 describe('normalizeModelConfig — reasoningPreset', () => {
-  beforeEach(() => { svc.availableModelsCache = null; });
+  beforeEach(() => { svc.availableModelsCache = null; svc.availableModelsCacheTime = 0; });
 
   it('reasoningPreset이 없으면 default로 보정된다', () => {
     const config = svc.normalizeModelConfig({ provider: 'gemini', apiKey: 'test' });

@@ -5,6 +5,10 @@ model_list:
       api_key: os.environ/GEMINI_API_KEY
   - model_name: gemini-flash
     litellm_params:
+      model: gemini/gemini-3.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+  - model_name: gemini-flash-preview
+    litellm_params:
       model: gemini/gemini-3-flash-preview
       api_key: os.environ/GEMINI_API_KEY
   - model_name: gemini-pro

@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AIConfigModal from '../AIConfigModal';
-import type { AIConfig } from '../../services/AIService';
+import type { AIConfig, GeminiModelListResult } from '../../services/AIService';
 
 const TEST_GEMINI_KEY = 'test-gemini-key';
 const TEST_TAVILY_KEY = 'REDACTED';
@@ -12,6 +12,7 @@ const {
   mockSetConfig,
   mockGetAvailableGeminiModels,
   mockGetAvailableGeminiModelsAsync,
+  mockGetAvailableGeminiModelsResult,
   mockGetAcademicFiles,
   mockAddAcademicFile,
   mockRemoveAcademicFile,
@@ -22,6 +23,7 @@ const {
   mockSetConfig: vi.fn<(config: AIConfig) => void>(),
   mockGetAvailableGeminiModels: vi.fn<() => string[]>(),
   mockGetAvailableGeminiModelsAsync: vi.fn<() => Promise<string[]>>(),
+  mockGetAvailableGeminiModelsResult: vi.fn<() => Promise<GeminiModelListResult>>(),
   mockGetAcademicFiles: vi.fn<() => Array<{ name: string; displayName: string; mimeType: string }>>(),
   mockAddAcademicFile: vi.fn<(file: File) => Promise<unknown>>(),
   mockRemoveAcademicFile: vi.fn<(fileName: string) => void>(),
@@ -35,6 +37,7 @@ vi.mock('../../services/AIService', () => ({
     setConfig: mockSetConfig,
     getAvailableGeminiModels: mockGetAvailableGeminiModels,
     getAvailableGeminiModelsAsync: mockGetAvailableGeminiModelsAsync,
+    getAvailableGeminiModelsResult: mockGetAvailableGeminiModelsResult,
     getAcademicFiles: mockGetAcademicFiles,
     addAcademicFile: mockAddAcademicFile,
     removeAcademicFile: mockRemoveAcademicFile,
@@ -68,6 +71,7 @@ describe('AIConfigModal', () => {
     });
     mockGetAvailableGeminiModels.mockReturnValue(['gemini-3.1-flash-lite']);
     mockGetAvailableGeminiModelsAsync.mockResolvedValue(['gemini-3.1-flash-lite']);
+    mockGetAvailableGeminiModelsResult.mockResolvedValue({ models: ['gemini-3.1-flash-lite'], source: 'api' });
     mockGetAcademicFiles.mockReturnValue([]);
     mockGetSharedRagDocList.mockReturnValue([]);
     mockAddAcademicFile.mockResolvedValue(undefined);
@@ -157,7 +161,7 @@ describe('AIConfigModal', () => {
   });
 
   it('models.list() mock이 gemini-3.1-flash-lite를 반환하면 선택 목록에 Stable 모델이 표시된다', async () => {
-    mockGetAvailableGeminiModelsAsync.mockResolvedValue(['gemini-3.1-flash-lite', 'gemini-3-flash-preview']);
+    mockGetAvailableGeminiModelsResult.mockResolvedValue({ models: ['gemini-3.1-flash-lite', 'gemini-3-flash-preview'], source: 'api' });
 
     render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
 
@@ -169,8 +173,28 @@ describe('AIConfigModal', () => {
     });
   });
 
-  it('모델 목록 조회 실패 시 fallback 안내 메시지가 표시된다', async () => {
-    mockGetAvailableGeminiModelsAsync.mockRejectedValue(new Error('network error'));
+  it('API 결과가 정상이면 fallback 경고가 표시되지 않는다', async () => {
+    mockGetAvailableGeminiModelsResult.mockResolvedValue({ models: ['gemini-3.5-flash'], source: 'api' });
+
+    render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/모델 목록 조회 실패/)).not.toBeInTheDocument();
+    });
+  });
+
+  it('캐시 결과(source: cache)에서는 fallback 경고가 표시되지 않는다', async () => {
+    mockGetAvailableGeminiModelsResult.mockResolvedValue({ models: ['gemini-3.5-flash'], source: 'cache' });
+
+    render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/모델 목록 조회 실패/)).not.toBeInTheDocument();
+    });
+  });
+
+  it('source === fallback이면 fallback 경고가 표시된다', async () => {
+    mockGetAvailableGeminiModelsResult.mockResolvedValue({ models: ['gemini-3.5-flash', 'gemini-3.1-flash-lite'], source: 'fallback' });
 
     render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
 
@@ -179,8 +203,37 @@ describe('AIConfigModal', () => {
     });
   });
 
+  it('API 결과가 빈 배열(fallback)이면 fallback 경고가 표시된다', async () => {
+    // fetchAvailableModels가 [] 반환 → source: 'fallback'으로 처리
+    mockGetAvailableGeminiModelsResult.mockResolvedValue({ models: ['gemini-3.5-flash'], source: 'fallback' });
+
+    render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/모델 목록 조회 실패/)).toBeInTheDocument();
+    });
+  });
+
+  it('모델 목록 조회 예외 발생 시 fallback 경고가 표시된다', async () => {
+    mockGetAvailableGeminiModelsResult.mockRejectedValue(new Error('network error'));
+
+    render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/모델 목록 조회 실패/)).toBeInTheDocument();
+    });
+  });
+
+  it('설정창 open 시 getAvailableGeminiModelsResult가 forceRefresh=true로 호출된다', async () => {
+    render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(mockGetAvailableGeminiModelsResult).toHaveBeenCalledWith(true);
+    });
+  });
+
   it('generateContent를 지원하지 않는 모델은 선택 목록에 없다', async () => {
-    mockGetAvailableGeminiModelsAsync.mockResolvedValue(['gemini-3.1-flash-lite']);
+    mockGetAvailableGeminiModelsResult.mockResolvedValue({ models: ['gemini-3.1-flash-lite'], source: 'api' });
 
     render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
 
@@ -247,7 +300,7 @@ describe('AIConfigModal', () => {
 
   it('모델이 3.x일 때와 2.5일 때 추론 설명 문구가 다르다', async () => {
     const user = userEvent.setup();
-    mockGetAvailableGeminiModelsAsync.mockResolvedValue(['gemini-3.1-flash-lite', 'gemini-2.5-flash']);
+    mockGetAvailableGeminiModelsResult.mockResolvedValue({ models: ['gemini-3.1-flash-lite', 'gemini-2.5-flash'], source: 'api' });
     mockGetConfig.mockReturnValue({
       provider: 'gemini',
       apiKey: TEST_GEMINI_KEY,
