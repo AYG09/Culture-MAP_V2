@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ConsultingToolsPanel from '../ConsultingToolsPanel';
@@ -108,8 +108,82 @@ describe('ConsultingToolsPanel', () => {
 
     expect(onRunAnalysis).not.toHaveBeenCalled();
     await waitFor(() => {
-      expect(screen.getByText(/분석에 사용할 자료를 먼저 선택해주세요/)).toBeInTheDocument();
+      expect(screen.getByText(/분석에 사용할 원천자료를 먼저 선택해주세요/)).toBeInTheDocument();
     });
+  });
+
+  it('Step 2는 Step 1 결과를 소스로 받아 컬쳐맵 생성 분석을 실행한다', async () => {
+    render(<ConsultingToolsPanel onFillInput={onFillInput} onRunAnalysis={onRunAnalysis} />);
+
+    await user.click(screen.getByRole('button', { name: /Step 2 컬쳐맵 생성 선택/ }));
+    await waitFor(() => screen.getByLabelText('Step 1 1차 분석 결과'));
+
+    await user.type(screen.getByLabelText('Step 1 1차 분석 결과'), '1차 분석 결과 본문');
+    await user.click(screen.getByText('선택한 자료로 분석 실행'));
+
+    expect(onRunAnalysis).toHaveBeenCalledWith(
+      SAMPLE_PROMPT,
+      'Step 2: 컬쳐맵 생성',
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'Step 1 1차 분석 결과',
+          content: '1차 분석 결과 본문',
+        }),
+      ])
+    );
+  });
+
+  it('Step 2는 최근 AI 답변을 Step 1 결과 입력값으로 가져올 수 있다', async () => {
+    render(
+      <ConsultingToolsPanel
+        onFillInput={onFillInput}
+        onRunAnalysis={onRunAnalysis}
+        recentOutputs={[{
+          id: 'ai-1',
+          label: '최신 AI 답변 12:00',
+          content: '최근 1차 분석 결과',
+          timestamp: Date.now(),
+        }]}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /Step 2 컬쳐맵 생성 선택/ }));
+    await waitFor(() => screen.getByLabelText('Step 1 1차 분석 결과 최근 AI 답변 선택'));
+
+    await user.selectOptions(screen.getByLabelText('Step 1 1차 분석 결과 최근 AI 답변 선택'), 'ai-1');
+
+    expect(screen.getByLabelText('Step 1 1차 분석 결과')).toHaveValue('최근 1차 분석 결과');
+  });
+
+  it('Step 3는 Step 1 결과와 Step 2 컬쳐맵 결과를 모두 소스로 사용한다', async () => {
+    render(<ConsultingToolsPanel onFillInput={onFillInput} onRunAnalysis={onRunAnalysis} />);
+
+    await user.click(screen.getByRole('button', { name: /Step 3 진단·전략 선택/ }));
+    await user.click(await screen.findByText('문화 상태 정의'));
+
+    await waitFor(() => screen.getByLabelText('Step 1 1차 분석 결과'));
+    await user.type(screen.getByLabelText('Step 1 1차 분석 결과'), '1차 분석 결과');
+    fireEvent.change(screen.getByLabelText('Step 2 컬쳐맵 생성 결과'), {
+      target: { value: '[결과_빈도多] (부정) 혁신 저하' },
+    });
+    const sourceFile = new File(['원천 인터뷰 기록'], 'interview.txt', { type: 'text/plain' });
+    Object.defineProperty(sourceFile, 'text', {
+      value: vi.fn().mockResolvedValue('원천 인터뷰 기록'),
+    });
+    await user.upload(document.querySelector('input[type="file"]') as HTMLInputElement, sourceFile);
+    await waitFor(() => expect(screen.getByText(/원천자료 1개 보기/)).toBeInTheDocument());
+
+    await user.click(screen.getByText('선택한 자료로 분석 실행'));
+
+    expect(onRunAnalysis).toHaveBeenCalledWith(
+      SAMPLE_PROMPT,
+      '3a-1: 문화 상태 정의',
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'Step 1 1차 분석 결과', content: '1차 분석 결과' }),
+        expect.objectContaining({ name: 'Step 2 컬쳐맵 생성 결과', content: '[결과_빈도多] (부정) 혁신 저하' }),
+        expect.objectContaining({ name: '원천자료 참고: interview.txt', content: '원천 인터뷰 기록' }),
+      ])
+    );
   });
 
   it('PDF 자료는 일반 file.text()가 아니라 PDF 텍스트 추출기를 사용한다', async () => {

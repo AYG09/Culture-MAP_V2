@@ -241,14 +241,38 @@
 .prep-panel-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 12px;
+  gap: 12px;
+}
+
+.prep-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .prep-step-name {
   font-size: 0.85rem;
   font-weight: 600;
   color: #4f46e5;
+}
+
+.prep-step-guide {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #374151;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.prep-stage-desc {
+  margin: 0 0 12px;
+  color: #6b7280;
+  font-size: 0.76rem;
+  line-height: 1.45;
 }
 
 .prep-close-btn {
@@ -263,9 +287,73 @@
 }
 .prep-close-btn:hover { color: #374151; }
 
+/* 단계 결과 입력 */
+.source-inputs-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.source-input-card {
+  background: var(--bg-primary, #fff);
+  border: 1px solid rgba(99, 102, 241, 0.14);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.source-input-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.recent-output-select {
+  max-width: 190px;
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  border-radius: 7px;
+  padding: 5px 8px;
+  color: #4f46e5;
+  background: rgba(99, 102, 241, 0.06);
+  font-size: 0.72rem;
+}
+
+.source-textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 112px;
+  border: 1px solid rgba(107, 114, 128, 0.22);
+  border-radius: 8px;
+  padding: 9px 10px;
+  color: #374151;
+  background: #fff;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.source-textarea:focus {
+  outline: none;
+  border-color: rgba(99, 102, 241, 0.55);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
 /* 분석 자료함 */
 .materials-section {
   margin-bottom: 12px;
+}
+
+.materials-section.reference-mode {
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px dashed rgba(99, 102, 241, 0.24);
+  border-radius: 10px;
+  padding: 10px;
 }
 
 .materials-header {
@@ -387,6 +475,22 @@
   margin: 6px 0 0;
 }
 
+.source-toggle-btn {
+  width: 100%;
+  background: rgba(99, 102, 241, 0.07);
+  border: 1px solid rgba(99, 102, 241, 0.14);
+  border-radius: 7px;
+  color: #4f46e5;
+  cursor: pointer;
+  padding: 6px 8px;
+  font-size: 0.74rem;
+  margin-bottom: 8px;
+}
+
+.source-toggle-btn:hover {
+  background: rgba(99, 102, 241, 0.12);
+}
+
 /* 경고 */
 .no-materials-warning {
   display: flex;
@@ -428,6 +532,13 @@
   border: 1px solid rgba(107, 114, 128, 0.2);
 }
 .copy-btn:hover { background: rgba(107, 114, 128, 0.18); }
+
+.copy-full-btn {
+  background: rgba(16, 185, 129, 0.1);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+.copy-full-btn:hover { background: rgba(16, 185, 129, 0.18); }
 
 .fill-btn {
   background: rgba(99, 102, 241, 0.1);
@@ -499,5 +610,15 @@
       opacity: 1;
       transform: translateY(-50%);
     }
+  }
+
+  .source-input-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .recent-output-select {
+    max-width: none;
+    width: 100%;
   }
 }

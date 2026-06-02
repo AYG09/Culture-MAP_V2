@@ -6,7 +6,7 @@ import remarkGfm from 'remark-gfm';
 import { aiService } from '../services/AIService';
 import type { GroundingMode } from '../services/AIService';
 import AIConfigModal from './AIConfigModal';
-import ConsultingToolsPanel, { type ConsultingMaterial } from './ConsultingToolsPanel';
+import ConsultingToolsPanel, { type ConsultingMaterial, type ConsultingRecentOutput } from './ConsultingToolsPanel';
 import liveblocksService from '../services/LiveblocksService';
 import type { ChatMessage, EvidenceLevel, MessageEvidence } from '../types/liveblocks';
 import type { AiAction } from '../types/actions';
@@ -382,6 +382,22 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     const filteredMessages = useMemo(() => {
         return messages.filter((msg) => (msg.scope ?? 'group') === chatScope);
     }, [messages, chatScope]);
+    const recentConsultingOutputs = useMemo<ConsultingRecentOutput[]>(() => {
+        return filteredMessages
+            .filter((msg) => msg.role === 'assistant' && msg.content.trim().length > 0)
+            .slice(-5)
+            .reverse()
+            .map((msg, index) => {
+                const preview = msg.content.replace(/\s+/g, ' ').trim().slice(0, 34);
+                const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                return {
+                    id: msg.id,
+                    label: `${index === 0 ? '최신' : `${index + 1}번째`} AI 답변 ${time} · ${preview}`,
+                    content: msg.content,
+                    timestamp: msg.timestamp,
+                };
+            });
+    }, [filteredMessages]);
     const [appliedActionKeys, setAppliedActionKeys] = useState<string[]>([]);
 
     const handleApplySingleAction = useCallback((messageId: string, action: AiAction, index: number) => {
@@ -1209,6 +1225,7 @@ ${edgeRerouteOnlyRequest ? '' : '💡 여러 새 노드와 새 연결을 한 번
                 {passwordType === 'consulting' && (
                     <div className="chat-tools-slot">
                         <ConsultingToolsPanel
+                            recentOutputs={recentConsultingOutputs}
                             onFillInput={(prompt, stepName) => {
                                 console.log(`📋 [AIChatSidebar] 입력창에 넣기: ${stepName}`);
                                 setInputValue(prompt);
