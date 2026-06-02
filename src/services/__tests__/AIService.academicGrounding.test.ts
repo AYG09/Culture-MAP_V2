@@ -69,3 +69,70 @@ describe('AIService academic grounding fallback', () => {
     );
   });
 });
+
+describe('AIService sendChatMessageStream — groundingMode', () => {
+  const svc = aiService as any;
+  let prepareGroundingSpy: ReturnType<typeof vi.spyOn>;
+  let sendMessageStream: ReturnType<typeof vi.fn>;
+  let createChat: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sendMessageStream = vi.fn().mockResolvedValue((async function* () {})());
+    createChat = vi.fn().mockReturnValue({ sendMessageStream });
+    // stub chat session so the generator doesn't need a real client
+    svc.chatSession = {
+      sendMessageStream,
+    };
+    svc.geminiClient = {
+      chats: {
+        create: createChat,
+      },
+    };
+    svc.currentConfig = { provider: 'gemini', apiKey: 'test-key', modelName: 'gemini-3.1-flash-lite' };
+    prepareGroundingSpy = vi.spyOn(svc, 'prepareAcademicGrounding').mockResolvedValue({
+      status: 'not-needed',
+      prompt: 'test',
+      evidence: { level: 'general', summary: '일반 지식 기반 답변' },
+    });
+  });
+
+  async function drain(gen: AsyncGenerator<unknown>) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const _ of gen) { /* drain */ }
+  }
+
+  it('groundingMode: auto는 prepareAcademicGrounding()을 호출한다', async () => {
+    const gen = svc.sendChatMessageStream('test prompt', undefined, undefined, { groundingMode: 'auto' });
+    await drain(gen);
+    expect(prepareGroundingSpy).toHaveBeenCalled();
+  });
+
+  it('groundingMode: none은 prepareAcademicGrounding()을 호출하지 않는다', async () => {
+    const gen = svc.sendChatMessageStream('test prompt', undefined, undefined, { groundingMode: 'none' });
+    await drain(gen);
+    expect(prepareGroundingSpy).not.toHaveBeenCalled();
+    expect(createChat).toHaveBeenCalledWith(expect.objectContaining({
+      config: expect.not.objectContaining({
+        tools: expect.anything(),
+      }),
+    }));
+  });
+
+  it('groundingMode: attached-files-only는 prepareAcademicGrounding()을 호출하지 않는다', async () => {
+    const gen = svc.sendChatMessageStream('test prompt', undefined, undefined, { groundingMode: 'attached-files-only' });
+    await drain(gen);
+    expect(prepareGroundingSpy).not.toHaveBeenCalled();
+    expect(createChat).toHaveBeenCalledWith(expect.objectContaining({
+      config: expect.not.objectContaining({
+        tools: expect.anything(),
+      }),
+    }));
+  });
+
+  it('groundingMode 없음(기본값)은 auto처럼 prepareAcademicGrounding()을 호출한다', async () => {
+    const gen = svc.sendChatMessageStream('test prompt');
+    await drain(gen);
+    expect(prepareGroundingSpy).toHaveBeenCalled();
+  });
+});

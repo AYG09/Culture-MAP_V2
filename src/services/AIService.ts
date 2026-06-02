@@ -18,6 +18,17 @@ export type AIProvider = 'gemini';
 
 export type ReasoningPreset = 'default' | 'fast' | 'balanced' | 'deep';
 
+/**
+ * AI 분석 시 사용할 컨텍스트 보강 모드.
+ * auto: 기존 일반 채팅 동작 (학술 RAG + 웹 검색 자동 판단)
+ * none: 보강 없음 — 사용자 메시지만 전달 (컨설팅 1차 분석용)
+ * attached-files-only: 선택 첨부 자료만 사용 (학술 RAG·웹 검색 금지)
+ * academic-rag: 학술 RAG만 사용
+ * web: 웹 검색만 사용
+ * hybrid: 학술 RAG + 웹 검색 모두 사용
+ */
+export type GroundingMode = 'auto' | 'none' | 'attached-files-only' | 'academic-rag' | 'web' | 'hybrid';
+
 export type GeminiModelListResult = {
   models: string[];
   source: 'api' | 'cache' | 'fallback';
@@ -470,15 +481,20 @@ class AIService {
     const functionCallingConfig = mode === FunctionCallingConfigMode.ANY
       ? { mode, allowedFunctionNames: allowedToolNames }
       : { mode };
+    const toolConfig = toolDeclarations.length > 0
+      ? {
+          tools: [{ functionDeclarations: toolDeclarations }],
+          toolConfig: {
+            functionCallingConfig
+          }
+        }
+      : {};
 
     return this.geminiClient.chats.create({
       model: modelName,
       config: {
         systemInstruction: this.getSystemInstruction(),
-        tools: [{ functionDeclarations: toolDeclarations }],
-        toolConfig: {
-          functionCallingConfig
-        },
+        ...toolConfig,
         ...(thinkingConfig ? { thinkingConfig } : {})
       },
       ...(history && history.length > 0 ? { history } : {})
@@ -612,21 +628,45 @@ class AIService {
     prompt: string,
     fileUri?: string,
     mimeType?: string,
-    options?: { forceFunctionCall?: boolean; allowExternalTools?: boolean; groundingQuery?: string; allowedFunctionNames?: string[] }
+    options?: {
+      forceFunctionCall?: boolean;
+      allowExternalTools?: boolean;
+      groundingQuery?: string;
+      allowedFunctionNames?: string[];
+      groundingMode?: GroundingMode;
+    }
   ): AsyncGenerator<AIStreamChunk, void, void> {
     const forceFunctionCall = options?.forceFunctionCall ?? false;
     const allowExternalTools = options?.allowExternalTools ?? true;
-    const internalTools = ['search_academic_theory', 'load_academic_knowledge'];
     const allowedFunctionNames = options?.allowedFunctionNames;
+    const groundingMode = options?.groundingMode ?? 'auto';
+    const suppressGrounding = groundingMode === 'none' || groundingMode === 'attached-files-only';
+    const internalTools = suppressGrounding ? [] : ['search_academic_theory', 'load_academic_knowledge'];
+    const effectiveForceFunctionCall = suppressGrounding ? false : forceFunctionCall;
+    const effectiveAllowExternalTools = suppressGrounding ? false : allowExternalTools;
 
-    const academicGrounding = await this.prepareAcademicGrounding(options?.groundingQuery ?? prompt);
+    // groundingMode가 'none' 또는 'attached-files-only'이면 학술 RAG/웹 검색 보강을 건너뜀
+    let academicGrounding: Awaited<ReturnType<typeof this.prepareAcademicGrounding>>;
+    if (suppressGrounding) {
+      academicGrounding = {
+        status: 'not-needed',
+        prompt,
+        evidence: this.createEvidence(
+          'general',
+          '선택 자료 기반 답변',
+          '학술 RAG와 웹 검색을 사용하지 않고 사용자가 선택한 자료만 전달했습니다.'
+        )
+      };
+    } else {
+      academicGrounding = await this.prepareAcademicGrounding(options?.groundingQuery ?? prompt);
+    }
     const promptToSend = academicGrounding.prompt;
 
     yield { type: 'metadata', evidence: academicGrounding.evidence };
 
-    let session = forceFunctionCall
+    let session = effectiveForceFunctionCall
       ? this.createChatSession(FunctionCallingConfigMode.ANY, this.chatHistory, allowedFunctionNames)
-      : (allowExternalTools
+      : (effectiveAllowExternalTools
           ? (this.chatSession || this.startChat())
           : this.createChatSession(FunctionCallingConfigMode.AUTO, this.chatHistory, internalTools));
 
@@ -671,9 +711,9 @@ class AIService {
           console.warn('⚠️ [AIService] Model not available for stream, retrying with validated model');
           streamRetried = true;
           await this.validateModelAvailability(this.currentConfig?.modelName || '');
-          session = forceFunctionCall
+          session = effectiveForceFunctionCall
             ? this.createChatSession(FunctionCallingConfigMode.ANY, this.chatHistory, allowedFunctionNames)
-            : (allowExternalTools
+            : (effectiveAllowExternalTools
                 ? this.startChat(this.chatHistory)
                 : this.createChatSession(FunctionCallingConfigMode.AUTO, this.chatHistory, internalTools));
           continue;

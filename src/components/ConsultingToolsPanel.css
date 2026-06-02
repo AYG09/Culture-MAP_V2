@@ -222,6 +222,234 @@
   font-weight: 500;
 }
 
+.step-card.selected {
+  background: linear-gradient(145deg, #ede9fe 0%, #ddd6fe 100%);
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.25);
+}
+
+/* 분석 준비 패널 */
+.prep-panel {
+  margin-top: 14px;
+  background: rgba(99, 102, 241, 0.04);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  border-radius: 12px;
+  padding: 14px;
+  animation: slideDown 0.18s ease-out;
+}
+
+.prep-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.prep-step-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #4f46e5;
+}
+
+.prep-close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  display: flex;
+  padding: 2px;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+.prep-close-btn:hover { color: #374151; }
+
+/* 분석 자료함 */
+.materials-section {
+  margin-bottom: 12px;
+}
+
+.materials-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.materials-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.materials-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.materials-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  color: #4f46e5;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.materials-add-btn:hover { background: rgba(99, 102, 241, 0.18); }
+
+.materials-clear-btn {
+  background: none;
+  border: none;
+  font-size: 0.72rem;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.materials-clear-btn:hover { color: #ef4444; }
+
+.materials-empty {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  text-align: center;
+  padding: 10px 0;
+  font-style: italic;
+}
+
+.materials-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.material-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--bg-primary, white);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  font-size: 0.77rem;
+}
+
+.material-item.selected {
+  border-color: rgba(99, 102, 241, 0.25);
+  background: rgba(99, 102, 241, 0.04);
+}
+
+.material-name {
+  flex: 1;
+  color: #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.material-size {
+  color: #9ca3af;
+  font-size: 0.72rem;
+  flex-shrink: 0;
+}
+
+.material-remove-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #d1d5db;
+  display: flex;
+  padding: 2px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.material-remove-btn:hover { color: #ef4444; }
+
+.materials-notice {
+  font-size: 0.72rem;
+  color: #9ca3af;
+  margin: 0;
+  font-style: italic;
+}
+
+.materials-error {
+  font-size: 0.72rem;
+  color: #b45309;
+  margin: 6px 0 0;
+}
+
+/* 경고 */
+.no-materials-warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  color: #b45309;
+  margin-bottom: 10px;
+}
+
+/* 액션 버튼 */
+.prep-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.prep-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 11px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.copy-btn {
+  background: rgba(107, 114, 128, 0.1);
+  color: #4b5563;
+  border: 1px solid rgba(107, 114, 128, 0.2);
+}
+.copy-btn:hover { background: rgba(107, 114, 128, 0.18); }
+
+.fill-btn {
+  background: rgba(99, 102, 241, 0.1);
+  color: #4f46e5;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+.fill-btn:hover { background: rgba(99, 102, 241, 0.18); }
+
+.run-btn {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  border: 1px solid transparent;
+}
+.run-btn:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35); }
+
+.copy-success-msg {
+  margin-top: 8px;
+  font-size: 0.73rem;
+  color: #059669;
+  font-style: italic;
+}
+
 .consulting-tools-hint {
   margin-top: 12px;
   font-size: 0.75rem;

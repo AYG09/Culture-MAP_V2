@@ -4,8 +4,9 @@ import { Send, Paperclip, X, Sparkles, Loader2, FileText, Settings, Copy, Check,
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { aiService } from '../services/AIService';
+import type { GroundingMode } from '../services/AIService';
 import AIConfigModal from './AIConfigModal';
-import ConsultingToolsPanel from './ConsultingToolsPanel';
+import ConsultingToolsPanel, { type ConsultingMaterial } from './ConsultingToolsPanel';
 import liveblocksService from '../services/LiveblocksService';
 import type { ChatMessage, EvidenceLevel, MessageEvidence } from '../types/liveblocks';
 import type { AiAction } from '../types/actions';
@@ -342,6 +343,13 @@ const getEvidenceClassName = (evidence?: MessageEvidence) => {
     return evidence.level;
 };
 
+interface SendMessageOptions {
+    groundingMode?: GroundingMode;
+    includeMapContext?: boolean;
+    disableMapActions?: boolean;
+    visibleUserMessage?: string;
+}
+
 const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     onActionExecute,
     notes: _notes,
@@ -555,11 +563,28 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
         generateSuggestions();
     }, [_notes, _connections]);
 
-    const handleSendMessage = async (overrideText?: string) => {
+    /** 컨설팅 분석 실행 — 학술 RAG·웹 검색 없이 선택 자료만 AI에 전달 */
+    const handleConsultingAnalysis = (basePrompt: string, stepName: string, materials: ConsultingMaterial[]) => {
+        const SCOPE_CONSTRAINT = `[분석 범위 제한]\n이번 분석은 사용자가 선택한 분석 자료만 근거로 수행한다.\n학술 RAG, 세션 RAG, 기존 업로드 문헌, 웹 검색 결과, 현재 컬쳐맵 노드 상태를 근거로 사용하지 않는다.\n자료가 없거나 부족하면 분석을 진행하지 말고 필요한 자료를 요청한다.`;
+        const materialSection = materials
+            .map(m => `\n\n[분석 자료: ${m.name}]\n${m.content}`)
+            .join('');
+        const augmented = `${SCOPE_CONSTRAINT}${materialSection}\n\n${basePrompt}`;
+        console.log(`🔬 [AIChatSidebar] 컨설팅 분석 실행: ${stepName}, 자료 ${materials.length}개`);
+        void handleSendMessage(augmented, {
+            groundingMode: 'none',
+            includeMapContext: false,
+            disableMapActions: true,
+            visibleUserMessage: `컨설팅 분석 실행: ${stepName} (선택 자료 ${materials.length}개)`,
+        });
+    };
+
+    const handleSendMessage = async (overrideText?: string, sendOptions?: SendMessageOptions) => {
         const textToSend = overrideText || inputValue;
         if (!textToSend.trim() && attachments.length === 0) return;
 
         const currentText = textToSend;
+        const visibleUserMessage = sendOptions?.visibleUserMessage ?? currentText;
         const isPrivateChat = chatScope === 'direct';
         const applyPendingActionsRequest = /^(전체\s*)?(반영|적용|실행)(해|해줘|해라|해\s*주세요|해주세요)?[.!?]?$/.test(currentText.trim());
 
@@ -607,7 +632,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
         const explicitActionDetected = explicitActionPattern.test(currentText);
         const explicitMapEditRequest = !isPrivateChat && !contentReviewRequest && (explicitActionDetected || layoutOnlyRequest || undoOnlyRequest) && !explanationRequest;
         const preservePositionsRequested = /(위치.*유지|현재.*위치|정렬.*하지|정렬하지|레이아웃.*하지|자동\s*정렬.*(하지|말))/i.test(currentText);
-        const forceFunctionCall = explicitMapEditRequest;
+        const forceFunctionCall = sendOptions?.disableMapActions ? false : explicitMapEditRequest;
         const allowedFunctionNames = edgeRerouteOnlyRequest ? ['reroute_edges'] : undefined;
 
         if (!overrideText) setInputValue('');
@@ -691,7 +716,7 @@ ${edgeRerouteOnlyRequest ? '' : '💡 여러 새 노드와 새 연결을 한 번
         let jsonAttachmentName: string | null = null;
 
         try {
-            console.log('💬 [AIChatSidebar] Sending message:', currentText);
+            console.log('💬 [AIChatSidebar] Sending message:', visibleUserMessage);
             
             // 메시지 전송 - Liveblocks 연결 여부에 따라 분기
             if (sharedApiKeyMode && liveblocksService.isConnected()) {
@@ -712,16 +737,16 @@ ${edgeRerouteOnlyRequest ? '' : '💡 여러 새 노드와 새 연결을 한 번
                 }
             }
 
-            if (currentText.trim()) {
+            if (visibleUserMessage.trim()) {
                 if (!isPrivateChat && liveblocksService.isConnected()) {
-                    liveblocksService.sendChatMessage(currentText);
+                    liveblocksService.sendChatMessage(visibleUserMessage);
                 } else {
                     // 개인 채팅 또는 Liveblocks 미연결 시 로컬 상태에 사용자 메시지 추가
                     console.log('📝 [AIChatSidebar] Adding user message to local state');
                     setMessages(prev => [...prev, {
                         id: `user-${Date.now()}`,
                         role: 'user' as const,
-                        content: currentText,
+                        content: visibleUserMessage,
                         userId: currentUserId,
                         userName: '나',
                         userColor: '#3b82f6',
@@ -775,7 +800,7 @@ ${edgeRerouteOnlyRequest ? '' : '💡 여러 새 노드와 새 연결을 한 번
                 }
             }
 
-            if (isPrivateChat && mapEditIntentDetected) {
+            if (!sendOptions?.disableMapActions && isPrivateChat && mapEditIntentDetected) {
                 setIsLoading(false);
                 const guidanceMessage: ChatMessage = {
                     id: `system-${Date.now()}`,
@@ -795,16 +820,21 @@ ${edgeRerouteOnlyRequest ? '' : '💡 여러 새 노드와 새 연결을 한 번
             const jsonAttachmentSection = jsonAttachmentText
                 ? `\n\n[첨부된 JSON 파일: ${jsonAttachmentName ?? 'unknown'}]\n${jsonAttachmentText}`
                 : '';
+            const userMessageForAi = `${currentText || '첨부된 파일을 분석해주세요.'}${jsonAttachmentSection}`;
+            const promptForAi = sendOptions?.includeMapContext === false
+                ? `[사용자 메시지]\n${userMessageForAi}`
+                : `${contextString}\n\n[사용자 메시지]\n${userMessageForAi}`;
 
             const aiStream = aiService.sendChatMessageStream(
-                `${contextString}\n\n[사용자 메시지]\n${currentText || '첨부된 파일을 분석해주세요.'}${jsonAttachmentSection}`,
+                promptForAi,
                 fileUri,
                 mimeType,
                 {
                     forceFunctionCall,
-                    allowExternalTools: !isPrivateChat && explicitMapEditRequest,
+                    allowExternalTools: !sendOptions?.disableMapActions && !isPrivateChat && explicitMapEditRequest,
                     groundingQuery: currentText || '첨부된 파일을 분석해주세요.',
-                    allowedFunctionNames
+                    allowedFunctionNames,
+                    groundingMode: sendOptions?.groundingMode ?? 'auto',
                 }
             );
 
@@ -1179,9 +1209,12 @@ ${edgeRerouteOnlyRequest ? '' : '💡 여러 새 노드와 새 연결을 한 번
                 {passwordType === 'consulting' && (
                     <div className="chat-tools-slot">
                         <ConsultingToolsPanel
-                            onSelectPrompt={(prompt, stepName) => {
-                                console.log(`📋 [AIChatSidebar] Consulting prompt selected: ${stepName}`);
-                                handleSendMessage(prompt);
+                            onFillInput={(prompt, stepName) => {
+                                console.log(`📋 [AIChatSidebar] 입력창에 넣기: ${stepName}`);
+                                setInputValue(prompt);
+                            }}
+                            onRunAnalysis={(prompt, stepName, materials) => {
+                                handleConsultingAnalysis(prompt, stepName, materials);
                             }}
                         />
                     </div>
