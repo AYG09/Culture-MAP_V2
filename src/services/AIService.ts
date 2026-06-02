@@ -21,6 +21,19 @@ export type ReasoningPreset = 'default' | 'fast' | 'balanced' | 'deep';
 export type GeminiModelListResult = {
   models: string[];
   source: 'api' | 'cache' | 'fallback';
+  reason?:
+    | 'missing-api-key'
+    | 'client-not-initialized'
+    | 'api-error'
+    | 'empty-api-result'
+    | 'filter-empty'
+    | 'stale-cache-after-refresh-error';
+  errorMessage?: string;
+  rawCount?: number;
+  filteredCount?: number;
+  hasConfiguredApiKey?: boolean;
+  clientReady?: boolean;
+  stale?: boolean;
 };
 
 export interface AIConfig {
@@ -550,6 +563,18 @@ class AIService {
 
   public getConfig(): AIConfig | null {
     return this.currentConfig;
+  }
+
+  /** API 키는 있는데 geminiClient가 null인 경우 클라이언트를 재초기화한다. */
+  public ensureClientInitialized(): boolean {
+    if (this.geminiClient) return true;
+    const config = this.currentConfig;
+    if (config?.apiKey) {
+      this.geminiClient = new GoogleGenAI({ apiKey: config.apiKey });
+      ragService.setClient(this.geminiClient);
+      return true;
+    }
+    return false;
   }
 
   public getRagSearchScope(): RagSearchScope {
@@ -1726,22 +1751,121 @@ class AIService {
   }
 
   public async getAvailableGeminiModelsResult(forceRefresh = false): Promise<GeminiModelListResult> {
+    const hasApiKey = !!(this.currentConfig?.apiKey);
+    const clientReady = !!this.geminiClient;
     const cacheAge = Date.now() - this.availableModelsCacheTime;
     const isCacheValid = !forceRefresh && !!this.availableModelsCache?.length && cacheAge < this.MODELS_CACHE_TTL_MS;
+
     if (isCacheValid) {
-      return { models: this.availableModelsCache!, source: 'cache' };
+      return { models: this.availableModelsCache!, source: 'cache', clientReady, hasConfiguredApiKey: hasApiKey };
     }
 
-    try {
-      const fetched = await this.fetchAvailableModels(forceRefresh);
-      if (fetched.length > 0) {
-        return { models: fetched, source: 'api' };
+    // API 키 없음: 조회 시도 불필요
+    if (!hasApiKey) {
+      return {
+        models: [...FALLBACK_MODEL_PRIORITY],
+        source: 'fallback',
+        reason: 'missing-api-key',
+        hasConfiguredApiKey: false,
+        clientReady,
+      };
+    }
+
+    // API 키는 있지만 클라이언트 미초기화
+    if (!clientReady) {
+      return {
+        models: [...FALLBACK_MODEL_PRIORITY],
+        source: 'fallback',
+        reason: 'client-not-initialized',
+        hasConfiguredApiKey: true,
+        clientReady: false,
+      };
+    }
+
+    const outcome = await this.fetchModelsFromApi();
+
+    if (outcome.status === 'ok') {
+      return {
+        models: outcome.models,
+        source: 'api',
+        rawCount: outcome.rawCount,
+        filteredCount: outcome.models.length,
+        hasConfiguredApiKey: true,
+        clientReady: true,
+      };
+    }
+
+    if (outcome.status === 'filter-empty') {
+      // raw 모델은 있었으나 필터 후 0개 → 기존 캐시 우선, 없으면 fallback
+      if (this.availableModelsCache?.length) {
+        return {
+          models: this.availableModelsCache,
+          source: 'cache',
+          stale: true,
+          reason: 'stale-cache-after-refresh-error',
+          rawCount: outcome.rawCount,
+          filteredCount: 0,
+          hasConfiguredApiKey: true,
+          clientReady: true,
+        };
       }
-    } catch {
-      // fetchAvailableModels는 내부에서 catch하여 [] 반환하므로 여기에 도달하지 않음
+      return {
+        models: [...FALLBACK_MODEL_PRIORITY],
+        source: 'fallback',
+        reason: 'filter-empty',
+        rawCount: outcome.rawCount,
+        filteredCount: 0,
+        hasConfiguredApiKey: true,
+        clientReady: true,
+      };
     }
 
-    return { models: [...FALLBACK_MODEL_PRIORITY], source: 'fallback' };
+    if (outcome.status === 'empty-raw') {
+      if (this.availableModelsCache?.length) {
+        return {
+          models: this.availableModelsCache,
+          source: 'cache',
+          stale: true,
+          reason: 'stale-cache-after-refresh-error',
+          rawCount: 0,
+          hasConfiguredApiKey: true,
+          clientReady: true,
+        };
+      }
+      return {
+        models: [...FALLBACK_MODEL_PRIORITY],
+        source: 'fallback',
+        reason: 'empty-api-result',
+        rawCount: 0,
+        hasConfiguredApiKey: true,
+        clientReady: true,
+      };
+    }
+
+    // api-error: 기존 캐시 있으면 stale cache, 없으면 fallback
+    const errorMsg = outcome.status === 'api-error'
+      ? String(outcome.error instanceof Error ? outcome.error.message : outcome.error)
+      : undefined;
+
+    if (this.availableModelsCache?.length) {
+      return {
+        models: this.availableModelsCache,
+        source: 'cache',
+        stale: true,
+        reason: 'stale-cache-after-refresh-error',
+        errorMessage: errorMsg,
+        hasConfiguredApiKey: true,
+        clientReady: true,
+      };
+    }
+    return {
+      models: [...FALLBACK_MODEL_PRIORITY],
+      source: 'fallback',
+      reason: 'api-error',
+      errorMessage: errorMsg,
+      hasConfiguredApiKey: true,
+      clientReady: true,
+    };
   }
 
   private filterOfficialGeminiModels(models: string[]): string[];
@@ -1812,16 +1936,20 @@ class AIService {
     return null;
   }
 
-  private async fetchAvailableModels(forceRefresh = false): Promise<string[]> {
-    const cacheAge = Date.now() - this.availableModelsCacheTime;
-    if (!forceRefresh && this.availableModelsCache && cacheAge < this.MODELS_CACHE_TTL_MS) {
-      return this.availableModelsCache;
-    }
-    if (!this.geminiClient) return this.availableModelsCache ?? [];
+  // 내부 API 호출 결과 타입 — 오류를 삼키지 않고 구조화하여 반환
+  private async fetchModelsFromApi(): Promise<
+    | { status: 'no-client' }
+    | { status: 'api-error'; error: unknown }
+    | { status: 'empty-raw' }
+    | { status: 'filter-empty'; rawCount: number }
+    | { status: 'ok'; models: string[]; rawCount: number }
+  > {
+    if (!this.geminiClient) return { status: 'no-client' };
 
+    let rawModels: Array<Record<string, unknown>>;
     try {
       const result = await this.geminiClient.models.list();
-      const rawModels: Array<Record<string, unknown>> = [];
+      rawModels = [];
       const resultObj = result as {
         models?: unknown;
         iterateAll?: () => AsyncIterable<unknown>;
@@ -1842,34 +1970,51 @@ class AIService {
           }
         }
       }
-
-      const entries = rawModels
-        .map((model) => {
-          const info = model as {
-            name?: unknown; id?: unknown; displayName?: unknown;
-            supportedGenerationMethods?: unknown; supportedActions?: unknown;
-          };
-          const rawId = String(info?.name || info?.id || info?.displayName || '');
-          const id = this.normalizeModelId(rawId);
-          // SDK 버전에 따라 필드명이 다를 수 있어 방어적으로 처리
-          // undefined = 필드 없음(fallback 허용), [] = 지원 메서드 없음(제외), ['generateContent'...] = 명시 지원
-          const methods: string[] | undefined = Array.isArray(info?.supportedGenerationMethods)
-            ? (info.supportedGenerationMethods as string[])
-            : Array.isArray(info?.supportedActions)
-              ? (info.supportedActions as string[])
-              : undefined;
-          return { id, supportedGenerationMethods: methods };
-        })
-        .filter(({ id }) => !!id);
-
-      const filtered = this.filterOfficialGeminiModels(entries);
-      this.availableModelsCache = filtered;
-      this.availableModelsCacheTime = Date.now();
-      return filtered;
     } catch (error) {
-      console.warn('⚠️ [AIService] Failed to fetch available models:', error);
-      return [];
+      return { status: 'api-error', error };
     }
+
+    if (rawModels.length === 0) return { status: 'empty-raw' };
+
+    const entries = rawModels
+      .map((model) => {
+        const info = model as {
+          name?: unknown; id?: unknown; displayName?: unknown;
+          supportedGenerationMethods?: unknown; supportedActions?: unknown;
+        };
+        const rawId = String(info?.name || info?.id || info?.displayName || '');
+        const id = this.normalizeModelId(rawId);
+        // SDK 버전에 따라 필드명이 다를 수 있어 방어적으로 처리
+        // undefined = 필드 없음(fallback 허용), [] = 지원 메서드 없음(제외), ['generateContent'...] = 명시 지원
+        const methods: string[] | undefined = Array.isArray(info?.supportedGenerationMethods)
+          ? (info.supportedGenerationMethods as string[])
+          : Array.isArray(info?.supportedActions)
+            ? (info.supportedActions as string[])
+            : undefined;
+        return { id, supportedGenerationMethods: methods };
+      })
+      .filter(({ id }) => !!id);
+
+    const filtered = this.filterOfficialGeminiModels(entries);
+    if (filtered.length === 0) return { status: 'filter-empty', rawCount: rawModels.length };
+
+    this.availableModelsCache = filtered;
+    this.availableModelsCacheTime = Date.now();
+    return { status: 'ok', models: filtered, rawCount: rawModels.length };
+  }
+
+  // validateModelAvailability 등 내부 호출용 — 오류 시 기존 캐시 또는 [] 반환
+  private async fetchAvailableModels(forceRefresh = false): Promise<string[]> {
+    const cacheAge = Date.now() - this.availableModelsCacheTime;
+    if (!forceRefresh && this.availableModelsCache && cacheAge < this.MODELS_CACHE_TTL_MS) {
+      return this.availableModelsCache;
+    }
+    const outcome = await this.fetchModelsFromApi();
+    if (outcome.status === 'ok') return outcome.models;
+    if (outcome.status === 'api-error') {
+      console.warn('⚠️ [AIService] Failed to fetch available models:', outcome.error);
+    }
+    return this.availableModelsCache ?? [];
   }
 
   private async validateModelAvailability(preferredModel: string) {

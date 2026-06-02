@@ -38,6 +38,7 @@ vi.mock('../../services/AIService', () => ({
     getAvailableGeminiModels: mockGetAvailableGeminiModels,
     getAvailableGeminiModelsAsync: mockGetAvailableGeminiModelsAsync,
     getAvailableGeminiModelsResult: mockGetAvailableGeminiModelsResult,
+    ensureClientInitialized: vi.fn(() => true),
     getAcademicFiles: mockGetAcademicFiles,
     addAcademicFile: mockAddAcademicFile,
     removeAcademicFile: mockRemoveAcademicFile,
@@ -193,34 +194,131 @@ describe('AIConfigModal', () => {
     });
   });
 
-  it('source === fallback이면 fallback 경고가 표시된다', async () => {
-    mockGetAvailableGeminiModelsResult.mockResolvedValue({ models: ['gemini-3.5-flash', 'gemini-3.1-flash-lite'], source: 'fallback' });
+  it('reason: api-error이면 API 키 관련 정확한 경고 문구가 표시된다', async () => {
+    mockGetAvailableGeminiModelsResult.mockResolvedValue({
+      models: ['gemini-3.5-flash'],
+      source: 'fallback',
+      reason: 'api-error',
+      hasConfiguredApiKey: true,
+      clientReady: true,
+    });
 
     render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/모델 목록 조회 실패/)).toBeInTheDocument();
+      expect(screen.getByText(/저장된 API 키로 Google 모델 목록 조회에 실패했습니다/)).toBeInTheDocument();
     });
   });
 
-  it('API 결과가 빈 배열(fallback)이면 fallback 경고가 표시된다', async () => {
-    // fetchAvailableModels가 [] 반환 → source: 'fallback'으로 처리
-    mockGetAvailableGeminiModelsResult.mockResolvedValue({ models: ['gemini-3.5-flash'], source: 'fallback' });
+  it('reason: stale-cache-after-refresh-error이면 stale cache 경고 문구가 표시된다', async () => {
+    mockGetAvailableGeminiModelsResult.mockResolvedValue({
+      models: ['gemini-3.5-flash'],
+      source: 'cache',
+      stale: true,
+      reason: 'stale-cache-after-refresh-error',
+    });
 
     render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/모델 목록 조회 실패/)).toBeInTheDocument();
+      expect(screen.getByText(/최신 목록 조회에 실패해 이전에 조회한 모델 목록을 표시합니다/)).toBeInTheDocument();
     });
   });
 
-  it('모델 목록 조회 예외 발생 시 fallback 경고가 표시된다', async () => {
+  it('reason: filter-empty이면 필터 관련 경고 문구가 표시된다', async () => {
+    mockGetAvailableGeminiModelsResult.mockResolvedValue({
+      models: ['gemini-3.5-flash'],
+      source: 'fallback',
+      reason: 'filter-empty',
+      rawCount: 5,
+      filteredCount: 0,
+    });
+
+    render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Google 응답은 있었지만 생성 가능한 Gemini 모델을 찾지 못했습니다/)).toBeInTheDocument();
+    });
+  });
+
+  it('reason: client-not-initialized이면 클라이언트 미초기화 경고 문구가 표시된다', async () => {
+    mockGetAvailableGeminiModelsResult.mockResolvedValue({
+      models: ['gemini-3.5-flash'],
+      source: 'fallback',
+      reason: 'client-not-initialized',
+      hasConfiguredApiKey: true,
+      clientReady: false,
+    });
+
+    render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/AI 클라이언트가 초기화되지 않았습니다/)).toBeInTheDocument();
+    });
+  });
+
+  it('API 키 있음 + 기존 캐시 있음 + 강제 새로고침 실패 → stale cache 사용, fallback 아님', async () => {
+    mockGetAvailableGeminiModelsResult.mockResolvedValue({
+      models: ['gemini-3.5-flash', 'gemini-3.1-flash-lite'],
+      source: 'cache',
+      stale: true,
+      reason: 'stale-cache-after-refresh-error',
+    });
+
+    render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      // stale cache이므로 모델은 표시되고, 경고는 stale 문구
+      const selects = screen.getAllByRole('combobox');
+      const options = Array.from(selects[0].querySelectorAll('option')).map((o) => (o as HTMLOptionElement).value);
+      expect(options).toContain('gemini-3.5-flash');
+      expect(screen.getByText(/최신 목록 조회에 실패해 이전에 조회한 모델 목록을 표시합니다/)).toBeInTheDocument();
+    });
+  });
+
+  it('API 키 있음 + models.list() throw → reason: api-error', async () => {
+    mockGetAvailableGeminiModelsResult.mockResolvedValue({
+      models: ['gemini-3.5-flash'],
+      source: 'fallback',
+      reason: 'api-error',
+      errorMessage: 'network error',
+      hasConfiguredApiKey: true,
+      clientReady: true,
+    });
+
+    render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/저장된 API 키로 Google 모델 목록 조회에 실패했습니다/)).toBeInTheDocument();
+    });
+  });
+
+  it('source: api이면 어떤 경고도 표시되지 않는다', async () => {
+    mockGetAvailableGeminiModelsResult.mockResolvedValue({
+      models: ['gemini-3.5-flash'],
+      source: 'api',
+      rawCount: 10,
+      filteredCount: 1,
+      hasConfiguredApiKey: true,
+      clientReady: true,
+    });
+
+    render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('img', { hidden: true })).not.toBeInTheDocument();
+      expect(screen.queryByText(/조회에 실패/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/목록을 표시합니다/)).not.toBeInTheDocument();
+    });
+  });
+
+  it('모델 목록 조회 예외 발생 시 catch 경고 문구가 표시된다', async () => {
     mockGetAvailableGeminiModelsResult.mockRejectedValue(new Error('network error'));
 
     render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/모델 목록 조회 실패/)).toBeInTheDocument();
+      expect(screen.getByText(/저장된 API 키로 Google 모델 목록 조회에 실패했습니다/)).toBeInTheDocument();
     });
   });
 

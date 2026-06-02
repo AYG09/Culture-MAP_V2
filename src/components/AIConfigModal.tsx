@@ -4,6 +4,25 @@ import { aiService, type AIProvider, type AIConfig, type ReasoningPreset, type G
 import liveblocksService from '../services/LiveblocksService';
 import './AIConfigModal.css';
 
+function resolveModelListWarning(result: GeminiModelListResult): string {
+    switch (result.reason) {
+        case 'stale-cache-after-refresh-error':
+            return '최신 목록 조회에 실패해 이전에 조회한 모델 목록을 표시합니다.';
+        case 'filter-empty':
+            return 'Google 응답은 있었지만 생성 가능한 Gemini 모델을 찾지 못했습니다.';
+        case 'client-not-initialized':
+            return 'API 키는 저장되어 있지만 AI 클라이언트가 초기화되지 않았습니다.';
+        case 'api-error':
+            return '저장된 API 키로 Google 모델 목록 조회에 실패했습니다. 기본 목록을 표시합니다.';
+        case 'empty-api-result':
+            return 'Google API가 모델 목록을 반환하지 않았습니다. 기본 목록을 표시합니다.';
+        case 'missing-api-key':
+            return 'API 키가 설정되지 않아 모델 목록을 조회할 수 없습니다.';
+        default:
+            return '모델 목록을 조회할 수 없어 기본 목록을 표시합니다.';
+    }
+}
+
 interface AIConfigModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -56,28 +75,29 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
 
     const [availableModels, setAvailableModels] = useState<string[]>(() => aiService.getAvailableGeminiModels());
     const [isLoadingModels, setIsLoadingModels] = useState(false);
-    const [modelLoadError, setModelLoadError] = useState(false);
-    const [usingFallbackModels, setUsingFallbackModels] = useState(false);
+    const [modelListWarning, setModelListWarning] = useState<string | null>(null);
 
     useEffect(() => {
         if (!isOpen) return;
         let mounted = true;
         setIsLoadingModels(true);
-        setModelLoadError(false);
-        setUsingFallbackModels(false);
+        setModelListWarning(null);
+        // client-not-initialized 방어: API 키가 있으면 클라이언트 재초기화 후 조회
+        aiService.ensureClientInitialized();
         // 설정창을 열 때마다 강제 갱신하여 최신 모델 목록 반영
         aiService.getAvailableGeminiModelsResult(true)
             .then((result: GeminiModelListResult) => {
                 if (!mounted) return;
                 setAvailableModels(result.models);
                 setModelName((prev) => (result.models.includes(prev) ? prev : result.models[0]));
-                setUsingFallbackModels(result.source === 'fallback');
+                if (result.source === 'fallback' || result.stale) {
+                    setModelListWarning(resolveModelListWarning(result));
+                }
             })
             .catch((error) => {
                 console.warn('⚠️ [AIConfigModal] 모델 목록 로드 실패:', error);
                 if (mounted) {
-                    setModelLoadError(true);
-                    setUsingFallbackModels(true);
+                    setModelListWarning('저장된 API 키로 Google 모델 목록 조회에 실패했습니다. 기본 목록을 표시합니다.');
                 }
             })
             .finally(() => {
@@ -342,9 +362,9 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                                 <option key={m} value={m}>{m}</option>
                             ))}
                         </select>
-                        {(modelLoadError || usingFallbackModels) && (
+                        {modelListWarning && (
                             <p className="help-text" style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <AlertTriangle size={13} /> 모델 목록 조회 실패 — fallback 목록 사용 중
+                                <AlertTriangle size={13} /> {modelListWarning}
                             </p>
                         )}
                     </div>
