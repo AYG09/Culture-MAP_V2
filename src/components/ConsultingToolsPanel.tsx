@@ -49,8 +49,10 @@ const SUPPORTED_TYPES = ['.txt', '.md', '.pdf', '.json'];
 
 interface ConsultingToolsPanelProps {
     onFillInput: (prompt: string, stepName: string) => void;
-    onRunAnalysis: (prompt: string, stepName: string, materials: ConsultingMaterial[]) => void;
+    onRunAnalysis: (prompt: string, stepName: string, materials: ConsultingMaterial[], stepId: string) => void;
     recentOutputs?: ConsultingRecentOutput[];
+    /** 현재 캔버스 컬쳐맵을 [태그] 텍스트로 직렬화한 값 (Step 3 입력 자동 채움용) */
+    currentMapText?: string;
 }
 
 interface PreparedStep {
@@ -78,7 +80,7 @@ const getStepStage = (stepId: string) => {
 
 const isDiagnosisStep = (stepId: string) => stepId.startsWith('step4');
 
-const ConsultingToolsPanel: React.FC<ConsultingToolsPanelProps> = ({ onFillInput, onRunAnalysis, recentOutputs = [] }) => {
+const ConsultingToolsPanel: React.FC<ConsultingToolsPanelProps> = ({ onFillInput, onRunAnalysis, recentOutputs = [], currentMapText = '' }) => {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isLoading, setIsLoading] = useState<string | null>(null);
     const [expandedStep, setExpandedStep] = useState<string | null>(null);
@@ -225,7 +227,7 @@ const ConsultingToolsPanel: React.FC<ConsultingToolsPanelProps> = ({ onFillInput
             return;
         }
         setValidationWarning(null);
-        onRunAnalysis(preparedStep.prompt, `${preparedStep.step.name}: ${preparedStep.step.description}`, buildAnalysisMaterials(preparedStep.step.id));
+        onRunAnalysis(preparedStep.prompt, `${preparedStep.step.name}: ${preparedStep.step.description}`, buildAnalysisMaterials(preparedStep.step.id), preparedStep.step.id);
         setPreparedStep(null);
     };
 
@@ -257,7 +259,9 @@ const ConsultingToolsPanel: React.FC<ConsultingToolsPanelProps> = ({ onFillInput
         }
         if (isDiagnosisStep(stepId)) {
             if (!stepInputs.step1Analysis.trim()) return 'Step 1의 1차 분석 결과를 먼저 입력해주세요.';
-            if (!stepInputs.step2CultureMap.trim()) return 'Step 2의 컬쳐맵 생성 결과를 먼저 입력해주세요.';
+            if (!stepInputs.step2CultureMap.trim() && !currentMapText.trim()) {
+                return 'Step 2의 컬쳐맵 생성 결과를 입력하거나 "현재 맵에서 가져오기"를 눌러주세요.';
+            }
         }
         return null;
     };
@@ -283,9 +287,10 @@ const ConsultingToolsPanel: React.FC<ConsultingToolsPanelProps> = ({ onFillInput
         }
 
         if (isDiagnosisStep(stepId)) {
+            const cultureMapText = stepInputs.step2CultureMap.trim() || currentMapText.trim();
             sourceMaterials.push(
                 createSyntheticMaterial(STEP_INPUT_LABELS.step1Analysis, stepInputs.step1Analysis),
-                createSyntheticMaterial(STEP_INPUT_LABELS.step2CultureMap, stepInputs.step2CultureMap)
+                createSyntheticMaterial(STEP_INPUT_LABELS.step2CultureMap, cultureMapText)
             );
             sourceMaterials.push(...materials.filter(m => m.selected).map(m => ({
                 ...m,
@@ -423,6 +428,16 @@ const ConsultingToolsPanel: React.FC<ConsultingToolsPanelProps> = ({ onFillInput
                                 <div key={key} className="source-input-card">
                                     <div className="source-input-header">
                                         <span>{STEP_INPUT_LABELS[key]}</span>
+                                        {key === 'step2CultureMap' && currentMapText.trim() && (
+                                            <button
+                                                type="button"
+                                                className="recent-output-select map-import-btn"
+                                                onClick={() => updateStepInput('step2CultureMap', currentMapText)}
+                                                title="현재 캔버스의 컬쳐맵을 텍스트로 가져옵니다."
+                                            >
+                                                현재 맵에서 가져오기
+                                            </button>
+                                        )}
                                         {recentOutputs.length > 0 && (
                                             <select
                                                 className="recent-output-select"

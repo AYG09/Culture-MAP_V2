@@ -130,6 +130,11 @@ const normalizeBatchNodeInput = (input: unknown): NormalizedBatchNodeInput | nul
       ? sentiment
       : undefined,
     intensity: typeof raw.intensity === 'number' ? raw.intensity as BatchNodeInput['intensity'] : undefined,
+    basis: typeof raw.basis === 'string'
+      ? raw.basis
+      : typeof data.basis === 'string'
+        ? data.basis
+        : undefined,
     x: typeof raw.x === 'number' ? raw.x : typeof position.x === 'number' ? position.x : undefined,
     y: typeof raw.y === 'number' ? raw.y : typeof position.y === 'number' ? position.y : undefined,
     isLocked: typeof data.isLocked === 'boolean' ? data.isLocked : undefined,
@@ -310,6 +315,7 @@ export const useAiActions = ({
             ? INTENSITY_MAP.TO_STRING(payload.intensity)
             : (payload.intensity ?? 'medium'))
           : undefined;
+        const basis = typeof payload.basis === 'string' && payload.basis.trim() ? payload.basis.trim() : undefined;
 
         liveblocksService.updateStickyNote({
           id: newNodeId,
@@ -320,6 +326,7 @@ export const useAiActions = ({
           sentiment,
           type: nodeType,
           ...(isConsultingMode && frequency ? { frequency } : {}),
+          ...(basis ? { basis } : {}),
         });
 
         const newNode: Node = {
@@ -333,6 +340,7 @@ export const useAiActions = ({
             timestamp: Date.now(),
             sentiment,
             ...(isConsultingMode && frequency ? { frequency } : {}),
+            ...(basis ? { basis } : {}),
             type: nodeType,
             layer: layerValue,
             onUpdate: handleNodeContentUpdate,
@@ -410,6 +418,7 @@ export const useAiActions = ({
           const frequency = isConsultingMode
             ? (typeof input.intensity === 'number' ? INTENSITY_MAP.TO_STRING(input.intensity) : input.intensity)
             : undefined;
+          const basis = typeof input.basis === 'string' && input.basis.trim() ? input.basis.trim() : undefined;
 
           const newNodeId = `node-${batchTimestamp}-${index}-${Math.random().toString(36).substr(2, 4)}`;
           if (input.tempId) idMap[input.tempId] = newNodeId;
@@ -424,6 +433,7 @@ export const useAiActions = ({
             sentiment,
             type: nodeType,
             ...(isConsultingMode && frequency ? { frequency } : {}),
+            ...(basis ? { basis } : {}),
           });
 
           newNodes.push({
@@ -437,6 +447,7 @@ export const useAiActions = ({
               timestamp: Date.now(),
               sentiment,
               ...(isConsultingMode && frequency ? { frequency } : {}),
+              ...(basis ? { basis } : {}),
               type: nodeType,
               layer: layerValue,
               onUpdate: handleNodeContentUpdate,
