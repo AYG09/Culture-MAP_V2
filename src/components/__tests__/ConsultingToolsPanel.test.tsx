@@ -129,7 +129,8 @@ describe('ConsultingToolsPanel', () => {
           name: 'Step 1 1차 분석 결과',
           content: '1차 분석 결과 본문',
         }),
-      ])
+      ]),
+      'step3'
     );
   });
 
@@ -182,7 +183,8 @@ describe('ConsultingToolsPanel', () => {
         expect.objectContaining({ name: 'Step 1 1차 분석 결과', content: '1차 분석 결과' }),
         expect.objectContaining({ name: 'Step 2 컬쳐맵 생성 결과', content: '[결과_빈도多] (부정) 혁신 저하' }),
         expect.objectContaining({ name: '원천자료 참고: interview.txt', content: '원천 인터뷰 기록' }),
-      ])
+      ]),
+      'step4a1'
     );
   });
 
@@ -207,7 +209,8 @@ describe('ConsultingToolsPanel', () => {
           name: 'interview.pdf',
           content: 'PDF에서 추출한 인터뷰 내용',
         }),
-      ])
+      ]),
+      'step2'
     );
   });
 

@@ -43,6 +43,8 @@ export interface AddNodePayload {
     content?: string;
     sentiment?: 'positive' | 'negative' | 'neutral';
     intensity?: PerceptionIntensity;
+    /** 학술적 근거 (유형/무형 레버용): "학자명, 이론명, 연도" */
+    basis?: string;
     x?: number;
     y?: number;
 }
@@ -73,6 +75,8 @@ export interface BatchNodeInput {
     content?: string;
     sentiment?: 'positive' | 'negative' | 'neutral';
     intensity?: PerceptionIntensity;
+    /** 학술적 근거 (유형/무형 레버용): "학자명, 이론명, 연도" */
+    basis?: string;
     x?: number;
     y?: number;
 }
@@ -321,10 +325,11 @@ export const MAP_TOOL_DECLARATIONS = [
                 layer: { type: 'number', enum: [1, 2, 3, 4], description: 'Layer index (1:결과, 2:행동, 3:유형, 4:무형)' },
                 content: { type: 'string', description: 'Detailed description (optional)' },
                 sentiment: { type: 'string', enum: ['positive', 'negative', 'neutral'], description: 'Sentiment of the node' },
-                intensity: { type: 'number', enum: [1, 2, 3, 4, 5], description: 'Perception intensity (1=low, 5=high)' }
+                intensity: { type: 'number', enum: [1, 2, 3, 4, 5], description: 'Perception intensity (1=low, 5=high)' },
+                basis: { type: 'string', description: 'Academic basis for levers (유형_레버/무형_레버 only), Korean format: "학자명, 이론명, 연도" (e.g., "에이미 에드먼슨, 심리적 안전감 이론, 1999"). Leave empty for 결과/행동.' }
             },
             required: ['label', 'type', 'layer'],
-            propertyOrdering: ['label', 'type', 'layer', 'content', 'sentiment', 'intensity']
+            propertyOrdering: ['label', 'type', 'layer', 'content', 'sentiment', 'intensity', 'basis']
         }
     },
     {
@@ -346,11 +351,12 @@ export const MAP_TOOL_DECLARATIONS = [
                             content: { type: 'string', description: 'Detailed description (optional)' },
                             sentiment: { type: 'string', enum: ['positive', 'negative', 'neutral'], description: 'Sentiment of the node' },
                             intensity: { type: 'number', enum: [1, 2, 3, 4, 5], description: 'Perception intensity (1=low, 5=high)' },
+                            basis: { type: 'string', description: 'Academic basis for levers (유형_레버/무형_레버 only), Korean format: "학자명, 이론명, 연도" (e.g., "에이미 에드먼슨, 심리적 안전감 이론, 1999"). Leave empty for 결과/행동.' },
                             x: { type: 'number', description: 'X position (canvas coordinate, optional)' },
                             y: { type: 'number', description: 'Y position (canvas coordinate, optional)' }
                         },
                         required: ['label', 'type', 'layer'],
-                        propertyOrdering: ['tempId', 'label', 'type', 'layer', 'content', 'sentiment', 'intensity', 'x', 'y']
+                        propertyOrdering: ['tempId', 'label', 'type', 'layer', 'content', 'sentiment', 'intensity', 'basis', 'x', 'y']
                     }
                 },
                 connections: {

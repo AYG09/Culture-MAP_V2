@@ -642,7 +642,9 @@ class AIService {
     const groundingMode = options?.groundingMode ?? 'auto';
     const suppressGrounding = groundingMode === 'none' || groundingMode === 'attached-files-only';
     const internalTools = suppressGrounding ? [] : ['search_academic_theory', 'load_academic_knowledge'];
-    const effectiveForceFunctionCall = suppressGrounding ? false : forceFunctionCall;
+    // 그라운딩(학술 RAG/웹) 보강은 억제하더라도, 명시적으로 강제된 맵 편집 도구 호출(forceFunctionCall)은 허용한다.
+    // 컨설팅 Step 2(컬쳐맵 생성)처럼 선택 자료만 근거로 노드를 직접 생성해야 하는 경우를 위함.
+    const effectiveForceFunctionCall = forceFunctionCall;
     const effectiveAllowExternalTools = suppressGrounding ? false : allowExternalTools;
 
     // groundingMode가 'none' 또는 'attached-files-only'이면 학술 RAG/웹 검색 보강을 건너뜀

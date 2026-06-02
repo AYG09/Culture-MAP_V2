@@ -11,6 +11,7 @@ import liveblocksService from '../services/LiveblocksService';
 import type { ChatMessage, EvidenceLevel, MessageEvidence } from '../types/liveblocks';
 import type { AiAction } from '../types/actions';
 import type { NoteData, ConnectionData } from '../types/culture';
+import { serializeCultureMapToText } from '../utils/cultureMapSerializer';
 import type { PasswordType } from '../services/GatewayAdminService';
 import './AIChatSidebar.css';
 
@@ -343,10 +344,34 @@ const getEvidenceClassName = (evidence?: MessageEvidence) => {
     return evidence.level;
 };
 
+/** 강제 실행된 맵 편집 액션을 사람이 읽을 수 있는 요약 문구로 변환 */
+const summarizeMapActions = (actions: AiAction[]): string => {
+    let nodeCount = 0;
+    let connectionCount = 0;
+    for (const action of actions) {
+        const name = (action.name ?? '').trim();
+        const args = (action.args ?? {}) as Record<string, unknown>;
+        if (name === 'add_nodes_with_connections') {
+            nodeCount += Array.isArray(args.nodes) ? args.nodes.length : 0;
+            connectionCount += Array.isArray(args.connections) ? args.connections.length : 0;
+        } else if (name === 'add_node') {
+            nodeCount += 1;
+        } else if (name === 'create_connection') {
+            connectionCount += 1;
+        }
+    }
+    if (nodeCount === 0 && connectionCount === 0) {
+        return '컬쳐맵 생성 작업을 실행했습니다.';
+    }
+    return `컬쳐맵을 생성했습니다. (노드 ${nodeCount}개, 연결 ${connectionCount}개) 캔버스를 확인해주세요.`;
+};
+
 interface SendMessageOptions {
     groundingMode?: GroundingMode;
     includeMapContext?: boolean;
     disableMapActions?: boolean;
+    /** 맵 편집 도구 호출을 강제(자동 실행)한다. 컨설팅 Step 2(컬쳐맵 생성)용. */
+    forceMapActions?: boolean;
     visibleUserMessage?: string;
 }
 
@@ -398,6 +423,14 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
                 };
             });
     }, [filteredMessages]);
+
+    // 현재 캔버스 컬쳐맵을 [태그] 텍스트로 직렬화 (Step 3 진단·전략 입력 자동 채움용)
+    const currentMapText = useMemo(() => {
+        return serializeCultureMapToText(_notes, _connections, {
+            includeFrequency: passwordType === 'consulting',
+        });
+    }, [_notes, _connections, passwordType]);
+
     const [appliedActionKeys, setAppliedActionKeys] = useState<string[]>([]);
 
     const handleApplySingleAction = useCallback((messageId: string, action: AiAction, index: number) => {
@@ -580,17 +613,21 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
     }, [_notes, _connections]);
 
     /** 컨설팅 분석 실행 — 학술 RAG·웹 검색 없이 선택 자료만 AI에 전달 */
-    const handleConsultingAnalysis = (basePrompt: string, stepName: string, materials: ConsultingMaterial[]) => {
+    const handleConsultingAnalysis = (basePrompt: string, stepName: string, materials: ConsultingMaterial[], stepId: string) => {
+        // Step 2(컬쳐맵 생성, step3.md)는 텍스트 나열이 아니라 맵 편집 도구로 노드를 직접 생성한다.
+        const isCultureMapStep = stepId === 'step3';
         const SCOPE_CONSTRAINT = `[분석 범위 제한]\n이번 분석은 사용자가 선택한 분석 자료만 근거로 수행한다.\n학술 RAG, 세션 RAG, 기존 업로드 문헌, 웹 검색 결과, 현재 컬쳐맵 노드 상태를 근거로 사용하지 않는다.\n자료가 없거나 부족하면 분석을 진행하지 말고 필요한 자료를 요청한다.`;
         const materialSection = materials
             .map(m => `\n\n[분석 자료: ${m.name}]\n${m.content}`)
             .join('');
         const augmented = `${SCOPE_CONSTRAINT}${materialSection}\n\n${basePrompt}`;
-        console.log(`🔬 [AIChatSidebar] 컨설팅 분석 실행: ${stepName}, 자료 ${materials.length}개`);
+        console.log(`🔬 [AIChatSidebar] 컨설팅 분석 실행: ${stepName}, 자료 ${materials.length}개, 노드 직접 생성=${isCultureMapStep}`);
         void handleSendMessage(augmented, {
             groundingMode: 'none',
             includeMapContext: false,
-            disableMapActions: true,
+            // 컬쳐맵 생성 단계는 도구 호출을 강제하여 노드/연결을 실제로 만든다.
+            disableMapActions: !isCultureMapStep,
+            forceMapActions: isCultureMapStep,
             visibleUserMessage: `컨설팅 분석 실행: ${stepName} (선택 자료 ${materials.length}개)`,
         });
     };
@@ -646,7 +683,10 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({
         const mapEditIntentDetected = (hasVerb && hasNoun) || layoutOnlyRequest;
         const explanationRequest = explanationKeywords.some(keyword => currentText.includes(keyword));
         const explicitActionDetected = explicitActionPattern.test(currentText);
-        const explicitMapEditRequest = !isPrivateChat && !contentReviewRequest && (explicitActionDetected || layoutOnlyRequest || undoOnlyRequest) && !explanationRequest;
+        // forceMapActions: 컨설팅 컬쳐맵 생성처럼 프로그램이 도구 호출을 강제하는 경우.
+        // 프롬프트 텍스트에 '근거/분석' 등이 섞여 휴리스틱이 액션을 무시하는 것을 방지한다.
+        const forceMapActions = sendOptions?.forceMapActions ?? false;
+        const explicitMapEditRequest = forceMapActions || (!isPrivateChat && !contentReviewRequest && (explicitActionDetected || layoutOnlyRequest || undoOnlyRequest) && !explanationRequest);
         const preservePositionsRequested = /(위치.*유지|현재.*위치|정렬.*하지|정렬하지|레이아웃.*하지|자동\s*정렬.*(하지|말))/i.test(currentText);
         const forceFunctionCall = sendOptions?.disableMapActions ? false : explicitMapEditRequest;
         const allowedFunctionNames = edgeRerouteOnlyRequest ? ['reroute_edges'] : undefined;
@@ -1007,13 +1047,20 @@ ${edgeRerouteOnlyRequest ? '' : '💡 여러 새 노드와 새 연결을 한 번
                                 }))
                                 : [];
 
-                            if (autoExecute && actionsWithFlags.length > 0 && explicitMapEditRequest) {
+                            if ((autoExecute || forceMapActions) && actionsWithFlags.length > 0 && explicitMapEditRequest) {
                             // 자동 실행 모드: 즉시 onActionExecute 호출
                             console.log('⚡ [AIChatSidebar] Auto-executing actions...');
                             actionsWithFlags.forEach(action => onActionExecute(action));
                             // 실행 완료 후 텍스트만 업데이트 (액션은 저장하지 않음 - 이미 실행됨)
+                            const forcedSummary = forceMapActions
+                                ? summarizeMapActions(actionsWithFlags)
+                                : undefined;
                             if (aiMsgId && !aiMsgId.startsWith('local-')) {
-                                liveblocksService.updateAiResponse(aiMsgId, undefined, undefined, currentEvidence);
+                                liveblocksService.updateAiResponse(aiMsgId, forcedSummary, undefined, currentEvidence);
+                            } else if (aiMsgId && forcedSummary) {
+                                setMessages(prev => prev.map(m =>
+                                    m.id === aiMsgId ? { ...m, content: forcedSummary, evidence: currentEvidence ?? m.evidence } : m
+                                ));
                             }
                             } else {
                                 // 수동 실행 모드: 메시지에 actions 저장하여 버튼 표시
@@ -1226,12 +1273,13 @@ ${edgeRerouteOnlyRequest ? '' : '💡 여러 새 노드와 새 연결을 한 번
                     <div className="chat-tools-slot">
                         <ConsultingToolsPanel
                             recentOutputs={recentConsultingOutputs}
+                            currentMapText={currentMapText}
                             onFillInput={(prompt, stepName) => {
                                 console.log(`📋 [AIChatSidebar] 입력창에 넣기: ${stepName}`);
                                 setInputValue(prompt);
                             }}
-                            onRunAnalysis={(prompt, stepName, materials) => {
-                                handleConsultingAnalysis(prompt, stepName, materials);
+                            onRunAnalysis={(prompt, stepName, materials, stepId) => {
+                                handleConsultingAnalysis(prompt, stepName, materials, stepId);
                             }}
                         />
                     </div>

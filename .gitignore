@@ -57,6 +57,11 @@ serviceAccountKey.json
 shrimp-rules.md
 .claude/settings.local.json
 
+# Installed skills (machine-local; absolute-path symlinks)
+.agents/
+.claude/skills/
+skills-lock.json
+
 # Cache
 .cache
 .parcel-cache
