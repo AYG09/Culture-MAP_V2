@@ -226,13 +226,12 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
         setIsSwitchingMode(true);
         try {
             await liveblocksService.updateSessionType('consulting');
+            // 레지스트리 저장 성공 후 session-type-changed 이벤트로 UI 자동 갱신
             setConsultingSuccess(true);
-            setTimeout(() => {
-                window.location.reload();
-            }, 800);
         } catch (error) {
             console.error('컨설팅 모드 전환 실패:', error);
-            setConsultingError('모드 전환에 실패했습니다. 잠시 후 다시 시도하세요.');
+            const msg = error instanceof Error ? error.message : '알 수 없는 오류';
+            setConsultingError(`세션 타입 저장 실패: ${msg}`);
         } finally {
             setIsSwitchingMode(false);
         }
@@ -262,13 +261,12 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
         setIsSwitchingMode(true);
         try {
             await liveblocksService.updateSessionType('workshop');
+            // 레지스트리 저장 성공 후 session-type-changed 이벤트로 UI 자동 갱신
             setWorkshopSuccess(true);
-            setTimeout(() => {
-                window.location.reload();
-            }, 800);
         } catch (error) {
             console.error('워크샵 모드 전환 실패:', error);
-            setWorkshopError('모드 전환에 실패했습니다. 잠시 후 다시 시도하세요.');
+            const msg = error instanceof Error ? error.message : '알 수 없는 오류';
+            setWorkshopError(`세션 타입 저장 실패: ${msg}`);
         } finally {
             setIsSwitchingMode(false);
         }

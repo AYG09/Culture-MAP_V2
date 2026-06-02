@@ -21,6 +21,14 @@ interface LastSessionInfo {
   isHost?: boolean;
 }
 
+interface ResolvedSessionInfo {
+  code: string;
+  isHost: boolean;
+  type: import('../types/liveblocks').SessionType;
+  name?: string;
+  organization?: string;
+}
+
 interface GatewayProps {
   children: ReactNode;
   onAuthenticated?: (sessionCode: string) => void;
@@ -127,7 +135,7 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
     removeCachedSession(code);
   }, [clearLastSession, removeCachedSession]);
 
-  const getStoredSessionIfAvailable = useCallback(async (): Promise<Required<LastSessionInfo> | null> => {
+  const getStoredSessionIfAvailable = useCallback(async (): Promise<ResolvedSessionInfo | null> => {
     const stored = localStorage.getItem(LAST_SESSION_STORAGE_KEY);
     if (!stored) return null;
 
@@ -152,9 +160,13 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
       return null;
     }
 
+    const sessionType = (existingSession.type === 'consulting' ? 'consulting' : 'workshop') as import('../types/liveblocks').SessionType;
     return {
       code: existingSession.code,
       isHost: (parsed.isHost ?? false) || existingSession.hostUserId === liveblocksService.getCurrentUserId(),
+      type: sessionType,
+      name: existingSession.name,
+      organization: existingSession.organization,
     };
   }, [clearLastSession, findSessionInRegistry, forgetMissingSession, isValidSessionCode, normalizeSessionCode]);
 
@@ -162,8 +174,8 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
     try {
       const storedSession = await getStoredSessionIfAvailable();
       if (storedSession) {
-        console.log('🔁 [Gateway] 마지막 세션 자동 재접속 시도:', storedSession.code);
-        await liveblocksService.joinSession(storedSession.code, storedSession.isHost);
+        console.log('🔁 [Gateway] 마지막 세션 자동 재접속 시도:', storedSession.code, '타입:', storedSession.type);
+        await liveblocksService.joinSession(storedSession.code, storedSession.isHost, storedSession.name, storedSession.type, storedSession.organization);
         setIsAuth(true);
         if (onAuthenticated) onAuthenticated(storedSession.code);
         return;
@@ -278,8 +290,8 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
         try {
           const storedSession = await getStoredSessionIfAvailable();
           if (storedSession) {
-            console.log('🔁 [Gateway] 마지막 세션 자동 재접속 시도:', storedSession.code);
-            await liveblocksService.joinSession(storedSession.code, storedSession.isHost);
+            console.log('🔁 [Gateway] 마지막 세션 자동 재접속 시도:', storedSession.code, '타입:', storedSession.type);
+            await liveblocksService.joinSession(storedSession.code, storedSession.isHost, storedSession.name, storedSession.type, storedSession.organization);
             setIsAuth(true);
             if (onAuthenticated) onAuthenticated(storedSession.code);
             setIsLoading(false);
@@ -408,9 +420,10 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
         return;
       }
       
-      // 3. 검증 통과 시 해당 세션으로 진입
+      // 3. 검증 통과 시 해당 세션으로 진입 (registry의 type 보존)
       const isSessionHost = existingSession.hostUserId === liveblocksService.getCurrentUserId();
-      await liveblocksService.joinSession(existingSession.code, isSessionHost);
+      const existingType = (existingSession.type === 'consulting' ? 'consulting' : 'workshop') as import('../types/liveblocks').SessionType;
+      await liveblocksService.joinSession(existingSession.code, isSessionHost, existingSession.name, existingType, existingSession.organization);
       persistLastSession(existingSession.code, isSessionHost);
       setIsAuth(true);
       setShowJoinModal(false);
@@ -648,7 +661,8 @@ const Gateway = ({ children, onAuthenticated }: GatewayProps) => {
                               return;
                             }
 
-                            await liveblocksService.joinSession(existingSession.code, false);
+                            const bypassType = (existingSession.type === 'consulting' ? 'consulting' : 'workshop') as import('../types/liveblocks').SessionType;
+                            await liveblocksService.joinSession(existingSession.code, false, existingSession.name, bypassType, existingSession.organization);
                             persistLastSession(existingSession.code, false);
                             setIsAuth(true);
                             if (onAuthenticated) onAuthenticated(existingSession.code);

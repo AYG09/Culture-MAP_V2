@@ -393,19 +393,31 @@ class LiveblocksService {
             this.rememberHostSession(normalizedCode);
             const metadata = this.yDoc.getMap<unknown>('metadata');
             if (!metadata.get('code')) {
+                // 신규 세션: 전달된 sessionType 그대로 기록
                 metadata.set('code', normalizedCode);
                 metadata.set('name', sessionName || `세션 ${normalizedCode}`);
                 metadata.set('type', sessionType);
                 metadata.set('createdAt', Date.now());
                 metadata.set('hostUserId', this.userId);
-            } else if (!metadata.get('hostUserId')) {
-                metadata.set('hostUserId', this.userId);
+            } else {
+                // 기존 세션 재입장: metadata에 이미 type이 있으면 덮지 않음
+                if (!metadata.get('type')) {
+                    metadata.set('type', sessionType);
+                }
+                if (!metadata.get('hostUserId')) {
+                    metadata.set('hostUserId', this.userId);
+                }
             }
         }
 
         if (shouldJoinAsHost) {
             try {
-                await this.registerSession(normalizedCode, sessionName || `세션 ${normalizedCode}`, sessionType, organization);
+                // 기존 레지스트리의 type을 조회해 명시적으로 전달된 경우에만 갱신
+                const existingRegistry = await this.getSessionRegistry();
+                const existingEntry = existingRegistry.find(s => s.code.toUpperCase() === normalizedCode.toUpperCase());
+                // 재입장 시 전달된 sessionType이 기존 레지스트리 type과 같거나, 신규 세션인 경우에만 등록
+                const typeToRegister = existingEntry ? (existingEntry.type as SessionType) : sessionType;
+                await this.registerSession(normalizedCode, sessionName || existingEntry?.name || `세션 ${normalizedCode}`, typeToRegister, organization || existingEntry?.organization);
             } catch (error) {
                 console.warn('⚠️ 세션 레지스트리 등록 실패:', error);
             }
@@ -440,21 +452,21 @@ class LiveblocksService {
             throw new Error('세션이 연결되어 있지 않습니다.');
         }
 
+        // 1. 레지스트리 업데이트 먼저 시도 — 실패 시 throw하여 호출부가 성공 처리하지 않도록 함
+        const response = await fetch('/api/sessions?action=update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: this.currentSession.code, type: sessionType }),
+        });
+        if (!response.ok) {
+            throw new Error(`세션 레지스트리 타입 업데이트 실패: HTTP ${response.status}`);
+        }
+
+        // 2. 레지스트리 성공 후 로컬 상태·Yjs metadata 갱신
         const metadata = this.yDoc.getMap<unknown>('metadata');
         metadata.set('type', sessionType);
-
         this.currentSession = { ...this.currentSession, type: sessionType };
         this.emit('session-type-changed', sessionType);
-
-        try {
-            await fetch('/api/sessions?action=update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: this.currentSession.code, type: sessionType }),
-            });
-        } catch (error) {
-            console.warn('⚠️ 세션 레지스트리 타입 업데이트 실패:', error);
-        }
     }
 
     public async leaveSession(): Promise<void> {

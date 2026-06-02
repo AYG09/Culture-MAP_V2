@@ -121,14 +121,16 @@ const SessionManager: React.FC<SessionManagerProps> = ({
       
       // ⚠️ 중요: 세션 레지스트리에서 존재 여부 먼저 확인 (Liveblocks는 없는 룸도 자동 생성함)
       const existingSessions = await liveblocksService.getSessionRegistry();
-      const sessionExists = existingSessions.some(s => s.code.toUpperCase() === resolvedCode.toUpperCase());
-      
-      if (!sessionExists) {
+      const existingSession = existingSessions.find(s => s.code.toUpperCase() === resolvedCode.toUpperCase());
+
+      if (!existingSession) {
         setError(`존재하지 않는 세션입니다: ${sessionCode.toUpperCase()}`);
         return;
       }
-      
-      await liveblocksService.joinSession(resolvedCode, false);
+
+      // registry의 type을 보존하여 입장
+      const sessionType = (existingSession.type === 'consulting' ? 'consulting' : 'workshop') as import('../types/liveblocks').SessionType;
+      await liveblocksService.joinSession(resolvedCode, false, existingSession.name, sessionType, existingSession.organization);
 
       const sessionData = {
         code: resolvedCode,

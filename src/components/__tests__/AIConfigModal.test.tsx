@@ -48,13 +48,18 @@ vi.mock('../../services/AIService', () => ({
   },
 }));
 
+const { mockUpdateSessionType, mockGetCurrentSession } = vi.hoisted(() => ({
+  mockUpdateSessionType: vi.fn<(type: string) => Promise<void>>(),
+  mockGetCurrentSession: vi.fn(),
+}));
+
 vi.mock('../../services/LiveblocksService', () => ({
   default: {
     getCurrentUserId: vi.fn(() => 'user-1'),
     getSharedRagDocList: mockGetSharedRagDocList,
     onSharedRagChunks: vi.fn(() => () => {}),
-    getCurrentSession: vi.fn(() => null),
-    updateSessionType: vi.fn(),
+    getCurrentSession: mockGetCurrentSession,
+    updateSessionType: mockUpdateSessionType,
   },
 }));
 
@@ -73,6 +78,8 @@ describe('AIConfigModal', () => {
     mockGetAvailableGeminiModels.mockReturnValue(['gemini-3.1-flash-lite']);
     mockGetAvailableGeminiModelsAsync.mockResolvedValue(['gemini-3.1-flash-lite']);
     mockGetAvailableGeminiModelsResult.mockResolvedValue({ models: ['gemini-3.1-flash-lite'], source: 'api' });
+    mockGetCurrentSession.mockReturnValue(null);
+    mockUpdateSessionType.mockResolvedValue(undefined);
     mockGetAcademicFiles.mockReturnValue([]);
     mockGetSharedRagDocList.mockReturnValue([]);
     mockAddAcademicFile.mockResolvedValue(undefined);
@@ -84,10 +91,12 @@ describe('AIConfigModal', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   it('Tavily 키를 입력하고 저장하면 설정에 반영된다', async () => {
-    const user = userEvent.setup();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
     const onClose = vi.fn();
 
     render(<AIConfigModal isOpen={true} onClose={onClose} />);
@@ -110,6 +119,9 @@ describe('AIConfigModal', () => {
 
     const storedConfig = JSON.parse(localStorage.getItem('culture-map-ai-config') || '{}');
     expect(storedConfig.tavilyApiKey).toBe(TEST_TAVILY_KEY);
+
+    // setTimeout(1500) 소비하여 타이머 누수 방지
+    vi.runAllTimers();
   });
 
   it('닫았다가 다시 열면 저장된 설정값으로 다시 초기화된다', async () => {
@@ -422,5 +434,118 @@ describe('AIConfigModal', () => {
     await waitFor(() => {
       expect(screen.getByText(/Gemini 2\.5.*높은 토큰 예산/)).toBeInTheDocument();
     });
+  });
+});
+
+describe('AIConfigModal — 세션 타입 전환', () => {
+  const user = userEvent.setup();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetConfig.mockReturnValue({
+      provider: 'gemini',
+      apiKey: 'test-key',
+      modelName: 'gemini-3.1-flash-lite',
+      ragSearchScope: 'shared',
+      autoExecuteFunctionCalls: false,
+      sharedApiKeyMode: false,
+    });
+    mockGetAvailableGeminiModels.mockReturnValue(['gemini-3.1-flash-lite']);
+    mockGetAvailableGeminiModelsResult.mockResolvedValue({ models: ['gemini-3.1-flash-lite'], source: 'api' });
+    mockGetSharedRagDocList.mockReturnValue([]);
+    mockUpdateSessionType.mockResolvedValue(undefined);
+    mockGetCurrentSession.mockReturnValue({ code: 'ABC123', type: 'workshop', isHost: true, connectedUsers: 1 });
+  });
+
+  /** 비밀번호 입력 후 컨설팅 전환 버튼 클릭 헬퍼 */
+  async function fillAndClickConsultingSwitch(password = 'winter09@!') {
+    const passwordInput = screen.getByPlaceholderText('비밀번호 입력 (대소문자 구분 없음)');
+    await user.clear(passwordInput);
+    await user.type(passwordInput, password);
+    const switchBtn = screen.getByRole('button', { name: /컨설팅 모드로 전환/ });
+    await user.click(switchBtn);
+  }
+
+  it('updateSessionType("consulting")가 올바른 인자로 호출된다', async () => {
+    render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await fillAndClickConsultingSwitch();
+
+    await waitFor(() => {
+      expect(mockUpdateSessionType).toHaveBeenCalledWith('consulting');
+    });
+  });
+
+  it('updateSessionType 성공 시 성공 메시지가 표시된다', async () => {
+    render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await fillAndClickConsultingSwitch();
+
+    await waitFor(() => {
+      expect(screen.getByText('컨설팅 모드로 전환되었습니다.')).toBeInTheDocument();
+    });
+  });
+
+  it('updateSessionType 성공 시 window.location.reload()가 호출되지 않는다', async () => {
+    const reloadSpy = vi.fn();
+    Object.defineProperty(window, 'location', { value: { reload: reloadSpy }, writable: true, configurable: true });
+
+    render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await fillAndClickConsultingSwitch();
+
+    await waitFor(() => {
+      expect(screen.getByText('컨설팅 모드로 전환되었습니다.')).toBeInTheDocument();
+    });
+    expect(reloadSpy).not.toHaveBeenCalled();
+  });
+
+  it('updateSessionType registry 실패 시 에러 문구가 표시된다', async () => {
+    mockUpdateSessionType.mockRejectedValue(new Error('세션 레지스트리 타입 업데이트 실패: HTTP 500'));
+
+    render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await fillAndClickConsultingSwitch();
+
+    await waitFor(() => {
+      expect(screen.getByText(/세션 타입 저장 실패/)).toBeInTheDocument();
+    });
+  });
+
+  it('updateSessionType registry 실패 시 성공 메시지가 표시되지 않는다', async () => {
+    mockUpdateSessionType.mockRejectedValue(new Error('세션 레지스트리 타입 업데이트 실패: HTTP 500'));
+
+    render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await fillAndClickConsultingSwitch();
+
+    await waitFor(() => {
+      expect(screen.getByText(/세션 타입 저장 실패/)).toBeInTheDocument();
+    });
+    expect(screen.queryByText('컨설팅 모드로 전환되었습니다.')).not.toBeInTheDocument();
+  });
+
+  it('틀린 비밀번호 입력 시 비밀번호 오류 메시지가 표시된다', async () => {
+    render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await fillAndClickConsultingSwitch('wrongpassword');
+
+    await waitFor(() => {
+      expect(screen.getByText('비밀번호가 올바르지 않습니다.')).toBeInTheDocument();
+    });
+    expect(mockUpdateSessionType).not.toHaveBeenCalled();
+  });
+
+  it('세션이 없을 때 전환 시도 시 오류 메시지가 표시된다', async () => {
+    mockGetCurrentSession.mockReturnValue(null);
+
+    render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await fillAndClickConsultingSwitch();
+
+    await waitFor(() => {
+      expect(screen.getByText('세션에 연결된 상태에서만 전환할 수 있습니다.')).toBeInTheDocument();
+    });
+    expect(mockUpdateSessionType).not.toHaveBeenCalled();
   });
 });
