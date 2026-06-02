@@ -228,14 +228,34 @@
   box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.25);
 }
 
-/* 분석 준비 패널 */
+/* 분석 준비 패널 — 독립 스크롤로 채팅 입력창과 충돌 방지 */
 .prep-panel {
   margin-top: 14px;
   background: rgba(99, 102, 241, 0.04);
   border: 1px solid rgba(99, 102, 241, 0.18);
   border-radius: 12px;
-  padding: 14px;
   animation: slideDown 0.18s ease-out;
+  display: flex;
+  flex-direction: column;
+  max-height: min(60vh, 520px);
+  overflow: hidden;
+}
+
+.prep-scroll-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px 14px 4px 14px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.2) transparent;
+}
+
+.prep-scroll-body::-webkit-scrollbar {
+  width: 5px;
+}
+.prep-scroll-body::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.2);
+  border-radius: 999px;
 }
 
 .prep-panel-header {
@@ -326,7 +346,9 @@
 .source-textarea {
   width: 100%;
   resize: vertical;
-  min-height: 112px;
+  min-height: 96px;
+  max-height: 200px;
+  overflow-y: auto;
   border: 1px solid rgba(107, 114, 128, 0.22);
   border-radius: 8px;
   padding: 9px 10px;
@@ -505,11 +527,20 @@
   margin-bottom: 10px;
 }
 
-/* 액션 버튼 */
+/* 경고 패딩 — scroll body 안에서만 margin 적용 */
+.no-materials-warning {
+  margin-top: 0;
+}
+
+/* 액션 버튼 — 패널 하단 고정 */
 .prep-actions {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+  padding: 8px 14px 12px;
+  background: rgba(99, 102, 241, 0.04);
+  border-top: 1px solid rgba(99, 102, 241, 0.1);
+  flex-shrink: 0;
 }
 
 .prep-btn {
@@ -555,7 +586,8 @@
 .run-btn:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35); }
 
 .copy-success-msg {
-  margin-top: 8px;
+  flex-basis: 100%;
+  margin: 2px 0 0;
   font-size: 0.73rem;
   color: #059669;
   font-style: italic;
@@ -576,6 +608,18 @@
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* 좁은 세로 화면 대응 */
+@media (max-height: 760px) {
+  .prep-panel {
+    max-height: 48vh;
+  }
+
+  .source-textarea {
+    min-height: 80px;
+    max-height: 140px;
+  }
 }
 
 /* 반응형 - 모바일 */
@@ -620,5 +664,21 @@
   .recent-output-select {
     max-width: none;
     width: 100%;
+  }
+
+  .prep-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .prep-btn {
+    justify-content: center;
+    min-width: 0;
+    font-size: 0.74rem;
+    padding: 6px 8px;
+  }
+
+  .prep-panel {
+    max-height: 52vh;
   }
 }

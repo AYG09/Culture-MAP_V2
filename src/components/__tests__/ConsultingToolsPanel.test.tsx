@@ -215,4 +215,43 @@ describe('ConsultingToolsPanel', () => {
     render(<ConsultingToolsPanel onFillInput={onFillInput} onRunAnalysis={onRunAnalysis} />);
     expect(screen.getByText(/카드를 선택한 뒤 자료를 확인하고 실행하거나/)).toBeInTheDocument();
   });
+
+  it('준비 패널이 열리면 prep-scroll-body와 prep-actions가 모두 렌더링된다', async () => {
+    render(<ConsultingToolsPanel onFillInput={onFillInput} onRunAnalysis={onRunAnalysis} />);
+
+    await user.click(screen.getByRole('button', { name: /Step 1 1차 분석 선택/ }));
+    await waitFor(() => screen.getByText('프롬프트만 복사'));
+
+    // DOM 구조 확인
+    const prepPanel = document.querySelector('.prep-panel');
+    expect(prepPanel).toBeInTheDocument();
+    expect(prepPanel?.querySelector('.prep-scroll-body')).toBeInTheDocument();
+    expect(prepPanel?.querySelector('.prep-actions')).toBeInTheDocument();
+  });
+
+  it('Step 2 준비 화면에서 textarea와 액션 버튼이 동시에 렌더링된다', async () => {
+    render(<ConsultingToolsPanel onFillInput={onFillInput} onRunAnalysis={onRunAnalysis} />);
+
+    await user.click(screen.getByRole('button', { name: /Step 2 컬쳐맵 생성 선택/ }));
+    await waitFor(() => screen.getByLabelText('Step 1 1차 분석 결과'));
+
+    // textarea와 버튼이 동시에 보임
+    expect(screen.getByLabelText('Step 1 1차 분석 결과')).toBeInTheDocument();
+    expect(screen.getByText('선택한 자료로 분석 실행')).toBeInTheDocument();
+    expect(screen.getByText('채팅 입력창에 넣기')).toBeInTheDocument();
+  });
+
+  it('Step 3 준비 화면에서 Step 1/Step 2 입력 영역과 액션 버튼이 모두 렌더링된다', async () => {
+    render(<ConsultingToolsPanel onFillInput={onFillInput} onRunAnalysis={onRunAnalysis} />);
+
+    await user.click(screen.getByRole('button', { name: /Step 3 진단·전략 선택/ }));
+    await user.click(await screen.findByText('문화 상태 정의'));
+
+    await waitFor(() => screen.getByLabelText('Step 1 1차 분석 결과'));
+
+    expect(screen.getByLabelText('Step 1 1차 분석 결과')).toBeInTheDocument();
+    expect(screen.getByLabelText('Step 2 컬쳐맵 생성 결과')).toBeInTheDocument();
+    expect(screen.getByText('선택한 자료로 분석 실행')).toBeInTheDocument();
+    expect(screen.getByText('소스 포함 복사')).toBeInTheDocument();
+  });
 });
