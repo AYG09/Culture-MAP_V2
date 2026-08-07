@@ -46,6 +46,12 @@ vi.mock('../../services/AIService', () => ({
     indexAcademicPdfToShared: vi.fn(),
     removeSharedRagDocument: mockRemoveSharedRagDocument,
   },
+  normalizeReasoningPreset: (value: unknown) => {
+    const legacy: Record<string, string> = { fast: 'low', balanced: 'medium', deep: 'high' };
+    if (typeof value !== 'string') return 'default';
+    if (['default', 'minimal', 'low', 'medium', 'high'].includes(value)) return value;
+    return legacy[value] ?? 'default';
+  },
 }));
 
 const { mockUpdateSessionType, mockGetCurrentSession } = vi.hoisted(() => ({
@@ -366,10 +372,7 @@ describe('AIConfigModal', () => {
       expect(selects.length).toBeGreaterThanOrEqual(2);
       const presetSelect = selects[1];
       const options = Array.from(presetSelect.querySelectorAll('option')).map((o) => (o as HTMLOptionElement).value);
-      expect(options).toContain('default');
-      expect(options).toContain('fast');
-      expect(options).toContain('balanced');
-      expect(options).toContain('deep');
+      expect(options).toEqual(['default', 'minimal', 'low', 'medium', 'high']);
     });
   });
 
@@ -378,12 +381,12 @@ describe('AIConfigModal', () => {
     render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
 
     const selects = screen.getAllByRole('combobox');
-    await user.selectOptions(selects[1], 'deep');
+    await user.selectOptions(selects[1], 'high');
     await user.click(screen.getByRole('button', { name: /설정 저장/ }));
 
     await waitFor(() => {
       expect(mockSetConfig).toHaveBeenCalledWith(expect.objectContaining({
-        reasoningPreset: 'deep',
+        reasoningPreset: 'high',
       }));
     });
   });
@@ -393,7 +396,7 @@ describe('AIConfigModal', () => {
       provider: 'gemini',
       apiKey: TEST_GEMINI_KEY,
       modelName: 'gemini-3.1-flash-lite',
-      reasoningPreset: 'balanced',
+      reasoningPreset: 'medium',
       ragSearchScope: 'shared',
       autoExecuteFunctionCalls: false,
       sharedApiKeyMode: false,
@@ -404,18 +407,38 @@ describe('AIConfigModal', () => {
 
     await waitFor(() => {
       const selects = screen.getAllByRole('combobox');
-      expect((selects[1] as HTMLSelectElement).value).toBe('balanced');
+      expect((selects[1] as HTMLSelectElement).value).toBe('medium');
     });
   });
 
-  it('모델이 3.x일 때와 2.5일 때 추론 설명 문구가 다르다', async () => {
-    const user = userEvent.setup();
-    mockGetAvailableGeminiModelsResult.mockResolvedValue({ models: ['gemini-3.1-flash-lite', 'gemini-2.5-flash'], source: 'api' });
+  it('구버전 저장값(deep)은 모달을 열 때 현행 값(high)으로 표시된다', async () => {
     mockGetConfig.mockReturnValue({
       provider: 'gemini',
       apiKey: TEST_GEMINI_KEY,
       modelName: 'gemini-3.1-flash-lite',
-      reasoningPreset: 'deep',
+      reasoningPreset: 'deep' as never,
+      ragSearchScope: 'shared',
+      autoExecuteFunctionCalls: false,
+      sharedApiKeyMode: false,
+    });
+
+    const { rerender } = render(<AIConfigModal isOpen={false} onClose={vi.fn()} />);
+    rerender(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      const selects = screen.getAllByRole('combobox');
+      expect((selects[1] as HTMLSelectElement).value).toBe('high');
+    });
+  });
+
+  it('추론 깊이에 따라 설명 문구가 바뀐다', async () => {
+    const user = userEvent.setup();
+    mockGetAvailableGeminiModelsResult.mockResolvedValue({ models: ['gemini-3.1-flash-lite', 'gemini-3.5-flash'], source: 'api' });
+    mockGetConfig.mockReturnValue({
+      provider: 'gemini',
+      apiKey: TEST_GEMINI_KEY,
+      modelName: 'gemini-3.1-flash-lite',
+      reasoningPreset: 'high',
       ragSearchScope: 'shared',
       autoExecuteFunctionCalls: false,
       sharedApiKeyMode: false,
@@ -424,15 +447,14 @@ describe('AIConfigModal', () => {
     render(<AIConfigModal isOpen={true} onClose={vi.fn()} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Gemini 3\.x.*높은 추론/)).toBeInTheDocument();
+      expect(screen.getByText(/thinking level "high"/)).toBeInTheDocument();
     });
 
-    // 2.5 모델로 전환
     const selects = screen.getAllByRole('combobox');
-    await user.selectOptions(selects[0], 'gemini-2.5-flash');
+    await user.selectOptions(selects[1], 'default');
 
     await waitFor(() => {
-      expect(screen.getByText(/Gemini 2\.5.*높은 토큰 예산/)).toBeInTheDocument();
+      expect(screen.getByText(/모델 기본 추론 사용/)).toBeInTheDocument();
     });
   });
 });

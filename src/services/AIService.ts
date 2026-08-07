@@ -16,7 +16,28 @@ import liveblocksService from './LiveblocksService';
 
 export type AIProvider = 'gemini';
 
-export type ReasoningPreset = 'default' | 'fast' | 'balanced' | 'deep';
+/**
+ * 추론 깊이. Gemini 3.x의 thinking_level 값을 그대로 쓴다.
+ * 'default'는 앱 자체 값으로, thinkingLevel을 보내지 않아 모델 기본 추론을 따른다는 뜻이다.
+ * (모델마다 기본값이 다르다 — 예: 3.5 Flash는 medium, 3.1 Pro는 high)
+ */
+export type ReasoningPreset = 'default' | 'minimal' | 'low' | 'medium' | 'high';
+
+/** 구버전 프리셋명(fast/balanced/deep) → 현행 thinking_level 매핑 */
+const LEGACY_REASONING_PRESETS: Record<string, ReasoningPreset> = {
+  fast: 'low',
+  balanced: 'medium',
+  deep: 'high',
+};
+
+const REASONING_PRESETS: ReasoningPreset[] = ['default', 'minimal', 'low', 'medium', 'high'];
+
+/** localStorage에 남아 있는 구버전 값도 현행 값으로 옮겨 준다. */
+export function normalizeReasoningPreset(value: unknown): ReasoningPreset {
+  if (typeof value !== 'string') return 'default';
+  if (REASONING_PRESETS.includes(value as ReasoningPreset)) return value as ReasoningPreset;
+  return LEGACY_REASONING_PRESETS[value] ?? 'default';
+}
 
 /**
  * AI 분석 시 사용할 컨텍스트 보강 모드.
@@ -128,18 +149,33 @@ type ChatSessionLike = {
   sendMessage: (input: { message: string | MessagePart[] }) => Promise<SendMessageResult>;
 };
 
+// 사용할 최소 Gemini 세대. 2.x 이하 구형 모델은 목록에서 제외한다.
+const MIN_GEMINI_MAJOR = 3;
+
 // 우선순위 순서로 정렬된 기본 모델 선호 목록 (API 조회 결과에 있는 경우만 실제 사용)
 const FALLBACK_MODEL_PRIORITY = [
-  'gemini-3.5-flash',               // Latest stable
+  'gemini-3.6-flash',               // Latest stable flagship
+  'gemini-3.5-flash',               // Stable
+  'gemini-3.5-flash-lite',          // Stable
   'gemini-3.1-flash-lite',          // Stable
-  'gemini-3.1-pro-preview',
-  'gemini-3-flash-preview',
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
+  'gemini-3.1-pro-preview',         // Preview
+  'gemini-3-flash-preview',         // Preview
 ] as const;
 
 // API 조회 전 하드코딩 fallback 기본값
 const DEFAULT_GEMINI_MODEL = FALLBACK_MODEL_PRIORITY[0];
+
+/** 'gemini-3.5-flash' → 3, 'gemini-3-flash-preview' → 3. 형식이 아니면 null. */
+function getGeminiMajorVersion(modelId: string): number | null {
+  const match = /^gemini-(\d+)/.exec(modelId);
+  return match ? Number(match[1]) : null;
+}
+
+/** 3세대 이상인지 판정. 구형(2.x 이하) 모델을 걸러내는 데 쓴다. */
+function isSupportedGeneration(modelId: string): boolean {
+  const major = getGeminiMajorVersion(modelId);
+  return major !== null && major >= MIN_GEMINI_MAJOR;
+}
 
 /**
  * available 목록에서 FALLBACK_MODEL_PRIORITY 순서로 첫 번째 일치 모델을 반환.
@@ -1940,10 +1976,11 @@ class AIService {
     });
 
     const allowed = entries.filter(({ id, supportsGenerate }) => {
-      if (!id || !id.startsWith('gemini-')) return false;
+      // 3세대 미만 구형 모델은 사용하지 않는다
+      if (!id || !isSupportedGeneration(id)) return false;
       if (!supportsGenerate) return false;
       // 임베딩/TTS/Live/이미지전용 등 특수 모델 제외
-      if (/embedding|tts|live|vision-only|imagen/.test(id)) return false;
+      if (/embedding|tts|live|vision-only|imagen|-image$/.test(id)) return false;
       return true;
     });
 
@@ -1955,19 +1992,17 @@ class AIService {
   }
 
   private resolveModelAlias(preferredModel: string, available: string[]): string | null {
-    // Stable 모델을 Preview보다 우선하는 alias 순서로 정의
+    // Stable 모델을 Preview보다 우선하는 alias 순서로 정의.
+    // 2.x 이하는 넣지 않는다 — 표에 없으면 기본 모델로 떨어지므로
+    // 예전에 gemini-2.5-*를 저장해 둔 사용자도 자동으로 현행 모델로 이동한다.
     const aliasMap: Record<string, string[]> = {
-      'gemini-flash-latest':            ['gemini-3.5-flash', 'gemini-3-flash-preview'],
+      'gemini-flash-latest':            ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3-flash-preview'],
       'gemini-pro-latest':              ['gemini-3.1-pro-preview'],
       // Preview → Stable 마이그레이션
       'gemini-3.1-flash-lite-preview':  ['gemini-3.1-flash-lite', 'gemini-3.1-flash-lite-preview'],
-      // 레거시 3.x → 3.5 자동 전환
-      'gemini-3-flash-preview':         ['gemini-3.5-flash', 'gemini-3-flash-preview'],
-      'gemini-3-flash':                 ['gemini-3.5-flash', 'gemini-3-flash-preview'],
-      // 레거시 2.x → 3.5 자동 전환
-      'gemini-2.5-flash-lite':          ['gemini-3.1-flash-lite', 'gemini-3.1-flash-lite-preview'],
-      'gemini-2.5-flash':               ['gemini-3.5-flash', 'gemini-3-flash-preview'],
-      'gemini-2.5-pro':                 ['gemini-3.1-pro-preview'],
+      // 단종된 3.x → 현행 모델 자동 전환
+      'gemini-3-flash-preview':         ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3-flash-preview'],
+      'gemini-3-flash':                 ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3-flash-preview'],
       'gemini-3-pro':                   ['gemini-3.1-pro-preview'],
       'gemini-3-pro-preview':           ['gemini-3.1-pro-preview'],
     };
@@ -2099,8 +2134,12 @@ class AIService {
     const currentConfig = this.currentConfig;
     if (!currentConfig) return;
 
-    // 현재 모델이 available 목록에 있으면 그대로 유지 (alias migration 불필요)
-    if (available.length > 0 && available.includes(normalizedPreferred)) {
+    // 현재 모델이 3세대 이상이고 available 목록에 있으면 그대로 유지
+    if (
+      isSupportedGeneration(normalizedPreferred) &&
+      available.length > 0 &&
+      available.includes(normalizedPreferred)
+    ) {
       return;
     }
 
@@ -2130,10 +2169,12 @@ class AIService {
       apiKey: config.apiKey.trim(),
       tavilyApiKey: config.tavilyApiKey?.trim() || undefined,
       ragSearchScope: 'shared' as const,
-      reasoningPreset: config.reasoningPreset ?? 'default'
+      reasoningPreset: normalizeReasoningPreset(config.reasoningPreset)
     };
     const available = this.getAvailableGeminiModels();
-    const modelId = normalized.modelName ? this.normalizeModelId(normalized.modelName) : null;
+    const rawModelId = normalized.modelName ? this.normalizeModelId(normalized.modelName) : null;
+    // 3세대 미만 저장값은 available에 있더라도 쓰지 않는다
+    const modelId = rawModelId && isSupportedGeneration(rawModelId) ? rawModelId : null;
 
     if (modelId && available.includes(modelId)) {
       // available 목록에 있으면 그대로 유지 (alias migration 불필요)
@@ -2148,59 +2189,33 @@ class AIService {
     return normalized;
   }
 
-  private getGeminiModelFamily(modelName: string): 'gemini-3' | 'gemini-2.5' | 'other' {
-    const id = modelName.toLowerCase();
-    // gemini-3.x 계열 (3.5-flash, 3.1-flash-lite, 3-flash-preview 등 포함)
-    if (/^gemini-3(\.|-)/.test(id) || id === 'gemini-3') return 'gemini-3';
-    // gemini-2.5 계열
-    if (/^gemini-2\.5/.test(id)) return 'gemini-2.5';
-    return 'other';
+  private getGeminiModelFamily(modelName: string): 'gemini-3' | 'other' {
+    // 3세대 이상만 지원한다 (gemini-3, 3.1, 3.5, 3.6 …)
+    return isSupportedGeneration(modelName.toLowerCase()) ? 'gemini-3' : 'other';
   }
 
+  /**
+   * Gemini 3.x의 thinking_level을 구성한다.
+   * thinkingBudget은 2.5 전용 파라미터라 더 이상 쓰지 않으며,
+   * 3.x 모델에 함께 보내면 API가 오류를 반환한다.
+   */
   private getThinkingConfig(modelName: string, preset: ReasoningPreset = 'default'): ThinkingConfig | null {
-    const family = this.getGeminiModelFamily(modelName);
-
-    if (family === 'gemini-3') {
-      // Gemini 3.x: thinkingLevel만 사용 (thinkingBudget 금지)
-      // 공식 JS 예시와 동일하게 소문자 literal 사용
-      const isProModel = /pro/.test(modelName.toLowerCase());
-
-      if (preset === 'default') {
-        // default: Google 기본값. thought stream 표시를 위해 includeThoughts만 설정
-        return { includeThoughts: true };
-      }
-      if (preset === 'fast') {
-        return { includeThoughts: true, thinkingLevel: 'low' as ThinkingConfig['thinkingLevel'] };
-      }
-      if (preset === 'balanced') {
-        // Pro 계열은 medium을 지원하지 않을 수 있어 high fallback
-        const level = isProModel ? 'high' : 'medium';
-        return { includeThoughts: true, thinkingLevel: level as ThinkingConfig['thinkingLevel'] };
-      }
-      if (preset === 'deep') {
-        return { includeThoughts: true, thinkingLevel: 'high' as ThinkingConfig['thinkingLevel'] };
-      }
+    if (this.getGeminiModelFamily(modelName) !== 'gemini-3') {
+      // 지원 대상이 아닌 모델: thinking 설정 생략
+      return null;
     }
 
-    if (family === 'gemini-2.5') {
-      // Gemini 2.5: thinkingBudget만 사용 (thinkingLevel 금지)
-      if (preset === 'default') {
-        // 모델 기본값을 따름 (2.5 Flash-Lite 기본은 thinking 없음)
-        return null;
-      }
-      if (preset === 'fast') {
-        return { includeThoughts: true, thinkingBudget: 1024 };
-      }
-      if (preset === 'balanced') {
-        return { includeThoughts: true, thinkingBudget: 8192 };
-      }
-      if (preset === 'deep') {
-        return { includeThoughts: true, thinkingBudget: 24576 };
-      }
+    // default: thinkingLevel을 보내지 않아 모델별 기본 추론 수준을 그대로 쓴다.
+    // thought stream 표시를 위해 includeThoughts만 설정한다.
+    if (preset === 'default') {
+      return { includeThoughts: true };
     }
 
-    // Other 모델: thinking 설정 생략
-    return null;
+    // preset 값이 곧 thinking_level (minimal/low/medium/high)
+    return {
+      includeThoughts: true,
+      thinkingLevel: preset as ThinkingConfig['thinkingLevel'],
+    };
   }
 
   public estimateTokenCount(text: string): number {
