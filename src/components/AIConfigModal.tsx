@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { X, Save, Key, Info, CheckCircle2, Trash2, Loader2, FileText, Eye, EyeOff, Share2, Database, AlertTriangle } from 'lucide-react';
-import { aiService, type AIProvider, type AIConfig, type ReasoningPreset, type GeminiModelListResult } from '../services/AIService';
+import { aiService, normalizeReasoningPreset, type AIProvider, type AIConfig, type ReasoningPreset, type GeminiModelListResult } from '../services/AIService';
 import liveblocksService from '../services/LiveblocksService';
 import './AIConfigModal.css';
 
@@ -34,7 +34,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
     const [apiKey, setApiKey] = useState(currentConfig?.apiKey || '');
     const [tavilyApiKey, setTavilyApiKey] = useState(currentConfig?.tavilyApiKey || '');
     const [modelName, setModelName] = useState(currentConfig?.modelName || aiService.getAvailableGeminiModels()[0] || '');
-    const [reasoningPreset, setReasoningPreset] = useState<ReasoningPreset>(currentConfig?.reasoningPreset ?? 'default');
+    const [reasoningPreset, setReasoningPreset] = useState<ReasoningPreset>(normalizeReasoningPreset(currentConfig?.reasoningPreset));
     const [autoExecute, setAutoExecute] = useState(currentConfig?.autoExecuteFunctionCalls || false);
     const [sharedApiKeyMode, setSharedApiKeyMode] = useState(currentConfig?.sharedApiKeyMode || false);
     const [isSaved, setIsSaved] = useState(false);
@@ -116,7 +116,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
         setApiKey(latestConfig?.apiKey || '');
         setTavilyApiKey(latestConfig?.tavilyApiKey || '');
         setModelName(latestConfig?.modelName || availableModels[0] || '');
-        setReasoningPreset(latestConfig?.reasoningPreset ?? 'default');
+        setReasoningPreset(normalizeReasoningPreset(latestConfig?.reasoningPreset));
         setAutoExecute(latestConfig?.autoExecuteFunctionCalls || false);
         setSharedApiKeyMode(latestConfig?.sharedApiKeyMode || false);
         setShowKey(false);
@@ -374,29 +374,16 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose }) => {
                             value={reasoningPreset}
                             onChange={(e) => setReasoningPreset(e.target.value as ReasoningPreset)}
                         >
-                            <option value="default">기본값 — 모델 기본 설정</option>
-                            <option value="fast">빠름 — 낮은 추론, 빠른 응답</option>
-                            <option value="balanced">균형 — 중간 추론</option>
-                            <option value="deep">깊게 — 높은 추론, 정밀 분석</option>
+                            <option value="default">기본값 — 모델이 정한 추론 수준</option>
+                            <option value="minimal">최소 — 추론 토큰 최소화, 가장 빠름</option>
+                            <option value="low">낮음 — 짧은 추론</option>
+                            <option value="medium">중간 — 지연과 정확도 균형</option>
+                            <option value="high">높음 — 깊은 추론, 정밀 분석</option>
                         </select>
                         <p className="help-text" style={{ color: '#10b981', fontWeight: 500, lineHeight: 1.5 }}>
-                            {(() => {
-                                const isG3 = /^gemini-3(\.|-)/.test(modelName) || modelName === 'gemini-3';
-                                const isG25 = /^gemini-2\.5/.test(modelName);
-                                if (isG3) {
-                                    if (reasoningPreset === 'default') return '✨ Gemini 3.x: 모델 기본 추론 사용';
-                                    if (reasoningPreset === 'fast') return '✨ Gemini 3.x: 낮은 추론 수준 적용';
-                                    if (reasoningPreset === 'balanced') return '✨ Gemini 3.x: 중간 추론 수준 적용';
-                                    if (reasoningPreset === 'deep') return '✨ Gemini 3.x: 높은 추론 수준 적용';
-                                }
-                                if (isG25) {
-                                    if (reasoningPreset === 'default') return '⚙️ Gemini 2.5: 모델 기본 추론 사용';
-                                    if (reasoningPreset === 'fast') return '⚙️ Gemini 2.5: 낮은 토큰 예산 (빠름)';
-                                    if (reasoningPreset === 'balanced') return '⚙️ Gemini 2.5: 중간 토큰 예산 (균형)';
-                                    if (reasoningPreset === 'deep') return '⚙️ Gemini 2.5: 높은 토큰 예산 (정밀)';
-                                }
-                                return 'ℹ️ 모델 기본 추론 사용';
-                            })()}
+                            {reasoningPreset === 'default'
+                                ? 'ℹ️ 모델 기본 추론 사용 (모델마다 기본값이 다릅니다)'
+                                : `✨ Gemini 3.x: thinking level "${reasoningPreset}" 적용`}
                         </p>
                     </div>
 

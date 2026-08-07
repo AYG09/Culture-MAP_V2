@@ -16,7 +16,7 @@ vi.mock('../LiveblocksService', () => ({
   },
 }));
 
-import aiService from '../AIService';
+import aiService, { normalizeReasoningPreset } from '../AIService';
 
 const svc = aiService as any;
 
@@ -52,9 +52,26 @@ describe('filterOfficialGeminiModels', () => {
   });
 
   it('문자열 배열 오버로드도 동작한다 (이름 기반 fallback)', () => {
-    const result = svc.filterOfficialGeminiModels(['models/gemini-3.1-flash-lite', 'gemini-2.5-pro']);
+    const result = svc.filterOfficialGeminiModels(['models/gemini-3.1-flash-lite', 'gemini-3.5-flash']);
     expect(result).toContain('gemini-3.1-flash-lite');
-    expect(result).toContain('gemini-2.5-pro');
+    expect(result).toContain('gemini-3.5-flash');
+  });
+
+  it('3세대 미만 구형 모델은 제외된다', () => {
+    const result = svc.filterOfficialGeminiModels([
+      { id: 'gemini-2.5-pro', supportedGenerationMethods: ['generateContent'] },
+      { id: 'gemini-2.5-flash-lite', supportedGenerationMethods: ['generateContent'] },
+      { id: 'gemini-2.0-flash', supportedGenerationMethods: ['generateContent'] },
+      { id: 'gemini-3.5-flash', supportedGenerationMethods: ['generateContent'] },
+    ]);
+    expect(result).toEqual(['gemini-3.5-flash']);
+  });
+
+  it('이미지 전용 모델은 제외된다', () => {
+    const result = svc.filterOfficialGeminiModels([
+      { id: 'gemini-3.1-flash-lite-image', supportedGenerationMethods: ['generateContent'] },
+    ]);
+    expect(result).not.toContain('gemini-3.1-flash-lite-image');
   });
 });
 
@@ -69,9 +86,9 @@ describe('resolveModelAlias — gemini-3.5-flash', () => {
     expect(result).toBe('gemini-3.5-flash');
   });
 
-  it('gemini-2.5-flash 저장값이 있고 available에 gemini-3.5-flash가 있으면 마이그레이션된다', () => {
+  it('gemini-2.5-flash는 alias 표에 없으므로 null (기본 모델로 떨어진다)', () => {
     const result = svc.resolveModelAlias('gemini-2.5-flash', ['gemini-3.5-flash']);
-    expect(result).toBe('gemini-3.5-flash');
+    expect(result).toBeNull();
   });
 
   it('gemini-3.5-flash는 alias 변환 없이 그대로 반환된다 (null = 변환 없음)', () => {
@@ -86,9 +103,9 @@ describe('resolveModelAlias', () => {
     expect(result).toBe('gemini-3.1-flash-lite');
   });
 
-  it('gemini-2.5-flash-lite가 available에 없을 때만 gemini-3.1-flash-lite로 마이그레이션된다', () => {
+  it('gemini-2.5-flash-lite는 alias 표에 없으므로 null', () => {
     const result = svc.resolveModelAlias('gemini-2.5-flash-lite', ['gemini-3.1-flash-lite']);
-    expect(result).toBe('gemini-3.1-flash-lite');
+    expect(result).toBeNull();
   });
 
   it('gemini-3-pro-preview는 gemini-3.1-pro-preview로 대체된다', () => {
@@ -97,7 +114,7 @@ describe('resolveModelAlias', () => {
   });
 
   it('alias 대상이 available 목록에 없으면 null 반환', () => {
-    const result = svc.resolveModelAlias('gemini-2.5-flash-lite', ['gemini-3-flash-preview']);
+    const result = svc.resolveModelAlias('gemini-3.1-flash-lite-preview', ['gemini-3-flash-preview']);
     expect(result).toBeNull();
   });
 });
@@ -108,9 +125,14 @@ describe('getAvailableGeminiModels fallback', () => {
     svc.availableModelsCacheTime = 0;
   });
 
-  it('캐시가 없으면 gemini-3.5-flash를 첫 번째로 반환한다', () => {
+  it('캐시가 없으면 gemini-3.6-flash를 첫 번째로 반환한다', () => {
     const models = svc.getAvailableGeminiModels();
-    expect(models[0]).toBe('gemini-3.5-flash');
+    expect(models[0]).toBe('gemini-3.6-flash');
+  });
+
+  it('fallback 목록에는 3세대 미만 모델이 없다', () => {
+    const models: string[] = svc.getAvailableGeminiModels();
+    expect(models.every((m) => /^gemini-3/.test(m))).toBe(true);
   });
 });
 
@@ -120,8 +142,7 @@ describe('normalizeModelConfig', () => {
     svc.availableModelsCacheTime = 0;
   });
 
-  it('available 목록에 없는 gemini-2.5-flash-lite는 gemini-3.1-flash-lite로 마이그레이션된다', () => {
-    // fallback 목록(캐시 없음)에는 gemini-2.5-flash-lite가 있으므로 캐시를 빈 목록으로 대체해 테스트
+  it('구형 저장값 gemini-2.5-flash-lite는 기본 모델로 대체된다', () => {
     svc.availableModelsCache = ['gemini-3.1-flash-lite', 'gemini-3-flash-preview'];
     const config = svc.normalizeModelConfig({
       provider: 'gemini',
@@ -132,25 +153,25 @@ describe('normalizeModelConfig', () => {
     svc.availableModelsCache = null;
   });
 
-  it('available 목록에 있는 gemini-2.5-flash-lite는 그대로 유지된다', () => {
+  it('구형 모델은 available 목록에 들어 있어도 선택되지 않는다', () => {
     svc.availableModelsCache = ['gemini-2.5-flash-lite', 'gemini-3.1-flash-lite'];
     const config = svc.normalizeModelConfig({
       provider: 'gemini',
       apiKey: 'test',
       modelName: 'gemini-2.5-flash-lite',
     });
-    expect(config.modelName).toBe('gemini-2.5-flash-lite');
+    expect(config.modelName).toBe('gemini-3.1-flash-lite');
     svc.availableModelsCache = null;
   });
 
-  it('available 목록에 있는 gemini-2.5-pro는 3.x로 강제 변환되지 않는다', () => {
+  it('구형 저장값 gemini-2.5-pro도 3.x 기본 모델로 대체된다', () => {
     svc.availableModelsCache = ['gemini-2.5-pro', 'gemini-3.1-flash-lite'];
     const config = svc.normalizeModelConfig({
       provider: 'gemini',
       apiKey: 'test',
       modelName: 'gemini-2.5-pro',
     });
-    expect(config.modelName).toBe('gemini-2.5-pro');
+    expect(config.modelName).toBe('gemini-3.1-flash-lite');
     svc.availableModelsCache = null;
   });
 
@@ -165,12 +186,12 @@ describe('normalizeModelConfig', () => {
     svc.availableModelsCache = null;
   });
 
-  it('모델명이 없으면 DEFAULT_GEMINI_MODEL(gemini-3.5-flash)을 사용한다', () => {
+  it('모델명이 없으면 DEFAULT_GEMINI_MODEL(gemini-3.6-flash)을 사용한다', () => {
     const config = svc.normalizeModelConfig({
       provider: 'gemini',
       apiKey: 'test',
     });
-    expect(config.modelName).toBe('gemini-3.5-flash');
+    expect(config.modelName).toBe('gemini-3.6-flash');
   });
 });
 
@@ -216,20 +237,18 @@ describe('getGeminiModelFamily', () => {
     expect(svc.getGeminiModelFamily('gemini-3.1-pro-preview')).toBe('gemini-3');
   });
 
-  it('gemini-2.5-flash는 gemini-2.5 계열로 판별된다', () => {
-    expect(svc.getGeminiModelFamily('gemini-2.5-flash')).toBe('gemini-2.5');
-  });
-
-  it('gemini-2.5-pro는 gemini-2.5 계열로 판별된다', () => {
-    expect(svc.getGeminiModelFamily('gemini-2.5-pro')).toBe('gemini-2.5');
-  });
-
-  it('gemini-2.5-flash-lite는 gemini-2.5 계열로 판별된다', () => {
-    expect(svc.getGeminiModelFamily('gemini-2.5-flash-lite')).toBe('gemini-2.5');
-  });
-
   it('gemini-3.5-flash는 gemini-3 계열로 판별된다', () => {
     expect(svc.getGeminiModelFamily('gemini-3.5-flash')).toBe('gemini-3');
+  });
+
+  it('gemini-3.6-flash 등 상위 세대도 gemini-3 계열로 판별된다', () => {
+    expect(svc.getGeminiModelFamily('gemini-3.6-flash')).toBe('gemini-3');
+  });
+
+  it('구형 gemini-2.5 계열은 other로 판별된다', () => {
+    expect(svc.getGeminiModelFamily('gemini-2.5-flash')).toBe('other');
+    expect(svc.getGeminiModelFamily('gemini-2.5-pro')).toBe('other');
+    expect(svc.getGeminiModelFamily('gemini-2.5-flash-lite')).toBe('other');
   });
 
   it('알 수 없는 모델은 other로 판별된다', () => {
@@ -237,102 +256,65 @@ describe('getGeminiModelFamily', () => {
   });
 });
 
+describe('normalizeReasoningPreset', () => {
+  it('구버전 프리셋명은 현행 thinking level로 옮겨진다', () => {
+    expect(normalizeReasoningPreset('fast')).toBe('low');
+    expect(normalizeReasoningPreset('balanced')).toBe('medium');
+    expect(normalizeReasoningPreset('deep')).toBe('high');
+  });
+
+  it('현행 값은 그대로 유지된다', () => {
+    for (const level of ['default', 'minimal', 'low', 'medium', 'high']) {
+      expect(normalizeReasoningPreset(level)).toBe(level);
+    }
+  });
+
+  it('알 수 없는 값이나 비문자열은 default로 보정된다', () => {
+    expect(normalizeReasoningPreset('bogus')).toBe('default');
+    expect(normalizeReasoningPreset(undefined)).toBe('default');
+    expect(normalizeReasoningPreset(42)).toBe('default');
+  });
+});
+
 describe('getThinkingConfig', () => {
-  // --- default preset ---
-  it('Gemini 3 + default: includeThoughts만 있고 thinkingLevel/thinkingBudget 없음', () => {
+  it('default: includeThoughts만 있고 thinkingLevel 없음 (모델 기본 추론 사용)', () => {
     const cfg = svc.getThinkingConfig('gemini-3.1-flash-lite', 'default');
     expect(cfg).not.toBeNull();
     expect(cfg).toHaveProperty('includeThoughts', true);
     expect(cfg).not.toHaveProperty('thinkingLevel');
-    expect(cfg).not.toHaveProperty('thinkingBudget');
   });
 
-  it('Gemini 2.5 + default: null (모델 기본값 사용)', () => {
-    expect(svc.getThinkingConfig('gemini-2.5-flash', 'default')).toBeNull();
+  it('minimal/low/medium/high는 그대로 thinkingLevel로 전달된다', () => {
+    for (const level of ['minimal', 'low', 'medium', 'high'] as const) {
+      const cfg = svc.getThinkingConfig('gemini-3.5-flash', level);
+      expect(cfg).toHaveProperty('thinkingLevel', level);
+      expect(cfg).toHaveProperty('includeThoughts', true);
+    }
   });
 
-  it('Gemini 2.5 Flash-Lite + default: null (기본값 유지, dynamic thinking 강제 없음)', () => {
-    expect(svc.getThinkingConfig('gemini-2.5-flash-lite', 'default')).toBeNull();
-  });
-
-  it('알 수 없는 모델 + 어떤 preset이든: null', () => {
-    expect(svc.getThinkingConfig('gpt-4o', 'deep')).toBeNull();
-  });
-
-  // --- fast preset ---
-  it('Gemini 3 + fast: thinkingLevel=low, thinkingBudget 없음', () => {
-    const cfg = svc.getThinkingConfig('gemini-3.1-flash-lite', 'fast');
-    expect(cfg).toHaveProperty('thinkingLevel', 'low');
-    expect(cfg).not.toHaveProperty('thinkingBudget');
-  });
-
-  it('Gemini 2.5 + fast: thinkingBudget=1024, thinkingLevel 없음', () => {
-    const cfg = svc.getThinkingConfig('gemini-2.5-flash', 'fast');
-    expect(cfg).toHaveProperty('thinkingBudget', 1024);
-    expect(cfg).not.toHaveProperty('thinkingLevel');
-  });
-
-  // --- balanced preset ---
-  it('Gemini 3 Flash + balanced: thinkingLevel=medium', () => {
-    const cfg = svc.getThinkingConfig('gemini-3.1-flash-lite', 'balanced');
+  it('Pro 모델도 medium을 그대로 쓴다 (구버전 high fallback 제거됨)', () => {
+    const cfg = svc.getThinkingConfig('gemini-3.1-pro-preview', 'medium');
     expect(cfg).toHaveProperty('thinkingLevel', 'medium');
-    expect(cfg).not.toHaveProperty('thinkingBudget');
   });
 
-  it('Gemini 3 Pro + balanced: thinkingLevel=high (medium 미지원 fallback)', () => {
-    const cfg = svc.getThinkingConfig('gemini-3.1-pro-preview', 'balanced');
-    expect(cfg).toHaveProperty('thinkingLevel', 'high');
-    expect(cfg).not.toHaveProperty('thinkingBudget');
+  it('구형 2.5 모델은 null (thinkingBudget 경로 제거됨)', () => {
+    expect(svc.getThinkingConfig('gemini-2.5-flash', 'high')).toBeNull();
+    expect(svc.getThinkingConfig('gemini-2.5-pro', 'default')).toBeNull();
   });
 
-  it('Gemini 2.5 + balanced: thinkingBudget=8192, thinkingLevel 없음', () => {
-    const cfg = svc.getThinkingConfig('gemini-2.5-flash', 'balanced');
-    expect(cfg).toHaveProperty('thinkingBudget', 8192);
-    expect(cfg).not.toHaveProperty('thinkingLevel');
+  it('알 수 없는 모델은 어떤 preset이든 null', () => {
+    expect(svc.getThinkingConfig('gpt-4o', 'high')).toBeNull();
   });
 
-  // --- deep preset ---
-  it('Gemini 3 + deep: thinkingLevel=high, thinkingBudget 없음', () => {
-    const cfg = svc.getThinkingConfig('gemini-3.1-flash-lite', 'deep');
-    expect(cfg).toHaveProperty('thinkingLevel', 'high');
-    expect(cfg).not.toHaveProperty('thinkingBudget');
-  });
-
-  it('Gemini 3 deep의 thinkingLevel은 소문자 high이다', () => {
-    const cfg = svc.getThinkingConfig('gemini-3.1-flash-lite', 'deep');
-    expect(cfg?.thinkingLevel).toBe('high');
-  });
-
-  it('Gemini 2.5 + deep: thinkingBudget=24576, thinkingLevel 없음', () => {
-    const cfg = svc.getThinkingConfig('gemini-2.5-pro', 'deep');
-    expect(cfg).toHaveProperty('thinkingBudget', 24576);
-    expect(cfg).not.toHaveProperty('thinkingLevel');
-  });
-
-  // --- invariant ---
-  it('gemini-3.5-flash는 thinkingBudget 없이 thinkingLevel만 사용한다', () => {
-    const cfg = svc.getThinkingConfig('gemini-3.5-flash', 'deep');
-    expect(cfg).toHaveProperty('thinkingLevel', 'high');
-    expect(cfg).not.toHaveProperty('thinkingBudget');
-  });
-
-  it('gemini-3.5-flash + default: includeThoughts만 있고 thinkingBudget 없음', () => {
-    const cfg = svc.getThinkingConfig('gemini-3.5-flash', 'default');
-    expect(cfg).not.toBeNull();
-    expect(cfg).toHaveProperty('includeThoughts', true);
-    expect(cfg).not.toHaveProperty('thinkingBudget');
-  });
-
-  it('어떤 모델/preset 조합에서도 thinkingLevel과 thinkingBudget이 동시에 포함되지 않는다', () => {
-    const models = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3-flash-preview', 'gemini-3.1-pro-preview',
-                    'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', 'gpt-4o'];
-    const presets: Array<'default' | 'fast' | 'balanced' | 'deep'> = ['default', 'fast', 'balanced', 'deep'];
+  it('어떤 조합에서도 thinkingBudget은 포함되지 않는다', () => {
+    const models = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3-flash-preview',
+                    'gemini-3.1-pro-preview', 'gemini-2.5-flash', 'gpt-4o'];
+    const presets: Array<'default' | 'minimal' | 'low' | 'medium' | 'high'> =
+      ['default', 'minimal', 'low', 'medium', 'high'];
     for (const model of models) {
       for (const preset of presets) {
         const cfg = svc.getThinkingConfig(model, preset);
-        if (cfg) {
-          expect('thinkingLevel' in cfg && 'thinkingBudget' in cfg).toBe(false);
-        }
+        if (cfg) expect(cfg).not.toHaveProperty('thinkingBudget');
       }
     }
   });
@@ -346,9 +328,14 @@ describe('normalizeModelConfig — reasoningPreset', () => {
     expect(config.reasoningPreset).toBe('default');
   });
 
-  it('reasoningPreset이 있으면 그대로 유지된다', () => {
+  it('현행 값은 그대로 유지된다', () => {
+    const config = svc.normalizeModelConfig({ provider: 'gemini', apiKey: 'test', reasoningPreset: 'high' });
+    expect(config.reasoningPreset).toBe('high');
+  });
+
+  it('구버전 저장값 deep은 high로 마이그레이션된다', () => {
     const config = svc.normalizeModelConfig({ provider: 'gemini', apiKey: 'test', reasoningPreset: 'deep' });
-    expect(config.reasoningPreset).toBe('deep');
+    expect(config.reasoningPreset).toBe('high');
   });
 });
 
